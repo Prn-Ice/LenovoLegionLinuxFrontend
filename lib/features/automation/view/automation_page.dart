@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/automation_event.dart';
 import '../providers/automation_provider.dart';
@@ -12,254 +13,220 @@ class AutomationPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(automationBlocProvider);
     final bloc = ref.read(automationBlocProvider.bloc);
-    final textTheme = Theme.of(context).textTheme;
 
     if (state.isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    return AppPageBody(
+      title: 'Automation',
+      errorMessage: state.errorMessage,
       children: [
-        Text('Automation', style: textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Runner', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                SwitchListTile.adaptive(
-                  value: state.config.runnerEnabled,
-                  onChanged: (enabled) =>
-                      bloc.add(AutomationRunnerToggled(enabled)),
-                  title: const Text('Enable automation runner'),
-                  subtitle: Text(
-                    state.config.runnerEnabled
-                        ? 'Running every ${state.config.pollIntervalSeconds}s'
-                        : 'Stopped',
-                  ),
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Poll interval (seconds)'),
-                  subtitle: Slider(
-                    value: state.config.pollIntervalSeconds.toDouble(),
-                    min: 2,
-                    max: 60,
-                    divisions: 58,
-                    label: '${state.config.pollIntervalSeconds}',
-                    onChanged: (value) {
-                      bloc.add(AutomationPollIntervalUpdated(value.round()));
-                    },
-                  ),
-                ),
-                const PrivilegedActionNotice(
-                  message: 'Run actions may require admin privileges',
-                ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: state.isExecuting
-                      ? null
-                      : () async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Run automation now',
-                            message:
-                                'This can execute privileged hardware actions (fan presets and conservation updates) and may prompt for authentication.',
-                            confirmLabel: 'Run now',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(const AutomationRunNowRequested());
-                        },
-                  icon: state.isExecuting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.play_arrow),
-                  label: const Text('Run now'),
-                ),
-              ],
+        AppSectionCard(
+          title: 'Runner',
+          children: [
+            AppSwitchTile(
+              value: state.config.runnerEnabled,
+              onChanged: (enabled) =>
+                  bloc.add(AutomationRunnerToggled(enabled)),
+              title: 'Enable automation runner',
+              subtitle: state.config.runnerEnabled
+                  ? 'Running every ${state.config.pollIntervalSeconds}s'
+                  : 'Stopped',
             ),
-          ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Poll interval (seconds)'),
+              subtitle: Slider(
+                value: state.config.pollIntervalSeconds.toDouble(),
+                min: 2,
+                max: 60,
+                divisions: 58,
+                label: '${state.config.pollIntervalSeconds}',
+                onChanged: (value) {
+                  bloc.add(AutomationPollIntervalUpdated(value.round()));
+                },
+              ),
+            ),
+            const PrivilegedActionNotice(
+              message: 'Run actions may require admin privileges',
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: state.isExecuting
+                  ? null
+                  : () async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Run automation now',
+                        message:
+                            'This can execute privileged hardware actions (fan presets and conservation updates) and may prompt for authentication.',
+                        confirmLabel: 'Run now',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(const AutomationRunNowRequested());
+                    },
+              icon: state.isExecuting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow),
+              label: const Text('Run now'),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Rules', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text('Trigger model', style: textTheme.titleMedium),
-                const SizedBox(height: 4),
-                SwitchListTile.adaptive(
-                  value: state.config.triggerOnProfileChange,
-                  onChanged: (enabled) {
-                    bloc.add(AutomationTriggerOnProfileChangeToggled(enabled));
-                  },
-                  title: const Text('Trigger on profile change'),
-                  subtitle: const Text(
-                    'quiet/balanced/performance transitions',
-                  ),
-                ),
-                SwitchListTile.adaptive(
-                  value: state.config.triggerOnPowerSourceChange,
-                  onChanged: (enabled) {
-                    bloc.add(
-                      AutomationTriggerOnPowerSourceChangeToggled(enabled),
-                    );
-                  },
-                  title: const Text('Trigger on power-source change'),
-                  subtitle: const Text('AC plugged/unplugged'),
-                ),
-                const SizedBox(height: 8),
-                Text('Action chain', style: textTheme.titleMedium),
-                const SizedBox(height: 4),
-                SwitchListTile.adaptive(
-                  value: state.config.applyFanPresetOnContextChange,
-                  onChanged: (enabled) {
-                    bloc.add(AutomationFanPresetRuleToggled(enabled));
-                  },
-                  title: const Text('Apply fan preset on power-context change'),
-                  subtitle: const Text('Trigger: AC/profile changes'),
-                ),
-                SwitchListTile.adaptive(
-                  value: state.config.applyCustomConservation,
-                  onChanged: (enabled) {
-                    bloc.add(AutomationConservationRuleToggled(enabled));
-                  },
-                  title: const Text('Apply custom conservation policy'),
-                  subtitle: const Text('Trigger: each automation cycle'),
-                ),
-                SwitchListTile.adaptive(
-                  value: state.config.applyRapidChargingPolicy,
-                  onChanged: (enabled) {
-                    bloc.add(AutomationRapidChargingPolicyToggled(enabled));
-                  },
-                  title: const Text('Apply rapid-charging policy'),
-                  subtitle: const Text('Trigger: selected context changes'),
-                ),
-                if (state.config.applyRapidChargingPolicy)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12, right: 12),
-                    child: Column(
-                      children: [
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          value: state.config.rapidChargingOnAc,
-                          onChanged: (enabled) {
-                            bloc.add(
-                              AutomationRapidChargingTargetsUpdated(
-                                onAc: enabled,
-                                onBattery: state.config.rapidChargingOnBattery,
-                              ),
-                            );
-                          },
-                          title: const Text('Enable rapid charging on AC'),
-                        ),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          value: state.config.rapidChargingOnBattery,
-                          onChanged: (enabled) {
-                            bloc.add(
-                              AutomationRapidChargingTargetsUpdated(
-                                onAc: state.config.rapidChargingOnAc,
-                                onBattery: enabled,
-                              ),
-                            );
-                          },
-                          title: const Text('Enable rapid charging on battery'),
-                        ),
-                      ],
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
+        AppSectionCard(
+          title: 'Rules',
+          children: [
+            Text(
+              'Trigger model',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            AppSwitchTile(
+              value: state.config.triggerOnProfileChange,
+              onChanged: (enabled) {
+                bloc.add(AutomationTriggerOnProfileChangeToggled(enabled));
+              },
+              title: 'Trigger on profile change',
+              subtitle: 'quiet/balanced/performance transitions',
+            ),
+            AppSwitchTile(
+              value: state.config.triggerOnPowerSourceChange,
+              onChanged: (enabled) {
+                bloc.add(AutomationTriggerOnPowerSourceChangeToggled(enabled));
+              },
+              title: 'Trigger on power-source change',
+              subtitle: 'AC plugged/unplugged',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Action chain',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            AppSwitchTile(
+              value: state.config.applyFanPresetOnContextChange,
+              onChanged: (enabled) {
+                bloc.add(AutomationFanPresetRuleToggled(enabled));
+              },
+              title: 'Apply fan preset on power-context change',
+              subtitle: 'Trigger: AC/profile changes',
+            ),
+            AppSwitchTile(
+              value: state.config.applyCustomConservation,
+              onChanged: (enabled) {
+                bloc.add(AutomationConservationRuleToggled(enabled));
+              },
+              title: 'Apply custom conservation policy',
+              subtitle: 'Trigger: each automation cycle',
+            ),
+            AppSwitchTile(
+              value: state.config.applyRapidChargingPolicy,
+              onChanged: (enabled) {
+                bloc.add(AutomationRapidChargingPolicyToggled(enabled));
+              },
+              title: 'Apply rapid-charging policy',
+              subtitle: 'Trigger: selected context changes',
+            ),
+            if (state.config.applyRapidChargingPolicy)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, right: 12),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: _LimitField(
-                        label: 'Lower %',
-                        initialValue: state.config.conservationLowerLimit,
-                        onSubmitted: (value) {
-                          bloc.add(
-                            AutomationConservationLimitsUpdated(
-                              lower: value,
-                              upper: state.config.conservationUpperLimit,
-                            ),
-                          );
-                        },
-                      ),
+                    AppSwitchTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: state.config.rapidChargingOnAc,
+                      onChanged: (enabled) {
+                        bloc.add(
+                          AutomationRapidChargingTargetsUpdated(
+                            onAc: enabled,
+                            onBattery: state.config.rapidChargingOnBattery,
+                          ),
+                        );
+                      },
+                      title: 'Enable rapid charging on AC',
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _LimitField(
-                        label: 'Upper %',
-                        initialValue: state.config.conservationUpperLimit,
-                        onSubmitted: (value) {
-                          bloc.add(
-                            AutomationConservationLimitsUpdated(
-                              lower: state.config.conservationLowerLimit,
-                              upper: value,
-                            ),
-                          );
-                        },
-                      ),
+                    AppSwitchTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: state.config.rapidChargingOnBattery,
+                      onChanged: (enabled) {
+                        bloc.add(
+                          AutomationRapidChargingTargetsUpdated(
+                            onAc: state.config.rapidChargingOnAc,
+                            onBattery: enabled,
+                          ),
+                        );
+                      },
+                      title: 'Enable rapid charging on battery',
                     ),
                   ],
                 ),
-                if (!state.config.hasValidConservationRange)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'Invalid limits: lower limit must be <= upper limit.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
+              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _LimitField(
+                    label: 'Lower %',
+                    initialValue: state.config.conservationLowerLimit,
+                    onSubmitted: (value) {
+                      bloc.add(
+                        AutomationConservationLimitsUpdated(
+                          lower: value,
+                          upper: state.config.conservationUpperLimit,
+                        ),
+                      );
+                    },
                   ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _LimitField(
+                    label: 'Upper %',
+                    initialValue: state.config.conservationUpperLimit,
+                    onSubmitted: (value) {
+                      bloc.add(
+                        AutomationConservationLimitsUpdated(
+                          lower: state.config.conservationLowerLimit,
+                          upper: value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
-          ),
+            if (!state.config.hasValidConservationRange)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Invalid limits: lower limit must be <= upper limit.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Status', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(
-                  'Current profile: ${state.currentSnapshot?.platformProfile ?? 'Unknown'}',
-                ),
-                Text(
-                  'On power supply: ${state.currentSnapshot?.onPowerSupply?.toString() ?? 'Unknown'}',
-                ),
-                Text(
-                  'Last run: ${state.lastRunAt?.toLocal().toString() ?? 'Never'}',
-                ),
-                Text('Last result: ${state.lastRunSummary ?? 'None'}'),
-                if (state.errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    state.errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-              ],
+        AppSectionCard(
+          title: 'Status',
+          children: [
+            Text(
+              'Current profile: ${state.currentSnapshot?.platformProfile ?? 'Unknown'}',
             ),
-          ),
+            Text(
+              'On power supply: ${state.currentSnapshot?.onPowerSupply?.toString() ?? 'Unknown'}',
+            ),
+            Text(
+              'Last run: ${state.lastRunAt?.toLocal().toString() ?? 'Never'}',
+            ),
+            Text('Last result: ${state.lastRunSummary ?? 'None'}'),
+          ],
         ),
       ],
     );

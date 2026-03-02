@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/widgets/app_shell_components.dart';
 import '../bloc/about_event.dart';
 import '../models/about_diagnostic_item.dart';
 import '../models/about_snapshot.dart';
@@ -17,135 +18,95 @@ class AboutPage extends ConsumerWidget {
     final state = ref.watch(aboutBlocProvider);
     final bloc = ref.read(aboutBlocProvider.bloc);
     final snapshot = state.snapshot;
-    final textTheme = Theme.of(context).textTheme;
 
     if (state.isLoading && snapshot == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    return AppPageBody(
+      title: 'About & Diagnostics',
+      errorMessage: state.errorMessage,
       children: [
-        Text('About & Diagnostics', style: textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        if (state.errorMessage != null) ...[
-          Text(
-            state.errorMessage!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-          const SizedBox(height: 8),
-        ],
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Frontend', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                const Text(
-                  'Lenovo Legion Linux Frontend (Flutter + riverbloc)',
-                ),
-                const SizedBox(height: 4),
-                Text('Last refresh: ${_formatTimestamp(snapshot?.updatedAt)}'),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: snapshot == null
-                      ? null
-                      : () => _copyDiagnosticsJson(context, snapshot),
-                  icon: const Icon(Icons.copy_all_outlined),
-                  label: const Text('Copy diagnostics JSON'),
-                ),
-              ],
+        AppSectionCard(
+          title: 'Frontend',
+          children: [
+            const Text('Lenovo Legion Linux Frontend (Flutter + riverbloc)'),
+            const SizedBox(height: 4),
+            Text('Last refresh: ${_formatTimestamp(snapshot?.updatedAt)}'),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: snapshot == null
+                  ? null
+                  : () => _copyDiagnosticsJson(context, snapshot),
+              icon: const Icon(Icons.copy_all_outlined),
+              label: const Text('Copy diagnostics JSON'),
             ),
-          ),
+          ],
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Runtime Dependencies', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                _StatusLine(
-                  label: 'CLI path',
-                  value: snapshot?.cliPath ?? 'Unknown',
-                  status: snapshot == null
-                      ? AboutDiagnosticStatus.unavailable
-                      : snapshot.cliPathExists
-                      ? AboutDiagnosticStatus.ok
-                      : AboutDiagnosticStatus.error,
-                  details: snapshot != null && !snapshot.cliPathExists
-                      ? 'CLI script was not found at this location.'
-                      : null,
-                ),
-                _StatusLine(
-                  label: 'python3',
-                  value: _boolLabel(snapshot?.pythonAvailable),
-                  status: _boolStatus(snapshot?.pythonAvailable),
-                ),
-                _StatusLine(
-                  label: 'pkexec',
-                  value: _boolLabel(snapshot?.pkexecAvailable),
-                  status: _boolStatus(snapshot?.pkexecAvailable),
-                ),
-                _StatusLine(
-                  label: 'systemctl',
-                  value: _boolLabel(snapshot?.systemctlAvailable),
-                  status: _boolStatus(snapshot?.systemctlAvailable),
-                ),
-                _StatusLine(
-                  label: 'CLI health',
-                  value: snapshot?.cliHealthSummary ?? 'Unknown',
-                  status: snapshot == null
-                      ? AboutDiagnosticStatus.unavailable
-                      : snapshot.cliHealthy
-                      ? AboutDiagnosticStatus.ok
-                      : AboutDiagnosticStatus.error,
-                ),
-              ],
+        AppSectionCard(
+          title: 'Runtime Dependencies',
+          children: [
+            _StatusLine(
+              label: 'CLI path',
+              value: snapshot?.cliPath ?? 'Unknown',
+              status: snapshot == null
+                  ? AboutDiagnosticStatus.unavailable
+                  : snapshot.cliPathExists
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.error,
+              details: snapshot != null && !snapshot.cliPathExists
+                  ? 'CLI script was not found at this location.'
+                  : null,
             ),
-          ),
+            _StatusLine(
+              label: 'python3',
+              value: _boolLabel(snapshot?.pythonAvailable),
+              status: _boolStatus(snapshot?.pythonAvailable),
+            ),
+            _StatusLine(
+              label: 'pkexec',
+              value: _boolLabel(snapshot?.pkexecAvailable),
+              status: _boolStatus(snapshot?.pkexecAvailable),
+            ),
+            _StatusLine(
+              label: 'systemctl',
+              value: _boolLabel(snapshot?.systemctlAvailable),
+              status: _boolStatus(snapshot?.systemctlAvailable),
+            ),
+            _StatusLine(
+              label: 'CLI health',
+              value: snapshot?.cliHealthSummary ?? 'Unknown',
+              status: snapshot == null
+                  ? AboutDiagnosticStatus.unavailable
+                  : snapshot.cliHealthy
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.error,
+            ),
+          ],
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Backend Capability Probes', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                if (snapshot == null || snapshot.diagnostics.isEmpty)
-                  const Text('No diagnostics available.'),
-                if (snapshot != null)
-                  ...snapshot.diagnostics.map(
-                    (item) => _StatusLine(
-                      label: item.label,
-                      value: item.value,
-                      status: item.status,
-                      details: item.details,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        AppSectionCard(
+          title: 'Backend Capability Probes',
+          children: [
+            if (snapshot == null || snapshot.diagnostics.isEmpty)
+              const Text('No diagnostics available.'),
+            if (snapshot != null)
+              ...snapshot.diagnostics.map(
+                (item) => _StatusLine(
+                  label: item.label,
+                  value: item.value,
+                  status: item.status,
+                  details: item.details,
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: state.isLoading
-              ? null
-              : () => bloc.add(const AboutRefreshRequested()),
-          icon: state.isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh),
-          label: const Text('Refresh diagnostics'),
+        AppRefreshButton(
+          isBusy: state.isLoading,
+          onPressed: () => bloc.add(const AboutRefreshRequested()),
+          label: 'Refresh diagnostics',
         ),
       ],
     );

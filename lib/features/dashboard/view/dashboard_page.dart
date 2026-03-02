@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
 import '../providers/dashboard_provider.dart';
@@ -38,285 +39,221 @@ class DashboardPage extends ConsumerWidget {
     final bloc = ref.read(dashboardBlocProvider.bloc);
     final navigationBloc = ref.read(navigationBlocProvider.bloc);
     final snapshot = state.snapshot;
-    final textTheme = Theme.of(context).textTheme;
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
+    return AppPageBody(
+      title: 'Dashboard',
+      errorMessage: state.errorMessage,
+      noticeMessage: state.noticeMessage,
       children: [
-        Text('Dashboard', style: textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        if (state.errorMessage != null) ...[
-          Text(
-            state.errorMessage!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-          const SizedBox(height: 8),
-        ],
-        if (state.noticeMessage != null) ...[
-          Text(
-            state.noticeMessage!,
-            style: TextStyle(color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(height: 8),
-        ],
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Power Profile', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(
-                  snapshot.status.powerProfileLabel,
-                  style: textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Updated: ${snapshot.status.updatedAt.toLocal()}',
-                  style: textTheme.bodySmall,
-                ),
-                if (snapshot.status.hasError) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    snapshot.status.error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-              ],
+        AppSectionCard(
+          title: 'Power Profile',
+          children: [
+            Text(
+              snapshot.status.powerProfileLabel,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              'Updated: ${snapshot.status.updatedAt.toLocal()}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (snapshot.status.hasError) ...[
+              const SizedBox(height: 8),
+              AppStatusBanner(
+                message: snapshot.status.error!,
+                tone: AppStatusTone.error,
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Quick Actions', style: textTheme.titleLarge),
-                const SizedBox(height: 8),
-                const PrivilegedActionNotice(),
-                const SizedBox(height: 8),
-                Text(
-                  'Power source: ${_powerSourceLabel(snapshot.onPowerSupply)}',
-                ),
-                Text(
-                  'Context fan preset: ${snapshot.recommendedFanPreset ?? 'Unavailable'}',
-                ),
-                const SizedBox(height: 12),
-                Text('Set power mode', style: textTheme.titleMedium),
-                const SizedBox(height: 8),
-                if (snapshot.availablePowerModes.isEmpty)
-                  const Text('No writable power modes available.')
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: snapshot.availablePowerModes
-                        .map(
-                          (mode) => ChoiceChip(
-                            label: Text(mode),
-                            selected:
-                                snapshot.status.powerProfile?.trim() == mode,
-                            onSelected: state.isApplying
-                                ? null
-                                : (selected) async {
-                                    if (selected) {
-                                      final confirmed =
-                                          await confirmPrivilegedAction(
-                                            context,
-                                            title: 'Set power mode',
-                                            message:
-                                                'Changing power mode runs a privileged command and may prompt for authentication.',
-                                            confirmLabel: 'Set mode',
-                                          );
-                                      if (!context.mounted || !confirmed) {
-                                        return;
-                                      }
-                                      bloc.add(
-                                        DashboardPowerModeSetRequested(mode),
-                                      );
-                                    }
-                                  },
-                          ),
-                        )
-                        .toList(growable: false),
-                  ),
-                const SizedBox(height: 12),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: snapshot.hybridModeEnabled ?? false,
-                  onChanged:
-                      snapshot.hybridModeEnabled != null && !state.isApplying
-                      ? (enabled) async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Toggle hybrid mode',
-                            message:
-                                'This action uses privileged access and may require authentication.',
-                            confirmLabel: 'Apply',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(DashboardHybridModeSetRequested(enabled));
-                        }
-                      : null,
-                  title: const Text('Hybrid mode'),
-                  subtitle: Text(
-                    snapshot.hybridModeEnabled == null
-                        ? 'Unavailable on this system'
-                        : (snapshot.hybridModeEnabled!
-                              ? 'Enabled'
-                              : 'Disabled'),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      navigationBloc.add(
-                        const NavigationSectionSelected(
-                          AppSection.displayLighting,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Open Display & Lighting'),
-                  ),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: snapshot.overdriveEnabled ?? false,
-                  onChanged:
-                      snapshot.overdriveEnabled != null && !state.isApplying
-                      ? (enabled) async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Toggle overdrive',
-                            message:
-                                'This action uses privileged access and may require authentication.',
-                            confirmLabel: 'Apply',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(DashboardOverdriveModeSetRequested(enabled));
-                        }
-                      : null,
-                  title: const Text('Overdrive'),
-                  subtitle: Text(
-                    snapshot.overdriveEnabled == null
-                        ? 'Unavailable on this system'
-                        : (snapshot.overdriveEnabled! ? 'Enabled' : 'Disabled'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: snapshot.batteryConservationEnabled ?? false,
-                  onChanged:
-                      snapshot.batteryConservationEnabled != null &&
-                          !state.isApplying
-                      ? (enabled) async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Set battery conservation',
-                            message:
-                                'This action uses privileged access and may require authentication.',
-                            confirmLabel: 'Apply',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(
-                            DashboardBatteryConservationSetRequested(enabled),
-                          );
-                        }
-                      : null,
-                  title: const Text('Battery conservation'),
-                  subtitle: Text(
-                    snapshot.batteryConservationEnabled == null
-                        ? 'Unavailable on this system'
-                        : (snapshot.batteryConservationEnabled!
-                              ? 'Enabled'
-                              : 'Disabled'),
-                  ),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: snapshot.rapidChargingEnabled ?? false,
-                  onChanged:
-                      snapshot.rapidChargingEnabled != null && !state.isApplying
-                      ? (enabled) async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Set rapid charging',
-                            message:
-                                'This action uses privileged access and may require authentication.',
-                            confirmLabel: 'Apply',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(DashboardRapidChargingSetRequested(enabled));
-                        }
-                      : null,
-                  title: const Text('Rapid charging'),
-                  subtitle: Text(
-                    snapshot.rapidChargingEnabled == null
-                        ? 'Unavailable on this system'
-                        : (snapshot.rapidChargingEnabled!
-                              ? 'Enabled'
-                              : 'Disabled'),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      navigationBloc.add(
-                        const NavigationSectionSelected(AppSection.battery),
-                      );
-                    },
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Open Battery & Devices'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton.icon(
-                  onPressed: state.isApplying
-                      ? null
-                      : () async {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Apply context fan preset',
-                            message:
-                                'Applying fan presets writes hardware controls and may prompt for authentication.',
-                            confirmLabel: 'Apply preset',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(
-                            const DashboardApplyContextFanPresetRequested(),
-                          );
-                        },
-                  icon: state.isApplying
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.tune),
-                  label: const Text('Apply context fan preset'),
-                ),
-              ],
+        AppSectionCard(
+          title: 'Quick Actions',
+          children: [
+            const PrivilegedActionNotice(),
+            const SizedBox(height: 8),
+            Text('Power source: ${_powerSourceLabel(snapshot.onPowerSupply)}'),
+            Text(
+              'Context fan preset: ${snapshot.recommendedFanPreset ?? 'Unavailable'}',
             ),
-          ),
+            const SizedBox(height: 12),
+            Text(
+              'Set power mode',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            if (snapshot.availablePowerModes.isEmpty)
+              const Text('No writable power modes available.')
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: snapshot.availablePowerModes
+                    .map(
+                      (mode) => ChoiceChip(
+                        label: Text(mode),
+                        selected: snapshot.status.powerProfile?.trim() == mode,
+                        onSelected: state.isApplying
+                            ? null
+                            : (selected) async {
+                                if (selected) {
+                                  final confirmed = await confirmPrivilegedAction(
+                                    context,
+                                    title: 'Set power mode',
+                                    message:
+                                        'Changing power mode runs a privileged command and may prompt for authentication.',
+                                    confirmLabel: 'Set mode',
+                                  );
+                                  if (!context.mounted || !confirmed) {
+                                    return;
+                                  }
+                                  bloc.add(
+                                    DashboardPowerModeSetRequested(mode),
+                                  );
+                                }
+                              },
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            const SizedBox(height: 12),
+            AppSwitchTile(
+              value: snapshot.hybridModeEnabled ?? false,
+              onChanged: snapshot.hybridModeEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle hybrid mode',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardHybridModeSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Hybrid mode',
+              subtitle: boolEnabledLabel(snapshot.hybridModeEnabled),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  navigationBloc.add(
+                    const NavigationSectionSelected(AppSection.displayLighting),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Display & Lighting'),
+              ),
+            ),
+            AppSwitchTile(
+              value: snapshot.overdriveEnabled ?? false,
+              onChanged: snapshot.overdriveEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle overdrive',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardOverdriveModeSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Overdrive',
+              subtitle: boolEnabledLabel(snapshot.overdriveEnabled),
+            ),
+            const SizedBox(height: 8),
+            AppSwitchTile(
+              value: snapshot.batteryConservationEnabled ?? false,
+              onChanged:
+                  snapshot.batteryConservationEnabled != null &&
+                      !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set battery conservation',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(
+                        DashboardBatteryConservationSetRequested(enabled),
+                      );
+                    }
+                  : null,
+              title: 'Battery conservation',
+              subtitle: boolEnabledLabel(snapshot.batteryConservationEnabled),
+            ),
+            AppSwitchTile(
+              value: snapshot.rapidChargingEnabled ?? false,
+              onChanged:
+                  snapshot.rapidChargingEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set rapid charging',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardRapidChargingSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Rapid charging',
+              subtitle: boolEnabledLabel(snapshot.rapidChargingEnabled),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  navigationBloc.add(
+                    const NavigationSectionSelected(AppSection.battery),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Battery & Devices'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: state.isApplying
+                  ? null
+                  : () async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Apply context fan preset',
+                        message:
+                            'Applying fan presets writes hardware controls and may prompt for authentication.',
+                        confirmLabel: 'Apply preset',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(const DashboardApplyContextFanPresetRequested());
+                    },
+              icon: state.isApplying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.tune),
+              label: const Text('Apply context fan preset'),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         ..._sectionGroups.map(
@@ -331,18 +268,11 @@ class DashboardPage extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        FilledButton.icon(
-          onPressed: state.isLoading || state.isApplying
+        AppRefreshButton(
+          isBusy: state.isLoading,
+          onPressed: state.isApplying
               ? null
               : () => bloc.add(const DashboardRefreshRequested()),
-          icon: state.isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.refresh),
-          label: const Text('Refresh'),
         ),
       ],
     );
