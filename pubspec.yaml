@@ -37,6 +37,7 @@ dependencies:
   riverbloc: ^3.0.0
   equatable: ^2.0.8
   flutter_riverpod: ^3.2.1
+  yaru: ^9.0.1
 
 dev_dependencies:
   flutter_test:

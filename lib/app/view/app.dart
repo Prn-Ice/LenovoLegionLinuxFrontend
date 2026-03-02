@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../features/navigation/view/navigation_shell.dart';
 
@@ -7,24 +8,17 @@ class LegionFrontendApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seedColor = Color(0xFF15616D);
-
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Lenovo Legion Linux',
-      themeMode: ThemeMode.system,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: seedColor),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.dark,
-        ),
-      ),
-      home: const NavigationShell(),
+    return YaruTheme(
+      builder: (context, yaru, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Lenovo Legion Linux',
+          themeMode: ThemeMode.system,
+          theme: yaru.theme,
+          darkTheme: yaru.darkTheme,
+          home: const NavigationShell(),
+        );
+      },
     );
   }
 }
