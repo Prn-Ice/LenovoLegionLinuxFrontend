@@ -50,6 +50,13 @@ class LegionFrontendBridgeService {
     : _cliService = cliService;
 
   final LegionCliService _cliService;
+  final Set<String> _pendingActionKeys = <String>{};
+  Future<void> _privilegedQueue = Future<void>.value();
+
+  bool isActionPending({required String method, required List<String> args}) {
+    final actionKey = _buildActionKey(method: method, args: args);
+    return _pendingActionKeys.contains(actionKey);
+  }
 
   Future<void> runPrivilegedCommand({
     required String method,
@@ -58,14 +65,37 @@ class LegionFrontendBridgeService {
     int retries = 1,
     bool detectUnavailableResponse = true,
   }) async {
-    await _runCommand(
-      method: method,
-      args: args,
-      timeout: timeout,
-      retries: retries,
-      privileged: true,
-      detectUnavailableResponse: detectUnavailableResponse,
-    );
+    final actionKey = _buildActionKey(method: method, args: args);
+    if (_pendingActionKeys.contains(actionKey)) {
+      throw LegionBridgeException(
+        code: LegionBridgeErrorCode.busy,
+        method: method,
+        message: 'Action is already pending for $method.',
+      );
+    }
+
+    _pendingActionKeys.add(actionKey);
+    final completion = Completer<void>();
+
+    _privilegedQueue = _privilegedQueue.catchError((_) {}).then((_) async {
+      try {
+        await _runCommand(
+          method: method,
+          args: args,
+          timeout: timeout,
+          retries: retries,
+          privileged: true,
+          detectUnavailableResponse: detectUnavailableResponse,
+        );
+        completion.complete();
+      } catch (error, stackTrace) {
+        completion.completeError(error, stackTrace);
+      } finally {
+        _pendingActionKeys.remove(actionKey);
+      }
+    });
+
+    await completion.future;
   }
 
   Future<LegionCliResult> runCommand({
@@ -201,5 +231,10 @@ class LegionFrontendBridgeService {
     return outputLower.contains('command not available') ||
         outputLower.contains('not supported') ||
         outputLower.contains('unsupported');
+  }
+
+  String _buildActionKey({required String method, required List<String> args}) {
+    final serializedArgs = args.join('\u0000');
+    return '$method\u0000$serializedArgs';
   }
 }
