@@ -27,8 +27,23 @@ class LegionBridgeException implements Exception {
   final String? stderr;
   final int? exitCode;
 
+  String get guidance {
+    return switch (code) {
+      LegionBridgeErrorCode.permissionDenied =>
+        'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
+      LegionBridgeErrorCode.unavailable =>
+        'Required command or capability is unavailable. Verify legion_cli, pkexec, and model/kernel feature support.',
+      LegionBridgeErrorCode.busy =>
+        'Another privileged action is still running. Wait for it to finish, then retry.',
+      LegionBridgeErrorCode.timeout =>
+        'The privileged command timed out. Retry and check system load or blocking prompts.',
+      LegionBridgeErrorCode.commandFailed => '',
+    };
+  }
+
   String get details {
     final values = [
+      if (guidance.isNotEmpty) guidance,
       if (stderr != null && stderr!.trim().isNotEmpty) stderr!.trim(),
       if (stdout != null && stdout!.trim().isNotEmpty) stdout!.trim(),
     ];
@@ -204,18 +219,27 @@ class LegionFrontendBridgeService {
   LegionBridgeErrorCode _classifyFailureCode(String outputLower, int exitCode) {
     if (exitCode == 126 ||
         outputLower.contains('not authorized') ||
+        outputLower.contains('authorization failed') ||
+        outputLower.contains('authentication failed') ||
+        outputLower.contains('authentication canceled') ||
+        outputLower.contains('authentication cancelled') ||
         outputLower.contains('authentication is needed') ||
         outputLower.contains('permission denied') ||
-        outputLower.contains('pkexec')) {
+        outputLower.contains('polkit')) {
       return LegionBridgeErrorCode.permissionDenied;
     }
 
     if (exitCode == 127 ||
         outputLower.contains('command not found') ||
+        outputLower.contains('pkexec: not found') ||
         outputLower.contains('command not available') ||
         outputLower.contains('not supported') ||
         outputLower.contains('unsupported')) {
       return LegionBridgeErrorCode.unavailable;
+    }
+
+    if (outputLower.contains('timed out') || outputLower.contains('timeout')) {
+      return LegionBridgeErrorCode.timeout;
     }
 
     if (outputLower.contains('busy') ||
