@@ -152,12 +152,16 @@ class LegionSysfsService {
   }
 
   Future<int?> readIntFile(String path) async {
-    final raw = await _readTrimmedFile(path);
-    if (raw == null) {
+    try {
+      final raw = await _readTrimmedFile(path);
+      if (raw == null) {
+        return null;
+      }
+
+      return int.tryParse(raw);
+    } catch (_) {
       return null;
     }
-
-    return int.parse(raw);
   }
 
   Future<bool?> _readBoolFromPaths(List<String> paths) async {
@@ -188,12 +192,16 @@ class LegionSysfsService {
   }
 
   Future<String?> _readTrimmedFile(String path) async {
-    final file = File(path);
-    if (!await file.exists()) {
+    try {
+      final file = File(path);
+      if (!await file.exists()) {
+        return null;
+      }
+
+      final value = (await file.readAsString()).trim();
+      return value.isEmpty ? null : value;
+    } on FileSystemException {
       return null;
     }
-
-    final value = (await file.readAsString()).trim();
-    return value.isEmpty ? null : value;
   }
 }

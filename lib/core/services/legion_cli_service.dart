@@ -24,10 +24,8 @@ class LegionCliService {
     List<String> args, {
     bool privileged = false,
   }) async {
-    final executable = privileged ? 'pkexec' : 'python3';
-    final commandArgs = privileged
-        ? ['python3', _cliPath, ...args]
-        : [_cliPath, ...args];
+    final executable = privileged ? 'pkexec' : _cliPath;
+    final commandArgs = privileged ? [_cliPath, ...args] : args;
 
     final result = await Process.run(executable, commandArgs);
 
@@ -39,18 +37,24 @@ class LegionCliService {
   }
 
   static String _resolveCliPath() {
-    final candidates = [
-      '${Directory.current.path}/../../python/legion_linux/legion_linux/legion_cli.py',
-      '${Directory.current.path}/../python/legion_linux/legion_linux/legion_cli.py',
-      '${Directory.current.path}/python/legion_linux/legion_linux/legion_cli.py',
-    ];
+    return _resolveInstalledCliPath();
+  }
 
-    for (final path in candidates) {
-      if (File(path).existsSync()) {
-        return path;
+  static String _resolveInstalledCliPath() {
+    try {
+      final result = Process.runSync('which', ['legion_cli']);
+      if (result.exitCode != 0) {
+        throw StateError('legion_cli is required but was not found in PATH.');
       }
-    }
 
-    return candidates.first;
+      final path = '${result.stdout}'.trim();
+      if (path.isEmpty) {
+        throw StateError('legion_cli is required but path resolution failed.');
+      }
+
+      return path;
+    } on ProcessException catch (error) {
+      throw StateError('Failed to locate legion_cli: ${error.message}');
+    }
   }
 }
