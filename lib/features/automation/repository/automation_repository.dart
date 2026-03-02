@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';
@@ -18,12 +18,12 @@ class AutomationRepositoryException implements Exception {
 class AutomationRepository {
   const AutomationRepository({
     required LegionSysfsService sysfsService,
-    required LegionCliService cliService,
+    required LegionFrontendBridgeService bridgeService,
   }) : _sysfsService = sysfsService,
-       _cliService = cliService;
+       _bridgeService = bridgeService;
 
   final LegionSysfsService _sysfsService;
-  final LegionCliService _cliService;
+  final LegionFrontendBridgeService _bridgeService;
 
   Future<AutomationConfig> loadConfig() async {
     final file = _configFile;
@@ -65,43 +65,38 @@ class AutomationRepository {
   }
 
   Future<void> applyFanPresetForCurrentContext() async {
-    await _runPrivilegedCommand([
-      'fancurve-write-current-preset-to-hw',
-    ], failurePrefix: 'Failed to apply fan preset for current context');
+    await _runPrivilegedCommand(
+      ['fancurve-write-current-preset-to-hw'],
+      method: 'fan_curve.apply_context_preset',
+      failurePrefix: 'Failed to apply fan preset for current context',
+    );
   }
 
   Future<void> applyCustomConservation({
     required int lowerLimit,
     required int upperLimit,
   }) async {
-    await _runPrivilegedCommand([
-      'custom-conservation-mode-apply',
-      '$lowerLimit',
-      '$upperLimit',
-    ], failurePrefix: 'Failed to apply custom conservation automation');
+    await _runPrivilegedCommand(
+      ['custom-conservation-mode-apply', '$lowerLimit', '$upperLimit'],
+      method: 'battery_conservation.custom_apply',
+      failurePrefix: 'Failed to apply custom conservation automation',
+    );
   }
 
   Future<void> _runPrivilegedCommand(
     List<String> args, {
+    required String method,
     required String failurePrefix,
   }) async {
-    final result = await _cliService.runCommand(args, privileged: true);
-
-    if (result.ok) {
-      return;
+    try {
+      await _bridgeService.runPrivilegedCommand(method: method, args: args);
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? '$failurePrefix.'
+          : '$failurePrefix: $details';
+      throw AutomationRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? '$failurePrefix.'
-        : '$failurePrefix: $details';
-    throw AutomationRepositoryException(message);
   }
 
   File get _configFile {

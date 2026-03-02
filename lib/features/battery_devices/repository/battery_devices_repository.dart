@@ -1,4 +1,4 @@
-import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/battery_devices_snapshot.dart';
 
@@ -14,12 +14,12 @@ class BatteryDevicesRepositoryException implements Exception {
 class BatteryDevicesRepository {
   const BatteryDevicesRepository({
     required LegionSysfsService sysfsService,
-    required LegionCliService cliService,
+    required LegionFrontendBridgeService bridgeService,
   }) : _sysfsService = sysfsService,
-       _cliService = cliService;
+       _bridgeService = bridgeService;
 
   final LegionSysfsService _sysfsService;
-  final LegionCliService _cliService;
+  final LegionFrontendBridgeService _bridgeService;
 
   Future<BatteryDevicesSnapshot> loadSnapshot() async {
     final batteryConservation = await _sysfsService
@@ -46,6 +46,7 @@ class BatteryDevicesRepository {
         : 'batteryconservation-disable';
     await _runPrivilegedCommand(
       [command],
+      method: 'battery_conservation.set',
       failurePrefix:
           'Failed to set battery conservation to ${enabled ? 'on' : 'off'}',
     );
@@ -57,6 +58,7 @@ class BatteryDevicesRepository {
         : 'rapid-charging-disable';
     await _runPrivilegedCommand(
       [command],
+      method: 'rapid_charging.set',
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
     );
@@ -64,43 +66,40 @@ class BatteryDevicesRepository {
 
   Future<void> setTouchpad(bool enabled) async {
     final command = enabled ? 'touchpad-enable' : 'touchpad-disable';
-    await _runPrivilegedCommand([
-      command,
-    ], failurePrefix: 'Failed to set touchpad to ${enabled ? 'on' : 'off'}');
+    await _runPrivilegedCommand(
+      [command],
+      method: 'touchpad.set',
+      failurePrefix: 'Failed to set touchpad to ${enabled ? 'on' : 'off'}',
+    );
   }
 
   Future<void> setWinKey(bool enabled) async {
-    await _runPrivilegedCommand([
-      'set-feature',
-      'WinkeyFeature',
-      enabled ? '1' : '0',
-    ], failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}');
+    await _runPrivilegedCommand(
+      ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'],
+      method: 'feature.set',
+      failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
+    );
   }
 
   Future<void> _runPrivilegedCommand(
     List<String> args, {
+    required String method,
     required String failurePrefix,
+    bool detectUnavailableResponse = true,
   }) async {
-    final result = await _cliService.runCommand(args, privileged: true);
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: method,
+        args: args,
+        detectUnavailableResponse: detectUnavailableResponse,
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? '$failurePrefix.'
+          : '$failurePrefix: $details';
 
-    final combinedLower = '${result.stdout}\n${result.stderr}'.toLowerCase();
-    final likelyUnavailable = combinedLower.contains('command not available');
-
-    if (result.exitCode == 0 && !likelyUnavailable) {
-      return;
+      throw BatteryDevicesRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? '$failurePrefix.'
-        : '$failurePrefix: $details';
-
-    throw BatteryDevicesRepositoryException(message);
   }
 }

@@ -8,10 +8,10 @@ import '../repository/dashboard_repository.dart';
 
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
   return DashboardRepository(
     sysfsService: sysfsService,
-    cliService: cliService,
+    bridgeService: bridgeService,
   );
 });
 

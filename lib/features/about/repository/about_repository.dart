@@ -1,7 +1,7 @@
-import 'dart:async';
 import 'dart:io';
 
 import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/about_diagnostic_item.dart';
 import '../models/about_snapshot.dart';
@@ -10,11 +10,14 @@ class AboutRepository {
   AboutRepository({
     required LegionSysfsService sysfs,
     required LegionCliService cli,
+    required LegionFrontendBridgeService bridge,
   }) : _sysfs = sysfs,
-       _cli = cli;
+       _cli = cli,
+       _bridge = bridge;
 
   final LegionSysfsService _sysfs;
   final LegionCliService _cli;
+  final LegionFrontendBridgeService _bridge;
 
   Future<AboutSnapshot> loadSnapshot() async {
     final diagnostics = <AboutDiagnosticItem>[];
@@ -193,9 +196,11 @@ class AboutRepository {
 
   Future<(bool, String)> _probeCliHealth() async {
     try {
-      final result = await _cli
-          .runCommand(const ['--help'])
-          .timeout(const Duration(seconds: 2));
+      final result = await _bridge.runCommand(
+        method: 'diagnostics.cli_health',
+        args: const ['--help'],
+        timeout: const Duration(seconds: 2),
+      );
       if (result.ok) {
         return (true, 'Healthy');
       }
@@ -206,8 +211,11 @@ class AboutRepository {
       }
 
       return (false, 'CLI exited with ${result.exitCode}');
-    } on TimeoutException {
-      return (false, 'Timed out while probing CLI');
+    } on LegionBridgeException catch (error) {
+      if (error.code == LegionBridgeErrorCode.timeout) {
+        return (false, 'Timed out while probing CLI');
+      }
+      return (false, _compactText(error.toString()));
     } on ProcessException catch (error) {
       return (false, 'Process error: ${error.message}');
     } catch (error) {

@@ -8,11 +8,11 @@ import '../repository/automation_repository.dart';
 
 final automationRepositoryProvider = Provider<AutomationRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
 
   return AutomationRepository(
     sysfsService: sysfsService,
-    cliService: cliService,
+    bridgeService: bridgeService,
   );
 });
 

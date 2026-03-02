@@ -8,9 +8,12 @@ import '../repository/fans_repository.dart';
 
 final fansRepositoryProvider = Provider<FansRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
 
-  return FansRepository(sysfsService: sysfsService, cliService: cliService);
+  return FansRepository(
+    sysfsService: sysfsService,
+    bridgeService: bridgeService,
+  );
 });
 
 final fansBlocProvider = BlocProvider.autoDispose<FansBloc, FansState>((ref) {

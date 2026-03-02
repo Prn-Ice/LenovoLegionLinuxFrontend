@@ -9,7 +9,8 @@ import '../repository/about_repository.dart';
 final aboutRepositoryProvider = Provider<AboutRepository>((ref) {
   final sysfs = ref.watch(legionSysfsServiceProvider);
   final cli = ref.watch(legionCliServiceProvider);
-  return AboutRepository(sysfs: sysfs, cli: cli);
+  final bridge = ref.watch(legionBridgeServiceProvider);
+  return AboutRepository(sysfs: sysfs, cli: cli, bridge: bridge);
 });
 
 final aboutBlocProvider = BlocProvider.autoDispose<AboutBloc, AboutState>((

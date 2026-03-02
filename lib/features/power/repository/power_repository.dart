@@ -1,4 +1,4 @@
-import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/power_limit.dart';
 import '../models/power_mode.dart';
@@ -16,12 +16,12 @@ class PowerRepositoryException implements Exception {
 class PowerRepository {
   const PowerRepository({
     required LegionSysfsService sysfsService,
-    required LegionCliService cliService,
+    required LegionFrontendBridgeService bridgeService,
   }) : _sysfsService = sysfsService,
-       _cliService = cliService;
+       _bridgeService = bridgeService;
 
   final LegionSysfsService _sysfsService;
-  final LegionCliService _cliService;
+  final LegionFrontendBridgeService _bridgeService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -137,29 +137,19 @@ class PowerRepository {
   }
 
   Future<void> setPowerMode(PowerMode mode) async {
-    final result = await _cliService.runCommand([
-      'set-feature',
-      'PlatformProfileFeature',
-      mode.value,
-    ], privileged: true);
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: 'feature.set',
+        args: ['set-feature', 'PlatformProfileFeature', mode.value],
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? 'Failed to set power mode to ${mode.label}.'
+          : 'Failed to set power mode to ${mode.label}: $details';
 
-    if (result.ok) {
-      return;
+      throw PowerRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? 'Failed to set power mode to ${mode.label}.'
-        : 'Failed to set power mode to ${mode.label}: $details';
-
-    throw PowerRepositoryException(message);
   }
 
   Future<void> setPowerLimit(PowerLimitSpec limit, int value) async {
@@ -169,28 +159,18 @@ class PowerRepository {
       );
     }
 
-    final result = await _cliService.runCommand([
-      'set-feature',
-      limit.featureName,
-      '$value',
-    ], privileged: true);
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: 'feature.set',
+        args: ['set-feature', limit.featureName, '$value'],
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? 'Failed to set ${limit.label}.'
+          : 'Failed to set ${limit.label}: $details';
 
-    if (result.ok) {
-      return;
+      throw PowerRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? 'Failed to set ${limit.label}.'
-        : 'Failed to set ${limit.label}: $details';
-
-    throw PowerRepositoryException(message);
   }
 }

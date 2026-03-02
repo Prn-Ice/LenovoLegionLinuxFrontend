@@ -10,11 +10,11 @@ final batteryDevicesRepositoryProvider = Provider<BatteryDevicesRepository>((
   ref,
 ) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
 
   return BatteryDevicesRepository(
     sysfsService: sysfsService,
-    cliService: cliService,
+    bridgeService: bridgeService,
   );
 });
 

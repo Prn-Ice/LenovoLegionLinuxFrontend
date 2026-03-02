@@ -8,9 +8,12 @@ import '../repository/power_repository.dart';
 
 final powerRepositoryProvider = Provider<PowerRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
 
-  return PowerRepository(sysfsService: sysfsService, cliService: cliService);
+  return PowerRepository(
+    sysfsService: sysfsService,
+    bridgeService: bridgeService,
+  );
 });
 
 final powerBlocProvider = BlocProvider.autoDispose<PowerBloc, PowerState>((

@@ -1,4 +1,4 @@
-import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/dashboard_snapshot.dart';
 
@@ -14,12 +14,12 @@ class DashboardRepositoryException implements Exception {
 class DashboardRepository {
   const DashboardRepository({
     required LegionSysfsService sysfsService,
-    required LegionCliService cliService,
+    required LegionFrontendBridgeService bridgeService,
   }) : _sysfsService = sysfsService,
-       _cliService = cliService;
+       _bridgeService = bridgeService;
 
   final LegionSysfsService _sysfsService;
-  final LegionCliService _cliService;
+  final LegionFrontendBridgeService _bridgeService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -61,35 +61,29 @@ class DashboardRepository {
   }
 
   Future<void> setPowerMode(String mode) async {
-    await _runPrivilegedCommand([
-      'set-feature',
-      'PlatformProfileFeature',
-      mode,
-    ], failurePrefix: 'Failed to set power mode to "$mode"');
+    await _runPrivilegedCommand(
+      ['set-feature', 'PlatformProfileFeature', mode],
+      method: 'feature.set',
+      failurePrefix: 'Failed to set power mode to "$mode"',
+    );
   }
 
   Future<void> setHybridMode(bool enabled) async {
     final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    final result = await _cliService.runCommand([command], privileged: true);
-
-    final combinedLower = '${result.stdout}\n${result.stderr}'.toLowerCase();
-    final likelyUnavailable = combinedLower.contains('command not available');
-
-    if (result.exitCode == 0 && !likelyUnavailable) {
-      return;
-    }
-
-    final details = _formatCommandDetails(result.stdout, result.stderr);
-    final message = details.isEmpty
-        ? 'Failed to set Hybrid mode.'
-        : 'Failed to set Hybrid mode: $details';
-    throw DashboardRepositoryException(message);
+    await _runPrivilegedCommand(
+      [command],
+      method: 'hybrid_mode.set',
+      failurePrefix: 'Failed to set Hybrid mode',
+      detectUnavailableResponse: true,
+    );
   }
 
   Future<void> applyContextFanPreset() async {
-    await _runPrivilegedCommand(const [
-      'fancurve-write-current-preset-to-hw',
-    ], failurePrefix: 'Failed to apply current context fan preset');
+    await _runPrivilegedCommand(
+      const ['fancurve-write-current-preset-to-hw'],
+      method: 'fan_curve.apply_context_preset',
+      failurePrefix: 'Failed to apply current context fan preset',
+    );
   }
 
   String? _computeRecommendedPreset({
@@ -106,23 +100,22 @@ class DashboardRepository {
 
   Future<void> _runPrivilegedCommand(
     List<String> args, {
+    required String method,
     required String failurePrefix,
+    bool detectUnavailableResponse = false,
   }) async {
-    final result = await _cliService.runCommand(args, privileged: true);
-    if (result.ok) {
-      return;
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: method,
+        args: args,
+        detectUnavailableResponse: detectUnavailableResponse,
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? '$failurePrefix.'
+          : '$failurePrefix: $details';
+      throw DashboardRepositoryException(message);
     }
-
-    final details = _formatCommandDetails(result.stdout, result.stderr);
-    final message = details.isEmpty
-        ? '$failurePrefix.'
-        : '$failurePrefix: $details';
-    throw DashboardRepositoryException(message);
-  }
-
-  String _formatCommandDetails(String stdout, String stderr) {
-    final out = stdout.trim();
-    final err = stderr.trim();
-    return [if (err.isNotEmpty) err, if (out.isNotEmpty) out].join('\n');
   }
 }

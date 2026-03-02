@@ -1,4 +1,4 @@
-import '../../../core/services/legion_cli_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/display_lighting_snapshot.dart';
 
@@ -14,12 +14,12 @@ class DisplayLightingRepositoryException implements Exception {
 class DisplayLightingRepository {
   const DisplayLightingRepository({
     required LegionSysfsService sysfsService,
-    required LegionCliService cliService,
+    required LegionFrontendBridgeService bridgeService,
   }) : _sysfsService = sysfsService,
-       _cliService = cliService;
+       _bridgeService = bridgeService;
 
   final LegionSysfsService _sysfsService;
-  final LegionCliService _cliService;
+  final LegionFrontendBridgeService _bridgeService;
 
   Future<DisplayLightingSnapshot> loadSnapshot() async {
     final hybridMode = await _sysfsService.readHybridMode();
@@ -35,53 +35,35 @@ class DisplayLightingRepository {
 
   Future<void> setHybridMode(bool enabled) async {
     final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    final result = await _cliService.runCommand([command], privileged: true);
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: 'hybrid_mode.set',
+        args: [command],
+        detectUnavailableResponse: true,
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? 'Failed to set Hybrid mode to ${enabled ? 'on' : 'off'}.'
+          : 'Failed to set Hybrid mode: $details';
 
-    final combinedLower = '${result.stdout}\n${result.stderr}'.toLowerCase();
-    final likelyUnavailable = combinedLower.contains('command not available');
-
-    if (result.exitCode == 0 && !likelyUnavailable) {
-      return;
+      throw DisplayLightingRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? 'Failed to set Hybrid mode to ${enabled ? 'on' : 'off'}.'
-        : 'Failed to set Hybrid mode: $details';
-
-    throw DisplayLightingRepositoryException(message);
   }
 
   Future<void> setOverdriveMode(bool enabled) async {
-    final result = await _cliService.runCommand([
-      'set-feature',
-      'OverdriveFeature',
-      enabled ? '1' : '0',
-    ], privileged: true);
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: 'feature.set',
+        args: ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'],
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}.'
+          : 'Failed to set Overdrive: $details';
 
-    if (result.ok) {
-      return;
+      throw DisplayLightingRepositoryException(message);
     }
-
-    final stderr = result.stderr.trim();
-    final stdout = result.stdout.trim();
-
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}.'
-        : 'Failed to set Overdrive: $details';
-
-    throw DisplayLightingRepositoryException(message);
   }
 }

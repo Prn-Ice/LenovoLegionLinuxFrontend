@@ -10,11 +10,11 @@ final displayLightingRepositoryProvider = Provider<DisplayLightingRepository>((
   ref,
 ) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
-  final cliService = ref.watch(legionCliServiceProvider);
+  final bridgeService = ref.watch(legionBridgeServiceProvider);
 
   return DisplayLightingRepository(
     sysfsService: sysfsService,
-    cliService: cliService,
+    bridgeService: bridgeService,
   );
 });
 
