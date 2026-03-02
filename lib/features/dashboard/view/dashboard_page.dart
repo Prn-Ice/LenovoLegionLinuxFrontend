@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
 import '../providers/dashboard_provider.dart';
 import '../../navigation/bloc/navigation_event.dart';
@@ -97,6 +98,8 @@ class DashboardPage extends ConsumerWidget {
               children: [
                 Text('Quick Actions', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 Text(
                   'Power source: ${_powerSourceLabel(snapshot.onPowerSupply)}',
                 ),
@@ -120,8 +123,19 @@ class DashboardPage extends ConsumerWidget {
                                 snapshot.status.powerProfile?.trim() == mode,
                             onSelected: state.isApplying
                                 ? null
-                                : (selected) {
+                                : (selected) async {
                                     if (selected) {
+                                      final confirmed =
+                                          await confirmPrivilegedAction(
+                                            context,
+                                            title: 'Set power mode',
+                                            message:
+                                                'Changing power mode runs a privileged command and may prompt for authentication.',
+                                            confirmLabel: 'Set mode',
+                                          );
+                                      if (!context.mounted || !confirmed) {
+                                        return;
+                                      }
                                       bloc.add(
                                         DashboardPowerModeSetRequested(mode),
                                       );
@@ -137,8 +151,19 @@ class DashboardPage extends ConsumerWidget {
                   value: snapshot.hybridModeEnabled ?? false,
                   onChanged:
                       snapshot.hybridModeEnabled != null && !state.isApplying
-                      ? (enabled) =>
-                            bloc.add(DashboardHybridModeSetRequested(enabled))
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Toggle hybrid mode',
+                            message:
+                                'This action uses privileged access and may require authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(DashboardHybridModeSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Hybrid mode'),
                   subtitle: Text(
@@ -153,9 +178,21 @@ class DashboardPage extends ConsumerWidget {
                 FilledButton.icon(
                   onPressed: state.isApplying
                       ? null
-                      : () => bloc.add(
-                          const DashboardApplyContextFanPresetRequested(),
-                        ),
+                      : () async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Apply context fan preset',
+                            message:
+                                'Applying fan presets writes hardware controls and may prompt for authentication.',
+                            confirmLabel: 'Apply preset',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(
+                            const DashboardApplyContextFanPresetRequested(),
+                          );
+                        },
                   icon: state.isApplying
                       ? const SizedBox(
                           width: 16,

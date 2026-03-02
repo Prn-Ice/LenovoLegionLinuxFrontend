@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/fans_event.dart';
 import '../providers/fans_provider.dart';
 
@@ -52,10 +53,24 @@ class FansPage extends ConsumerWidget {
                   'Recommended preset: ${state.recommendedPreset ?? 'Unavailable'}',
                 ),
                 const SizedBox(height: 12),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: state.isApplying
                       ? null
-                      : () => bloc.add(const FansApplyCurrentPresetRequested()),
+                      : () async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Apply context preset',
+                            message:
+                                'Applying a fan preset writes hardware controls and may prompt for authentication.',
+                            confirmLabel: 'Apply preset',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(const FansApplyCurrentPresetRequested());
+                        },
                   icon: state.isApplying
                       ? const SizedBox(
                           width: 16,
@@ -102,8 +117,19 @@ class FansPage extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: state.isApplying
                       ? null
-                      : () =>
-                            bloc.add(const FansApplySelectedPresetRequested()),
+                      : () async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Apply selected fan preset',
+                            message:
+                                'Applying fan presets requires privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply preset',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(const FansApplySelectedPresetRequested());
+                        },
                   icon: const Icon(Icons.playlist_add_check),
                   label: const Text('Apply selected preset'),
                 ),
@@ -120,11 +146,25 @@ class FansPage extends ConsumerWidget {
               children: [
                 Text('Fan Controls', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 SwitchListTile.adaptive(
                   value: state.miniFanCurveEnabled ?? false,
                   onChanged:
                       (state.miniFanCurveEnabled != null && !state.isApplying)
-                      ? (enabled) => bloc.add(MiniFanCurveSetRequested(enabled))
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set mini fan curve',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(MiniFanCurveSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Mini fan curve'),
                   subtitle: Text(_boolStatus(state.miniFanCurveEnabled)),
@@ -134,8 +174,19 @@ class FansPage extends ConsumerWidget {
                   onChanged:
                       (state.lockFanControllerEnabled != null &&
                           !state.isApplying)
-                      ? (enabled) =>
-                            bloc.add(LockFanControllerSetRequested(enabled))
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set lock fan controller',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(LockFanControllerSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Lock fan controller'),
                   subtitle: Text(_boolStatus(state.lockFanControllerEnabled)),
@@ -145,8 +196,19 @@ class FansPage extends ConsumerWidget {
                   onChanged:
                       (state.maximumFanSpeedEnabled != null &&
                           !state.isApplying)
-                      ? (enabled) =>
-                            bloc.add(MaximumFanSpeedSetRequested(enabled))
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set maximum fan speed',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(MaximumFanSpeedSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Maximum fan speed'),
                   subtitle: Text(_boolStatus(state.maximumFanSpeedEnabled)),

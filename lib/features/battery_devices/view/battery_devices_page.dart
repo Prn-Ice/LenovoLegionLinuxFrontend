@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../bloc/battery_devices_bloc.dart';
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/battery_devices_event.dart';
 import '../providers/battery_devices_provider.dart';
 
@@ -45,6 +45,8 @@ class BatteryDevicesPage extends ConsumerWidget {
               children: [
                 Text('Battery', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 SwitchListTile.adaptive(
                   value: state.batteryConservationEnabled ?? false,
                   onChanged:
@@ -52,7 +54,19 @@ class BatteryDevicesPage extends ConsumerWidget {
                         state.batteryConservationEnabled,
                         state.isApplying,
                       )
-                      ? (enabled) => _setBatteryConservation(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set battery conservation',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(BatteryConservationSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Battery conservation'),
                   subtitle: Text(_statusText(state.batteryConservationEnabled)),
@@ -61,7 +75,19 @@ class BatteryDevicesPage extends ConsumerWidget {
                   value: state.rapidChargingEnabled ?? false,
                   onChanged:
                       _isWritable(state.rapidChargingEnabled, state.isApplying)
-                      ? (enabled) => _setRapidCharging(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set rapid charging',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(RapidChargingSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Rapid charging'),
                   subtitle: Text(_statusText(state.rapidChargingEnabled)),
@@ -88,11 +114,25 @@ class BatteryDevicesPage extends ConsumerWidget {
               children: [
                 Text('Input Devices', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 SwitchListTile.adaptive(
                   value: state.touchpadEnabled ?? false,
                   onChanged:
                       _isWritable(state.touchpadEnabled, state.isApplying)
-                      ? (enabled) => _setTouchpad(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set touchpad state',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(TouchpadSetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Touchpad'),
                   subtitle: Text(_statusText(state.touchpadEnabled)),
@@ -100,7 +140,19 @@ class BatteryDevicesPage extends ConsumerWidget {
                 SwitchListTile.adaptive(
                   value: state.winKeyEnabled ?? false,
                   onChanged: _isWritable(state.winKeyEnabled, state.isApplying)
-                      ? (enabled) => _setWinKey(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set Win key lock',
+                            message:
+                                'This action uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(WinKeySetRequested(enabled));
+                        }
                       : null,
                   title: const Text('Win key'),
                   subtitle: Text(_statusText(state.winKeyEnabled)),
@@ -145,21 +197,5 @@ class BatteryDevicesPage extends ConsumerWidget {
       return 'Unavailable on this device';
     }
     return value ? 'Enabled' : 'Disabled';
-  }
-
-  void _setBatteryConservation(BatteryDevicesBloc bloc, bool enabled) {
-    bloc.add(BatteryConservationSetRequested(enabled));
-  }
-
-  void _setRapidCharging(BatteryDevicesBloc bloc, bool enabled) {
-    bloc.add(RapidChargingSetRequested(enabled));
-  }
-
-  void _setTouchpad(BatteryDevicesBloc bloc, bool enabled) {
-    bloc.add(TouchpadSetRequested(enabled));
-  }
-
-  void _setWinKey(BatteryDevicesBloc bloc, bool enabled) {
-    bloc.add(WinKeySetRequested(enabled));
   }
 }

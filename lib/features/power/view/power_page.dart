@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/power_bloc.dart';
 import '../bloc/power_event.dart';
 import '../models/power_limit.dart';
@@ -82,12 +83,14 @@ class PowerPage extends ConsumerWidget {
               children: [
                 Text('Select Mode', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 if (state.availableModes.isEmpty)
                   const Text('No power mode options available on this system.'),
                 if (state.availableModes.isNotEmpty)
                   RadioGroup<String>(
                     groupValue: state.currentMode?.value,
-                    onChanged: (value) {
+                    onChanged: (value) async {
                       if (state.isApplying || value == null) {
                         return;
                       }
@@ -96,6 +99,17 @@ class PowerPage extends ConsumerWidget {
                         (entry) => entry.value == value,
                         orElse: () => PowerMode(value),
                       );
+
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set power mode',
+                        message:
+                            'Changing power mode uses a privileged command and may prompt for authentication.',
+                        confirmLabel: 'Set mode',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
 
                       _setMode(bloc, mode);
                     },
@@ -123,6 +137,8 @@ class PowerPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Power Limits (Advanced)', style: textTheme.titleLarge),
+                const SizedBox(height: 8),
+                const PrivilegedActionNotice(),
                 const SizedBox(height: 8),
                 const Text(
                   'These limits are hardware-dependent and may only apply in custom/performance profiles.',
@@ -225,6 +241,21 @@ class PowerPage extends ConsumerWidget {
           ),
         );
       }
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: 'Apply power limit',
+      message:
+          'Setting ${limit.label} uses a privileged command and may prompt for authentication.',
+      confirmLabel: 'Apply limit',
+    );
+    if (!context.mounted || !confirmed) {
       return;
     }
 

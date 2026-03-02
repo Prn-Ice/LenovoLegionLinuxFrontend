@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/automation_event.dart';
 import '../providers/automation_provider.dart';
 
@@ -55,10 +56,26 @@ class AutomationPage extends ConsumerWidget {
                     },
                   ),
                 ),
+                const PrivilegedActionNotice(
+                  message: 'Run actions may require admin privileges',
+                ),
+                const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: state.isExecuting
                       ? null
-                      : () => bloc.add(const AutomationRunNowRequested()),
+                      : () async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Run automation now',
+                            message:
+                                'This can execute privileged hardware actions (fan presets and conservation updates) and may prompt for authentication.',
+                            confirmLabel: 'Run now',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(const AutomationRunNowRequested());
+                        },
                   icon: state.isExecuting
                       ? const SizedBox(
                           width: 16,

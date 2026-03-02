@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/display_lighting_bloc.dart';
 import '../bloc/display_lighting_event.dart';
 import '../providers/display_lighting_provider.dart';
@@ -33,6 +34,8 @@ class DisplayLightingPage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 const Text('Changes take full effect after reboot.'),
                 const SizedBox(height: 12),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 if (state.errorMessage != null) ...[
                   Text(
                     state.errorMessage!,
@@ -54,7 +57,19 @@ class DisplayLightingPage extends ConsumerWidget {
                 SwitchListTile.adaptive(
                   value: state.hybridModeEnabled ?? false,
                   onChanged: (state.hybridModeSupported && !state.isApplying)
-                      ? (enabled) => _setHybridMode(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Toggle hybrid mode',
+                            message:
+                                'Changing hybrid mode uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          _setHybridMode(bloc, enabled);
+                        }
                       : null,
                   title: const Text('Hybrid mode'),
                   subtitle: Text(
@@ -72,7 +87,19 @@ class DisplayLightingPage extends ConsumerWidget {
                 SwitchListTile.adaptive(
                   value: state.overdriveEnabled ?? false,
                   onChanged: (state.overdriveSupported && !state.isApplying)
-                      ? (enabled) => _setOverdriveMode(bloc, enabled)
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Toggle overdrive',
+                            message:
+                                'Changing overdrive uses privileged access and may prompt for authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          _setOverdriveMode(bloc, enabled);
+                        }
                       : null,
                   title: const Text('Overdrive'),
                   subtitle: Text(

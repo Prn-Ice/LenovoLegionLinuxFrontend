@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/settings_event.dart';
 import '../models/service_control.dart';
 import '../providers/settings_provider.dart';
@@ -49,13 +50,25 @@ class SettingsPage extends ConsumerWidget {
                   'Enable or disable Linux service dependencies used by Legion tooling.',
                 ),
                 const SizedBox(height: 12),
+                const PrivilegedActionNotice(),
+                const SizedBox(height: 8),
                 if (state.services.isEmpty)
                   const Text('No service controls available.'),
                 ...state.services.map(
                   (service) => _ServiceTile(
                     service: service,
                     isBusy: state.isApplying,
-                    onChanged: (enabled) {
+                    onChanged: (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Update ${service.label}',
+                        message:
+                            'Changing Linux services uses privileged access and may prompt for authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
                       bloc.add(
                         SettingsServiceToggled(
                           serviceId: service.id,
@@ -116,6 +129,6 @@ class _ServiceTile extends StatelessWidget {
 
     final runtime = service.active ? 'running' : 'stopped';
     final boot = service.enabled ? 'enabled' : 'disabled';
-    return '$runtime, $boot at boot';
+    return '$runtime, $boot at boot • admin action';
   }
 }
