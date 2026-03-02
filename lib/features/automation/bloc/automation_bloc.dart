@@ -1,0 +1,211 @@
+import 'dart:async';
+
+import 'package:riverbloc/riverbloc.dart';
+
+import '../models/automation_config.dart';
+import '../models/automation_trigger_snapshot.dart';
+import '../repository/automation_repository.dart';
+import 'automation_event.dart';
+import 'automation_state.dart';
+
+class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
+  AutomationBloc({required AutomationRepository repository})
+    : _repository = repository,
+      super(AutomationState.initial()) {
+    on<AutomationStarted>(_onStarted);
+    on<AutomationRunnerToggled>(_onRunnerToggled);
+    on<AutomationPollIntervalUpdated>(_onPollIntervalUpdated);
+    on<AutomationFanPresetRuleToggled>(_onFanPresetRuleToggled);
+    on<AutomationConservationRuleToggled>(_onConservationRuleToggled);
+    on<AutomationConservationLimitsUpdated>(_onConservationLimitsUpdated);
+    on<AutomationRunNowRequested>(_onRunNowRequested);
+    on<AutomationTicked>(_onTicked);
+  }
+
+  final AutomationRepository _repository;
+
+  Timer? _timer;
+  AutomationTriggerSnapshot? _lastSnapshot;
+  bool _runInFlight = false;
+
+  Future<void> _onStarted(
+    AutomationStarted event,
+    Emitter<AutomationState> emit,
+  ) async {
+    emit(state.copyWith(isLoading: true, errorMessage: null));
+
+    final config = await _repository.loadConfig();
+    final snapshot = await _repository.readTriggerSnapshot();
+    _lastSnapshot = snapshot;
+
+    emit(
+      state.copyWith(
+        config: config,
+        currentSnapshot: snapshot,
+        isLoading: false,
+        errorMessage: null,
+      ),
+    );
+
+    _restartTimerIfNeeded(config);
+  }
+
+  Future<void> _onRunnerToggled(
+    AutomationRunnerToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(runnerEnabled: event.enabled);
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onPollIntervalUpdated(
+    AutomationPollIntervalUpdated event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      pollIntervalSeconds: event.seconds,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onFanPresetRuleToggled(
+    AutomationFanPresetRuleToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      applyFanPresetOnContextChange: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onConservationRuleToggled(
+    AutomationConservationRuleToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      applyCustomConservation: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onConservationLimitsUpdated(
+    AutomationConservationLimitsUpdated event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      conservationLowerLimit: event.lower,
+      conservationUpperLimit: event.upper,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onRunNowRequested(
+    AutomationRunNowRequested event,
+    Emitter<AutomationState> emit,
+  ) async {
+    await _executeCycle(emit, forceFanPreset: true);
+  }
+
+  Future<void> _onTicked(
+    AutomationTicked event,
+    Emitter<AutomationState> emit,
+  ) async {
+    await _executeCycle(emit, forceFanPreset: false);
+  }
+
+  Future<void> _persistConfig(
+    AutomationConfig config,
+    Emitter<AutomationState> emit,
+  ) async {
+    await _repository.saveConfig(config);
+    emit(state.copyWith(config: config, errorMessage: null));
+    _restartTimerIfNeeded(config);
+  }
+
+  void _restartTimerIfNeeded(AutomationConfig config) {
+    _timer?.cancel();
+
+    if (!config.runnerEnabled) {
+      return;
+    }
+
+    _timer = Timer.periodic(
+      Duration(seconds: config.pollIntervalSeconds),
+      (_) => add(const AutomationTicked()),
+    );
+  }
+
+  Future<void> _executeCycle(
+    Emitter<AutomationState> emit, {
+    required bool forceFanPreset,
+  }) async {
+    if (_runInFlight) {
+      return;
+    }
+
+    _runInFlight = true;
+    emit(state.copyWith(isExecuting: true, errorMessage: null));
+
+    try {
+      final snapshot = await _repository.readTriggerSnapshot();
+      final actions = <String>[];
+
+      final hasContextChange =
+          _lastSnapshot != null && _lastSnapshot != snapshot;
+
+      if (state.config.applyFanPresetOnContextChange &&
+          (forceFanPreset || hasContextChange)) {
+        await _repository.applyFanPresetForCurrentContext();
+        actions.add('Applied fan preset for current power context');
+      }
+
+      if (state.config.applyCustomConservation) {
+        if (!state.config.hasValidConservationRange) {
+          throw AutomationRepositoryException(
+            'Invalid conservation limits: lower limit is above upper limit.',
+          );
+        }
+
+        await _repository.applyCustomConservation(
+          lowerLimit: state.config.conservationLowerLimit,
+          upperLimit: state.config.conservationUpperLimit,
+        );
+        actions.add(
+          'Applied conservation policy (${state.config.conservationLowerLimit}-${state.config.conservationUpperLimit}%)',
+        );
+      }
+
+      _lastSnapshot = snapshot;
+
+      final summary = actions.isEmpty
+          ? 'No actions triggered.'
+          : actions.join(' | ');
+
+      emit(
+        state.copyWith(
+          isExecuting: false,
+          currentSnapshot: snapshot,
+          lastRunAt: DateTime.now(),
+          lastRunSummary: summary,
+          errorMessage: null,
+        ),
+      );
+    } catch (error) {
+      emit(
+        state.copyWith(
+          isExecuting: false,
+          errorMessage: '$error',
+          lastRunAt: DateTime.now(),
+        ),
+      );
+    } finally {
+      _runInFlight = false;
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _timer?.cancel();
+    return super.close();
+  }
+}
