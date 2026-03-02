@@ -32,6 +32,10 @@ class DashboardRepository {
     final status = await _sysfsService.readSystemStatus();
     final choicesRaw = await _sysfsService.readPlatformProfileChoices();
     final hybridMode = await _sysfsService.readHybridMode();
+    final overdriveMode = await _sysfsService.readOverdriveMode();
+    final batteryConservationMode = await _sysfsService
+        .readBatteryConservationMode();
+    final rapidChargingMode = await _sysfsService.readRapidChargingMode();
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
 
     final values = <String>[];
@@ -52,6 +56,9 @@ class DashboardRepository {
       status: status,
       availablePowerModes: values,
       hybridModeEnabled: hybridMode,
+      overdriveEnabled: overdriveMode,
+      batteryConservationEnabled: batteryConservationMode,
+      rapidChargingEnabled: rapidChargingMode,
       onPowerSupply: onPowerSupply,
       recommendedFanPreset: _computeRecommendedPreset(
         profile: current,
@@ -83,6 +90,41 @@ class DashboardRepository {
       const ['fancurve-write-current-preset-to-hw'],
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply current context fan preset',
+    );
+  }
+
+  Future<void> setOverdriveMode(bool enabled) async {
+    await _runPrivilegedCommand(
+      ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'],
+      method: 'feature.set',
+      failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> setBatteryConservation(bool enabled) async {
+    final command = enabled
+        ? 'batteryconservation-enable'
+        : 'batteryconservation-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'battery_conservation.set',
+      failurePrefix:
+          'Failed to set battery conservation to ${enabled ? 'on' : 'off'}',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> setRapidCharging(bool enabled) async {
+    final command = enabled
+        ? 'rapid-charging-enable'
+        : 'rapid-charging-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'rapid_charging.set',
+      failurePrefix:
+          'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
+      detectUnavailableResponse: true,
     );
   }
 

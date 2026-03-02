@@ -174,6 +174,118 @@ class DashboardPage extends ConsumerWidget {
                               : 'Disabled'),
                   ),
                 ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      navigationBloc.add(
+                        const NavigationSectionSelected(
+                          AppSection.displayLighting,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Display & Lighting'),
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: snapshot.overdriveEnabled ?? false,
+                  onChanged:
+                      snapshot.overdriveEnabled != null && !state.isApplying
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Toggle overdrive',
+                            message:
+                                'This action uses privileged access and may require authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(DashboardOverdriveModeSetRequested(enabled));
+                        }
+                      : null,
+                  title: const Text('Overdrive'),
+                  subtitle: Text(
+                    snapshot.overdriveEnabled == null
+                        ? 'Unavailable on this system'
+                        : (snapshot.overdriveEnabled! ? 'Enabled' : 'Disabled'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: snapshot.batteryConservationEnabled ?? false,
+                  onChanged:
+                      snapshot.batteryConservationEnabled != null &&
+                          !state.isApplying
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set battery conservation',
+                            message:
+                                'This action uses privileged access and may require authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(
+                            DashboardBatteryConservationSetRequested(enabled),
+                          );
+                        }
+                      : null,
+                  title: const Text('Battery conservation'),
+                  subtitle: Text(
+                    snapshot.batteryConservationEnabled == null
+                        ? 'Unavailable on this system'
+                        : (snapshot.batteryConservationEnabled!
+                              ? 'Enabled'
+                              : 'Disabled'),
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: snapshot.rapidChargingEnabled ?? false,
+                  onChanged:
+                      snapshot.rapidChargingEnabled != null && !state.isApplying
+                      ? (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title: 'Set rapid charging',
+                            message:
+                                'This action uses privileged access and may require authentication.',
+                            confirmLabel: 'Apply',
+                          );
+                          if (!context.mounted || !confirmed) {
+                            return;
+                          }
+                          bloc.add(DashboardRapidChargingSetRequested(enabled));
+                        }
+                      : null,
+                  title: const Text('Rapid charging'),
+                  subtitle: Text(
+                    snapshot.rapidChargingEnabled == null
+                        ? 'Unavailable on this system'
+                        : (snapshot.rapidChargingEnabled!
+                              ? 'Enabled'
+                              : 'Disabled'),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      navigationBloc.add(
+                        const NavigationSectionSelected(AppSection.battery),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Battery & Devices'),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: state.isApplying
