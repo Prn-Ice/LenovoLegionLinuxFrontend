@@ -23,16 +23,26 @@ class AppPageBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text(title, style: textTheme.headlineMedium),
-        const SizedBox(height: 16),
-        if (errorMessage != null || noticeMessage != null) ...[
-          AppStatusMessages(
-            errorMessage: errorMessage,
-            noticeMessage: noticeMessage,
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: textTheme.headlineMedium),
+                const SizedBox(height: 16),
+                if (errorMessage != null || noticeMessage != null) ...[
+                  AppStatusMessages(
+                    errorMessage: errorMessage,
+                    noticeMessage: noticeMessage,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                ...children,
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
-        ],
-        ...children,
+        ),
       ],
     );
   }
@@ -82,7 +92,8 @@ class AppStatusBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: foregroundColor.withValues(alpha: 0.15)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,8 +130,16 @@ class AppSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
 
     return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
