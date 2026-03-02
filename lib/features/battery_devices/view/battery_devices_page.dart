@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/battery_devices_event.dart';
+import '../bloc/battery_devices_state.dart';
 import '../providers/battery_devices_provider.dart';
 
 class BatteryDevicesPage extends ConsumerWidget {
@@ -73,14 +74,25 @@ class BatteryDevicesPage extends ConsumerWidget {
               title: 'Rapid charging',
               subtitle: boolEnabledLabel(state.rapidChargingEnabled),
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Always-on USB charging'),
-              subtitle: Text(
-                state.alwaysOnUsbChargingEnabled == null
-                    ? 'Unavailable on this device'
-                    : '${boolEnabledLabel(state.alwaysOnUsbChargingEnabled)} (read-only: write path blocked in backend)',
-              ),
+            AppSwitchTile(
+              value: state.alwaysOnUsbChargingEnabled ?? false,
+              onChanged: _alwaysOnUsbWritable(state)
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set always-on USB charging',
+                        message:
+                            'This keeps USB charging active when the laptop is off. The action uses privileged access and may prompt for authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(AlwaysOnUsbChargingSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Always-on USB charging',
+              subtitle: _alwaysOnUsbSubtitle(state),
             ),
           ],
         ),
@@ -154,5 +166,24 @@ class BatteryDevicesPage extends ConsumerWidget {
 
   bool _isWritable(bool? value, bool isApplying) {
     return value != null && !isApplying;
+  }
+
+  bool _alwaysOnUsbWritable(BatteryDevicesState state) {
+    return state.alwaysOnUsbChargingEnabled != null &&
+        state.alwaysOnUsbWriteSupported &&
+        !state.isApplying;
+  }
+
+  String _alwaysOnUsbSubtitle(BatteryDevicesState state) {
+    if (state.alwaysOnUsbChargingEnabled == null) {
+      return 'Unavailable on this device';
+    }
+
+    final status = boolEnabledLabel(state.alwaysOnUsbChargingEnabled);
+    if (!state.alwaysOnUsbWriteSupported) {
+      return '$status (read-only until backend write support is available)';
+    }
+
+    return '$status (writes require admin approval)';
   }
 }

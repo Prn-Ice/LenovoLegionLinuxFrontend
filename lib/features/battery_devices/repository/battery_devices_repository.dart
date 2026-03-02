@@ -12,6 +12,10 @@ class BatteryDevicesRepositoryException implements Exception {
 }
 
 class BatteryDevicesRepository {
+  // Keep writes gated until backend/CLI support for always-on USB is
+  // verified end-to-end (see roadmap item okf.4).
+  static const bool _alwaysOnUsbWriteSupported = false;
+
   const BatteryDevicesRepository({
     required LegionSysfsService sysfsService,
     required LegionFrontendBridgeService bridgeService,
@@ -34,6 +38,7 @@ class BatteryDevicesRepository {
       batteryConservationEnabled: batteryConservation,
       rapidChargingEnabled: rapidCharging,
       alwaysOnUsbChargingEnabled: alwaysOnUsb,
+      alwaysOnUsbWriteSupported: _alwaysOnUsbWriteSupported,
       touchpadEnabled: touchpad,
       winKeyEnabled: winKey,
       cameraPowerEnabled: cameraPower,
@@ -78,6 +83,26 @@ class BatteryDevicesRepository {
       ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
+    );
+  }
+
+  Future<void> setAlwaysOnUsbCharging(bool enabled) async {
+    // Guardrail: avoid attempting privileged writes while the upstream
+    // implementation is intentionally read-only.
+    if (!_alwaysOnUsbWriteSupported) {
+      throw const BatteryDevicesRepositoryException(
+        'Always-on USB is currently read-only because backend write support is not available yet.',
+      );
+    }
+
+    final command = enabled
+        ? 'always-on-usb-charging-enable'
+        : 'always-on-usb-charging-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'always_on_usb.set',
+      failurePrefix:
+          'Failed to set always-on USB charging to ${enabled ? 'on' : 'off'}',
     );
   }
 

@@ -13,6 +13,7 @@ class BatteryDevicesBloc
     on<BatteryDevicesRefreshRequested>(_onRefreshRequested);
     on<BatteryConservationSetRequested>(_onBatteryConservationSetRequested);
     on<RapidChargingSetRequested>(_onRapidChargingSetRequested);
+    on<AlwaysOnUsbChargingSetRequested>(_onAlwaysOnUsbChargingSetRequested);
     on<TouchpadSetRequested>(_onTouchpadSetRequested);
     on<WinKeySetRequested>(_onWinKeySetRequested);
   }
@@ -54,6 +55,18 @@ class BatteryDevicesBloc
       action: () => _repository.setRapidCharging(event.enabled),
       successMessage:
           'Rapid charging ${event.enabled ? 'enabled' : 'disabled'}.',
+    );
+  }
+
+  Future<void> _onAlwaysOnUsbChargingSetRequested(
+    AlwaysOnUsbChargingSetRequested event,
+    Emitter<BatteryDevicesState> emit,
+  ) async {
+    await _apply(
+      emit,
+      action: () => _repository.setAlwaysOnUsbCharging(event.enabled),
+      successMessage:
+          'Always-on USB charging ${event.enabled ? 'enabled' : 'disabled'}.',
     );
   }
 
@@ -122,6 +135,7 @@ class BatteryDevicesBloc
           batteryConservationEnabled: snapshot.batteryConservationEnabled,
           rapidChargingEnabled: snapshot.rapidChargingEnabled,
           alwaysOnUsbChargingEnabled: snapshot.alwaysOnUsbChargingEnabled,
+          alwaysOnUsbWriteSupported: snapshot.alwaysOnUsbWriteSupported,
           touchpadEnabled: snapshot.touchpadEnabled,
           winKeyEnabled: snapshot.winKeyEnabled,
           cameraPowerEnabled: snapshot.cameraPowerEnabled,

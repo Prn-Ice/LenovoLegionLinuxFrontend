@@ -5,6 +5,7 @@ class BatteryDevicesState extends Equatable {
     required this.batteryConservationEnabled,
     required this.rapidChargingEnabled,
     required this.alwaysOnUsbChargingEnabled,
+    required this.alwaysOnUsbWriteSupported,
     required this.touchpadEnabled,
     required this.winKeyEnabled,
     required this.cameraPowerEnabled,
@@ -18,6 +19,7 @@ class BatteryDevicesState extends Equatable {
     batteryConservationEnabled: null,
     rapidChargingEnabled: null,
     alwaysOnUsbChargingEnabled: null,
+    alwaysOnUsbWriteSupported: false,
     touchpadEnabled: null,
     winKeyEnabled: null,
     cameraPowerEnabled: null,
@@ -32,6 +34,7 @@ class BatteryDevicesState extends Equatable {
   final bool? batteryConservationEnabled;
   final bool? rapidChargingEnabled;
   final bool? alwaysOnUsbChargingEnabled;
+  final bool alwaysOnUsbWriteSupported;
   final bool? touchpadEnabled;
   final bool? winKeyEnabled;
   final bool? cameraPowerEnabled;
@@ -52,6 +55,7 @@ class BatteryDevicesState extends Equatable {
     Object? batteryConservationEnabled = _unset,
     Object? rapidChargingEnabled = _unset,
     Object? alwaysOnUsbChargingEnabled = _unset,
+    bool? alwaysOnUsbWriteSupported,
     Object? touchpadEnabled = _unset,
     Object? winKeyEnabled = _unset,
     Object? cameraPowerEnabled = _unset,
@@ -70,6 +74,8 @@ class BatteryDevicesState extends Equatable {
       alwaysOnUsbChargingEnabled: alwaysOnUsbChargingEnabled == _unset
           ? this.alwaysOnUsbChargingEnabled
           : alwaysOnUsbChargingEnabled as bool?,
+      alwaysOnUsbWriteSupported:
+          alwaysOnUsbWriteSupported ?? this.alwaysOnUsbWriteSupported,
       touchpadEnabled: touchpadEnabled == _unset
           ? this.touchpadEnabled
           : touchpadEnabled as bool?,
@@ -95,6 +101,7 @@ class BatteryDevicesState extends Equatable {
     batteryConservationEnabled,
     rapidChargingEnabled,
     alwaysOnUsbChargingEnabled,
+    alwaysOnUsbWriteSupported,
     touchpadEnabled,
     winKeyEnabled,
     cameraPowerEnabled,
