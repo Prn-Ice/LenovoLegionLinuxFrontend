@@ -83,6 +83,18 @@ class AutomationRepository {
     );
   }
 
+  Future<void> setRapidChargingEnabled(bool enabled) async {
+    final command = enabled
+        ? 'rapid-charging-enable'
+        : 'rapid-charging-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'rapid_charging.set',
+      failurePrefix:
+          'Failed to set rapid charging to ${enabled ? 'on' : 'off'} in automation',
+    );
+  }
+
   Future<void> _runPrivilegedCommand(
     List<String> args, {
     required String method,

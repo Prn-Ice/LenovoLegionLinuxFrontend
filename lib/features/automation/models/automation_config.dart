@@ -5,7 +5,12 @@ class AutomationConfig extends Equatable {
     required this.runnerEnabled,
     required this.pollIntervalSeconds,
     required this.applyFanPresetOnContextChange,
+    required this.triggerOnProfileChange,
+    required this.triggerOnPowerSourceChange,
     required this.applyCustomConservation,
+    required this.applyRapidChargingPolicy,
+    required this.rapidChargingOnAc,
+    required this.rapidChargingOnBattery,
     required this.conservationLowerLimit,
     required this.conservationUpperLimit,
   });
@@ -14,7 +19,12 @@ class AutomationConfig extends Equatable {
     runnerEnabled: false,
     pollIntervalSeconds: 10,
     applyFanPresetOnContextChange: true,
+    triggerOnProfileChange: true,
+    triggerOnPowerSourceChange: true,
     applyCustomConservation: false,
+    applyRapidChargingPolicy: false,
+    rapidChargingOnAc: true,
+    rapidChargingOnBattery: false,
     conservationLowerLimit: 60,
     conservationUpperLimit: 80,
   );
@@ -36,9 +46,23 @@ class AutomationConfig extends Equatable {
       applyFanPresetOnContextChange:
           _asBool(json['applyFanPresetOnContextChange']) ??
           defaults.applyFanPresetOnContextChange,
+      triggerOnProfileChange:
+          _asBool(json['triggerOnProfileChange']) ??
+          defaults.triggerOnProfileChange,
+      triggerOnPowerSourceChange:
+          _asBool(json['triggerOnPowerSourceChange']) ??
+          defaults.triggerOnPowerSourceChange,
       applyCustomConservation:
           _asBool(json['applyCustomConservation']) ??
           defaults.applyCustomConservation,
+      applyRapidChargingPolicy:
+          _asBool(json['applyRapidChargingPolicy']) ??
+          defaults.applyRapidChargingPolicy,
+      rapidChargingOnAc:
+          _asBool(json['rapidChargingOnAc']) ?? defaults.rapidChargingOnAc,
+      rapidChargingOnBattery:
+          _asBool(json['rapidChargingOnBattery']) ??
+          defaults.rapidChargingOnBattery,
       conservationLowerLimit: lower.clamp(0, 100),
       conservationUpperLimit: upper.clamp(0, 100),
     );
@@ -47,7 +71,12 @@ class AutomationConfig extends Equatable {
   final bool runnerEnabled;
   final int pollIntervalSeconds;
   final bool applyFanPresetOnContextChange;
+  final bool triggerOnProfileChange;
+  final bool triggerOnPowerSourceChange;
   final bool applyCustomConservation;
+  final bool applyRapidChargingPolicy;
+  final bool rapidChargingOnAc;
+  final bool rapidChargingOnBattery;
   final int conservationLowerLimit;
   final int conservationUpperLimit;
 
@@ -56,7 +85,12 @@ class AutomationConfig extends Equatable {
       'runnerEnabled': runnerEnabled,
       'pollIntervalSeconds': pollIntervalSeconds,
       'applyFanPresetOnContextChange': applyFanPresetOnContextChange,
+      'triggerOnProfileChange': triggerOnProfileChange,
+      'triggerOnPowerSourceChange': triggerOnPowerSourceChange,
       'applyCustomConservation': applyCustomConservation,
+      'applyRapidChargingPolicy': applyRapidChargingPolicy,
+      'rapidChargingOnAc': rapidChargingOnAc,
+      'rapidChargingOnBattery': rapidChargingOnBattery,
       'conservationLowerLimit': conservationLowerLimit,
       'conservationUpperLimit': conservationUpperLimit,
     };
@@ -66,7 +100,12 @@ class AutomationConfig extends Equatable {
     bool? runnerEnabled,
     int? pollIntervalSeconds,
     bool? applyFanPresetOnContextChange,
+    bool? triggerOnProfileChange,
+    bool? triggerOnPowerSourceChange,
     bool? applyCustomConservation,
+    bool? applyRapidChargingPolicy,
+    bool? rapidChargingOnAc,
+    bool? rapidChargingOnBattery,
     int? conservationLowerLimit,
     int? conservationUpperLimit,
   }) {
@@ -76,8 +115,17 @@ class AutomationConfig extends Equatable {
           .clamp(2, 300),
       applyFanPresetOnContextChange:
           applyFanPresetOnContextChange ?? this.applyFanPresetOnContextChange,
+      triggerOnProfileChange:
+          triggerOnProfileChange ?? this.triggerOnProfileChange,
+      triggerOnPowerSourceChange:
+          triggerOnPowerSourceChange ?? this.triggerOnPowerSourceChange,
       applyCustomConservation:
           applyCustomConservation ?? this.applyCustomConservation,
+      applyRapidChargingPolicy:
+          applyRapidChargingPolicy ?? this.applyRapidChargingPolicy,
+      rapidChargingOnAc: rapidChargingOnAc ?? this.rapidChargingOnAc,
+      rapidChargingOnBattery:
+          rapidChargingOnBattery ?? this.rapidChargingOnBattery,
       conservationLowerLimit:
           (conservationLowerLimit ?? this.conservationLowerLimit).clamp(0, 100),
       conservationUpperLimit:
@@ -93,7 +141,12 @@ class AutomationConfig extends Equatable {
     runnerEnabled,
     pollIntervalSeconds,
     applyFanPresetOnContextChange,
+    triggerOnProfileChange,
+    triggerOnPowerSourceChange,
     applyCustomConservation,
+    applyRapidChargingPolicy,
+    rapidChargingOnAc,
+    rapidChargingOnBattery,
     conservationLowerLimit,
     conservationUpperLimit,
   ];

@@ -51,6 +51,25 @@ final class AutomationFanPresetRuleToggled extends AutomationEvent {
   List<Object?> get props => [enabled];
 }
 
+final class AutomationTriggerOnProfileChangeToggled extends AutomationEvent {
+  const AutomationTriggerOnProfileChangeToggled(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class AutomationTriggerOnPowerSourceChangeToggled
+    extends AutomationEvent {
+  const AutomationTriggerOnPowerSourceChangeToggled(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 final class AutomationConservationRuleToggled extends AutomationEvent {
   const AutomationConservationRuleToggled(this.enabled);
 
@@ -58,6 +77,28 @@ final class AutomationConservationRuleToggled extends AutomationEvent {
 
   @override
   List<Object?> get props => [enabled];
+}
+
+final class AutomationRapidChargingPolicyToggled extends AutomationEvent {
+  const AutomationRapidChargingPolicyToggled(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class AutomationRapidChargingTargetsUpdated extends AutomationEvent {
+  const AutomationRapidChargingTargetsUpdated({
+    required this.onAc,
+    required this.onBattery,
+  });
+
+  final bool onAc;
+  final bool onBattery;
+
+  @override
+  List<Object?> get props => [onAc, onBattery];
 }
 
 final class AutomationRunNowRequested extends AutomationEvent {

@@ -98,6 +98,31 @@ class AutomationPage extends ConsumerWidget {
               children: [
                 Text('Rules', style: textTheme.titleLarge),
                 const SizedBox(height: 8),
+                Text('Trigger model', style: textTheme.titleMedium),
+                const SizedBox(height: 4),
+                SwitchListTile.adaptive(
+                  value: state.config.triggerOnProfileChange,
+                  onChanged: (enabled) {
+                    bloc.add(AutomationTriggerOnProfileChangeToggled(enabled));
+                  },
+                  title: const Text('Trigger on profile change'),
+                  subtitle: const Text(
+                    'quiet/balanced/performance transitions',
+                  ),
+                ),
+                SwitchListTile.adaptive(
+                  value: state.config.triggerOnPowerSourceChange,
+                  onChanged: (enabled) {
+                    bloc.add(
+                      AutomationTriggerOnPowerSourceChangeToggled(enabled),
+                    );
+                  },
+                  title: const Text('Trigger on power-source change'),
+                  subtitle: const Text('AC plugged/unplugged'),
+                ),
+                const SizedBox(height: 8),
+                Text('Action chain', style: textTheme.titleMedium),
+                const SizedBox(height: 4),
                 SwitchListTile.adaptive(
                   value: state.config.applyFanPresetOnContextChange,
                   onChanged: (enabled) {
@@ -114,6 +139,48 @@ class AutomationPage extends ConsumerWidget {
                   title: const Text('Apply custom conservation policy'),
                   subtitle: const Text('Trigger: each automation cycle'),
                 ),
+                SwitchListTile.adaptive(
+                  value: state.config.applyRapidChargingPolicy,
+                  onChanged: (enabled) {
+                    bloc.add(AutomationRapidChargingPolicyToggled(enabled));
+                  },
+                  title: const Text('Apply rapid-charging policy'),
+                  subtitle: const Text('Trigger: selected context changes'),
+                ),
+                if (state.config.applyRapidChargingPolicy)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12, right: 12),
+                    child: Column(
+                      children: [
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: state.config.rapidChargingOnAc,
+                          onChanged: (enabled) {
+                            bloc.add(
+                              AutomationRapidChargingTargetsUpdated(
+                                onAc: enabled,
+                                onBattery: state.config.rapidChargingOnBattery,
+                              ),
+                            );
+                          },
+                          title: const Text('Enable rapid charging on AC'),
+                        ),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          value: state.config.rapidChargingOnBattery,
+                          onChanged: (enabled) {
+                            bloc.add(
+                              AutomationRapidChargingTargetsUpdated(
+                                onAc: state.config.rapidChargingOnAc,
+                                onBattery: enabled,
+                              ),
+                            );
+                          },
+                          title: const Text('Enable rapid charging on battery'),
+                        ),
+                      ],
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [

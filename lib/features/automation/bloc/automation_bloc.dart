@@ -16,7 +16,15 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
     on<AutomationRunnerToggled>(_onRunnerToggled);
     on<AutomationPollIntervalUpdated>(_onPollIntervalUpdated);
     on<AutomationFanPresetRuleToggled>(_onFanPresetRuleToggled);
+    on<AutomationTriggerOnProfileChangeToggled>(
+      _onTriggerOnProfileChangeToggled,
+    );
+    on<AutomationTriggerOnPowerSourceChangeToggled>(
+      _onTriggerOnPowerSourceChangeToggled,
+    );
     on<AutomationConservationRuleToggled>(_onConservationRuleToggled);
+    on<AutomationRapidChargingPolicyToggled>(_onRapidChargingPolicyToggled);
+    on<AutomationRapidChargingTargetsUpdated>(_onRapidChargingTargetsUpdated);
     on<AutomationConservationLimitsUpdated>(_onConservationLimitsUpdated);
     on<AutomationRunNowRequested>(_onRunNowRequested);
     on<AutomationTicked>(_onTicked);
@@ -55,6 +63,47 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
     Emitter<AutomationState> emit,
   ) async {
     final updatedConfig = state.config.copyWith(runnerEnabled: event.enabled);
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onTriggerOnProfileChangeToggled(
+    AutomationTriggerOnProfileChangeToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      triggerOnProfileChange: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onTriggerOnPowerSourceChangeToggled(
+    AutomationTriggerOnPowerSourceChangeToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      triggerOnPowerSourceChange: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onRapidChargingPolicyToggled(
+    AutomationRapidChargingPolicyToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      applyRapidChargingPolicy: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onRapidChargingTargetsUpdated(
+    AutomationRapidChargingTargetsUpdated event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      rapidChargingOnAc: event.onAc,
+      rapidChargingOnBattery: event.onBattery,
+    );
     await _persistConfig(updatedConfig, emit);
   }
 
@@ -150,11 +199,21 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
       final snapshot = await _repository.readTriggerSnapshot();
       final actions = <String>[];
 
-      final hasContextChange =
-          _lastSnapshot != null && _lastSnapshot != snapshot;
+      final previousSnapshot = _lastSnapshot;
+      final profileChanged =
+          previousSnapshot != null &&
+          previousSnapshot.platformProfile != snapshot.platformProfile;
+      final powerSourceChanged =
+          previousSnapshot != null &&
+          previousSnapshot.onPowerSupply != snapshot.onPowerSupply;
+      final hasSelectedContextChange =
+          (state.config.triggerOnProfileChange && profileChanged) ||
+          (state.config.triggerOnPowerSourceChange && powerSourceChanged);
+      final shouldRunContextActions =
+          forceFanPreset || hasSelectedContextChange;
 
       if (state.config.applyFanPresetOnContextChange &&
-          (forceFanPreset || hasContextChange)) {
+          shouldRunContextActions) {
         await _repository.applyFanPresetForCurrentContext();
         actions.add('Applied fan preset for current power context');
       }
@@ -173,6 +232,23 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
         actions.add(
           'Applied conservation policy (${state.config.conservationLowerLimit}-${state.config.conservationUpperLimit}%)',
         );
+      }
+
+      if (state.config.applyRapidChargingPolicy && shouldRunContextActions) {
+        final onPowerSupply = snapshot.onPowerSupply;
+        if (onPowerSupply == null) {
+          actions.add(
+            'Skipped rapid charging policy (power source unavailable)',
+          );
+        } else {
+          final enableRapidCharging = onPowerSupply
+              ? state.config.rapidChargingOnAc
+              : state.config.rapidChargingOnBattery;
+          await _repository.setRapidChargingEnabled(enableRapidCharging);
+          actions.add(
+            'Set rapid charging to ${enableRapidCharging ? 'enabled' : 'disabled'} for ${onPowerSupply ? 'AC' : 'battery'}',
+          );
+        }
       }
 
       _lastSnapshot = snapshot;
