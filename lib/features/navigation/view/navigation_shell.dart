@@ -45,7 +45,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   @override
   Widget build(BuildContext context) {
     ref.listen(navigationBlocProvider, (prev, next) {
-      if (prev?.section != next.section) {
+      if (prev?.section != next.section &&
+          _controller.index != next.section.index) {
         _controller.index = next.section.index;
       }
     });
@@ -62,11 +63,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     }
 
     if (width < kYaruMasterDetailBreakpoint) {
-      final style = width > 1000
-          ? YaruNavigationRailStyle.labelledExtended
-          : width > 500
-              ? YaruNavigationRailStyle.labelled
-              : YaruNavigationRailStyle.compact;
+      final style = width > 500
+          ? YaruNavigationRailStyle.labelled
+          : YaruNavigationRailStyle.compact;
 
       return Scaffold(
         appBar: PreferredSize(
