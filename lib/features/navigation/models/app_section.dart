@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 enum AppSection {
   dashboard,
@@ -51,6 +52,27 @@ extension AppSectionUi on AppSection {
         return Icons.settings_outlined;
       case AppSection.about:
         return Icons.info_outline;
+    }
+  }
+
+  IconData get yaruIcon {
+    switch (this) {
+      case AppSection.dashboard:
+        return YaruIcons.chip;
+      case AppSection.power:
+        return YaruIcons.thunderbolt;
+      case AppSection.fans:
+        return YaruIcons.gears;
+      case AppSection.battery:
+        return YaruIcons.battery_full_charging;
+      case AppSection.displayLighting:
+        return YaruIcons.display_layout;
+      case AppSection.automation:
+        return YaruIcons.gear_dots;
+      case AppSection.settings:
+        return YaruIcons.gear;
+      case AppSection.about:
+        return YaruIcons.information;
     }
   }
 }

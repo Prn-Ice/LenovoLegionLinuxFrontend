@@ -17,6 +17,7 @@ void main() {
 
     await tester.tap(find.text('About'));
     await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.byType(AboutPage), findsOneWidget);
   });
