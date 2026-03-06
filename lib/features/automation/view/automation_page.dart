@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -15,7 +16,7 @@ class AutomationPage extends ConsumerWidget {
     final bloc = ref.read(automationBlocProvider.bloc);
 
     if (state.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: YaruCircularProgressIndicator());
     }
 
     return AppPageBody(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -18,7 +19,7 @@ class PowerPage extends ConsumerWidget {
     final bloc = ref.read(powerBlocProvider.bloc);
 
     if (state.isLoading && !state.hasLoaded) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: YaruCircularProgressIndicator());
     }
 
     return AppPageBody(
@@ -44,42 +45,35 @@ class PowerPage extends ConsumerWidget {
             if (state.availableModes.isEmpty)
               const Text('No power mode options available on this system.'),
             if (state.availableModes.isNotEmpty)
-              RadioGroup<String>(
-                groupValue: state.currentMode?.value,
-                onChanged: (value) async {
-                  if (state.isApplying || value == null) {
-                    return;
-                  }
-
-                  final mode = state.availableModes.firstWhere(
-                    (entry) => entry.value == value,
-                    orElse: () => PowerMode(value),
-                  );
-
-                  final confirmed = await confirmPrivilegedAction(
-                    context,
-                    title: 'Set power mode',
-                    message:
-                        'Changing power mode uses a privileged command and may prompt for authentication.',
-                    confirmLabel: 'Set mode',
-                  );
-                  if (!context.mounted || !confirmed) {
-                    return;
-                  }
-
-                  _setMode(bloc, mode);
-                },
-                child: Column(
-                  children: state.availableModes
-                      .map(
-                        (mode) => RadioListTile<String>(
-                          value: mode.value,
-                          title: Text(mode.label),
-                          subtitle: Text(mode.value),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
+              Column(
+                children: state.availableModes
+                    .map(
+                      (mode) => YaruRadioListTile<String>(
+                        value: mode.value,
+                        groupValue: state.currentMode?.value,
+                        onChanged: state.isApplying
+                            ? null
+                            : (value) async {
+                                if (value == null) return;
+                                final selected = state.availableModes.firstWhere(
+                                  (entry) => entry.value == value,
+                                  orElse: () => PowerMode(value),
+                                );
+                                final confirmed = await confirmPrivilegedAction(
+                                  context,
+                                  title: 'Set power mode',
+                                  message:
+                                      'Changing power mode uses a privileged command and may prompt for authentication.',
+                                  confirmLabel: 'Set mode',
+                                );
+                                if (!context.mounted || !confirmed) return;
+                                _setMode(bloc, selected);
+                              },
+                        title: Text(mode.label),
+                        subtitle: Text(mode.value),
+                      ),
+                    )
+                    .toList(growable: false),
               ),
           ],
         ),
@@ -146,7 +140,8 @@ class PowerPage extends ConsumerWidget {
     final result = await showDialog<int>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(limit.label),
+        title: YaruDialogTitleBar(title: Text(limit.label)),
+        titlePadding: EdgeInsets.zero,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

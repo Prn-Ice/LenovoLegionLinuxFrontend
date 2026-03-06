@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 enum AppStatusTone { error, notice }
 
@@ -21,7 +22,7 @@ class AppPageBody extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(kYaruPagePadding),
       children: [
         Center(
           child: ConstrainedBox(
@@ -81,12 +82,10 @@ class AppStatusBanner extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isError = tone == AppStatusTone.error;
 
-    final backgroundColor = isError
-        ? scheme.errorContainer
-        : scheme.primaryContainer;
-    final foregroundColor = isError
-        ? scheme.onErrorContainer
-        : scheme.onPrimaryContainer;
+    final backgroundColor =
+        isError ? scheme.errorContainer : scheme.primaryContainer;
+    final foregroundColor =
+        isError ? scheme.onErrorContainer : scheme.onPrimaryContainer;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -130,37 +129,26 @@ class AppSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: scheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return YaruSection(
+      headline: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(child: Text(title, style: textTheme.titleLarge)),
-                ...[trailing].nonNulls,
-              ],
-            ),
-            if (description != null) ...[
-              const SizedBox(height: 8),
-              Text(description!),
-            ],
-            if (children.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              ...children,
-            ],
+            Expanded(child: Text(title, style: textTheme.titleMedium)),
+            ?trailing,
           ],
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (description != null) ...[
+            Text(description!),
+            const SizedBox(height: 8),
+          ],
+          if (children.isNotEmpty) ...children,
+        ],
       ),
     );
   }
@@ -186,7 +174,7 @@ class AppRefreshButton extends StatelessWidget {
           ? const SizedBox(
               width: 16,
               height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
+              child: YaruCircularProgressIndicator(strokeWidth: 2),
             )
           : const Icon(Icons.refresh),
       label: Text(label),
@@ -212,7 +200,7 @@ class AppSwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile.adaptive(
+    return YaruSwitchListTile(
       contentPadding: contentPadding,
       value: value,
       onChanged: onChanged,

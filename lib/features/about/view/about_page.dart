@@ -1,8 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../bloc/about_event.dart';
@@ -20,7 +21,7 @@ class AboutPage extends ConsumerWidget {
     final snapshot = state.snapshot;
 
     if (state.isLoading && snapshot == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(child: YaruCircularProgressIndicator());
     }
 
     return AppPageBody(

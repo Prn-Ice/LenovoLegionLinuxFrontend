@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -85,36 +86,29 @@ class DashboardPage extends ConsumerWidget {
             if (snapshot.availablePowerModes.isEmpty)
               const Text('No writable power modes available.')
             else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: snapshot.availablePowerModes
-                    .map(
-                      (mode) => ChoiceChip(
-                        label: Text(mode),
-                        selected: snapshot.status.powerProfile?.trim() == mode,
-                        onSelected: state.isApplying
-                            ? null
-                            : (selected) async {
-                                if (selected) {
-                                  final confirmed = await confirmPrivilegedAction(
-                                    context,
-                                    title: 'Set power mode',
-                                    message:
-                                        'Changing power mode runs a privileged command and may prompt for authentication.',
-                                    confirmLabel: 'Set mode',
-                                  );
-                                  if (!context.mounted || !confirmed) {
-                                    return;
-                                  }
-                                  bloc.add(
-                                    DashboardPowerModeSetRequested(mode),
-                                  );
-                                }
-                              },
-                      ),
-                    )
+              YaruChoiceChipBar(
+                labels: snapshot.availablePowerModes
+                    .map((mode) => Text(mode))
                     .toList(growable: false),
+                isSelected: snapshot.availablePowerModes
+                    .map((mode) => snapshot.status.powerProfile?.trim() == mode)
+                    .toList(growable: false),
+                onSelected: state.isApplying
+                    ? null
+                    : (index) async {
+                        final mode = snapshot.availablePowerModes[index];
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Set power mode',
+                          message:
+                              'Changing power mode runs a privileged command and may prompt for authentication.',
+                          confirmLabel: 'Set mode',
+                        );
+                        if (!context.mounted || !confirmed) {
+                          return;
+                        }
+                        bloc.add(DashboardPowerModeSetRequested(mode));
+                      },
               ),
             const SizedBox(height: 12),
             AppSwitchTile(
