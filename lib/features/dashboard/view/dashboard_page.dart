@@ -242,7 +242,7 @@ class DashboardPage extends ConsumerWidget {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: YaruCircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.tune),
               label: const Text('Apply context fan preset'),
@@ -290,31 +290,30 @@ class _SectionGroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(group.title, style: textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(group.description),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: group.sections
-                  .map(
-                    (section) => OutlinedButton.icon(
-                      onPressed: () => onSectionTap(section),
-                      icon: Icon(section.icon),
-                      label: Text('Open ${section.label}'),
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          ],
-        ),
+    return YaruSection(
+      headline: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(group.title, style: textTheme.titleMedium),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(group.description),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: group.sections
+                .map(
+                  (section) => OutlinedButton.icon(
+                    onPressed: () => onSectionTap(section),
+                    icon: Icon(section.icon),
+                    label: Text('Open ${section.label}'),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ],
       ),
     );
   }

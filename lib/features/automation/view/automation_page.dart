@@ -73,7 +73,7 @@ class AutomationPage extends ConsumerWidget {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: YaruCircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.play_arrow),
               label: const Text('Run now'),

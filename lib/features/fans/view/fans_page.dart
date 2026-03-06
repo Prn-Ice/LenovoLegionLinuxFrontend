@@ -57,7 +57,7 @@ class FansPage extends ConsumerWidget {
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: YaruCircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.tune),
               label: const Text('Apply context preset'),
