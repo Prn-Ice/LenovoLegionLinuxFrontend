@@ -62,7 +62,7 @@ Status values used:
 | gpu_boost_clock | Not found in LLT features | `GPUBoostClock` (legion.py:600) | `set-feature GPUBoostClock <value>` | `frontend:missing` | **Not in knowledge center.** LLL backend + GUI exist. IntFileFeature. |
 | gpu_temperature_limit | Not in LLT FeatureRegistry directly | `GPUTemperatureLimit` (legion.py:615); GUI spinbox at legion_gui.py:692 | `set-feature GPUTemperatureLimit <value>` | `frontend:missing` | **Not in knowledge center as a separate entry.** LLL GUI exposes as spinbox. Not in Flutter's `allPowerLimits` list. |
 | dgpu_runtime_monitoring | `GPUController.cs:60` | `NVIDIAGPUIsRunning` (legion.py:630) | No dedicated CLI | `frontend:missing` | Backend monitoring primitive exists. Display-only; suitable for About/diagnostics. |
-| dgpu_deactivate_workflow | `DeactivateGPUAutomationStep.cs` | No equivalent in LLL | — | `out-of-scope` | Process-aware dGPU deactivation not present in LLL backend. |
+| dgpu_deactivate_workflow | `DeactivateGPUAutomationStep.cs` (two modes: KillApps via NVAPI process enumeration + `process.Kill`; RestartGPU via `pnputil /restart-device <PnP-ID>`) | No LLL backend class, but Linux equivalents exist: `nvidia-smi` for process kill, sysfs PCI `/sys/bus/pci/devices/<addr>/remove` + `/sys/bus/pci/rescan` for device restart | `nvidia-smi`, sysfs write (privileged) | `frontend:missing` | Linux workaround is viable. Needs runtime PCI address discovery for the dGPU. Two privileged actions: kill GPU processes, then restart PCI device. |
 
 ---
 
@@ -72,7 +72,7 @@ Status values used:
 | --- |---| --- |---| --- |---|
 | hybrid_gsync_toggle | `GSyncFeature.cs`, `HybridModeFeature.cs` | `GsyncFeature` (legion.py:482) | `hybrid-mode-enable/disable` | `frontend:implemented` | Display & Lighting. Reboot notice shown. |
 | overdrive_toggle | `OverDriveFeature.cs` | `OverdriveFeature` (legion.py:477) | `set-feature OverdriveFeature 0/1` | `frontend:implemented` | Display & Lighting. |
-| refresh_rate_switching | `RefreshRateFeature.cs` | No equivalent | — | `out-of-scope` | No LLL display-stack integration. |
+| refresh_rate_switching | `RefreshRateFeature.cs` (uses `WindowsDisplayAPI` to enumerate `GetPossibleSettings()` and call `SetSettingsUsingPathInfo`) | No LLL backend class, but Linux equivalents exist: `xrandr` on X11, `gnome-monitor-config` / `kscreen-doctor` on Wayland | `xrandr --output <name> --rate <hz>` (no root needed) | `frontend:missing` | Reclassified as feasible. Rate query and apply do not require polkit. Main challenge is detecting the built-in display output name cross-environment (X11 vs Wayland). |
 | resolution_switching | `ResolutionFeature.cs` | No equivalent | — | `out-of-scope` | Windows-only. |
 | hdr_toggle | `HDRFeature.cs` | No equivalent | — | `out-of-scope` | Windows-only. |
 
@@ -86,6 +86,7 @@ Status values used:
 | ylogo_ioport_lighting | `PanelLogoBacklightFeature.cs`, `PortsBacklightFeature.cs` | `YLogoLight` (legion.py:620), `IOPortLight` (legion.py:625) | `set-feature YLogoLight 0/1`, `set-feature IOPortLight 0/1` | `frontend:missing` | Both backend classes confirmed directly in source. No Flutter section. Low-effort. |
 | spectrum_per_key_rgb_builtin | LLT Spectrum RGB | No in-tree LLL support | — | `out-of-scope` | LLL delegates to external `L5P-Keyboard-RGB`. |
 | four_zone_rgb_builtin | LLT 4-zone | No in-tree LLL support | — | `out-of-scope` | Same: external project. |
+| openrgb_integration | N/A (LLT-specific Spectrum/4-zone) | No LLL backend; OpenRGB is a separate open-source tool | `openrgb --device <n> --mode static --color RRGGBB`, `openrgb --list-devices` (no root needed) | `frontend:missing` | OpenRGB supports per-device RGB control via CLI or SDK socket (port 6742). Feasible as an optional integration: detect if installed, list devices, send color/mode commands. Not part of legion_cli — treated as optional external tool. |
 
 ---
 
@@ -134,7 +135,9 @@ Status values used:
 
 The following appear in LLT source but have no LLL backend equivalent:
 
-`flip_to_start` (UEFI boot feature), `battery_night_charge` (Windows battery mgmt), `instant_boot` (UEFI), `dpi_scale` (Windows DPI), `its_mode` (WMI Intelligent Thermal Solution), `turn_off_monitors_step`, `refresh_rate_switching`, `resolution_switching`, `hdr_toggle`, `microphone_speaker_toggle`, `speaker_volume_automation`, `spectrum_per_key_rgb_builtin`, `four_zone_rgb_builtin`, `dgpu_deactivate_workflow`, `update_and_warranty_checks`, `vendor_software_disabler`, `macro_step`, `floating_gadget`, `play_sound_step`.
+`flip_to_start` (UEFI boot feature), `battery_night_charge` (Windows battery mgmt), `instant_boot` (UEFI), `dpi_scale` (Windows DPI), `its_mode` (WMI Intelligent Thermal Solution), `turn_off_monitors_step`, `resolution_switching`, `hdr_toggle`, `microphone_speaker_toggle`, `speaker_volume_automation`, `spectrum_per_key_rgb_builtin`, `four_zone_rgb_builtin`, `update_and_warranty_checks`, `vendor_software_disabler`, `macro_step`, `floating_gadget`, `play_sound_step`.
+
+Note: `refresh_rate_switching` and `dgpu_deactivate_workflow` were previously listed here but are reclassified as feasible via Linux workarounds — see Display and GPU tables above.
 
 ---
 
@@ -157,24 +160,25 @@ The following were found in source but are absent from or inaccurate in `LLT_LLL
 
 ## Recommended Next Steps (Priority Order)
 
-### P0 — Low effort, direct backend support, established sysfs pattern
+### P0 — Low effort, direct backend support, established pattern
 
-1. **fn_lock toggle**: Add to Battery & Devices → Input Devices. CLI: `fn-lock-enable/disable`. Sysfs path: `IDEAPAD_SYS_BASEPATH/fn_lock`.
-2. **white_keyboard_backlight**: Add "Lighting" section to Display & Lighting page. Bool toggle via `set-feature`.
-3. **ylogo_ioport_lighting**: Same page, two toggles for `YLogoLight` and `IOPortLight`. `set-feature YLogoLight/IOPortLight 0/1`.
-4. **Missing power limits** — add `CPUDefaultPowerLimit` and `GPUTemperatureLimit` to `power_repository.dart:allPowerLimits`. Same pattern as existing 7 limits. Sysfs paths follow the established `legion_laptop` driver structure.
+1. **fn_lock toggle** — `Battery & Devices → Input Devices`. CLI: `fn-lock-enable/disable`. Sysfs: `IDEAPAD_SYS_BASEPATH/fn_lock`. — **bead: LenovoLegionLinux-p03**
+1. **Lighting controls** — Add "Lighting" section to Display & Lighting: white keyboard backlight toggle + Y-logo + IO-port light toggles. All use `set-feature`. — **bead: LenovoLegionLinux-9cn**
+1. **Missing power limits** — Add `CPUDefaultPowerLimit` (legion.py:589) and `GPUTemperatureLimit` (legion.py:615) to `power_repository.dart:allPowerLimits`. Two-line addition following existing spec pattern. — **bead: LenovoLegionLinux-abl**
 
-### P1 — Medium effort, significant parity
+### P1 — Medium effort, meaningful parity
 
-1. **gpu_overclock_toggle + cpu_overclock_toggle**: New "GPU & CPU Overclocking" section. Both use `set-feature`. Need sysfs path discovery for read state.
-2. **gpu_boost_clock + gpu_temperature_limit**: Integer input controls in the same section. `set-feature` write pattern established.
-3. **fan curve editor**: Custom curve point editor (temp/RPM). Largest UX gap vs LLT; requires a new curve widget and CLI surface.
+1. **GPU/CPU overclocking section** — New section covering `GPUOverclock`, `CPUOverclock` (bool toggles), `GPUBoostClock`, and `GPUTemperatureLimit` as grouped integer controls. All use `set-feature`. Requires sysfs path discovery for read state. — **bead: LenovoLegionLinux-5fr**
+1. **Refresh rate switching** — Query available rates via `xrandr --query` (or Wayland equivalent); apply via `xrandr --output <name> --rate <hz>`. No polkit needed. Main challenge: detect built-in display output name across X11/Wayland. — **bead: LenovoLegionLinux-4cq**
+1. **Fan curve editor** — Custom temp/RPM point editor widget. Largest UX gap vs LLT. Requires a new graphical curve widget and CLI surface for writing custom curve files. — **bead: LenovoLegionLinux-s21**
 
 ### P2 — Lower priority
 
-1. **run_external_program_step**: New automation action type for shell commands. Security notice required.
-2. **dgpu_runtime_monitoring**: Display NVIDIA GPU runtime state. Read-only, suitable for About/diagnostics.
-3. **boot_logo_customization**: File picker + validation + preflight. Niche but feature-complete.
+1. **OpenRGB integration** — Optional external tool integration. Detect if OpenRGB is installed, list devices, send color/mode commands via CLI (`openrgb --list-devices`, `openrgb --device <n> --mode static --color RRGGBB`). No root required. Graceful fallback if not installed. — **bead: LenovoLegionLinux-80r**
+1. **dGPU deactivate workflow** — Two privileged actions via Linux equivalents: (a) kill GPU processes via `nvidia-smi` query + kill; (b) restart PCI device via sysfs `remove`/`rescan`. Requires runtime PCI address discovery for the dGPU. — **bead: LenovoLegionLinux-6ad**
+1. **dGPU runtime monitoring** — Display NVIDIA GPU active state (processes using GPU, performance state). Read-only; suitable for About/diagnostics page. Uses `NVIDIAGPUIsRunning` sysfs or `nvidia-smi` query. — **bead: LenovoLegionLinux-wkz**
+1. **Run external program automation step** — New action type in automation runner: execute a user-defined shell command. Requires input UI + security notice. — **bead: LenovoLegionLinux-hka**
+1. **Boot logo customization** — File picker + dimension/format validation + preflight checks + privileged apply. High effort; niche feature. — **bead: LenovoLegionLinux-m75**
 
 ### Deferred — Backend work required first
 
