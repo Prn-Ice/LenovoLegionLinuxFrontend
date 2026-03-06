@@ -26,6 +26,8 @@ class LegionSysfsService {
       '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/winkey';
   static const String _cameraPowerPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power';
+  static const String _fnLockPath =
+      '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/fn_lock';
   static const String _onPowerSupplyAdp0Path =
       '/sys/class/power_supply/ADP0/online';
   static const String _onPowerSupplyAcPath =
@@ -108,6 +110,10 @@ class LegionSysfsService {
 
   Future<bool?> readCameraPowerMode() async {
     return _readBoolFile(_cameraPowerPath);
+  }
+
+  Future<bool?> readFnLockMode() async {
+    return _readBoolFile(_fnLockPath);
   }
 
   Future<bool?> readOnPowerSupplyMode() async {

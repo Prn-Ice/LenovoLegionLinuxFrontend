@@ -16,6 +16,7 @@ class BatteryDevicesBloc
     on<AlwaysOnUsbChargingSetRequested>(_onAlwaysOnUsbChargingSetRequested);
     on<TouchpadSetRequested>(_onTouchpadSetRequested);
     on<WinKeySetRequested>(_onWinKeySetRequested);
+    on<FnLockSetRequested>(_onFnLockSetRequested);
   }
 
   final BatteryDevicesRepository _repository;
@@ -92,6 +93,17 @@ class BatteryDevicesBloc
     );
   }
 
+  Future<void> _onFnLockSetRequested(
+    FnLockSetRequested event,
+    Emitter<BatteryDevicesState> emit,
+  ) async {
+    await _apply(
+      emit,
+      action: () => _repository.setFnLock(event.enabled),
+      successMessage: 'Fn lock ${event.enabled ? 'enabled' : 'disabled'}.',
+    );
+  }
+
   Future<void> _apply(
     Emitter<BatteryDevicesState> emit, {
     required Future<void> Function() action,
@@ -139,6 +151,7 @@ class BatteryDevicesBloc
           touchpadEnabled: snapshot.touchpadEnabled,
           winKeyEnabled: snapshot.winKeyEnabled,
           cameraPowerEnabled: snapshot.cameraPowerEnabled,
+          fnLockEnabled: snapshot.fnLockEnabled,
           isLoading: false,
           errorMessage: null,
         ),

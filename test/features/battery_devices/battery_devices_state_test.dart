@@ -22,7 +22,9 @@ void main() {
     });
 
     test('hasLoaded is true when only fnLockEnabled is set', () {
-      final state = BatteryDevicesState.initial().copyWith(fnLockEnabled: false);
+      final state = BatteryDevicesState.initial().copyWith(
+        fnLockEnabled: false,
+      );
       expect(state.hasLoaded, isTrue);
     });
 

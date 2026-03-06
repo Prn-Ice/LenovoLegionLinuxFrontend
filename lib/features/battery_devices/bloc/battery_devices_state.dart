@@ -9,6 +9,7 @@ class BatteryDevicesState extends Equatable {
     required this.touchpadEnabled,
     required this.winKeyEnabled,
     required this.cameraPowerEnabled,
+    required this.fnLockEnabled,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -23,6 +24,7 @@ class BatteryDevicesState extends Equatable {
     touchpadEnabled: null,
     winKeyEnabled: null,
     cameraPowerEnabled: null,
+    fnLockEnabled: null,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -38,6 +40,7 @@ class BatteryDevicesState extends Equatable {
   final bool? touchpadEnabled;
   final bool? winKeyEnabled;
   final bool? cameraPowerEnabled;
+  final bool? fnLockEnabled;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -49,7 +52,8 @@ class BatteryDevicesState extends Equatable {
       alwaysOnUsbChargingEnabled != null ||
       touchpadEnabled != null ||
       winKeyEnabled != null ||
-      cameraPowerEnabled != null;
+      cameraPowerEnabled != null ||
+      fnLockEnabled != null;
 
   BatteryDevicesState copyWith({
     Object? batteryConservationEnabled = _unset,
@@ -59,6 +63,7 @@ class BatteryDevicesState extends Equatable {
     Object? touchpadEnabled = _unset,
     Object? winKeyEnabled = _unset,
     Object? cameraPowerEnabled = _unset,
+    Object? fnLockEnabled = _unset,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -85,6 +90,9 @@ class BatteryDevicesState extends Equatable {
       cameraPowerEnabled: cameraPowerEnabled == _unset
           ? this.cameraPowerEnabled
           : cameraPowerEnabled as bool?,
+      fnLockEnabled: fnLockEnabled == _unset
+          ? this.fnLockEnabled
+          : fnLockEnabled as bool?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -105,6 +113,7 @@ class BatteryDevicesState extends Equatable {
     touchpadEnabled,
     winKeyEnabled,
     cameraPowerEnabled,
+    fnLockEnabled,
     isLoading,
     isApplying,
     errorMessage,

@@ -7,6 +7,7 @@ class BatteryDevicesSnapshot {
     required this.touchpadEnabled,
     required this.winKeyEnabled,
     required this.cameraPowerEnabled,
+    required this.fnLockEnabled,
   });
 
   final bool? batteryConservationEnabled;
@@ -16,4 +17,5 @@ class BatteryDevicesSnapshot {
   final bool? touchpadEnabled;
   final bool? winKeyEnabled;
   final bool? cameraPowerEnabled;
+  final bool? fnLockEnabled;
 }

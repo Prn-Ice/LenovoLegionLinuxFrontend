@@ -143,6 +143,26 @@ class BatteryDevicesPage extends ConsumerWidget {
               title: 'Win key',
               subtitle: boolEnabledLabel(state.winKeyEnabled),
             ),
+            AppSwitchTile(
+              value: state.fnLockEnabled ?? false,
+              onChanged: _isWritable(state.fnLockEnabled, state.isApplying)
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set Fn lock',
+                        message:
+                            'This action uses privileged access and may prompt for authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(FnLockSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Fn lock',
+              subtitle: boolEnabledLabel(state.fnLockEnabled),
+            ),
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Camera power'),

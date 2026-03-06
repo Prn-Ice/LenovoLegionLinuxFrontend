@@ -33,6 +33,7 @@ class BatteryDevicesRepository {
     final touchpad = await _sysfsService.readTouchpadMode();
     final winKey = await _sysfsService.readWinKeyMode();
     final cameraPower = await _sysfsService.readCameraPowerMode();
+    final fnLock = await _sysfsService.readFnLockMode();
 
     return BatteryDevicesSnapshot(
       batteryConservationEnabled: batteryConservation,
@@ -42,6 +43,7 @@ class BatteryDevicesRepository {
       touchpadEnabled: touchpad,
       winKeyEnabled: winKey,
       cameraPowerEnabled: cameraPower,
+      fnLockEnabled: fnLock,
     );
   }
 
@@ -83,6 +85,15 @@ class BatteryDevicesRepository {
       ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
+    );
+  }
+
+  Future<void> setFnLock(bool enabled) async {
+    final command = enabled ? 'fnlock-enable' : 'fnlock-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'fn_lock.set',
+      failurePrefix: 'Failed to set Fn lock to ${enabled ? 'on' : 'off'}',
     );
   }
 

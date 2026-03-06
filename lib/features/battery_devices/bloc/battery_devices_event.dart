@@ -59,3 +59,12 @@ final class WinKeySetRequested extends BatteryDevicesEvent {
   @override
   List<Object?> get props => [enabled];
 }
+
+final class FnLockSetRequested extends BatteryDevicesEvent {
+  const FnLockSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
