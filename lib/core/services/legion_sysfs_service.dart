@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../features/fans/models/fan_curve.dart';
 import '../../features/dashboard/models/system_status.dart';
 
 class LegionSysfsService {
@@ -151,6 +152,71 @@ class LegionSysfsService {
   }
 
   Future<bool?> readMiniFanCurveMode() async {
+    final hwmonPath = await _findFanHwmonDir();
+    if (hwmonPath == null) {
+      return null;
+    }
+
+    return _readBoolFile('${hwmonPath}minifancurve');
+  }
+
+  Future<FanCurve?> readFanCurve() async {
+    final hwmonPath = await _findFanHwmonDir();
+    if (hwmonPath == null) {
+      return null;
+    }
+
+    final fan1Max = await readIntFile('${hwmonPath}fan1_max');
+    final fan2Max = await readIntFile('${hwmonPath}fan2_max');
+
+    if (fan1Max == null || fan1Max == 0 || fan2Max == null || fan2Max == 0) {
+      return null;
+    }
+
+    final points = <FanCurvePoint>[];
+    for (var i = 1; i <= 10; i++) {
+      final pwm1 = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm')) ?? 0;
+      final pwm2 = (await readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm')) ?? 0;
+      final cpuLower =
+          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp_hyst')) ?? 0;
+      final cpuUpper = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp')) ?? 0;
+      final gpuLower =
+          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp_hyst')) ?? 0;
+      final gpuUpper = (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp')) ?? 0;
+      final icLower =
+          (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp_hyst')) ?? 0;
+      final icUpper = (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp')) ?? 0;
+      final accel = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_accel')) ?? 0;
+      final decel = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_decel')) ?? 0;
+
+      points.add(
+        FanCurvePoint(
+          fan1Rpm: _pwmToRpm(pwm1, fan1Max),
+          fan2Rpm: _pwmToRpm(pwm2, fan2Max),
+          cpuLowerTemp: cpuLower,
+          cpuUpperTemp: cpuUpper,
+          gpuLowerTemp: gpuLower,
+          gpuUpperTemp: gpuUpper,
+          icLowerTemp: icLower,
+          icUpperTemp: icUpper,
+          accel: accel,
+          decel: decel,
+        ),
+      );
+    }
+
+    return FanCurve(name: 'custom', points: List.unmodifiable(points));
+  }
+
+  Future<bool?> readCpuOverclockMode() async {
+    return _readBoolFile(_cpuOverclockPath);
+  }
+
+  Future<bool?> readGpuOverclockMode() async {
+    return _readBoolFile(_gpuOverclockPath);
+  }
+
+  Future<String?> _findFanHwmonDir() async {
     final hwmonDir = Directory(_fanHwmonBasePath);
     if (!await hwmonDir.exists()) {
       return null;
@@ -163,13 +229,8 @@ class LegionSysfsService {
         }
 
         final name = entity.path.split('/').last;
-        if (!name.startsWith('hwmon')) {
-          continue;
-        }
-
-        final value = await _readBoolFile('${entity.path}/minifancurve');
-        if (value != null) {
-          return value;
+        if (name.startsWith('hwmon')) {
+          return '${entity.path}/';
         }
       }
     } catch (_) {
@@ -179,12 +240,8 @@ class LegionSysfsService {
     return null;
   }
 
-  Future<bool?> readCpuOverclockMode() async {
-    return _readBoolFile(_cpuOverclockPath);
-  }
-
-  Future<bool?> readGpuOverclockMode() async {
-    return _readBoolFile(_gpuOverclockPath);
+  static int _pwmToRpm(int pwm, int maxRpm) {
+    return (pwm / 255.0 * maxRpm).round();
   }
 
   Future<int?> readIntFile(String path) async {
