@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -108,6 +109,33 @@ class AutomationRepository {
           ? '$failurePrefix.'
           : '$failurePrefix: $details';
       throw AutomationRepositoryException(message);
+    }
+  }
+
+  /// Runs [command] as the current user (NOT privileged — no pkexec).
+  /// Returns the trimmed stdout on success.
+  /// Throws [AutomationRepositoryException] on non-zero exit or timeout.
+  Future<String> runShellCommand(String command) async {
+    try {
+      final result = await Process.run('sh', ['-c', command]).timeout(
+        const Duration(seconds: 30),
+      );
+      if (result.exitCode == 0) {
+        return '${result.stdout}'.trim();
+      }
+      final stderr = '${result.stderr}'.trim();
+      final detail = stderr.isNotEmpty ? ': $stderr' : '';
+      throw AutomationRepositoryException(
+        'External command exited with code ${result.exitCode}$detail',
+      );
+    } on TimeoutException {
+      throw const AutomationRepositoryException(
+        'External command timed out after 30 seconds.',
+      );
+    } on ProcessException catch (e) {
+      throw AutomationRepositoryException(
+        'Failed to start external command: ${e.message}',
+      );
     }
   }
 
