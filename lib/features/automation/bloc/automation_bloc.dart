@@ -26,6 +26,11 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
     on<AutomationRapidChargingPolicyToggled>(_onRapidChargingPolicyToggled);
     on<AutomationRapidChargingTargetsUpdated>(_onRapidChargingTargetsUpdated);
     on<AutomationConservationLimitsUpdated>(_onConservationLimitsUpdated);
+    on<AutomationExternalCommandRuleToggled>(_onExternalCommandRuleToggled);
+    on<AutomationExternalCommandUpdated>(_onExternalCommandUpdated);
+    on<AutomationExternalCommandTriggerUpdated>(
+      _onExternalCommandTriggerUpdated,
+    );
     on<AutomationRunNowRequested>(_onRunNowRequested);
     on<AutomationTicked>(_onTicked);
   }
@@ -148,6 +153,34 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
     await _persistConfig(updatedConfig, emit);
   }
 
+  Future<void> _onExternalCommandRuleToggled(
+    AutomationExternalCommandRuleToggled event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      runExternalCommand: event.enabled,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onExternalCommandUpdated(
+    AutomationExternalCommandUpdated event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(externalCommand: event.command);
+    await _persistConfig(updatedConfig, emit);
+  }
+
+  Future<void> _onExternalCommandTriggerUpdated(
+    AutomationExternalCommandTriggerUpdated event,
+    Emitter<AutomationState> emit,
+  ) async {
+    final updatedConfig = state.config.copyWith(
+      externalCommandOnContextChange: event.onContextChange,
+    );
+    await _persistConfig(updatedConfig, emit);
+  }
+
   Future<void> _onRunNowRequested(
     AutomationRunNowRequested event,
     Emitter<AutomationState> emit,
@@ -248,6 +281,22 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
           actions.add(
             'Set rapid charging to ${enableRapidCharging ? 'enabled' : 'disabled'} for ${onPowerSupply ? 'AC' : 'battery'}',
           );
+        }
+      }
+
+      if (state.config.runExternalCommand &&
+          state.config.externalCommand.trim().isNotEmpty) {
+        final runThisCycle =
+            !state.config.externalCommandOnContextChange ||
+            shouldRunContextActions;
+        if (runThisCycle) {
+          try {
+            await _repository.runShellCommand(state.config.externalCommand);
+            actions.add('Ran external command: ${state.config.externalCommand}');
+          } on AutomationRepositoryException catch (e) {
+            // Keep cycle non-fatal if user script fails.
+            actions.add('External command failed: $e');
+          }
         }
       }
 

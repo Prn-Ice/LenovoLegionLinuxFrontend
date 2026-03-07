@@ -13,6 +13,33 @@ class AutomationConservationLimitsUpdated extends AutomationEvent {
   List<Object?> get props => [lower, upper];
 }
 
+final class AutomationExternalCommandRuleToggled extends AutomationEvent {
+  const AutomationExternalCommandRuleToggled(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class AutomationExternalCommandUpdated extends AutomationEvent {
+  const AutomationExternalCommandUpdated(this.command);
+
+  final String command;
+
+  @override
+  List<Object?> get props => [command];
+}
+
+final class AutomationExternalCommandTriggerUpdated extends AutomationEvent {
+  const AutomationExternalCommandTriggerUpdated(this.onContextChange);
+
+  final bool onContextChange;
+
+  @override
+  List<Object?> get props => [onContextChange];
+}
+
 sealed class AutomationEvent extends Equatable {
   const AutomationEvent();
 
