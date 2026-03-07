@@ -16,6 +16,8 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     on<MiniFanCurveSetRequested>(_onMiniFanCurveSetRequested);
     on<LockFanControllerSetRequested>(_onLockFanControllerSetRequested);
     on<MaximumFanSpeedSetRequested>(_onMaximumFanSpeedSetRequested);
+    on<FanCurvePointUpdated>(_onFanCurvePointUpdated);
+    on<FanCurveSaveRequested>(_onFanCurveSaveRequested);
   }
 
   final FansRepository _repository;
@@ -107,6 +109,52 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     );
   }
 
+  void _onFanCurvePointUpdated(
+    FanCurvePointUpdated event,
+    Emitter<FansState> emit,
+  ) {
+    final current = state.fanCurve;
+    if (current == null || event.index < 0 || event.index >= 10) {
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        fanCurve: current.copyWithPoint(event.index, event.point),
+        fanCurveDirty: true,
+        errorMessage: null,
+      ),
+    );
+  }
+
+  Future<void> _onFanCurveSaveRequested(
+    FanCurveSaveRequested event,
+    Emitter<FansState> emit,
+  ) async {
+    final curve = state.fanCurve;
+    if (curve == null || state.isApplying) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.writeFanCurveToHardware(curve);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          fanCurveDirty: false,
+          noticeMessage: 'Fan curve applied to hardware.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
   Future<void> _apply(
     Emitter<FansState> emit, {
     required Future<void> Function() action,
@@ -162,6 +210,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
           miniFanCurveEnabled: snapshot.miniFanCurveEnabled,
           lockFanControllerEnabled: snapshot.lockFanControllerEnabled,
           maximumFanSpeedEnabled: snapshot.maximumFanSpeedEnabled,
+          fanCurve: state.fanCurveDirty ? state.fanCurve : snapshot.fanCurve,
           isLoading: false,
           errorMessage: null,
         ),

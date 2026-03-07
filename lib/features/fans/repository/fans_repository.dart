@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
+import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';
 
 class FansRepositoryException implements Exception {
@@ -31,6 +34,7 @@ class FansRepository {
     'performance-ac',
     'balanced-performance-ac',
   ];
+  static const _tempCurvePath = '/tmp/legion_frontend_custom_curve.yaml';
 
   Future<FansSnapshot> loadSnapshot() async {
     final profile = await _sysfsService.readPlatformProfile();
@@ -44,6 +48,7 @@ class FansRepository {
     final miniFanCurve = await _sysfsService.readMiniFanCurveMode();
     final lockFanController = await _sysfsService.readLockFanControllerMode();
     final maximumFanSpeed = await _sysfsService.readMaximumFanSpeedMode();
+    final fanCurve = await _sysfsService.readFanCurve();
 
     return FansSnapshot(
       platformProfile: profile,
@@ -53,6 +58,7 @@ class FansRepository {
       miniFanCurveEnabled: miniFanCurve,
       lockFanControllerEnabled: lockFanController,
       maximumFanSpeedEnabled: maximumFanSpeed,
+      fanCurve: fanCurve,
     );
   }
 
@@ -103,6 +109,22 @@ class FansRepository {
       method: 'maximum_fan_speed.set',
       failurePrefix:
           'Failed to set maximum fan speed to ${enabled ? 'on' : 'off'}',
+    );
+  }
+
+  Future<void> writeFanCurveToHardware(FanCurve curve) async {
+    try {
+      await File(_tempCurvePath).writeAsString(curve.toYaml());
+    } catch (error) {
+      throw FansRepositoryException(
+        'Failed to write fan curve temp file: $error',
+      );
+    }
+
+    await _runPrivilegedCommand(
+      ['fancurve-write-file-to-hw', _tempCurvePath],
+      method: 'fan_curve.write_to_hw',
+      failurePrefix: 'Failed to write fan curve to hardware',
     );
   }
 
