@@ -77,6 +77,15 @@ class PowerRepository {
       max: 100,
     ),
     PowerLimitSpec(
+      id: 'cpu_default',
+      label: 'CPU Default Power Limit',
+      featureName: 'CPUDefaultPowerLimit',
+      sysfsPath:
+          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_default_powerlimit',
+      min: 0,
+      max: 100,
+    ),
+    PowerLimitSpec(
       id: 'gpu_ctgp',
       label: 'GPU cTGP Power Limit',
       featureName: 'GPUCTGPPowerLimit',
@@ -93,6 +102,15 @@ class PowerRepository {
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ppab_powerlimit',
       min: 0,
       max: 200,
+    ),
+    PowerLimitSpec(
+      id: 'gpu_temperature',
+      label: 'GPU Temperature Limit',
+      featureName: 'GPUTemperatureLimit',
+      sysfsPath:
+          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_temperature_limit',
+      min: 0,
+      max: 120,
     ),
   ];
 
