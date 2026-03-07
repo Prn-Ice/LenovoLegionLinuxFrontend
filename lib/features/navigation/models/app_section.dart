@@ -7,6 +7,7 @@ enum AppSection {
   fans,
   battery,
   displayLighting,
+  bootLogo,
   automation,
   settings,
   about,
@@ -25,6 +26,8 @@ extension AppSectionUi on AppSection {
         return 'Battery & Devices';
       case AppSection.displayLighting:
         return 'Display & Lighting';
+      case AppSection.bootLogo:
+        return 'Boot Logo';
       case AppSection.automation:
         return 'Automation';
       case AppSection.settings:
@@ -46,6 +49,8 @@ extension AppSectionUi on AppSection {
         return Icons.battery_charging_full_outlined;
       case AppSection.displayLighting:
         return Icons.display_settings_outlined;
+      case AppSection.bootLogo:
+        return Icons.image_outlined;
       case AppSection.automation:
         return Icons.auto_mode_outlined;
       case AppSection.settings:
@@ -67,6 +72,8 @@ extension AppSectionUi on AppSection {
         return YaruIcons.battery_full_charging;
       case AppSection.displayLighting:
         return YaruIcons.display_layout;
+      case AppSection.bootLogo:
+        return YaruIcons.image;
       case AppSection.automation:
         return YaruIcons.gear_dots;
       case AppSection.settings:
