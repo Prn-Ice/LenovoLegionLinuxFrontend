@@ -5,6 +5,7 @@ import 'package:yaru/yaru.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/fans_event.dart';
+import '../models/fan_curve.dart';
 import '../providers/fans_provider.dart';
 
 class FansPage extends ConsumerWidget {
@@ -182,6 +183,57 @@ class FansPage extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
+        AppSectionCard(
+          title: 'Fan Curve',
+          description:
+              'Custom 10-point temperature/RPM curve. '
+              'Lower temp = hysteresis threshold; Upper temp = trigger threshold.',
+          children: [
+            if (state.fanCurve == null)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Fan curve editor'),
+                subtitle: Text('Unavailable — hwmon driver not detected.'),
+              )
+            else ...[
+              const PrivilegedActionNotice(),
+              const SizedBox(height: 8),
+              _FanCurveTable(
+                curve: state.fanCurve!,
+                enabled: !state.isApplying,
+                onPointChanged: (index, point) =>
+                    bloc.add(FanCurvePointUpdated(index: index, point: point)),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: (state.fanCurveDirty && !state.isApplying)
+                    ? () async {
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Apply fan curve',
+                          message:
+                              'Writing a custom fan curve requires privileged access and may prompt for authentication.',
+                          confirmLabel: 'Apply',
+                        );
+                        if (!context.mounted || !confirmed) {
+                          return;
+                        }
+                        bloc.add(const FanCurveSaveRequested());
+                      }
+                    : null,
+                icon: state.isApplying
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: YaruCircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: const Text('Apply to hardware'),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
         AppRefreshButton(
           isBusy: state.isLoading,
           onPressed: state.isApplying
@@ -189,6 +241,150 @@ class FansPage extends ConsumerWidget {
               : () => bloc.add(const FansRefreshRequested()),
         ),
       ],
+    );
+  }
+}
+
+class _FanCurveTable extends StatefulWidget {
+  const _FanCurveTable({
+    required this.curve,
+    required this.enabled,
+    required this.onPointChanged,
+  });
+
+  final FanCurve curve;
+  final bool enabled;
+  final void Function(int index, FanCurvePoint point) onPointChanged;
+
+  @override
+  State<_FanCurveTable> createState() => _FanCurveTableState();
+}
+
+class _FanCurveTableState extends State<_FanCurveTable> {
+  late final List<List<TextEditingController>> _controllers;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(10, (i) {
+      final p = widget.curve.points[i];
+      return [
+        TextEditingController(text: '${p.cpuLowerTemp}'),
+        TextEditingController(text: '${p.cpuUpperTemp}'),
+        TextEditingController(text: '${p.gpuLowerTemp}'),
+        TextEditingController(text: '${p.gpuUpperTemp}'),
+        TextEditingController(text: '${p.fan1Rpm}'),
+        TextEditingController(text: '${p.fan2Rpm}'),
+      ];
+    });
+  }
+
+  @override
+  void didUpdateWidget(_FanCurveTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.curve != widget.curve) {
+      for (var i = 0; i < 10; i++) {
+        final p = widget.curve.points[i];
+        final vals = [
+          '${p.cpuLowerTemp}',
+          '${p.cpuUpperTemp}',
+          '${p.gpuLowerTemp}',
+          '${p.gpuUpperTemp}',
+          '${p.fan1Rpm}',
+          '${p.fan2Rpm}',
+        ];
+        for (var j = 0; j < 6; j++) {
+          if (_controllers[i][j].text != vals[j]) {
+            _controllers[i][j].text = vals[j];
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final row in _controllers) {
+      for (final c in row) {
+        c.dispose();
+      }
+    }
+    super.dispose();
+  }
+
+  void _commitRow(int index) {
+    final row = _controllers[index];
+    final point = widget.curve.points[index];
+    final cpuLo = int.tryParse(row[0].text) ?? point.cpuLowerTemp;
+    final cpuHi = int.tryParse(row[1].text) ?? point.cpuUpperTemp;
+    final gpuLo = int.tryParse(row[2].text) ?? point.gpuLowerTemp;
+    final gpuHi = int.tryParse(row[3].text) ?? point.gpuUpperTemp;
+    final fan1 = int.tryParse(row[4].text) ?? point.fan1Rpm;
+    final fan2 = int.tryParse(row[5].text) ?? point.fan2Rpm;
+
+    widget.onPointChanged(
+      index,
+      point.copyWith(
+        cpuLowerTemp: cpuLo,
+        cpuUpperTemp: cpuHi,
+        gpuLowerTemp: gpuLo,
+        gpuUpperTemp: gpuHi,
+        fan1Rpm: fan1,
+        fan2Rpm: fan2,
+      ),
+    );
+  }
+
+  Widget _cell(TextEditingController ctrl, int rowIndex) {
+    return SizedBox(
+      width: 84,
+      child: TextFormField(
+        controller: ctrl,
+        enabled: widget.enabled,
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        decoration: const InputDecoration(
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+        ),
+        onEditingComplete: () => _commitRow(rowIndex),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowHeight: 36,
+        dataRowMinHeight: 40,
+        dataRowMaxHeight: 52,
+        columnSpacing: 8,
+        columns: const [
+          DataColumn(label: Text('#')),
+          DataColumn(label: Text('CPU Lo (°C)')),
+          DataColumn(label: Text('CPU Hi (°C)')),
+          DataColumn(label: Text('GPU Lo (°C)')),
+          DataColumn(label: Text('GPU Hi (°C)')),
+          DataColumn(label: Text('Fan1 RPM')),
+          DataColumn(label: Text('Fan2 RPM')),
+        ],
+        rows: List.generate(10, (i) {
+          final row = _controllers[i];
+          return DataRow(
+            cells: [
+              DataCell(Text('${i + 1}')),
+              DataCell(_cell(row[0], i)),
+              DataCell(_cell(row[1], i)),
+              DataCell(_cell(row[2], i)),
+              DataCell(_cell(row[3], i)),
+              DataCell(_cell(row[4], i)),
+              DataCell(_cell(row[5], i)),
+            ],
+          );
+        }),
+      ),
     );
   }
 }
