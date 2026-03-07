@@ -86,6 +86,34 @@ class DisplayLightingPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         AppSectionCard(
+          title: 'Refresh Rate',
+          description: 'Built-in display refresh rate (requires X11/xrandr).',
+          children: [
+            if (state.availableRefreshRates == null ||
+                state.availableRefreshRates!.isEmpty)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Refresh rate switching'),
+                subtitle: Text(
+                  'Unavailable — xrandr not accessible on this session.',
+                ),
+              )
+            else
+              ...state.availableRefreshRates!.map(
+                (rate) => YaruRadioListTile<double>(
+                  contentPadding: EdgeInsets.zero,
+                  value: rate,
+                  groupValue: state.currentRefreshRate,
+                  onChanged: state.isApplying
+                      ? null
+                      : (_) => _setRefreshRate(bloc, rate),
+                  title: Text('${rate.round()} Hz'),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        AppSectionCard(
           title: 'Lighting',
           description: 'Keyboard backlight, Y-logo, and IO-port LEDs.',
           children: [
@@ -189,5 +217,9 @@ class DisplayLightingPage extends ConsumerWidget {
 
   void _setIoPortLight(DisplayLightingBloc bloc, bool enabled) {
     bloc.add(IoPortLightSetRequested(enabled));
+  }
+
+  void _setRefreshRate(DisplayLightingBloc bloc, double rate) {
+    bloc.add(RefreshRateSetRequested(rate));
   }
 }

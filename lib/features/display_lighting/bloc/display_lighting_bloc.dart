@@ -18,6 +18,7 @@ class DisplayLightingBloc
     );
     on<YLogoLightSetRequested>(_onYLogoLightSetRequested);
     on<IoPortLightSetRequested>(_onIoPortLightSetRequested);
+    on<RefreshRateSetRequested>(_onRefreshRateSetRequested);
   }
 
   final DisplayLightingRepository _repository;
@@ -167,6 +168,33 @@ class DisplayLightingBloc
     }
   }
 
+  Future<void> _onRefreshRateSetRequested(
+    RefreshRateSetRequested event,
+    Emitter<DisplayLightingState> emit,
+  ) async {
+    final outputName = state.xrandrOutputName;
+    if (state.isApplying || outputName == null) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setRefreshRate(outputName, event.rate);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage: 'Refresh rate set to ${event.rate.round()} Hz.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
   Future<void> _reloadState(
     Emitter<DisplayLightingState> emit, {
     required bool showLoading,
@@ -196,6 +224,9 @@ class DisplayLightingBloc
           yLogoLightSupported: snapshot.yLogoLightSupported,
           ioPortLightEnabled: snapshot.ioPortLightEnabled,
           ioPortLightSupported: snapshot.ioPortLightSupported,
+          xrandrOutputName: snapshot.xrandrOutputName,
+          availableRefreshRates: snapshot.availableRefreshRates,
+          currentRefreshRate: snapshot.currentRefreshRate,
           isLoading: false,
           errorMessage: null,
         ),

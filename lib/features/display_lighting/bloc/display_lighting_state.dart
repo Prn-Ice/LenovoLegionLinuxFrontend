@@ -12,6 +12,9 @@ class DisplayLightingState extends Equatable {
     required this.yLogoLightSupported,
     required this.ioPortLightEnabled,
     required this.ioPortLightSupported,
+    required this.xrandrOutputName,
+    required this.availableRefreshRates,
+    required this.currentRefreshRate,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -29,6 +32,9 @@ class DisplayLightingState extends Equatable {
     yLogoLightSupported: false,
     ioPortLightEnabled: null,
     ioPortLightSupported: false,
+    xrandrOutputName: null,
+    availableRefreshRates: null,
+    currentRefreshRate: null,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -47,6 +53,9 @@ class DisplayLightingState extends Equatable {
   final bool yLogoLightSupported;
   final bool? ioPortLightEnabled;
   final bool ioPortLightSupported;
+  final String? xrandrOutputName;
+  final List<double>? availableRefreshRates;
+  final double? currentRefreshRate;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -75,6 +84,9 @@ class DisplayLightingState extends Equatable {
     bool? yLogoLightSupported,
     Object? ioPortLightEnabled = _unset,
     bool? ioPortLightSupported,
+    Object? xrandrOutputName = _unset,
+    Object? availableRefreshRates = _unset,
+    Object? currentRefreshRate = _unset,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -103,6 +115,15 @@ class DisplayLightingState extends Equatable {
           ? this.ioPortLightEnabled
           : ioPortLightEnabled as bool?,
       ioPortLightSupported: ioPortLightSupported ?? this.ioPortLightSupported,
+      xrandrOutputName: xrandrOutputName == _unset
+          ? this.xrandrOutputName
+          : xrandrOutputName as String?,
+      availableRefreshRates: availableRefreshRates == _unset
+          ? this.availableRefreshRates
+          : availableRefreshRates as List<double>?,
+      currentRefreshRate: currentRefreshRate == _unset
+          ? this.currentRefreshRate
+          : currentRefreshRate as double?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -126,6 +147,9 @@ class DisplayLightingState extends Equatable {
     yLogoLightSupported,
     ioPortLightEnabled,
     ioPortLightSupported,
+    xrandrOutputName,
+    availableRefreshRates,
+    currentRefreshRate,
     isLoading,
     isApplying,
     errorMessage,

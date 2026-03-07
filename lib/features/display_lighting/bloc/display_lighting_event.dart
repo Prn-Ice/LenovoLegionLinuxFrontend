@@ -59,3 +59,12 @@ final class IoPortLightSetRequested extends DisplayLightingEvent {
   @override
   List<Object?> get props => [enabled];
 }
+
+final class RefreshRateSetRequested extends DisplayLightingEvent {
+  const RefreshRateSetRequested(this.rate);
+
+  final double rate;
+
+  @override
+  List<Object?> get props => [rate];
+}

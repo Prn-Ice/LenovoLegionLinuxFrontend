@@ -1,5 +1,6 @@
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
+import '../../../core/services/xrandr_service.dart';
 import '../models/display_lighting_snapshot.dart';
 
 class DisplayLightingRepositoryException implements Exception {
@@ -15,11 +16,14 @@ class DisplayLightingRepository {
   const DisplayLightingRepository({
     required LegionSysfsService sysfsService,
     required LegionFrontendBridgeService bridgeService,
+    required XrandrService xrandrService,
   }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+       _bridgeService = bridgeService,
+       _xrandrService = xrandrService;
 
   final LegionSysfsService _sysfsService;
   final LegionFrontendBridgeService _bridgeService;
+  final XrandrService _xrandrService;
 
   Future<DisplayLightingSnapshot> loadSnapshot() async {
     final hybridMode = await _sysfsService.readHybridMode();
@@ -28,6 +32,7 @@ class DisplayLightingRepository {
         .readWhiteKeyboardBacklightMode();
     final yLogoLight = await _sysfsService.readYLogoLightMode();
     final ioPortLight = await _sysfsService.readIoPortLightMode();
+    final displayInfo = await _xrandrService.queryBuiltInDisplay();
 
     return DisplayLightingSnapshot(
       hybridModeEnabled: hybridMode,
@@ -40,6 +45,9 @@ class DisplayLightingRepository {
       yLogoLightSupported: yLogoLight != null,
       ioPortLightEnabled: ioPortLight,
       ioPortLightSupported: ioPortLight != null,
+      xrandrOutputName: displayInfo?.outputName,
+      availableRefreshRates: displayInfo?.availableRates,
+      currentRefreshRate: displayInfo?.currentRate,
     );
   }
 
@@ -94,6 +102,14 @@ class DisplayLightingRepository {
       settingLabel: 'IO-port light',
       detectUnavailableResponse: true,
     );
+  }
+
+  Future<void> setRefreshRate(String outputName, double rate) async {
+    try {
+      await _xrandrService.setRefreshRate(outputName, rate);
+    } on XrandrServiceException catch (error) {
+      throw DisplayLightingRepositoryException('$error');
+    }
   }
 
   Future<void> _runFeatureToggle({

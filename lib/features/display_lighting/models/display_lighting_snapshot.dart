@@ -10,6 +10,9 @@ class DisplayLightingSnapshot {
     required this.yLogoLightSupported,
     required this.ioPortLightEnabled,
     required this.ioPortLightSupported,
+    required this.xrandrOutputName,
+    required this.availableRefreshRates,
+    required this.currentRefreshRate,
   });
 
   final bool? hybridModeEnabled;
@@ -22,4 +25,7 @@ class DisplayLightingSnapshot {
   final bool yLogoLightSupported;
   final bool? ioPortLightEnabled;
   final bool ioPortLightSupported;
+  final String? xrandrOutputName;
+  final List<double>? availableRefreshRates;
+  final double? currentRefreshRate;
 }
