@@ -126,4 +126,78 @@ void main() {
       expect(c.hasValidConservationRange, isFalse);
     });
   });
+
+  group('AutomationConfig external command defaults', () {
+    test('runExternalCommand is false', () {
+      expect(AutomationConfig.defaults().runExternalCommand, isFalse);
+    });
+
+    test('externalCommand is empty string', () {
+      expect(AutomationConfig.defaults().externalCommand, equals(''));
+    });
+
+    test('externalCommandOnContextChange is true', () {
+      expect(
+        AutomationConfig.defaults().externalCommandOnContextChange,
+        isTrue,
+      );
+    });
+  });
+
+  group('AutomationConfig.fromJson external command', () {
+    test('uses defaults when keys absent', () {
+      final c = AutomationConfig.fromJson({});
+      expect(c.runExternalCommand, isFalse);
+      expect(c.externalCommand, equals(''));
+      expect(c.externalCommandOnContextChange, isTrue);
+    });
+
+    test('reads runExternalCommand from bool', () {
+      final c = AutomationConfig.fromJson({'runExternalCommand': true});
+      expect(c.runExternalCommand, isTrue);
+    });
+
+    test('reads externalCommand from string', () {
+      final c = AutomationConfig.fromJson({
+        'externalCommand': 'notify-send hello',
+      });
+      expect(c.externalCommand, equals('notify-send hello'));
+    });
+
+    test('reads externalCommandOnContextChange from bool', () {
+      final c = AutomationConfig.fromJson({
+        'externalCommandOnContextChange': false,
+      });
+      expect(c.externalCommandOnContextChange, isFalse);
+    });
+
+    test('ignores non-string value for externalCommand', () {
+      final c = AutomationConfig.fromJson({'externalCommand': 42});
+      expect(c.externalCommand, equals(''));
+    });
+  });
+
+  group('AutomationConfig.toJson external command roundtrip', () {
+    test('toJson includes all three new fields', () {
+      final c = AutomationConfig.defaults().copyWith(
+        runExternalCommand: true,
+        externalCommand: 'echo hello',
+        externalCommandOnContextChange: false,
+      );
+      final json = c.toJson();
+      expect(json['runExternalCommand'], isTrue);
+      expect(json['externalCommand'], equals('echo hello'));
+      expect(json['externalCommandOnContextChange'], isFalse);
+    });
+
+    test('fromJson(toJson(c)) round-trips without loss', () {
+      final original = AutomationConfig.defaults().copyWith(
+        runExternalCommand: true,
+        externalCommand: 'notify-send done',
+        externalCommandOnContextChange: false,
+      );
+      final roundTripped = AutomationConfig.fromJson(original.toJson());
+      expect(roundTripped, equals(original));
+    });
+  });
 }

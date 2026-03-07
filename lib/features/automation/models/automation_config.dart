@@ -13,6 +13,9 @@ class AutomationConfig extends Equatable {
     required this.rapidChargingOnBattery,
     required this.conservationLowerLimit,
     required this.conservationUpperLimit,
+    required this.runExternalCommand,
+    required this.externalCommand,
+    required this.externalCommandOnContextChange,
   });
 
   factory AutomationConfig.defaults() => const AutomationConfig(
@@ -27,6 +30,9 @@ class AutomationConfig extends Equatable {
     rapidChargingOnBattery: false,
     conservationLowerLimit: 60,
     conservationUpperLimit: 80,
+    runExternalCommand: false,
+    externalCommand: '',
+    externalCommandOnContextChange: true,
   );
 
   factory AutomationConfig.fromJson(Map<String, dynamic> json) {
@@ -65,6 +71,13 @@ class AutomationConfig extends Equatable {
           defaults.rapidChargingOnBattery,
       conservationLowerLimit: lower.clamp(0, 100),
       conservationUpperLimit: upper.clamp(0, 100),
+      runExternalCommand:
+          _asBool(json['runExternalCommand']) ?? defaults.runExternalCommand,
+      externalCommand:
+          _asString(json['externalCommand']) ?? defaults.externalCommand,
+      externalCommandOnContextChange:
+          _asBool(json['externalCommandOnContextChange']) ??
+          defaults.externalCommandOnContextChange,
     );
   }
 
@@ -79,6 +92,9 @@ class AutomationConfig extends Equatable {
   final bool rapidChargingOnBattery;
   final int conservationLowerLimit;
   final int conservationUpperLimit;
+  final bool runExternalCommand;
+  final String externalCommand;
+  final bool externalCommandOnContextChange;
 
   Map<String, dynamic> toJson() {
     return {
@@ -93,6 +109,9 @@ class AutomationConfig extends Equatable {
       'rapidChargingOnBattery': rapidChargingOnBattery,
       'conservationLowerLimit': conservationLowerLimit,
       'conservationUpperLimit': conservationUpperLimit,
+      'runExternalCommand': runExternalCommand,
+      'externalCommand': externalCommand,
+      'externalCommandOnContextChange': externalCommandOnContextChange,
     };
   }
 
@@ -108,6 +127,9 @@ class AutomationConfig extends Equatable {
     bool? rapidChargingOnBattery,
     int? conservationLowerLimit,
     int? conservationUpperLimit,
+    bool? runExternalCommand,
+    String? externalCommand,
+    bool? externalCommandOnContextChange,
   }) {
     return AutomationConfig(
       runnerEnabled: runnerEnabled ?? this.runnerEnabled,
@@ -130,6 +152,10 @@ class AutomationConfig extends Equatable {
           (conservationLowerLimit ?? this.conservationLowerLimit).clamp(0, 100),
       conservationUpperLimit:
           (conservationUpperLimit ?? this.conservationUpperLimit).clamp(0, 100),
+      runExternalCommand: runExternalCommand ?? this.runExternalCommand,
+      externalCommand: externalCommand ?? this.externalCommand,
+      externalCommandOnContextChange:
+          externalCommandOnContextChange ?? this.externalCommandOnContextChange,
     );
   }
 
@@ -149,6 +175,9 @@ class AutomationConfig extends Equatable {
     rapidChargingOnBattery,
     conservationLowerLimit,
     conservationUpperLimit,
+    runExternalCommand,
+    externalCommand,
+    externalCommandOnContextChange,
   ];
 
   static bool? _asBool(dynamic value) {
@@ -164,6 +193,13 @@ class AutomationConfig extends Equatable {
     }
     if (value is String) {
       return int.tryParse(value);
+    }
+    return null;
+  }
+
+  static String? _asString(dynamic value) {
+    if (value is String) {
+      return value;
     }
     return null;
   }
