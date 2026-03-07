@@ -24,12 +24,22 @@ class DisplayLightingRepository {
   Future<DisplayLightingSnapshot> loadSnapshot() async {
     final hybridMode = await _sysfsService.readHybridMode();
     final overdriveMode = await _sysfsService.readOverdriveMode();
+    final whiteKeyboardBacklight = await _sysfsService
+        .readWhiteKeyboardBacklightMode();
+    final yLogoLight = await _sysfsService.readYLogoLightMode();
+    final ioPortLight = await _sysfsService.readIoPortLightMode();
 
     return DisplayLightingSnapshot(
       hybridModeEnabled: hybridMode,
       hybridModeSupported: hybridMode != null,
       overdriveEnabled: overdriveMode,
       overdriveSupported: overdriveMode != null,
+      whiteKeyboardBacklightEnabled: whiteKeyboardBacklight,
+      whiteKeyboardBacklightSupported: whiteKeyboardBacklight != null,
+      yLogoLightEnabled: yLogoLight,
+      yLogoLightSupported: yLogoLight != null,
+      ioPortLightEnabled: ioPortLight,
+      ioPortLightSupported: ioPortLight != null,
     );
   }
 
@@ -52,16 +62,57 @@ class DisplayLightingRepository {
   }
 
   Future<void> setOverdriveMode(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'OverdriveFeature',
+      enabled: enabled,
+      settingLabel: 'Overdrive',
+    );
+  }
+
+  Future<void> setWhiteKeyboardBacklight(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'WhiteKeyboardBacklightFeature',
+      enabled: enabled,
+      settingLabel: 'White keyboard backlight',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> setYLogoLight(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'YLogoLight',
+      enabled: enabled,
+      settingLabel: 'Y-logo light',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> setIoPortLight(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'IOPortLight',
+      enabled: enabled,
+      settingLabel: 'IO-port light',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> _runFeatureToggle({
+    required String featureName,
+    required bool enabled,
+    required String settingLabel,
+    bool detectUnavailableResponse = false,
+  }) async {
     try {
       await _bridgeService.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'],
+        args: ['set-feature', featureName, enabled ? '1' : '0'],
+        detectUnavailableResponse: detectUnavailableResponse,
       );
     } on LegionBridgeException catch (error) {
       final details = error.details;
       final message = details.isEmpty
-          ? 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}.'
-          : 'Failed to set Overdrive: $details';
+          ? 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}.'
+          : 'Failed to set $settingLabel: $details';
 
       throw DisplayLightingRepositoryException(message);
     }

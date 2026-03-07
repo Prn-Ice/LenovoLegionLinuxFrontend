@@ -32,3 +32,30 @@ final class OverdriveModeSetRequested extends DisplayLightingEvent {
   @override
   List<Object?> get props => [enabled];
 }
+
+final class WhiteKeyboardBacklightSetRequested extends DisplayLightingEvent {
+  const WhiteKeyboardBacklightSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class YLogoLightSetRequested extends DisplayLightingEvent {
+  const YLogoLightSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class IoPortLightSetRequested extends DisplayLightingEvent {
+  const IoPortLightSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}

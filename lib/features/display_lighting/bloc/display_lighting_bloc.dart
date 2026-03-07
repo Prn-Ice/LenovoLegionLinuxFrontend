@@ -13,6 +13,11 @@ class DisplayLightingBloc
     on<DisplayLightingRefreshRequested>(_onRefreshRequested);
     on<HybridModeSetRequested>(_onHybridModeSetRequested);
     on<OverdriveModeSetRequested>(_onOverdriveModeSetRequested);
+    on<WhiteKeyboardBacklightSetRequested>(
+      _onWhiteKeyboardBacklightSetRequested,
+    );
+    on<YLogoLightSetRequested>(_onYLogoLightSetRequested);
+    on<IoPortLightSetRequested>(_onIoPortLightSetRequested);
   }
 
   final DisplayLightingRepository _repository;
@@ -81,6 +86,87 @@ class DisplayLightingBloc
     }
   }
 
+  Future<void> _onWhiteKeyboardBacklightSetRequested(
+    WhiteKeyboardBacklightSetRequested event,
+    Emitter<DisplayLightingState> emit,
+  ) async {
+    if (state.isApplying || !state.whiteKeyboardBacklightSupported) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setWhiteKeyboardBacklight(event.enabled);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              'White keyboard backlight ${event.enabled ? 'enabled' : 'disabled'}.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
+  Future<void> _onYLogoLightSetRequested(
+    YLogoLightSetRequested event,
+    Emitter<DisplayLightingState> emit,
+  ) async {
+    if (state.isApplying || !state.yLogoLightSupported) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setYLogoLight(event.enabled);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              'Y-logo light ${event.enabled ? 'enabled' : 'disabled'}.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
+  Future<void> _onIoPortLightSetRequested(
+    IoPortLightSetRequested event,
+    Emitter<DisplayLightingState> emit,
+  ) async {
+    if (state.isApplying || !state.ioPortLightSupported) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setIoPortLight(event.enabled);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              'IO-port light ${event.enabled ? 'enabled' : 'disabled'}.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
   Future<void> _reloadState(
     Emitter<DisplayLightingState> emit, {
     required bool showLoading,
@@ -103,6 +189,13 @@ class DisplayLightingBloc
           hybridModeSupported: snapshot.hybridModeSupported,
           overdriveEnabled: snapshot.overdriveEnabled,
           overdriveSupported: snapshot.overdriveSupported,
+          whiteKeyboardBacklightEnabled: snapshot.whiteKeyboardBacklightEnabled,
+          whiteKeyboardBacklightSupported:
+              snapshot.whiteKeyboardBacklightSupported,
+          yLogoLightEnabled: snapshot.yLogoLightEnabled,
+          yLogoLightSupported: snapshot.yLogoLightSupported,
+          ioPortLightEnabled: snapshot.ioPortLightEnabled,
+          ioPortLightSupported: snapshot.ioPortLightSupported,
           isLoading: false,
           errorMessage: null,
         ),

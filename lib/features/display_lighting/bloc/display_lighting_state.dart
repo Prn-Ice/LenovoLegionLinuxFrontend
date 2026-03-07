@@ -6,6 +6,12 @@ class DisplayLightingState extends Equatable {
     required this.hybridModeSupported,
     required this.overdriveEnabled,
     required this.overdriveSupported,
+    required this.whiteKeyboardBacklightEnabled,
+    required this.whiteKeyboardBacklightSupported,
+    required this.yLogoLightEnabled,
+    required this.yLogoLightSupported,
+    required this.ioPortLightEnabled,
+    required this.ioPortLightSupported,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -17,6 +23,12 @@ class DisplayLightingState extends Equatable {
     hybridModeSupported: false,
     overdriveEnabled: null,
     overdriveSupported: false,
+    whiteKeyboardBacklightEnabled: null,
+    whiteKeyboardBacklightSupported: false,
+    yLogoLightEnabled: null,
+    yLogoLightSupported: false,
+    ioPortLightEnabled: null,
+    ioPortLightSupported: false,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -29,6 +41,12 @@ class DisplayLightingState extends Equatable {
   final bool hybridModeSupported;
   final bool? overdriveEnabled;
   final bool overdriveSupported;
+  final bool? whiteKeyboardBacklightEnabled;
+  final bool whiteKeyboardBacklightSupported;
+  final bool? yLogoLightEnabled;
+  final bool yLogoLightSupported;
+  final bool? ioPortLightEnabled;
+  final bool ioPortLightSupported;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -38,13 +56,25 @@ class DisplayLightingState extends Equatable {
       hybridModeEnabled != null ||
       hybridModeSupported ||
       overdriveEnabled != null ||
-      overdriveSupported;
+      overdriveSupported ||
+      whiteKeyboardBacklightEnabled != null ||
+      whiteKeyboardBacklightSupported ||
+      yLogoLightEnabled != null ||
+      yLogoLightSupported ||
+      ioPortLightEnabled != null ||
+      ioPortLightSupported;
 
   DisplayLightingState copyWith({
     Object? hybridModeEnabled = _unset,
     bool? hybridModeSupported,
     Object? overdriveEnabled = _unset,
     bool? overdriveSupported,
+    Object? whiteKeyboardBacklightEnabled = _unset,
+    bool? whiteKeyboardBacklightSupported,
+    Object? yLogoLightEnabled = _unset,
+    bool? yLogoLightSupported,
+    Object? ioPortLightEnabled = _unset,
+    bool? ioPortLightSupported,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -59,6 +89,20 @@ class DisplayLightingState extends Equatable {
           ? this.overdriveEnabled
           : overdriveEnabled as bool?,
       overdriveSupported: overdriveSupported ?? this.overdriveSupported,
+      whiteKeyboardBacklightEnabled: whiteKeyboardBacklightEnabled == _unset
+          ? this.whiteKeyboardBacklightEnabled
+          : whiteKeyboardBacklightEnabled as bool?,
+      whiteKeyboardBacklightSupported:
+          whiteKeyboardBacklightSupported ??
+          this.whiteKeyboardBacklightSupported,
+      yLogoLightEnabled: yLogoLightEnabled == _unset
+          ? this.yLogoLightEnabled
+          : yLogoLightEnabled as bool?,
+      yLogoLightSupported: yLogoLightSupported ?? this.yLogoLightSupported,
+      ioPortLightEnabled: ioPortLightEnabled == _unset
+          ? this.ioPortLightEnabled
+          : ioPortLightEnabled as bool?,
+      ioPortLightSupported: ioPortLightSupported ?? this.ioPortLightSupported,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -76,6 +120,12 @@ class DisplayLightingState extends Equatable {
     hybridModeSupported,
     overdriveEnabled,
     overdriveSupported,
+    whiteKeyboardBacklightEnabled,
+    whiteKeyboardBacklightSupported,
+    yLogoLightEnabled,
+    yLogoLightSupported,
+    ioPortLightEnabled,
+    ioPortLightSupported,
     isLoading,
     isApplying,
     errorMessage,

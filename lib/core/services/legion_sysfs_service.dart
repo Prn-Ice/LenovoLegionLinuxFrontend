@@ -28,6 +28,12 @@ class LegionSysfsService {
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power';
   static const String _fnLockPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/fn_lock';
+  static const String _whiteKeyboardBacklightPath =
+      '/sys/class/leds/platform::kbd_backlight/brightness';
+  static const String _yLogoLightPath =
+      '/sys/class/leds/platform::ylogo/brightness';
+  static const String _ioPortLightPath =
+      '/sys/class/leds/platform::ioport/brightness';
   static const String _onPowerSupplyAdp0Path =
       '/sys/class/power_supply/ADP0/online';
   static const String _onPowerSupplyAcPath =
@@ -116,6 +122,18 @@ class LegionSysfsService {
     return _readBoolFile(_fnLockPath);
   }
 
+  Future<bool?> readWhiteKeyboardBacklightMode() async {
+    return _readEnabledFromBrightnessFile(_whiteKeyboardBacklightPath);
+  }
+
+  Future<bool?> readYLogoLightMode() async {
+    return _readEnabledFromBrightnessFile(_yLogoLightPath);
+  }
+
+  Future<bool?> readIoPortLightMode() async {
+    return _readEnabledFromBrightnessFile(_ioPortLightPath);
+  }
+
   Future<bool?> readOnPowerSupplyMode() async {
     return _readBoolFromPaths([_onPowerSupplyAdp0Path, _onPowerSupplyAcPath]);
   }
@@ -195,6 +213,15 @@ class LegionSysfsService {
     }
 
     throw FormatException('Unexpected bool value "$raw" at $path');
+  }
+
+  Future<bool?> _readEnabledFromBrightnessFile(String path) async {
+    final value = await readIntFile(path);
+    if (value == null) {
+      return null;
+    }
+
+    return value > 0;
   }
 
   Future<String?> _readTrimmedFile(String path) async {
