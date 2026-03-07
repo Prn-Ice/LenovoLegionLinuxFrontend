@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'fan_curve.dart';
+
 class FansSnapshot extends Equatable {
   const FansSnapshot({
     required this.platformProfile,
@@ -9,6 +11,7 @@ class FansSnapshot extends Equatable {
     required this.miniFanCurveEnabled,
     required this.lockFanControllerEnabled,
     required this.maximumFanSpeedEnabled,
+    required this.fanCurve,
   });
 
   final String? platformProfile;
@@ -18,6 +21,7 @@ class FansSnapshot extends Equatable {
   final bool? miniFanCurveEnabled;
   final bool? lockFanControllerEnabled;
   final bool? maximumFanSpeedEnabled;
+  final FanCurve? fanCurve;
 
   @override
   List<Object?> get props => [
@@ -28,5 +32,6 @@ class FansSnapshot extends Equatable {
     miniFanCurveEnabled,
     lockFanControllerEnabled,
     maximumFanSpeedEnabled,
+    fanCurve,
   ];
 }

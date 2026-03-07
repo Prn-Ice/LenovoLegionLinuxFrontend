@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../models/fan_curve.dart';
+
 sealed class FansEvent extends Equatable {
   const FansEvent();
 
@@ -57,4 +59,18 @@ final class MaximumFanSpeedSetRequested extends FansEvent {
 
   @override
   List<Object?> get props => [enabled];
+}
+
+final class FanCurvePointUpdated extends FansEvent {
+  const FanCurvePointUpdated({required this.index, required this.point});
+
+  final int index;
+  final FanCurvePoint point;
+
+  @override
+  List<Object?> get props => [index, point];
+}
+
+final class FanCurveSaveRequested extends FansEvent {
+  const FanCurveSaveRequested();
 }

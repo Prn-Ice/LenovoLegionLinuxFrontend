@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../models/fan_curve.dart';
+
 class FansState extends Equatable {
   const FansState({
     required this.platformProfile,
@@ -10,6 +12,8 @@ class FansState extends Equatable {
     required this.miniFanCurveEnabled,
     required this.lockFanControllerEnabled,
     required this.maximumFanSpeedEnabled,
+    required this.fanCurve,
+    required this.fanCurveDirty,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -25,6 +29,8 @@ class FansState extends Equatable {
     miniFanCurveEnabled: null,
     lockFanControllerEnabled: null,
     maximumFanSpeedEnabled: null,
+    fanCurve: null,
+    fanCurveDirty: false,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -41,6 +47,8 @@ class FansState extends Equatable {
   final bool? miniFanCurveEnabled;
   final bool? lockFanControllerEnabled;
   final bool? maximumFanSpeedEnabled;
+  final FanCurve? fanCurve;
+  final bool fanCurveDirty;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -52,7 +60,8 @@ class FansState extends Equatable {
       availablePresets.isNotEmpty ||
       miniFanCurveEnabled != null ||
       lockFanControllerEnabled != null ||
-      maximumFanSpeedEnabled != null;
+      maximumFanSpeedEnabled != null ||
+      fanCurve != null;
 
   FansState copyWith({
     Object? platformProfile = _unset,
@@ -63,6 +72,8 @@ class FansState extends Equatable {
     Object? miniFanCurveEnabled = _unset,
     Object? lockFanControllerEnabled = _unset,
     Object? maximumFanSpeedEnabled = _unset,
+    Object? fanCurve = _unset,
+    bool? fanCurveDirty,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -91,6 +102,8 @@ class FansState extends Equatable {
       maximumFanSpeedEnabled: maximumFanSpeedEnabled == _unset
           ? this.maximumFanSpeedEnabled
           : maximumFanSpeedEnabled as bool?,
+      fanCurve: fanCurve == _unset ? this.fanCurve : fanCurve as FanCurve?,
+      fanCurveDirty: fanCurveDirty ?? this.fanCurveDirty,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -112,6 +125,8 @@ class FansState extends Equatable {
     miniFanCurveEnabled,
     lockFanControllerEnabled,
     maximumFanSpeedEnabled,
+    fanCurve,
+    fanCurveDirty,
     isLoading,
     isApplying,
     errorMessage,
