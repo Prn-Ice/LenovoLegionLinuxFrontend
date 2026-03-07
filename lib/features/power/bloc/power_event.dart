@@ -36,3 +36,21 @@ final class PowerLimitSetRequested extends PowerEvent {
   @override
   List<Object?> get props => [limit, value];
 }
+
+final class CpuOverclockSetRequested extends PowerEvent {
+  const CpuOverclockSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
+final class GpuOverclockSetRequested extends PowerEvent {
+  const GpuOverclockSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}

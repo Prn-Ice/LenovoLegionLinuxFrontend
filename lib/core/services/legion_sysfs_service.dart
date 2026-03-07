@@ -45,6 +45,10 @@ class LegionSysfsService {
       '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed';
   static const String _fanHwmonBasePath =
       '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon';
+  static const String _cpuOverclockPath =
+      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_oc';
+  static const String _gpuOverclockPath =
+      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_oc';
 
   Future<SystemStatus> readSystemStatus() async {
     try {
@@ -173,6 +177,14 @@ class LegionSysfsService {
     }
 
     return null;
+  }
+
+  Future<bool?> readCpuOverclockMode() async {
+    return _readBoolFile(_cpuOverclockPath);
+  }
+
+  Future<bool?> readGpuOverclockMode() async {
+    return _readBoolFile(_gpuOverclockPath);
   }
 
   Future<int?> readIntFile(String path) async {

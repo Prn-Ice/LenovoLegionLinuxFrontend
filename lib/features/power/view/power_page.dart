@@ -55,10 +55,11 @@ class PowerPage extends ConsumerWidget {
                             ? null
                             : (value) async {
                                 if (value == null) return;
-                                final selected = state.availableModes.firstWhere(
-                                  (entry) => entry.value == value,
-                                  orElse: () => PowerMode(value),
-                                );
+                                final selected = state.availableModes
+                                    .firstWhere(
+                                      (entry) => entry.value == value,
+                                      orElse: () => PowerMode(value),
+                                    );
                                 final confirmed = await confirmPrivilegedAction(
                                   context,
                                   title: 'Set power mode',
@@ -75,6 +76,62 @@ class PowerPage extends ConsumerWidget {
                     )
                     .toList(growable: false),
               ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        AppSectionCard(
+          title: 'Overclocking',
+          description:
+              'Advanced controls that may be unavailable on some devices/profiles.',
+          children: [
+            const PrivilegedActionNotice(),
+            const SizedBox(height: 8),
+            AppSwitchTile(
+              value: state.cpuOverclockEnabled ?? false,
+              onChanged:
+                  (state.cpuOverclockEnabled != null && !state.isApplying)
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle CPU overclock',
+                        message:
+                            'Changing CPU overclock uses a privileged command and may prompt for authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      _setCpuOverclock(bloc, enabled);
+                    }
+                  : null,
+              title: 'CPU overclock',
+              subtitle: state.cpuOverclockEnabled == null
+                  ? 'Not supported on this device'
+                  : boolEnabledLabel(state.cpuOverclockEnabled),
+            ),
+            AppSwitchTile(
+              value: state.gpuOverclockEnabled ?? false,
+              onChanged:
+                  (state.gpuOverclockEnabled != null && !state.isApplying)
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle GPU overclock',
+                        message:
+                            'Changing GPU overclock uses a privileged command and may prompt for authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      _setGpuOverclock(bloc, enabled);
+                    }
+                  : null,
+              title: 'GPU overclock',
+              subtitle: state.gpuOverclockEnabled == null
+                  ? 'Not supported on this device'
+                  : boolEnabledLabel(state.gpuOverclockEnabled),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -127,6 +184,14 @@ class PowerPage extends ConsumerWidget {
 
   void _setMode(PowerBloc bloc, PowerMode mode) {
     bloc.add(PowerModeSetRequested(mode));
+  }
+
+  void _setCpuOverclock(PowerBloc bloc, bool enabled) {
+    bloc.add(CpuOverclockSetRequested(enabled));
+  }
+
+  void _setGpuOverclock(PowerBloc bloc, bool enabled) {
+    bloc.add(GpuOverclockSetRequested(enabled));
   }
 
   Future<void> _promptAndSetLimit(

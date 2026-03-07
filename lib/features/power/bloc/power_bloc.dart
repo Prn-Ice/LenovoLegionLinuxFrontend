@@ -12,6 +12,8 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     on<PowerRefreshRequested>(_onRefreshRequested);
     on<PowerModeSetRequested>(_onModeSetRequested);
     on<PowerLimitSetRequested>(_onLimitSetRequested);
+    on<CpuOverclockSetRequested>(_onCpuOverclockSetRequested);
+    on<GpuOverclockSetRequested>(_onGpuOverclockSetRequested);
   }
 
   final PowerRepository _repository;
@@ -79,6 +81,60 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     }
   }
 
+  Future<void> _onCpuOverclockSetRequested(
+    CpuOverclockSetRequested event,
+    Emitter<PowerState> emit,
+  ) async {
+    if (state.isApplying || state.cpuOverclockEnabled == null) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setCpuOverclock(event.enabled);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              'CPU overclock ${event.enabled ? 'enabled' : 'disabled'}.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
+  Future<void> _onGpuOverclockSetRequested(
+    GpuOverclockSetRequested event,
+    Emitter<PowerState> emit,
+  ) async {
+    if (state.isApplying || state.gpuOverclockEnabled == null) {
+      return;
+    }
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+
+    try {
+      await _repository.setGpuOverclock(event.enabled);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              'GPU overclock ${event.enabled ? 'enabled' : 'disabled'}.',
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
   Future<void> _reloadState(
     Emitter<PowerState> emit, {
     required bool showLoading,
@@ -100,6 +156,8 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           currentMode: snapshot.currentMode,
           availableModes: snapshot.availableModes,
           powerLimits: snapshot.powerLimits,
+          cpuOverclockEnabled: snapshot.cpuOverclockEnabled,
+          gpuOverclockEnabled: snapshot.gpuOverclockEnabled,
           isLoading: false,
           errorMessage: null,
         ),

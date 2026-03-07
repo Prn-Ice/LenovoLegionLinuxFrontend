@@ -8,6 +8,8 @@ class PowerState extends Equatable {
     required this.currentMode,
     required this.availableModes,
     required this.powerLimits,
+    required this.cpuOverclockEnabled,
+    required this.gpuOverclockEnabled,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -18,6 +20,8 @@ class PowerState extends Equatable {
     currentMode: null,
     availableModes: [],
     powerLimits: [],
+    cpuOverclockEnabled: null,
+    gpuOverclockEnabled: null,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -29,6 +33,8 @@ class PowerState extends Equatable {
   final PowerMode? currentMode;
   final List<PowerMode> availableModes;
   final List<PowerLimitReading> powerLimits;
+  final bool? cpuOverclockEnabled;
+  final bool? gpuOverclockEnabled;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -37,12 +43,16 @@ class PowerState extends Equatable {
   bool get hasLoaded =>
       currentMode != null ||
       availableModes.isNotEmpty ||
-      powerLimits.isNotEmpty;
+      powerLimits.isNotEmpty ||
+      cpuOverclockEnabled != null ||
+      gpuOverclockEnabled != null;
 
   PowerState copyWith({
     Object? currentMode = _unset,
     List<PowerMode>? availableModes,
     List<PowerLimitReading>? powerLimits,
+    Object? cpuOverclockEnabled = _unset,
+    Object? gpuOverclockEnabled = _unset,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -54,6 +64,12 @@ class PowerState extends Equatable {
           : currentMode as PowerMode?,
       availableModes: availableModes ?? this.availableModes,
       powerLimits: powerLimits ?? this.powerLimits,
+      cpuOverclockEnabled: cpuOverclockEnabled == _unset
+          ? this.cpuOverclockEnabled
+          : cpuOverclockEnabled as bool?,
+      gpuOverclockEnabled: gpuOverclockEnabled == _unset
+          ? this.gpuOverclockEnabled
+          : gpuOverclockEnabled as bool?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -70,6 +86,8 @@ class PowerState extends Equatable {
     currentMode,
     availableModes,
     powerLimits,
+    cpuOverclockEnabled,
+    gpuOverclockEnabled,
     isLoading,
     isApplying,
     errorMessage,

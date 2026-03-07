@@ -104,6 +104,15 @@ class PowerRepository {
       max: 200,
     ),
     PowerLimitSpec(
+      id: 'gpu_boost_clock',
+      label: 'GPU Boost Clock',
+      featureName: 'GPUBoostClock',
+      sysfsPath:
+          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_boost_clock',
+      min: 0,
+      max: 10000,
+    ),
+    PowerLimitSpec(
       id: 'gpu_temperature',
       label: 'GPU Temperature Limit',
       featureName: 'GPUTemperatureLimit',
@@ -117,6 +126,8 @@ class PowerRepository {
   Future<PowerSnapshot> loadSnapshot() async {
     final currentRaw = await _sysfsService.readPlatformProfile();
     final choicesRaw = await _sysfsService.readPlatformProfileChoices();
+    final cpuOverclock = await _sysfsService.readCpuOverclockMode();
+    final gpuOverclock = await _sysfsService.readGpuOverclockMode();
 
     final values = <String>[];
     final source = choicesRaw.isEmpty ? _fallbackModeValues : choicesRaw;
@@ -151,6 +162,8 @@ class PowerRepository {
       currentMode: currentMode,
       availableModes: availableModes,
       powerLimits: powerLimits,
+      cpuOverclockEnabled: cpuOverclock,
+      gpuOverclockEnabled: gpuOverclock,
     );
   }
 
@@ -187,6 +200,46 @@ class PowerRepository {
       final message = details.isEmpty
           ? 'Failed to set ${limit.label}.'
           : 'Failed to set ${limit.label}: $details';
+
+      throw PowerRepositoryException(message);
+    }
+  }
+
+  Future<void> setCpuOverclock(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'CPUOverclock',
+      enabled: enabled,
+      settingLabel: 'CPU overclock',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> setGpuOverclock(bool enabled) async {
+    await _runFeatureToggle(
+      featureName: 'GPUOverclock',
+      enabled: enabled,
+      settingLabel: 'GPU overclock',
+      detectUnavailableResponse: true,
+    );
+  }
+
+  Future<void> _runFeatureToggle({
+    required String featureName,
+    required bool enabled,
+    required String settingLabel,
+    bool detectUnavailableResponse = false,
+  }) async {
+    try {
+      await _bridgeService.runPrivilegedCommand(
+        method: 'feature.set',
+        args: ['set-feature', featureName, enabled ? '1' : '0'],
+        detectUnavailableResponse: detectUnavailableResponse,
+      );
+    } on LegionBridgeException catch (error) {
+      final details = error.details;
+      final message = details.isEmpty
+          ? 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}.'
+          : 'Failed to set $settingLabel: $details';
 
       throw PowerRepositoryException(message);
     }
