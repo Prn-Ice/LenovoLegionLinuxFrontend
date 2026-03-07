@@ -169,6 +169,61 @@ class AutomationPage extends ConsumerWidget {
                   ],
                 ),
               ),
+            AppSwitchTile(
+              value: state.config.runExternalCommand,
+              onChanged: (enabled) {
+                bloc.add(AutomationExternalCommandRuleToggled(enabled));
+              },
+              title: 'Run external command',
+              subtitle: 'Execute a shell command as your user account',
+            ),
+            if (state.config.runExternalCommand) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.warning_amber_outlined, size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Runs as your user account, not as root. '
+                            'Avoid commands that require admin privileges.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _CommandField(
+                      initialValue: state.config.externalCommand,
+                      onSubmitted: (command) {
+                        bloc.add(AutomationExternalCommandUpdated(command));
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    AppSwitchTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: state.config.externalCommandOnContextChange,
+                      onChanged: (onContextChange) {
+                        bloc.add(
+                          AutomationExternalCommandTriggerUpdated(
+                            onContextChange,
+                          ),
+                        );
+                      },
+                      title: 'Only on context change',
+                      subtitle: state.config.externalCommandOnContextChange
+                          ? 'Runs when profile or power source changes'
+                          : 'Runs every automation cycle',
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               children: [
@@ -286,6 +341,56 @@ class _LimitFieldState extends State<_LimitField> {
         }
         widget.onSubmitted(parsed.clamp(0, 100));
       },
+    );
+  }
+}
+
+class _CommandField extends StatefulWidget {
+  const _CommandField({
+    required this.initialValue,
+    required this.onSubmitted,
+  });
+
+  final String initialValue;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  State<_CommandField> createState() => _CommandFieldState();
+}
+
+class _CommandFieldState extends State<_CommandField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommandField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue &&
+        _controller.text != widget.initialValue) {
+      _controller.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      decoration: const InputDecoration(
+        labelText: 'Shell command',
+        hintText: 'e.g. notify-send "Automation ran"',
+      ),
+      onSubmitted: (value) => widget.onSubmitted(value.trim()),
     );
   }
 }
