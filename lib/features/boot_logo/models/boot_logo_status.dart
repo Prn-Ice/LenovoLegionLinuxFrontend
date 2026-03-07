@@ -14,7 +14,7 @@ class BootLogoStatus extends Equatable {
   bool get hasDimensionConstraint => requiredWidth > 0 || requiredHeight > 0;
 
   String get dimensionLabel =>
-      hasDimensionConstraint ? '${requiredWidth}×${requiredHeight}' : 'any';
+      hasDimensionConstraint ? '$requiredWidth×$requiredHeight' : 'any';
 
   static BootLogoStatus? parseStatusOutput(String output) {
     final dimMatch = RegExp(r'dimensions: (\d+) x (\d+)').firstMatch(output);
