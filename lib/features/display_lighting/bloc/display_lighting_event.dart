@@ -15,6 +15,10 @@ final class DisplayLightingRefreshRequested extends DisplayLightingEvent {
   const DisplayLightingRefreshRequested();
 }
 
+final class DisplayLightingTicked extends DisplayLightingEvent {
+  const DisplayLightingTicked();
+}
+
 final class HybridModeSetRequested extends DisplayLightingEvent {
   const HybridModeSetRequested(this.enabled);
 

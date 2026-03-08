@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/display_lighting_repository.dart';
@@ -6,11 +8,15 @@ import 'display_lighting_state.dart';
 
 class DisplayLightingBloc
     extends Bloc<DisplayLightingEvent, DisplayLightingState> {
-  DisplayLightingBloc({required DisplayLightingRepository repository})
-    : _repository = repository,
-      super(DisplayLightingState.initial()) {
+  DisplayLightingBloc({
+    required DisplayLightingRepository repository,
+    Duration pollInterval = const Duration(seconds: 5),
+  }) : _repository = repository,
+       _pollInterval = pollInterval,
+       super(DisplayLightingState.initial()) {
     on<DisplayLightingStarted>(_onStarted);
     on<DisplayLightingRefreshRequested>(_onRefreshRequested);
+    on<DisplayLightingTicked>(_onTicked);
     on<HybridModeSetRequested>(_onHybridModeSetRequested);
     on<OverdriveModeSetRequested>(_onOverdriveModeSetRequested);
     on<WhiteKeyboardBacklightSetRequested>(
@@ -22,12 +28,22 @@ class DisplayLightingBloc
   }
 
   final DisplayLightingRepository _repository;
+  final Duration _pollInterval;
+
+  Timer? _pollTimer;
+  bool _started = false;
+  bool _refreshInFlight = false;
 
   Future<void> _onStarted(
     DisplayLightingStarted event,
     Emitter<DisplayLightingState> emit,
   ) async {
+    if (_started) return;
+    _started = true;
     await _reloadState(emit, showLoading: true);
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      add(const DisplayLightingTicked());
+    });
   }
 
   Future<void> _onRefreshRequested(
@@ -35,6 +51,14 @@ class DisplayLightingBloc
     Emitter<DisplayLightingState> emit,
   ) async {
     await _reloadState(emit, showLoading: true);
+  }
+
+  Future<void> _onTicked(
+    DisplayLightingTicked event,
+    Emitter<DisplayLightingState> emit,
+  ) async {
+    if (state.isApplying) return;
+    await _reloadState(emit, showLoading: false);
   }
 
   Future<void> _onHybridModeSetRequested(
@@ -199,6 +223,9 @@ class DisplayLightingBloc
     Emitter<DisplayLightingState> emit, {
     required bool showLoading,
   }) async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+
     if (showLoading) {
       emit(
         state.copyWith(
@@ -238,6 +265,14 @@ class DisplayLightingBloc
           errorMessage: 'Failed to load display settings: $error',
         ),
       );
+    } finally {
+      _refreshInFlight = false;
     }
+  }
+
+  @override
+  Future<void> close() {
+    _pollTimer?.cancel();
+    return super.close();
   }
 }
