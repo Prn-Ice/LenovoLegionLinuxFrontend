@@ -4,6 +4,11 @@ import '../../features/fans/models/fan_curve.dart';
 import '../../features/dashboard/models/system_status.dart';
 
 class LegionSysfsService {
+  static const String _hwmonBasePath = '/sys/class/hwmon';
+
+  /// Convert hwmon millidegrees Celsius to degrees Celsius.
+  static double milliDegreesToC(int milliDegrees) => milliDegrees / 1000.0;
+
   static const String _platformProfilePath =
       '/sys/firmware/acpi/platform_profile';
   static const String _platformProfileChoicesPath =
@@ -175,19 +180,26 @@ class LegionSysfsService {
 
     final points = <FanCurvePoint>[];
     for (var i = 1; i <= 10; i++) {
-      final pwm1 = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm')) ?? 0;
-      final pwm2 = (await readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm')) ?? 0;
+      final pwm1 =
+          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm')) ?? 0;
+      final pwm2 =
+          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm')) ?? 0;
       final cpuLower =
           (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp_hyst')) ?? 0;
-      final cpuUpper = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp')) ?? 0;
+      final cpuUpper =
+          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp')) ?? 0;
       final gpuLower =
           (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp_hyst')) ?? 0;
-      final gpuUpper = (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp')) ?? 0;
+      final gpuUpper =
+          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp')) ?? 0;
       final icLower =
           (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp_hyst')) ?? 0;
-      final icUpper = (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp')) ?? 0;
-      final accel = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_accel')) ?? 0;
-      final decel = (await readIntFile('${hwmonPath}pwm1_auto_point${i}_decel')) ?? 0;
+      final icUpper =
+          (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp')) ?? 0;
+      final accel =
+          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_accel')) ?? 0;
+      final decel =
+          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_decel')) ?? 0;
 
       points.add(
         FanCurvePoint(
@@ -214,6 +226,69 @@ class LegionSysfsService {
 
   Future<bool?> readGpuOverclockMode() async {
     return _readBoolFile(_gpuOverclockPath);
+  }
+
+  /// Current CPU fan speed in RPM. Returns null if unavailable.
+  Future<int?> readFan1Rpm() async {
+    final p = await _findFanHwmonDir();
+    return p == null ? null : readIntFile('${p}fan1_input');
+  }
+
+  /// Current GPU fan speed in RPM. Returns null if unavailable.
+  Future<int?> readFan2Rpm() async {
+    final p = await _findFanHwmonDir();
+    return p == null ? null : readIntFile('${p}fan2_input');
+  }
+
+  /// CPU package temperature in °C. Returns null if unavailable.
+  Future<double?> readCpuTempC() async {
+    final path = await _findHwmonTempInput(
+      driverNames: {'coretemp', 'k10temp'},
+      label: 'Package id 0',
+      fallbackIndex: 1,
+    );
+    final raw = path == null ? null : await readIntFile(path);
+    return raw == null ? null : milliDegreesToC(raw);
+  }
+
+  /// GPU temperature in °C. Returns null if unavailable.
+  Future<double?> readGpuTempC() async {
+    final path = await _findHwmonTempInput(
+      driverNames: {'nouveau', 'amdgpu', 'nvidia', 'radeon'},
+      fallbackIndex: 1,
+    );
+    final raw = path == null ? null : await readIntFile(path);
+    return raw == null ? null : milliDegreesToC(raw);
+  }
+
+  Future<String?> _findHwmonTempInput({
+    required Set<String> driverNames,
+    String? label,
+    int fallbackIndex = 1,
+  }) async {
+    final dir = Directory(_hwmonBasePath);
+    if (!await dir.exists()) return null;
+    try {
+      await for (final entity in dir.list(followLinks: true)) {
+        if (entity is! Directory) continue;
+        final nameFile = File('${entity.path}/name');
+        if (!await nameFile.exists()) continue;
+        final name = (await nameFile.readAsString()).trim().toLowerCase();
+        if (!driverNames.contains(name)) continue;
+        if (label != null) {
+          for (var i = 1; i <= 32; i++) {
+            final lf = File('${entity.path}/temp${i}_label');
+            if (!await lf.exists()) continue;
+            if ((await lf.readAsString()).trim() == label) {
+              return '${entity.path}/temp${i}_input';
+            }
+          }
+        }
+        final fb = '${entity.path}/temp${fallbackIndex}_input';
+        if (await File(fb).exists()) return fb;
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<String?> _findFanHwmonDir() async {
