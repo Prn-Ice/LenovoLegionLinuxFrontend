@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:collection';
 
+import '../models/bridge_command_record.dart';
 import 'legion_cli_service.dart';
 
 enum LegionBridgeErrorCode {
@@ -67,6 +69,12 @@ class LegionFrontendBridgeService {
   final LegionCliService _cliService;
   final Set<String> _pendingActionKeys = <String>{};
   Future<void> _privilegedQueue = Future<void>.value();
+  static const int _historyCapacity = 20;
+  final ListQueue<BridgeCommandRecord> _history =
+      ListQueue<BridgeCommandRecord>(_historyCapacity);
+
+  /// The last [_historyCapacity] bridge commands in chronological order.
+  List<BridgeCommandRecord> get commandHistory => List.unmodifiable(_history);
 
   bool isActionPending({required String method, required List<String> args}) {
     final actionKey = _buildActionKey(method: method, args: args);
@@ -110,7 +118,20 @@ class LegionFrontendBridgeService {
       }
     });
 
-    await completion.future;
+    final start = DateTime.now();
+    var succeeded = false;
+    try {
+      await completion.future;
+      succeeded = true;
+    } finally {
+      _recordHistory(
+        method: method,
+        args: args,
+        isPrivileged: true,
+        succeeded: succeeded,
+        start: start,
+      );
+    }
   }
 
   Future<LegionCliResult> runCommand({
@@ -121,14 +142,28 @@ class LegionFrontendBridgeService {
     bool privileged = false,
     bool detectUnavailableResponse = false,
   }) async {
-    return _runCommand(
-      method: method,
-      args: args,
-      timeout: timeout,
-      retries: retries,
-      privileged: privileged,
-      detectUnavailableResponse: detectUnavailableResponse,
-    );
+    final start = DateTime.now();
+    var succeeded = false;
+    try {
+      final result = await _runCommand(
+        method: method,
+        args: args,
+        timeout: timeout,
+        retries: retries,
+        privileged: privileged,
+        detectUnavailableResponse: detectUnavailableResponse,
+      );
+      succeeded = true;
+      return result;
+    } finally {
+      _recordHistory(
+        method: method,
+        args: args,
+        isPrivileged: privileged,
+        succeeded: succeeded,
+        start: start,
+      );
+    }
   }
 
   Future<LegionCliResult> _runCommand({
@@ -260,5 +295,26 @@ class LegionFrontendBridgeService {
   String _buildActionKey({required String method, required List<String> args}) {
     final serializedArgs = args.join('\u0000');
     return '$method\u0000$serializedArgs';
+  }
+
+  void _recordHistory({
+    required String method,
+    required List<String> args,
+    required bool isPrivileged,
+    required bool succeeded,
+    required DateTime start,
+  }) {
+    final record = BridgeCommandRecord(
+      timestamp: start,
+      method: method,
+      args: args,
+      isPrivileged: isPrivileged,
+      succeeded: succeeded,
+      durationMs: DateTime.now().difference(start).inMilliseconds,
+    );
+    if (_history.length >= _historyCapacity) {
+      _history.removeFirst();
+    }
+    _history.addLast(record);
   }
 }
