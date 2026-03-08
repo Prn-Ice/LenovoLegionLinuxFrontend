@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/bridge_command_record.dart';
 import 'about_diagnostic_item.dart';
 
 class AboutSnapshot extends Equatable {
@@ -13,6 +14,11 @@ class AboutSnapshot extends Equatable {
     required this.cliHealthy,
     required this.cliHealthSummary,
     required this.diagnostics,
+    required this.kernelVersion,
+    required this.hardwareModel,
+    required this.moduleVersion,
+    required this.cliVersion,
+    required this.commandHistory,
   });
 
   final DateTime updatedAt;
@@ -24,6 +30,11 @@ class AboutSnapshot extends Equatable {
   final bool cliHealthy;
   final String cliHealthSummary;
   final List<AboutDiagnosticItem> diagnostics;
+  final String? kernelVersion;
+  final String? hardwareModel;
+  final String? moduleVersion;
+  final String? cliVersion;
+  final List<BridgeCommandRecord> commandHistory;
 
   @override
   List<Object?> get props => [
@@ -36,5 +47,10 @@ class AboutSnapshot extends Equatable {
     cliHealthy,
     cliHealthSummary,
     diagnostics,
+    kernelVersion,
+    hardwareModel,
+    moduleVersion,
+    cliVersion,
+    commandHistory,
   ];
 }

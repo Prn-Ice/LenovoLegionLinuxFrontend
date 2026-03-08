@@ -124,6 +124,11 @@ class AboutRepository {
       cliHealthy: cliProbe.$1,
       cliHealthSummary: cliProbe.$2,
       diagnostics: diagnostics,
+      kernelVersion: null,
+      hardwareModel: null,
+      moduleVersion: null,
+      cliVersion: null,
+      commandHistory: const [],
     );
   }
 
