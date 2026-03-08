@@ -15,6 +15,10 @@ final class DgpuRefreshRequested extends DgpuEvent {
   const DgpuRefreshRequested();
 }
 
+final class DgpuTicked extends DgpuEvent {
+  const DgpuTicked();
+}
+
 /// Kill all compute processes using the GPU (privileged).
 final class DgpuKillProcessesRequested extends DgpuEvent {
   const DgpuKillProcessesRequested();
