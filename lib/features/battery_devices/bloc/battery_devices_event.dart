@@ -15,6 +15,10 @@ final class BatteryDevicesRefreshRequested extends BatteryDevicesEvent {
   const BatteryDevicesRefreshRequested();
 }
 
+final class BatteryDevicesTicked extends BatteryDevicesEvent {
+  const BatteryDevicesTicked();
+}
+
 final class BatteryConservationSetRequested extends BatteryDevicesEvent {
   const BatteryConservationSetRequested(this.enabled);
 

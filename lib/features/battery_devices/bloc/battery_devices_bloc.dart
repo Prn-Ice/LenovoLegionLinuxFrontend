@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/battery_devices_repository.dart';
@@ -6,11 +8,15 @@ import 'battery_devices_state.dart';
 
 class BatteryDevicesBloc
     extends Bloc<BatteryDevicesEvent, BatteryDevicesState> {
-  BatteryDevicesBloc({required BatteryDevicesRepository repository})
-    : _repository = repository,
-      super(BatteryDevicesState.initial()) {
+  BatteryDevicesBloc({
+    required BatteryDevicesRepository repository,
+    Duration pollInterval = const Duration(seconds: 5),
+  }) : _repository = repository,
+       _pollInterval = pollInterval,
+       super(BatteryDevicesState.initial()) {
     on<BatteryDevicesStarted>(_onStarted);
     on<BatteryDevicesRefreshRequested>(_onRefreshRequested);
+    on<BatteryDevicesTicked>(_onTicked);
     on<BatteryConservationSetRequested>(_onBatteryConservationSetRequested);
     on<RapidChargingSetRequested>(_onRapidChargingSetRequested);
     on<AlwaysOnUsbChargingSetRequested>(_onAlwaysOnUsbChargingSetRequested);
@@ -20,12 +26,22 @@ class BatteryDevicesBloc
   }
 
   final BatteryDevicesRepository _repository;
+  final Duration _pollInterval;
+
+  Timer? _pollTimer;
+  bool _started = false;
+  bool _refreshInFlight = false;
 
   Future<void> _onStarted(
     BatteryDevicesStarted event,
     Emitter<BatteryDevicesState> emit,
   ) async {
+    if (_started) return;
+    _started = true;
     await _reloadState(emit, showLoading: true);
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      add(const BatteryDevicesTicked());
+    });
   }
 
   Future<void> _onRefreshRequested(
@@ -33,6 +49,14 @@ class BatteryDevicesBloc
     Emitter<BatteryDevicesState> emit,
   ) async {
     await _reloadState(emit, showLoading: true);
+  }
+
+  Future<void> _onTicked(
+    BatteryDevicesTicked event,
+    Emitter<BatteryDevicesState> emit,
+  ) async {
+    if (state.isApplying) return;
+    await _reloadState(emit, showLoading: false);
   }
 
   Future<void> _onBatteryConservationSetRequested(
@@ -130,6 +154,9 @@ class BatteryDevicesBloc
     Emitter<BatteryDevicesState> emit, {
     required bool showLoading,
   }) async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+
     if (showLoading) {
       emit(
         state.copyWith(
@@ -163,6 +190,14 @@ class BatteryDevicesBloc
           errorMessage: 'Failed to load battery/device settings: $error',
         ),
       );
+    } finally {
+      _refreshInFlight = false;
     }
+  }
+
+  @override
+  Future<void> close() {
+    _pollTimer?.cancel();
+    return super.close();
   }
 }
