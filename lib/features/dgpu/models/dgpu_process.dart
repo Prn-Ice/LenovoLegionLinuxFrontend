@@ -27,6 +27,7 @@ class DgpuProcess extends Equatable {
       if (pid == null) continue;
       final rawName = parts[1].trim();
       final name = rawName.contains('/') ? rawName.split('/').last : rawName;
+      // Memory field may be "N/A" for some process types; default to 0 rather than skip.
       final mem = int.tryParse(parts[2].trim()) ?? 0;
       processes.add(DgpuProcess(pid: pid, name: name, usedMemoryMib: mem));
     }

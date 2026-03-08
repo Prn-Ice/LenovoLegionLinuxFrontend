@@ -41,6 +41,12 @@ void main() {
       expect(result.first.name, equals('blender'));
     });
 
+    test('defaults to 0 when memory field is non-integer', () {
+      final result = DgpuProcess.parseNvidiaSmiOutput('1234, blender, N/A\n');
+      expect(result, hasLength(1));
+      expect(result.first.usedMemoryMib, equals(0));
+    });
+
     test('equality based on all fields', () {
       const a = DgpuProcess(pid: 1, name: 'Xorg', usedMemoryMib: 4);
       const b = DgpuProcess(pid: 1, name: 'Xorg', usedMemoryMib: 4);

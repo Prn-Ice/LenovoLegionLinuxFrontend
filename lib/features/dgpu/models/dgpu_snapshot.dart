@@ -1,6 +1,8 @@
+import 'package:equatable/equatable.dart';
+
 import 'dgpu_process.dart';
 
-class DgpuSnapshot {
+class DgpuSnapshot extends Equatable {
   const DgpuSnapshot({
     required this.isActive,
     required this.processes,
@@ -15,4 +17,7 @@ class DgpuSnapshot {
 
   /// The discovered PCI address (e.g. "0000:01:00.0"), or null if not found.
   final String? pciAddress;
+
+  @override
+  List<Object?> get props => [isActive, processes, pciAddress];
 }
