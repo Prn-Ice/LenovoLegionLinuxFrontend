@@ -167,4 +167,28 @@ void main() {
       expect: () => [],
     );
   });
+
+  group('FansBloc FansTicked', () {
+    late FakeFansRepository repo;
+
+    setUp(() => repo = FakeFansRepository());
+
+    blocTest<FansBloc, FansState>(
+      'FansTicked reloads silently when not applying',
+      build: () => FansBloc(repository: repo),
+      seed: () => FansState.initial(),
+      act: (bloc) => bloc.add(const FansTicked()),
+      expect: () => [
+        isA<FansState>().having((s) => s.isLoading, 'isLoading', false),
+      ],
+    );
+
+    blocTest<FansBloc, FansState>(
+      'FansTicked is skipped when isApplying',
+      build: () => FansBloc(repository: repo),
+      seed: () => FansState.initial().copyWith(isApplying: true),
+      act: (bloc) => bloc.add(const FansTicked()),
+      expect: () => isEmpty,
+    );
+  });
 }

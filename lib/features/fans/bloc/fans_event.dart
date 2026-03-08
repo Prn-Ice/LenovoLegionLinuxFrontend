@@ -17,6 +17,10 @@ final class FansRefreshRequested extends FansEvent {
   const FansRefreshRequested();
 }
 
+final class FansTicked extends FansEvent {
+  const FansTicked();
+}
+
 final class FansPresetSelectionChanged extends FansEvent {
   const FansPresetSelectionChanged(this.preset);
 

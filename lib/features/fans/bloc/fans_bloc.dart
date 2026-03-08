@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/fans_repository.dart';
@@ -5,11 +7,15 @@ import 'fans_event.dart';
 import 'fans_state.dart';
 
 class FansBloc extends Bloc<FansEvent, FansState> {
-  FansBloc({required FansRepository repository})
-    : _repository = repository,
-      super(FansState.initial()) {
+  FansBloc({
+    required FansRepository repository,
+    Duration pollInterval = const Duration(seconds: 5),
+  }) : _repository = repository,
+       _pollInterval = pollInterval,
+       super(FansState.initial()) {
     on<FansStarted>(_onStarted);
     on<FansRefreshRequested>(_onRefreshRequested);
+    on<FansTicked>(_onTicked);
     on<FansPresetSelectionChanged>(_onPresetSelectionChanged);
     on<FansApplyCurrentPresetRequested>(_onApplyCurrentPresetRequested);
     on<FansApplySelectedPresetRequested>(_onApplySelectedPresetRequested);
@@ -21,9 +27,19 @@ class FansBloc extends Bloc<FansEvent, FansState> {
   }
 
   final FansRepository _repository;
+  final Duration _pollInterval;
+
+  Timer? _pollTimer;
+  bool _started = false;
+  bool _refreshInFlight = false;
 
   Future<void> _onStarted(FansStarted event, Emitter<FansState> emit) async {
+    if (_started) return;
+    _started = true;
     await _reloadState(emit, showLoading: true);
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      add(const FansTicked());
+    });
   }
 
   Future<void> _onRefreshRequested(
@@ -31,6 +47,11 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit,
   ) async {
     await _reloadState(emit, showLoading: true);
+  }
+
+  Future<void> _onTicked(FansTicked event, Emitter<FansState> emit) async {
+    if (state.isApplying) return;
+    await _reloadState(emit, showLoading: false);
   }
 
   void _onPresetSelectionChanged(
@@ -181,6 +202,9 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit, {
     required bool showLoading,
   }) async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+
     if (showLoading) {
       emit(
         state.copyWith(
@@ -222,6 +246,8 @@ class FansBloc extends Bloc<FansEvent, FansState> {
           errorMessage: 'Failed to load fan settings: $error',
         ),
       );
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -240,5 +266,11 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     }
 
     return availablePresets.isEmpty ? null : availablePresets.first;
+  }
+
+  @override
+  Future<void> close() {
+    _pollTimer?.cancel();
+    return super.close();
   }
 }
