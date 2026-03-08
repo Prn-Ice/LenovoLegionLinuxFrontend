@@ -113,7 +113,7 @@ class DgpuRepository {
       ]).timeout(const Duration(seconds: 8));
       if (result.exitCode != 0) return [];
       return DgpuProcess.parseNvidiaSmiOutput('${result.stdout}');
-    } catch (_) {
+    } on Exception catch (_) {
       return [];
     }
   }
