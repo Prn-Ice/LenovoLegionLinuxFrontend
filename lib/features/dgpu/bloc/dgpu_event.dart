@@ -1,5 +1,10 @@
-abstract class DgpuEvent {
+import 'package:equatable/equatable.dart';
+
+sealed class DgpuEvent extends Equatable {
   const DgpuEvent();
+
+  @override
+  List<Object?> get props => const [];
 }
 
 final class DgpuStarted extends DgpuEvent {
@@ -15,7 +20,7 @@ final class DgpuKillProcessesRequested extends DgpuEvent {
   const DgpuKillProcessesRequested();
 }
 
-/// Remove the GPU from the PCI tree and rescan to reinitialise (privileged).
+/// Remove the GPU from the PCI tree and re-scan to re-initialize (privileged).
 final class DgpuRestartPciRequested extends DgpuEvent {
   const DgpuRestartPciRequested();
 }

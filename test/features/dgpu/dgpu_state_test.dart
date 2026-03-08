@@ -80,6 +80,26 @@ void main() {
           .copyWith(pciAddress: null);
       expect(s.pciAddress, isNull);
     });
+
+    test('copyWith(noticeMessage: null) clears it', () {
+      final s = DgpuState.initial()
+          .copyWith(noticeMessage: 'done')
+          .copyWith(noticeMessage: null);
+      expect(s.noticeMessage, isNull);
+    });
+
+    test('copyWith omitting all fields on populated state preserves all', () {
+      final populated = DgpuState.initial().copyWith(
+        isActive: true,
+        processes: [_proc],
+        pciAddress: '0000:01:00.0',
+        isLoading: true,
+        isApplying: true,
+        errorMessage: 'err',
+        noticeMessage: 'notice',
+      );
+      expect(populated.copyWith(), equals(populated));
+    });
   });
 
   group('DgpuState props', () {
@@ -95,6 +115,12 @@ void main() {
 
     test('differ when processes differ', () {
       final a = DgpuState.initial().copyWith(processes: [_proc]);
+      final b = DgpuState.initial();
+      expect(a, isNot(equals(b)));
+    });
+
+    test('differ when isLoading differs', () {
+      final a = DgpuState.initial().copyWith(isLoading: true);
       final b = DgpuState.initial();
       expect(a, isNot(equals(b)));
     });
