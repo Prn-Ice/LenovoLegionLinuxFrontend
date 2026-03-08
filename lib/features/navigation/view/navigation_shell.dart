@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../about/view/about_page.dart';
+import '../../dgpu/view/dgpu_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery_devices/view/battery_devices_page.dart';
 import '../../boot_logo/view/boot_logo_page.dart';
@@ -140,6 +141,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const DisplayLightingPage();
       case AppSection.bootLogo:
         return const BootLogoPage();
+      case AppSection.dgpu:
+        return const DgpuPage();
       case AppSection.automation:
         return const AutomationPage();
       case AppSection.settings:

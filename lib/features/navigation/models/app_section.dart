@@ -8,6 +8,7 @@ enum AppSection {
   battery,
   displayLighting,
   bootLogo,
+  dgpu,
   automation,
   settings,
   about,
@@ -28,6 +29,8 @@ extension AppSectionUi on AppSection {
         return 'Display & Lighting';
       case AppSection.bootLogo:
         return 'Boot Logo';
+      case AppSection.dgpu:
+        return 'Discrete GPU';
       case AppSection.automation:
         return 'Automation';
       case AppSection.settings:
@@ -51,6 +54,8 @@ extension AppSectionUi on AppSection {
         return Icons.display_settings_outlined;
       case AppSection.bootLogo:
         return Icons.image_outlined;
+      case AppSection.dgpu:
+        return Icons.memory_outlined;
       case AppSection.automation:
         return Icons.auto_mode_outlined;
       case AppSection.settings:
@@ -74,6 +79,8 @@ extension AppSectionUi on AppSection {
         return YaruIcons.display_layout;
       case AppSection.bootLogo:
         return YaruIcons.image;
+      case AppSection.dgpu:
+        return YaruIcons.chip;
       case AppSection.automation:
         return YaruIcons.gear_dots;
       case AppSection.settings:
