@@ -82,7 +82,7 @@ class BatteryDevicesRepository {
 
   Future<void> setWinKey(bool enabled) async {
     await _runPrivilegedCommand(
-      ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'],
+      ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'], // legion_linux/legion.py:WinkeyFeature
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
     );

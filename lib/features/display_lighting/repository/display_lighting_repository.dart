@@ -71,7 +71,7 @@ class DisplayLightingRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'OverdriveFeature',
+      featureName: 'OverdriveFeature', // legion_linux/legion.py:OverdriveFeature
       enabled: enabled,
       settingLabel: 'Overdrive',
     );
@@ -79,7 +79,7 @@ class DisplayLightingRepository {
 
   Future<void> setWhiteKeyboardBacklight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'WhiteKeyboardBacklightFeature',
+      featureName: 'WhiteKeyboardBacklightFeature', // legion_linux/legion.py:WhiteKeyboardBacklightFeature
       enabled: enabled,
       settingLabel: 'White keyboard backlight',
       detectUnavailableResponse: true,
@@ -88,7 +88,7 @@ class DisplayLightingRepository {
 
   Future<void> setYLogoLight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'YLogoLight',
+      featureName: 'YLogoLight', // legion_linux/legion.py:YLogoLight
       enabled: enabled,
       settingLabel: 'Y-logo light',
       detectUnavailableResponse: true,
@@ -97,7 +97,7 @@ class DisplayLightingRepository {
 
   Future<void> setIoPortLight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'IOPortLight',
+      featureName: 'IOPortLight', // legion_linux/legion.py:IOPortLight
       enabled: enabled,
       settingLabel: 'IO-port light',
       detectUnavailableResponse: true,

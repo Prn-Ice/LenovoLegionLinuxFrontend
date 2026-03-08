@@ -34,7 +34,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_longterm',
       label: 'CPU Long Term Power Limit',
-      featureName: 'CPULongtermPowerLimit',
+      featureName: 'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_longterm_powerlimit',
       min: 5,
@@ -43,7 +43,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_shortterm',
       label: 'CPU Short Term Power Limit',
-      featureName: 'CPUShorttermPowerLimit',
+      featureName: 'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_shortterm_powerlimit',
       min: 5,
@@ -52,7 +52,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_peak',
       label: 'CPU Peak Power Limit',
-      featureName: 'CPUPeakPowerLimit',
+      featureName: 'CPUPeakPowerLimit', // legion_linux/legion.py:CPUPeakPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_peak_powerlimit',
       min: 0,
@@ -61,7 +61,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_cross_loading',
       label: 'CPU Cross Loading Power Limit',
-      featureName: 'CPUCrossLoadingPowerLimit',
+      featureName: 'CPUCrossLoadingPowerLimit', // legion_linux/legion.py:CPUCrossLoadingPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_cross_loading_powerlimit',
       min: 0,
@@ -70,7 +70,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_apu_sppt',
       label: 'CPU APU SPPT Power Limit',
-      featureName: 'CPUAPUSPPTPowerLimit',
+      featureName: 'CPUAPUSPPTPowerLimit', // legion_linux/legion.py:CPUAPUSPPTPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_apu_sppt_powerlimit',
       min: 0,
@@ -79,7 +79,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_default',
       label: 'CPU Default Power Limit',
-      featureName: 'CPUDefaultPowerLimit',
+      featureName: 'CPUDefaultPowerLimit', // legion_linux/legion.py:CPUDefaultPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_default_powerlimit',
       min: 0,
@@ -88,7 +88,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_ctgp',
       label: 'GPU cTGP Power Limit',
-      featureName: 'GPUCTGPPowerLimit',
+      featureName: 'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ctgp_powerlimit',
       min: 0,
@@ -97,7 +97,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_ppab',
       label: 'GPU PPAB Power Limit',
-      featureName: 'GPUPPABPowerLimit',
+      featureName: 'GPUPPABPowerLimit', // legion_linux/legion.py:GPUPPABPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ppab_powerlimit',
       min: 0,
@@ -106,7 +106,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_boost_clock',
       label: 'GPU Boost Clock',
-      featureName: 'GPUBoostClock',
+      featureName: 'GPUBoostClock', // legion_linux/legion.py:GPUBoostClock
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_boost_clock',
       min: 0,
@@ -115,7 +115,7 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_temperature',
       label: 'GPU Temperature Limit',
-      featureName: 'GPUTemperatureLimit',
+      featureName: 'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_temperature_limit',
       min: 0,
@@ -171,7 +171,7 @@ class PowerRepository {
     try {
       await _bridgeService.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', 'PlatformProfileFeature', mode.value],
+        args: ['set-feature', 'PlatformProfileFeature', mode.value], // legion_linux/legion.py:PlatformProfileFeature
       );
     } on LegionBridgeException catch (error) {
       final details = error.details;
@@ -207,7 +207,7 @@ class PowerRepository {
 
   Future<void> setCpuOverclock(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'CPUOverclock',
+      featureName: 'CPUOverclock', // legion_linux/legion.py:CPUOverclock
       enabled: enabled,
       settingLabel: 'CPU overclock',
       detectUnavailableResponse: true,
@@ -216,7 +216,7 @@ class PowerRepository {
 
   Future<void> setGpuOverclock(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'GPUOverclock',
+      featureName: 'GPUOverclock', // legion_linux/legion.py:GPUOverclock
       enabled: enabled,
       settingLabel: 'GPU overclock',
       detectUnavailableResponse: true,

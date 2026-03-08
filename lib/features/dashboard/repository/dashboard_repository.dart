@@ -69,7 +69,7 @@ class DashboardRepository {
 
   Future<void> setPowerMode(String mode) async {
     await _runPrivilegedCommand(
-      ['set-feature', 'PlatformProfileFeature', mode],
+      ['set-feature', 'PlatformProfileFeature', mode], // legion_linux/legion.py:PlatformProfileFeature
       method: 'feature.set',
       failurePrefix: 'Failed to set power mode to "$mode"',
     );
@@ -95,7 +95,7 @@ class DashboardRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await _runPrivilegedCommand(
-      ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'],
+      ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'], // legion_linux/legion.py:OverdriveFeature
       method: 'feature.set',
       failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
       detectUnavailableResponse: true,
