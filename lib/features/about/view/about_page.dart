@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/bridge_command_record.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../bloc/about_event.dart';
 import '../models/about_diagnostic_item.dart';
@@ -88,6 +89,40 @@ class AboutPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         AppSectionCard(
+          title: 'Environment',
+          children: [
+            _StatusLine(
+              label: 'Kernel',
+              value: snapshot?.kernelVersion ?? 'Unknown',
+              status: snapshot?.kernelVersion != null
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.unavailable,
+            ),
+            _StatusLine(
+              label: 'Hardware',
+              value: snapshot?.hardwareModel ?? 'Unknown',
+              status: snapshot?.hardwareModel != null
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.unavailable,
+            ),
+            _StatusLine(
+              label: 'Module version',
+              value: snapshot?.moduleVersion ?? 'Unknown',
+              status: snapshot?.moduleVersion != null
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.unavailable,
+            ),
+            _StatusLine(
+              label: 'CLI version',
+              value: snapshot?.cliVersion ?? 'Unknown',
+              status: snapshot?.cliVersion != null
+                  ? AboutDiagnosticStatus.ok
+                  : AboutDiagnosticStatus.unavailable,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        AppSectionCard(
           title: 'Backend Capability Probes',
           children: [
             if (snapshot == null || snapshot.diagnostics.isEmpty)
@@ -100,6 +135,18 @@ class AboutPage extends ConsumerWidget {
                   status: item.status,
                   details: item.details,
                 ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        AppSectionCard(
+          title: 'Command History (last 20)',
+          children: [
+            if (snapshot == null || snapshot.commandHistory.isEmpty)
+              const Text('No commands recorded yet.'),
+            if (snapshot != null)
+              ...snapshot.commandHistory.reversed.map(
+                (record) => _CommandHistoryTile(record: record),
               ),
           ],
         ),
@@ -147,6 +194,10 @@ class AboutPage extends ConsumerWidget {
       'systemctl_available': snapshot.systemctlAvailable,
       'cli_healthy': snapshot.cliHealthy,
       'cli_health_summary': snapshot.cliHealthSummary,
+      'kernel_version': snapshot.kernelVersion,
+      'hardware_model': snapshot.hardwareModel,
+      'module_version': snapshot.moduleVersion,
+      'cli_version': snapshot.cliVersion,
       'diagnostics': snapshot.diagnostics
           .map(
             (entry) => <String, Object?>{
@@ -155,6 +206,18 @@ class AboutPage extends ConsumerWidget {
               'status': entry.status.name,
               'value': entry.value,
               'details': entry.details,
+            },
+          )
+          .toList(growable: false),
+      'command_history': snapshot.commandHistory
+          .map(
+            (r) => <String, Object?>{
+              'timestamp': r.timestamp.toIso8601String(),
+              'method': r.method,
+              'args': r.redactedArgs,
+              'is_privileged': r.isPrivileged,
+              'succeeded': r.succeeded,
+              'duration_ms': r.durationMs,
             },
           )
           .toList(growable: false),
@@ -221,5 +284,47 @@ class _StatusLine extends StatelessWidget {
       case AboutDiagnosticStatus.error:
         return Icons.error_outline;
     }
+  }
+}
+
+class _CommandHistoryTile extends StatelessWidget {
+  const _CommandHistoryTile({required this.record});
+
+  final BridgeCommandRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = record.succeeded ? Colors.green.shade700 : scheme.error;
+    final icon = record.succeeded
+        ? Icons.check_circle_outline
+        : Icons.error_outline;
+    final timeLabel = _formatTime(record.timestamp);
+    final argsLabel = record.redactedArgs.join(' ');
+    final subtitle = '${record.method}  $argsLabel';
+    final trailing = '${record.durationMs} ms';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: Icon(icon, color: color, size: 18),
+      title: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      subtitle: Text(
+        timeLabel,
+        style: TextStyle(fontSize: 11, color: scheme.outline),
+      ),
+      trailing: Text(
+        trailing,
+        style: TextStyle(fontSize: 11, color: scheme.outline),
+      ),
+    );
+  }
+
+  String _formatTime(DateTime ts) {
+    final local = ts.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    final s = local.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
   }
 }
