@@ -15,7 +15,7 @@ class DgpuProcess extends Equatable {
   /// nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory
   ///            --format=csv,noheader,nounits
   ///
-  /// Each line: "<pid>, <process_name>, <used_memory_MiB>"
+  /// Each line: `pid, process_name, used_memory_MiB`
   static List<DgpuProcess> parseNvidiaSmiOutput(String output) {
     final processes = <DgpuProcess>[];
     for (final line in output.trim().split('\n')) {
