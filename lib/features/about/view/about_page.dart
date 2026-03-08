@@ -249,10 +249,8 @@ class _StatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(context, status);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      leading: Icon(_statusIcon(status), color: color),
+    return YaruTile(
+      leading: Icon(_statusIcon(status), color: color, size: 20),
       title: Text(label),
       subtitle: details == null ? null : Text(details!),
       trailing: Text(value, style: TextStyle(color: color)),
@@ -304,9 +302,7 @@ class _CommandHistoryTile extends StatelessWidget {
     final subtitle = '${record.method}  $argsLabel';
     final trailing = '${record.durationMs} ms';
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
+    return YaruTile(
       leading: Icon(icon, color: color, size: 18),
       title: Text(subtitle, style: const TextStyle(fontSize: 12)),
       subtitle: Text(
