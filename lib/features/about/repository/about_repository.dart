@@ -113,6 +113,12 @@ class AboutRepository {
     final pkexecAvailable = await _isCommandAvailable('pkexec');
     final systemctlAvailable = await _isCommandAvailable('systemctl');
     final cliProbe = await _probeCliHealth();
+    final results = await Future.wait([
+      _readKernelVersion(),
+      _readHardwareModel(),
+      _readModuleVersion(),
+      _readCliVersion(),
+    ]);
 
     return AboutSnapshot(
       updatedAt: DateTime.now(),
@@ -124,11 +130,11 @@ class AboutRepository {
       cliHealthy: cliProbe.$1,
       cliHealthSummary: cliProbe.$2,
       diagnostics: diagnostics,
-      kernelVersion: null,
-      hardwareModel: null,
-      moduleVersion: null,
-      cliVersion: null,
-      commandHistory: const [],
+      kernelVersion: results[0],
+      hardwareModel: results[1],
+      moduleVersion: results[2],
+      cliVersion: results[3],
+      commandHistory: _bridge.commandHistory,
     );
   }
 
@@ -225,6 +231,79 @@ class AboutRepository {
       return (false, 'Process error: ${error.message}');
     } catch (error) {
       return (false, '$error');
+    }
+  }
+
+  Future<String?> _readKernelVersion() async {
+    try {
+      final result = await Process.run('uname', ['-r']);
+      if (result.exitCode != 0) {
+        return null;
+      }
+      final version = '${result.stdout}'.trim();
+      return version.isEmpty ? null : version;
+    } on ProcessException {
+      return null;
+    }
+  }
+
+  Future<String?> _readHardwareModel() async {
+    final family = await _readDmiField('product_family');
+    final name = await _readDmiField('product_name');
+    if (family == null && name == null) {
+      return null;
+    }
+    if (family == null) {
+      return name;
+    }
+    if (name == null) {
+      return family;
+    }
+    return '$family ($name)';
+  }
+
+  Future<String?> _readDmiField(String field) async {
+    try {
+      final file = File('/sys/class/dmi/id/$field');
+      if (!await file.exists()) {
+        return null;
+      }
+      final value = (await file.readAsString()).trim();
+      return value.isEmpty ? null : value;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  Future<String?> _readModuleVersion() async {
+    try {
+      final file = File('/sys/module/legion_laptop/version');
+      if (!await file.exists()) {
+        return null;
+      }
+      final value = (await file.readAsString()).trim();
+      return value.isEmpty ? null : value;
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  Future<String?> _readCliVersion() async {
+    try {
+      final result = await _bridge.runCommand(
+        method: 'diagnostics.cli_version',
+        args: const ['--version'],
+        timeout: const Duration(seconds: 2),
+      );
+      final lines = result.stdout
+          .toString()
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      return lines.isEmpty ? null : lines.first;
+    } catch (_) {
+      return null;
     }
   }
 
