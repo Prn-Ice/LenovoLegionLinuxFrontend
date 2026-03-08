@@ -18,6 +18,10 @@ final class PowerRefreshRequested extends PowerEvent {
   const PowerRefreshRequested();
 }
 
+final class PowerTicked extends PowerEvent {
+  const PowerTicked();
+}
+
 final class PowerModeSetRequested extends PowerEvent {
   const PowerModeSetRequested(this.mode);
 

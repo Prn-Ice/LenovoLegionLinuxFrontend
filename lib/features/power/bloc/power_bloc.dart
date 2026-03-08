@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/power_repository.dart';
@@ -5,11 +7,15 @@ import 'power_event.dart';
 import 'power_state.dart';
 
 class PowerBloc extends Bloc<PowerEvent, PowerState> {
-  PowerBloc({required PowerRepository repository})
-    : _repository = repository,
-      super(PowerState.initial()) {
+  PowerBloc({
+    required PowerRepository repository,
+    Duration pollInterval = const Duration(seconds: 5),
+  }) : _repository = repository,
+       _pollInterval = pollInterval,
+       super(PowerState.initial()) {
     on<PowerStarted>(_onStarted);
     on<PowerRefreshRequested>(_onRefreshRequested);
+    on<PowerTicked>(_onTicked);
     on<PowerModeSetRequested>(_onModeSetRequested);
     on<PowerLimitSetRequested>(_onLimitSetRequested);
     on<CpuOverclockSetRequested>(_onCpuOverclockSetRequested);
@@ -17,9 +23,19 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
   }
 
   final PowerRepository _repository;
+  final Duration _pollInterval;
+
+  Timer? _pollTimer;
+  bool _started = false;
+  bool _refreshInFlight = false;
 
   Future<void> _onStarted(PowerStarted event, Emitter<PowerState> emit) async {
+    if (_started) return;
+    _started = true;
     await _reloadState(emit, showLoading: true);
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      add(const PowerTicked());
+    });
   }
 
   Future<void> _onRefreshRequested(
@@ -27,6 +43,11 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     Emitter<PowerState> emit,
   ) async {
     await _reloadState(emit, showLoading: true);
+  }
+
+  Future<void> _onTicked(PowerTicked event, Emitter<PowerState> emit) async {
+    if (state.isApplying) return;
+    await _reloadState(emit, showLoading: false);
   }
 
   Future<void> _onModeSetRequested(
@@ -139,6 +160,9 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     Emitter<PowerState> emit, {
     required bool showLoading,
   }) async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+
     if (showLoading) {
       emit(
         state.copyWith(
@@ -169,6 +193,14 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           errorMessage: 'Failed to load power settings: $error',
         ),
       );
+    } finally {
+      _refreshInFlight = false;
     }
+  }
+
+  @override
+  Future<void> close() {
+    _pollTimer?.cancel();
+    return super.close();
   }
 }
