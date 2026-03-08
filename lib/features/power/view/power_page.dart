@@ -150,11 +150,10 @@ class PowerPage extends ConsumerWidget {
                 ),
               ),
             ...state.powerLimits.map(
-              (reading) => ListTile(
-                contentPadding: EdgeInsets.zero,
+              (reading) => YaruTile(
                 title: Text(reading.spec.label),
                 subtitle: Text(
-                  'Current: ${reading.value} | Range: ${reading.spec.min}-${reading.spec.max}',
+                  'Current: ${reading.value} | Range: ${reading.spec.min}–${reading.spec.max}',
                 ),
                 trailing: OutlinedButton(
                   onPressed: state.isApplying
