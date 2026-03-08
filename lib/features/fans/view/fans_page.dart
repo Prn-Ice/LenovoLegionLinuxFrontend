@@ -354,36 +354,38 @@ class _FanCurveTableState extends State<_FanCurveTable> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowHeight: 36,
-        dataRowMinHeight: 40,
-        dataRowMaxHeight: 52,
-        columnSpacing: 8,
-        columns: const [
-          DataColumn(label: Text('#')),
-          DataColumn(label: Text('CPU Lo (°C)')),
-          DataColumn(label: Text('CPU Hi (°C)')),
-          DataColumn(label: Text('GPU Lo (°C)')),
-          DataColumn(label: Text('GPU Hi (°C)')),
-          DataColumn(label: Text('Fan1 RPM')),
-          DataColumn(label: Text('Fan2 RPM')),
-        ],
-        rows: List.generate(10, (i) {
-          final row = _controllers[i];
-          return DataRow(
-            cells: [
-              DataCell(Text('${i + 1}')),
-              DataCell(_cell(row[0], i)),
-              DataCell(_cell(row[1], i)),
-              DataCell(_cell(row[2], i)),
-              DataCell(_cell(row[3], i)),
-              DataCell(_cell(row[4], i)),
-              DataCell(_cell(row[5], i)),
-            ],
-          );
-        }),
+    return YaruBorderContainer(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowHeight: 36,
+          dataRowMinHeight: 40,
+          dataRowMaxHeight: 52,
+          columnSpacing: 8,
+          columns: const [
+            DataColumn(label: Text('#')),
+            DataColumn(label: Text('CPU Lo (°C)')),
+            DataColumn(label: Text('CPU Hi (°C)')),
+            DataColumn(label: Text('GPU Lo (°C)')),
+            DataColumn(label: Text('GPU Hi (°C)')),
+            DataColumn(label: Text('Fan1 RPM')),
+            DataColumn(label: Text('Fan2 RPM')),
+          ],
+          rows: List.generate(10, (i) {
+            final row = _controllers[i];
+            return DataRow(
+              cells: [
+                DataCell(Text('${i + 1}')),
+                DataCell(_cell(row[0], i)),
+                DataCell(_cell(row[1], i)),
+                DataCell(_cell(row[2], i)),
+                DataCell(_cell(row[3], i)),
+                DataCell(_cell(row[4], i)),
+                DataCell(_cell(row[5], i)),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }
