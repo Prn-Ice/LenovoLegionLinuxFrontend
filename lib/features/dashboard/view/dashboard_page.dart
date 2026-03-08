@@ -288,30 +288,31 @@ class _SectionGroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return YaruSection(
-      headline: Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Text(group.title, style: textTheme.titleMedium),
-      ),
+    return YaruExpandable(
+      isExpanded: true,
+      expandButtonPosition: YaruExpandableButtonPosition.end,
+      header: Text(group.title, style: Theme.of(context).textTheme.titleMedium),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(group.description),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: group.sections
-                .map(
-                  (section) => OutlinedButton.icon(
-                    onPressed: () => onSectionTap(section),
-                    icon: Icon(section.icon),
-                    label: Text('Open ${section.label}'),
-                  ),
-                )
-                .toList(growable: false),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              group.description,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          ...group.sections.map(
+            (section) => InkWell(
+              onTap: () => onSectionTap(section),
+              borderRadius: BorderRadius.circular(8),
+              child: YaruTile(
+                leading: Icon(section.icon),
+                title: Text(section.label),
+                trailing: const Icon(Icons.chevron_right),
+                enabled: true,
+              ),
+            ),
           ),
         ],
       ),
