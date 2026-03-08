@@ -2,6 +2,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../bloc/analytics_event.dart';
 import '../bloc/analytics_state.dart';
@@ -127,15 +128,12 @@ class _SensorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
+    return YaruTile(
+      leading: Icon(icon),
+      title: Text(label),
+      trailing: Text(
+        value,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
       ),
     );
   }
@@ -154,7 +152,7 @@ class _ChartSection extends StatelessWidget {
       children: [
         Text(title, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        SizedBox(height: 140, child: child),
+        YaruBorderContainer(child: SizedBox(height: 140, child: child)),
       ],
     );
   }
