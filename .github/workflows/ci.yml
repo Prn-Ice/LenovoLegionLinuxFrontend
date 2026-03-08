@@ -25,5 +25,15 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      - name: Add legion_cli test stub
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          cat > "$RUNNER_TEMP/bin/legion_cli" <<'EOF'
+          #!/usr/bin/env bash
+          exit 0
+          EOF
+          chmod +x "$RUNNER_TEMP/bin/legion_cli"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       - name: Run tests
         run: flutter test --reporter=compact
