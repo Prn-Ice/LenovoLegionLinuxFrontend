@@ -32,8 +32,7 @@ class BootLogoPage extends ConsumerWidget {
               'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
           children: [
             if (state.status == null)
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
+              const YaruTile(
                 title: Text('Boot logo status unavailable'),
                 subtitle: Text(
                   'This feature requires a supported Lenovo Legion model and readable EFI variables.',
@@ -122,7 +121,10 @@ class BootLogoPage extends ConsumerWidget {
 }
 
 class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.isCustomEnabled, required this.dimensionLabel});
+  const _StatusRow({
+    required this.isCustomEnabled,
+    required this.dimensionLabel,
+  });
 
   final bool isCustomEnabled;
   final String dimensionLabel;

@@ -35,8 +35,7 @@ class AutomationPage extends ConsumerWidget {
                   ? 'Running every ${state.config.pollIntervalSeconds}s'
                   : 'Stopped',
             ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
+            YaruTile(
               title: const Text('Poll interval (seconds)'),
               subtitle: Slider(
                 value: state.config.pollIntervalSeconds.toDouble(),
@@ -346,10 +345,7 @@ class _LimitFieldState extends State<_LimitField> {
 }
 
 class _CommandField extends StatefulWidget {
-  const _CommandField({
-    required this.initialValue,
-    required this.onSubmitted,
-  });
+  const _CommandField({required this.initialValue, required this.onSubmitted});
 
   final String initialValue;
   final ValueChanged<String> onSubmitted;
