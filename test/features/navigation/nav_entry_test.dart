@@ -53,5 +53,12 @@ void main() {
       final idx = NavShellEntries.indexFor(AppSection.power);
       expect(idx, 2);
     });
+
+    test('narrowIndexFor excludes headers: power is at narrow index 1', () {
+      // In the full list: dashboard=0, PERFORMANCE header=1, power=2
+      // In the narrow (pages-only) list: dashboard=0, power=1
+      final narrowIdx = NavShellEntries.narrowIndexFor(AppSection.power);
+      expect(narrowIdx, 1);
+    });
   });
 }
