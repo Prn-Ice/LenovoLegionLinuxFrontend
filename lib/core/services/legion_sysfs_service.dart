@@ -296,20 +296,6 @@ class LegionSysfsService {
     }
   }
 
-  Future<String?> _readFirstCpuStatLine() async {
-    try {
-      final file = File('/proc/stat');
-      if (!await file.exists()) return null;
-      final lines = await file.readAsLines();
-      return lines.firstWhere(
-        (l) => l.startsWith('cpu '),
-        orElse: () => '',
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
   // ── CPU clock ─────────────────────────────────────────────────────────────
 
   /// Average clock speed across all online CPUs in GHz.
@@ -455,7 +441,9 @@ class LegionSysfsService {
           if (parts.length >= 2) return parts.sublist(1).join(':').trim();
         }
       }
-    } catch (_) {}
+    } catch (_) {
+      return null;
+    }
     return null;
   }
 
@@ -511,6 +499,20 @@ class LegionSysfsService {
     }
 
     return null;
+  }
+
+  Future<String?> _readFirstCpuStatLine() async {
+    try {
+      final file = File('/proc/stat');
+      if (!await file.exists()) return null;
+      final lines = await file.readAsLines();
+      return lines.firstWhere(
+        (l) => l.startsWith('cpu '),
+        orElse: () => '',
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   static int _pwmToRpm(int pwm, int maxRpm) {
