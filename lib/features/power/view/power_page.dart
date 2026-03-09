@@ -27,59 +27,49 @@ class PowerPage extends ConsumerWidget {
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
-        AppSectionCard(
-          title: 'Current Mode',
-          children: [
-            Text(
-              state.currentMode?.label ?? 'Unavailable',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        AppSectionCard(
-          title: 'Select Mode',
+        AppControlCard(
+          icon: YaruIcons.thunderbolt,
+          title: 'Power Mode',
           children: [
             const PrivilegedActionNotice(),
             const SizedBox(height: 8),
             if (state.availableModes.isEmpty)
               const Text('No power mode options available on this system.'),
-            if (state.availableModes.isNotEmpty)
-              Column(
-                children: state.availableModes
-                    .map(
-                      (mode) => YaruRadioListTile<String>(
-                        value: mode.value,
-                        groupValue: state.currentMode?.value,
-                        onChanged: state.isApplying
-                            ? null
-                            : (value) async {
-                                if (value == null) return;
-                                final selected = state.availableModes
-                                    .firstWhere(
-                                      (entry) => entry.value == value,
-                                      orElse: () => PowerMode(value),
-                                    );
-                                final confirmed = await confirmPrivilegedAction(
-                                  context,
-                                  title: 'Set power mode',
-                                  message:
-                                      'Changing power mode uses a privileged command and may prompt for authentication.',
-                                  confirmLabel: 'Set mode',
-                                );
-                                if (!context.mounted || !confirmed) return;
-                                _setMode(bloc, selected);
-                              },
-                        title: Text(mode.label),
-                        subtitle: Text(mode.value),
-                      ),
-                    )
+            if (state.availableModes.isNotEmpty) ...[
+              YaruChoiceChipBar(
+                labels: state.availableModes
+                    .map((m) => Text(m.label))
                     .toList(growable: false),
+                isSelected: state.availableModes
+                    .map((m) => m == state.currentMode)
+                    .toList(growable: false),
+                onSelected: state.isApplying
+                    ? null
+                    : (i) async {
+                        final selected = state.availableModes[i];
+                        if (selected == state.currentMode) return;
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Set power mode',
+                          message:
+                              'Changing power mode uses a privileged command and may prompt for authentication.',
+                          confirmLabel: 'Set mode',
+                        );
+                        if (!context.mounted || !confirmed) return;
+                        _setMode(bloc, selected);
+                      },
               ),
+              const SizedBox(height: 8),
+              Text(
+                _modeDescription(state.currentMode),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 16),
-        AppSectionCard(
+        AppControlCard(
+          icon: YaruIcons.gears,
           title: 'Overclocking',
           description:
               'Advanced controls that may be unavailable on some devices/profiles.',
@@ -135,37 +125,48 @@ class PowerPage extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
-        AppSectionCard(
-          title: 'Power Limits (Advanced)',
+        AppControlCard(
+          icon: Icons.tune,
+          title: 'Power Limits',
           description:
               'These limits are hardware-dependent and may only apply in custom/performance profiles.',
           children: [
-            const PrivilegedActionNotice(),
-            const SizedBox(height: 8),
-            if (state.powerLimits.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'No power limit controls are available on this system.',
-                ),
-              ),
-            ...state.powerLimits.map(
-              (reading) => YaruTile(
-                title: Text(reading.spec.label),
-                subtitle: Text(
-                  'Current: ${reading.value} | Range: ${reading.spec.min}–${reading.spec.max}',
-                ),
-                trailing: OutlinedButton(
-                  onPressed: state.isApplying
-                      ? null
-                      : () => _promptAndSetLimit(
-                          context,
-                          bloc,
-                          reading.spec,
-                          reading.value,
-                        ),
-                  child: const Text('Set'),
-                ),
+            YaruExpandable(
+              isExpanded: false,
+              expandButtonPosition: YaruExpandableButtonPosition.end,
+              header: const Text('Advanced: Power Limits'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const PrivilegedActionNotice(),
+                  const SizedBox(height: 8),
+                  if (state.powerLimits.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'No power limit controls are available on this system.',
+                      ),
+                    ),
+                  ...state.powerLimits.map(
+                    (reading) => YaruTile(
+                      title: Text(reading.spec.label),
+                      subtitle: Text(
+                        'Current: ${reading.value} | Range: ${reading.spec.min}–${reading.spec.max}',
+                      ),
+                      trailing: OutlinedButton(
+                        onPressed: state.isApplying
+                            ? null
+                            : () => _promptAndSetLimit(
+                                context,
+                                bloc,
+                                reading.spec,
+                                reading.value,
+                              ),
+                        child: const Text('Set'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -179,6 +180,22 @@ class PowerPage extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  static String _modeDescription(PowerMode? mode) {
+    if (mode == null) return '';
+    switch (mode.value) {
+      case 'quiet':
+        return 'Optimised for silence — fan speed minimised';
+      case 'balanced':
+        return 'Balanced performance and power consumption';
+      case 'performance':
+        return 'Maximum performance — higher fan noise and power draw';
+      case 'balanced-performance':
+        return 'Custom tuning (balanced-performance profile)';
+      default:
+        return '';
+    }
   }
 
   void _setMode(PowerBloc bloc, PowerMode mode) {
