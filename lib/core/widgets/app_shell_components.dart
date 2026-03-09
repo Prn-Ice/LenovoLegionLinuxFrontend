@@ -207,3 +207,119 @@ String boolEnabledLabel(
 
   return value ? 'Enabled' : 'Disabled';
 }
+
+/// A feature-page section card with a leading icon and optional background tint.
+/// Use instead of [AppSectionCard] for interactive control sections.
+class AppControlCard extends StatelessWidget {
+  const AppControlCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.description,
+    this.trailing,
+    this.tint,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? description;
+  final Widget? trailing;
+  final Color? tint;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget section = YaruSection(
+      headline: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title, style: textTheme.titleMedium)),
+            ?trailing,
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (description != null) ...[
+            Text(description!, style: textTheme.bodySmall),
+            const SizedBox(height: 8),
+          ],
+          ...children,
+        ],
+      ),
+    );
+
+    if (tint != null) {
+      section = ColoredBox(
+        color: tint!.withValues(alpha: 0.06),
+        child: section,
+      );
+    }
+
+    return section;
+  }
+}
+
+/// A dashboard-specific card with an icon, optional background tint,
+/// and slightly more visual weight than [AppControlCard].
+class DashboardCard extends StatelessWidget {
+  const DashboardCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.trailing,
+    this.tint,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget? trailing;
+  final Color? tint;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      color: tint != null
+          ? Color.alphaBlend(tint!.withValues(alpha: 0.08), scheme.surface)
+          : scheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: scheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(title, style: textTheme.titleMedium),
+                ),
+                ?trailing,
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
