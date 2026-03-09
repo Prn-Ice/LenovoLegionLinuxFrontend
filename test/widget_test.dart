@@ -19,6 +19,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
+    // TODO(Task 21): update to DiagnosticsPage when diagnostics page is implemented
     expect(find.byType(SettingsPage), findsOneWidget);
   });
 }

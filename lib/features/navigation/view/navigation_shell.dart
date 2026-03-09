@@ -133,14 +133,18 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const PowerPage();
       case AppSection.fans:
         return const FansPage();
+      // TODO(Task 14): replace with BatteryPage when BatteryBloc is split
       case AppSection.battery:
         return const BatteryDevicesPage();
+      // TODO(Task 15): replace with DevicesPage when BatteryBloc is split
       case AppSection.devices:
         return const BatteryDevicesPage();
       case AppSection.dgpu:
         return const DgpuPage();
+      // TODO(Task 12): replace with DisplayPage when DisplayBloc is split
       case AppSection.display:
         return const DisplayLightingPage();
+      // TODO(Task 13): replace with LightingPage when DisplayBloc is split
       case AppSection.lighting:
         return const DisplayLightingPage();
       case AppSection.automation:
