@@ -7,12 +7,14 @@ class AppPageBody extends StatelessWidget {
   const AppPageBody({
     super.key,
     required this.title,
+    this.subtitle,
     this.errorMessage,
     this.noticeMessage,
     required this.children,
   });
 
   final String title;
+  final Widget? subtitle;
   final String? errorMessage;
   final String? noticeMessage;
   final List<Widget> children;
@@ -31,6 +33,13 @@ class AppPageBody extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(title, style: textTheme.headlineMedium),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 4),
+                  DefaultTextStyle(
+                    style: textTheme.bodySmall!,
+                    child: subtitle!,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 if (errorMessage != null || noticeMessage != null) ...[
                   AppStatusMessages(

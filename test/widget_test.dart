@@ -8,10 +8,12 @@ import 'package:legion_frontend/features/about/view/about_page.dart';
 void main() {
   testWidgets('renders navigation shell and dashboard actions', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: LegionFrontendApp()));
+    // Pump once so post-frame callbacks (e.g. sensor bloc start) run.
+    await tester.pump(Duration.zero);
 
     expect(find.text('Power'), findsWidgets);
-    expect(find.text('Power Profile'), findsOneWidget);
-    expect(find.text('Quick Actions'), findsOneWidget);
+    expect(find.text('Power Mode'), findsOneWidget);
+    expect(find.text('Battery'), findsWidgets);
   });
 
   testWidgets('renders diagnostics page', (tester) async {
@@ -21,6 +23,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
 
     await tester.pumpWidget(const ProviderScope(child: LegionFrontendApp()));
+    // Pump once so post-frame callbacks (e.g. sensor bloc start) run.
+    await tester.pump(Duration.zero);
 
     await tester.tap(find.text('Diagnostics').first);
     await tester.pump();
