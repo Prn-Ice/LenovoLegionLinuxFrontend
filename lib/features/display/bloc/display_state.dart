@@ -40,7 +40,9 @@ class DisplayState extends Equatable {
   bool get hasLoaded =>
       overdriveEnabled != null ||
       overdriveSupported ||
-      xrandrOutputName != null;
+      xrandrOutputName != null ||
+      availableRefreshRates != null ||
+      currentRefreshRate != null;
 
   DisplayState copyWith({
     Object? overdriveEnabled = _unset,

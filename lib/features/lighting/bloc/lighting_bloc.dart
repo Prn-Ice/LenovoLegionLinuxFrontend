@@ -20,6 +20,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
     );
     on<YLogoLightSetRequested>(_onYLogoLightSetRequested);
     on<IoPortLightSetRequested>(_onIoPortLightSetRequested);
+    on<LightingRefreshRequested>(_onRefreshRequested);
   }
 
   final LightingRepository _repository;
@@ -128,6 +129,13 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
     } catch (error) {
       emit(state.copyWith(isApplying: false, errorMessage: '$error'));
     }
+  }
+
+  Future<void> _onRefreshRequested(
+    LightingRefreshRequested event,
+    Emitter<LightingState> emit,
+  ) async {
+    await _reloadState(emit, showLoading: true);
   }
 
   Future<void> _reloadState(

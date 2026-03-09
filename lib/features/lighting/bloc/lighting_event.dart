@@ -41,3 +41,7 @@ final class IoPortLightSetRequested extends LightingEvent {
   @override
   List<Object?> get props => [enabled];
 }
+
+final class LightingRefreshRequested extends LightingEvent {
+  const LightingRefreshRequested();
+}
