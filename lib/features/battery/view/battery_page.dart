@@ -30,12 +30,11 @@ class BatteryPage extends ConsumerWidget {
         : 'AC status unknown';
 
     final double? health =
-        (state.currentCapacityWh != null && state.designCapacityWh != null)
-        ? state.currentCapacityWh! / state.designCapacityWh! * 100
+        (state.fullCapacityWh != null && state.designCapacityWh != null)
+        ? state.fullCapacityWh! / state.designCapacityWh! * 100
         : null;
 
-    final String powerDrawLabel =
-        (state.batteryCharging == false && state.batteryPowerDrawW != null)
+    final String powerDrawLabel = state.batteryPowerDrawW != null
         ? '${state.batteryPowerDrawW!.abs().toStringAsFixed(1)} W'
         : '—';
 
