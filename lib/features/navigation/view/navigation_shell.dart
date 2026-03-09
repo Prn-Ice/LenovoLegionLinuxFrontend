@@ -8,8 +8,8 @@ import '../../battery_devices/view/battery_devices_page.dart';
 import '../../dashboard/view/dashboard_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
 import '../../display/view/display_page.dart';
-import '../../display_lighting/view/display_lighting_page.dart';
 import '../../fans/view/fans_page.dart';
+import '../../lighting/view/lighting_page.dart';
 import '../../power/view/power_page.dart';
 import '../../settings/view/settings_page.dart';
 import '../bloc/navigation_event.dart';
@@ -195,9 +195,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const DgpuPage();
       case AppSection.display:
         return const DisplayPage();
-      // TODO(Task 13): replace with LightingPage when DisplayLightingBloc is split
       case AppSection.lighting:
-        return const DisplayLightingPage();
+        return const LightingPage();
       case AppSection.automation:
         return const AutomationPage();
       case AppSection.settings:
