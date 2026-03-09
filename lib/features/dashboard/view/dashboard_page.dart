@@ -24,13 +24,13 @@ class DashboardPage extends ConsumerWidget {
       title: 'Devices & Display',
       description:
           'Battery protections, device toggles, hybrid mode, and display tuning.',
-      sections: [AppSection.battery, AppSection.displayLighting],
+      sections: [AppSection.battery, AppSection.display],
     ),
     _SectionGroup(
       title: 'Automation & System',
       description:
           'Rules, service management, and diagnostics for troubleshooting.',
-      sections: [AppSection.automation, AppSection.settings, AppSection.about],
+      sections: [AppSection.automation, AppSection.settings, AppSection.diagnostics],
     ),
   ];
 
@@ -136,7 +136,7 @@ class DashboardPage extends ConsumerWidget {
               child: TextButton.icon(
                 onPressed: () {
                   navigationBloc.add(
-                    const NavigationSectionSelected(AppSection.displayLighting),
+                    const NavigationSectionSelected(AppSection.display),
                   );
                 },
                 icon: const Icon(Icons.open_in_new),

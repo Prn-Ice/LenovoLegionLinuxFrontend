@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
-import '../../about/view/about_page.dart';
-import '../../analytics/view/analytics_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery_devices/view/battery_devices_page.dart';
-import '../../boot_logo/view/boot_logo_page.dart';
 import '../../dashboard/view/dashboard_page.dart';
 import '../../display_lighting/view/display_lighting_page.dart';
 import '../../fans/view/fans_page.dart';
@@ -138,20 +135,20 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const FansPage();
       case AppSection.battery:
         return const BatteryDevicesPage();
-      case AppSection.displayLighting:
-        return const DisplayLightingPage();
-      case AppSection.bootLogo:
-        return const BootLogoPage();
+      case AppSection.devices:
+        return const BatteryDevicesPage();
       case AppSection.dgpu:
         return const DgpuPage();
-      case AppSection.analytics:
-        return const AnalyticsPage();
+      case AppSection.display:
+        return const DisplayLightingPage();
+      case AppSection.lighting:
+        return const DisplayLightingPage();
       case AppSection.automation:
         return const AutomationPage();
       case AppSection.settings:
         return const SettingsPage();
-      case AppSection.about:
-        return const AboutPage();
+      case AppSection.diagnostics:
+        return const SettingsPage();
     }
   }
 }
