@@ -24,20 +24,29 @@ class BatteryRepository {
   final LegionFrontendBridgeService _bridgeService;
 
   Future<BatterySnapshot> loadSnapshot() async {
-    final batteryConservation =
-        await _sysfsService.readBatteryConservationMode();
-    final rapidCharging = await _sysfsService.readRapidChargingMode();
-    final batteryPercent = await _sysfsService.readIntFile(
-      '/sys/class/power_supply/BAT0/capacity',
-    );
-    final batteryStatusStr = await _readBatteryStatus();
-    final batteryPowerDrawW = await _sysfsService.readBatteryPowerDrawW();
-    final cycleCounts = await _sysfsService.readBatteryCycleCount();
-    final fullCapacityWh = await _sysfsService.readBatteryFullCapacityWh();
-    final designCapacityWh = await _sysfsService.readBatteryDesignCapacityWh();
-    final currentCapacityWh =
-        await _sysfsService.readBatteryCurrentCapacityWh();
-    final batteryTempC = await _sysfsService.readBatteryTempC();
+    final results = await Future.wait([
+      _sysfsService.readBatteryConservationMode(),
+      _sysfsService.readRapidChargingMode(),
+      _sysfsService.readIntFile('/sys/class/power_supply/BAT0/capacity'),
+      _readBatteryStatus(),
+      _sysfsService.readBatteryPowerDrawW(),
+      _sysfsService.readBatteryCycleCount(),
+      _sysfsService.readBatteryFullCapacityWh(),
+      _sysfsService.readBatteryDesignCapacityWh(),
+      _sysfsService.readBatteryCurrentCapacityWh(),
+      _sysfsService.readBatteryTempC(),
+    ]);
+
+    final batteryConservation = results[0] as bool?;
+    final rapidCharging = results[1] as bool?;
+    final batteryPercent = results[2] as int?;
+    final batteryStatusStr = results[3] as String?;
+    final batteryPowerDrawW = results[4] as double?;
+    final cycleCounts = results[5] as int?;
+    final fullCapacityWh = results[6] as double?;
+    final designCapacityWh = results[7] as double?;
+    final currentCapacityWh = results[8] as double?;
+    final batteryTempC = results[9] as double?;
 
     return BatterySnapshot(
       batteryConservationEnabled: batteryConservation,
