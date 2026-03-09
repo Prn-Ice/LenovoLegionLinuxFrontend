@@ -1,3 +1,5 @@
+import 'dart:ui' show Size;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legion_frontend/app/app.dart';
@@ -13,6 +15,11 @@ void main() {
   });
 
   testWidgets('renders diagnostics page', (tester) async {
+    // Use a tall surface so all sidebar items fit without scrolling.
+    tester.view.physicalSize = const Size(800, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
     await tester.pumpWidget(const ProviderScope(child: LegionFrontendApp()));
 
     await tester.tap(find.text('Diagnostics').first);
