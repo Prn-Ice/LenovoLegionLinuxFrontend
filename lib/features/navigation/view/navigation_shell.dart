@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../about/view/about_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery_devices/view/battery_devices_page.dart';
 import '../../dashboard/view/dashboard_page.dart';
@@ -203,7 +204,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const SettingsPage();
       // TODO(Task 21): replace with DiagnosticsPage when diagnostics page is implemented
       case AppSection.diagnostics:
-        return const SettingsPage();
+        return const AboutPage();
     }
   }
 }

@@ -3,7 +3,7 @@ import 'dart:ui' show Size;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legion_frontend/app/app.dart';
-import 'package:legion_frontend/features/settings/view/settings_page.dart';
+import 'package:legion_frontend/features/about/view/about_page.dart';
 
 void main() {
   testWidgets('renders navigation shell and dashboard actions', (tester) async {
@@ -27,6 +27,6 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     // TODO(Task 21): update to DiagnosticsPage when diagnostics page is implemented
-    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byType(AboutPage), findsOneWidget);
   });
 }
