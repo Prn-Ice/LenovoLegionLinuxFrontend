@@ -5,8 +5,8 @@ import 'package:yaru/yaru.dart';
 import '../../about/view/about_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/view/battery_page.dart';
-import '../../battery_devices/view/battery_devices_page.dart';
 import '../../dashboard/view/dashboard_page.dart';
+import '../../devices/view/devices_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
 import '../../display/view/display_page.dart';
 import '../../fans/view/fans_page.dart';
@@ -188,9 +188,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return const FansPage();
       case AppSection.battery:
         return const BatteryPage();
-      // TODO(Task 15): replace with DevicesPage when BatteryBloc is split
       case AppSection.devices:
-        return const BatteryDevicesPage();
+        return const DevicesPage();
       case AppSection.dgpu:
         return const DgpuPage();
       case AppSection.display:
