@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import 'device_identity_snapshot.dart';
 import 'system_status.dart';
 
 class DashboardSnapshot extends Equatable {
@@ -12,6 +13,7 @@ class DashboardSnapshot extends Equatable {
     required this.rapidChargingEnabled,
     required this.onPowerSupply,
     required this.recommendedFanPreset,
+    required this.deviceIdentity,
   });
 
   factory DashboardSnapshot.initial() => DashboardSnapshot(
@@ -23,6 +25,7 @@ class DashboardSnapshot extends Equatable {
     rapidChargingEnabled: null,
     onPowerSupply: null,
     recommendedFanPreset: null,
+    deviceIdentity: DeviceIdentitySnapshot.initial(),
   );
 
   final SystemStatus status;
@@ -33,6 +36,32 @@ class DashboardSnapshot extends Equatable {
   final bool? rapidChargingEnabled;
   final bool? onPowerSupply;
   final String? recommendedFanPreset;
+  final DeviceIdentitySnapshot deviceIdentity;
+
+  DashboardSnapshot copyWith({
+    SystemStatus? status,
+    List<String>? availablePowerModes,
+    bool? hybridModeEnabled,
+    bool? overdriveEnabled,
+    bool? batteryConservationEnabled,
+    bool? rapidChargingEnabled,
+    bool? onPowerSupply,
+    String? recommendedFanPreset,
+    DeviceIdentitySnapshot? deviceIdentity,
+  }) {
+    return DashboardSnapshot(
+      status: status ?? this.status,
+      availablePowerModes: availablePowerModes ?? this.availablePowerModes,
+      hybridModeEnabled: hybridModeEnabled ?? this.hybridModeEnabled,
+      overdriveEnabled: overdriveEnabled ?? this.overdriveEnabled,
+      batteryConservationEnabled:
+          batteryConservationEnabled ?? this.batteryConservationEnabled,
+      rapidChargingEnabled: rapidChargingEnabled ?? this.rapidChargingEnabled,
+      onPowerSupply: onPowerSupply ?? this.onPowerSupply,
+      recommendedFanPreset: recommendedFanPreset ?? this.recommendedFanPreset,
+      deviceIdentity: deviceIdentity ?? this.deviceIdentity,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -44,5 +73,6 @@ class DashboardSnapshot extends Equatable {
     rapidChargingEnabled,
     onPowerSupply,
     recommendedFanPreset,
+    deviceIdentity,
   ];
 }

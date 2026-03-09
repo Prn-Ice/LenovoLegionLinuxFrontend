@@ -1,6 +1,7 @@
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/dashboard_snapshot.dart';
+import '../models/device_identity_snapshot.dart';
 
 class DashboardRepositoryException implements Exception {
   const DashboardRepositoryException(this.message);
@@ -52,6 +53,8 @@ class DashboardRepository {
       values.insert(0, current);
     }
 
+    final identity = await _loadDeviceIdentity();
+
     return DashboardSnapshot(
       status: status,
       availablePowerModes: values,
@@ -64,6 +67,22 @@ class DashboardRepository {
         profile: current,
         onPowerSupply: onPowerSupply,
       ),
+      deviceIdentity: identity,
+    );
+  }
+
+  Future<DeviceIdentitySnapshot> _loadDeviceIdentity() async {
+    final results = await Future.wait([
+      _sysfsService.readDeviceProductFamily(),
+      _sysfsService.readDeviceProductName(),
+      _sysfsService.readDeviceSerial(),
+      _sysfsService.readBiosVersion(),
+    ]);
+    return DeviceIdentitySnapshot(
+      productFamily: results[0],
+      productName: results[1],
+      serial: results[2],
+      biosVersion: results[3],
     );
   }
 
