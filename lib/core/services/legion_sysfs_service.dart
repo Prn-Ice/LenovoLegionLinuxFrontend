@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../features/fans/models/fan_curve.dart';
@@ -44,6 +45,9 @@ class LegionSysfsService {
       '/sys/class/power_supply/ADP0/online';
   static const String _onPowerSupplyAcPath =
       '/sys/class/power_supply/AC/online';
+
+  static const String _batteryPath = '/sys/class/power_supply/BAT0';
+  static const String _dmiPath = '/sys/class/dmi/id';
 
   static const String _lockFanControllerPath =
       '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/lockfancontroller';
@@ -259,6 +263,200 @@ class LegionSysfsService {
     );
     final raw = path == null ? null : await readIntFile(path);
     return raw == null ? null : milliDegreesToC(raw);
+  }
+
+  // ── CPU utilisation ──────────────────────────────────────────────────────
+
+  /// CPU utilisation percentage (0–100). Computed from /proc/stat deltas.
+  /// Returns null if /proc/stat is not readable.
+  Future<double?> readCpuUtilisationPercent() async {
+    try {
+      final line1 = await _readFirstCpuStatLine();
+      if (line1 == null) return null;
+      await Future.delayed(const Duration(milliseconds: 200));
+      final line2 = await _readFirstCpuStatLine();
+      if (line2 == null) return null;
+
+      final fields1 = line1.split(RegExp(r'\s+')).skip(1).map(int.parse).toList();
+      final fields2 = line2.split(RegExp(r'\s+')).skip(1).map(int.parse).toList();
+
+      final idle1 = fields1.length > 3 ? fields1[3] : 0;
+      final idle2 = fields2.length > 3 ? fields2[3] : 0;
+      final total1 = fields1.fold(0, (a, b) => a + b);
+      final total2 = fields2.fold(0, (a, b) => a + b);
+
+      final totalDelta = total2 - total1;
+      final idleDelta = idle2 - idle1;
+
+      if (totalDelta <= 0) return null;
+
+      return (1.0 - idleDelta / totalDelta) * 100.0;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _readFirstCpuStatLine() async {
+    try {
+      final file = File('/proc/stat');
+      if (!await file.exists()) return null;
+      final lines = await file.readAsLines();
+      return lines.firstWhere(
+        (l) => l.startsWith('cpu '),
+        orElse: () => '',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── CPU clock ─────────────────────────────────────────────────────────────
+
+  /// Average clock speed across all online CPUs in GHz.
+  Future<double?> readAverageCpuClockGhz() async {
+    try {
+      final cpuDir = Directory('/sys/devices/system/cpu');
+      if (!await cpuDir.exists()) return null;
+
+      final clocks = <int>[];
+      await for (final entity in cpuDir.list()) {
+        if (entity is! Directory) continue;
+        final name = entity.path.split('/').last;
+        if (!RegExp(r'^cpu\d+$').hasMatch(name)) continue;
+        final freqPath = '${entity.path}/cpufreq/scaling_cur_freq';
+        final val = await readIntFile(freqPath);
+        if (val != null && val > 0) clocks.add(val);
+      }
+      if (clocks.isEmpty) return null;
+      final avgKhz = clocks.fold(0, (a, b) => a + b) / clocks.length;
+      return avgKhz / 1e6; // kHz → GHz
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Battery detail ────────────────────────────────────────────────────────
+
+  /// Battery cycle count from /sys/class/power_supply/BAT0/cycle_count.
+  Future<int?> readBatteryCycleCount() async {
+    return readIntFile('$_batteryPath/cycle_count');
+  }
+
+  /// Battery full charge capacity in Wh.
+  Future<double?> readBatteryFullCapacityWh() async {
+    final energyFull = await readIntFile('$_batteryPath/energy_full');
+    if (energyFull != null) return energyFull / 1e6;
+    final chargeFull = await readIntFile('$_batteryPath/charge_full');
+    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    if (chargeFull != null && voltageNow != null) {
+      return (chargeFull / 1e6) * (voltageNow / 1e6);
+    }
+    return null;
+  }
+
+  /// Battery design capacity in Wh.
+  Future<double?> readBatteryDesignCapacityWh() async {
+    final energyDesign = await readIntFile('$_batteryPath/energy_full_design');
+    if (energyDesign != null) return energyDesign / 1e6;
+    final chargeDesign = await readIntFile('$_batteryPath/charge_full_design');
+    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    if (chargeDesign != null && voltageNow != null) {
+      return (chargeDesign / 1e6) * (voltageNow / 1e6);
+    }
+    return null;
+  }
+
+  /// Battery current capacity in Wh.
+  Future<double?> readBatteryCurrentCapacityWh() async {
+    final energyNow = await readIntFile('$_batteryPath/energy_now');
+    if (energyNow != null) return energyNow / 1e6;
+    final chargeNow = await readIntFile('$_batteryPath/charge_now');
+    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    if (chargeNow != null && voltageNow != null) {
+      return (chargeNow / 1e6) * (voltageNow / 1e6);
+    }
+    return null;
+  }
+
+  /// Battery power draw in watts (positive = discharging, negative = charging).
+  Future<double?> readBatteryPowerDrawW() async {
+    final powerNow = await readIntFile('$_batteryPath/power_now');
+    if (powerNow != null) {
+      final status = await _readTrimmedFile('$_batteryPath/status');
+      final sign = status == 'Charging' ? -1.0 : 1.0;
+      return sign * powerNow / 1e6;
+    }
+    final currentNow = await readIntFile('$_batteryPath/current_now');
+    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    if (currentNow != null && voltageNow != null) {
+      final status = await _readTrimmedFile('$_batteryPath/status');
+      final sign = status == 'Charging' ? -1.0 : 1.0;
+      return sign * (currentNow / 1e6) * (voltageNow / 1e6);
+    }
+    return null;
+  }
+
+  /// Battery temperature in °C (from power_supply temp file, tenths of °C).
+  Future<double?> readBatteryTempC() async {
+    final raw = await readIntFile('$_batteryPath/temp');
+    if (raw != null) return raw / 10.0;
+    return null;
+  }
+
+  // ── Board / disk temperatures ─────────────────────────────────────────────
+
+  /// Motherboard temperature in °C via hwmon (e.g. acpitz, it87, nct6775).
+  Future<double?> readMotherboardTempC() async {
+    final path = await _findHwmonTempInput(
+      driverNames: {'acpitz', 'it87', 'nct6775', 'nct6776', 'nct6779'},
+      fallbackIndex: 1,
+    );
+    final raw = path == null ? null : await readIntFile(path);
+    return raw == null ? null : milliDegreesToC(raw);
+  }
+
+  /// Primary disk temperature in °C via hwmon (NVMe or SATA).
+  Future<double?> readDiskTempC() async {
+    final path = await _findHwmonTempInput(
+      driverNames: {'nvme', 'drivetemp'},
+      fallbackIndex: 1,
+    );
+    final raw = path == null ? null : await readIntFile(path);
+    return raw == null ? null : milliDegreesToC(raw);
+  }
+
+  // ── Device identity (DMI) ─────────────────────────────────────────────────
+
+  Future<String?> readDeviceProductFamily() async =>
+      _readTrimmedFile('$_dmiPath/product_family');
+
+  Future<String?> readDeviceProductName() async =>
+      _readTrimmedFile('$_dmiPath/product_name');
+
+  Future<String?> readDeviceSerial() async =>
+      _readTrimmedFile('$_dmiPath/product_serial');
+
+  Future<String?> readBiosVersion() async =>
+      _readTrimmedFile('$_dmiPath/bios_version');
+
+  // ── CPU identity ──────────────────────────────────────────────────────────
+
+  /// CPU model name from /proc/cpuinfo.
+  Future<String?> readCpuName() async {
+    try {
+      final file = File('/proc/cpuinfo');
+      if (!await file.exists()) return null;
+      await for (final line in file
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (line.startsWith('model name')) {
+          final parts = line.split(':');
+          if (parts.length >= 2) return parts.sublist(1).join(':').trim();
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   Future<String?> _findHwmonTempInput({
