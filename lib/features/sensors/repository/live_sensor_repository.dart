@@ -23,7 +23,6 @@ class LiveSensorRepository {
       _sysfs.readFan1Rpm(),
       _sysfs.readFan2Rpm(),
       _sysfs.readMotherboardTempC(),
-      _sysfs.readOnPowerSupplyMode(),
       _sysfs.readBatteryPowerDrawW(),
       _sysfs.readDiskTempC(),
       _nvidia.readSnapshot(),
@@ -36,10 +35,9 @@ class LiveSensorRepository {
     final fan1 = results[4] as int?;
     final fan2 = results[5] as int?;
     final moboTemp = results[6] as double?;
-    // results[7] is onPowerSupply (bool?) — not used directly here.
-    final batteryDraw = results[8] as double?;
-    final diskTemp = results[9] as double?;
-    final nvidia = results[10] as NvidiaSmiSnapshot?;
+    final batteryDraw = results[7] as double?;
+    final diskTemp = results[8] as double?;
+    final nvidia = results[9] as NvidiaSmiSnapshot?;
 
     // Battery percent from sysfs.
     final batteryPercent = await _sysfs.readIntFile(
@@ -68,7 +66,7 @@ class LiveSensorRepository {
         gpuIsDiscrete: true,
         motherboardTempC: moboTemp,
         batteryPercent: batteryPercent,
-        batteryCharging: batteryStatusStr == 'Charging',
+        batteryCharging: batteryStatusStr == null ? null : batteryStatusStr == 'Charging',
         batteryPowerDrawW: batteryDraw,
         diskTempC: diskTemp,
       );
@@ -94,7 +92,7 @@ class LiveSensorRepository {
       gpuIsDiscrete: false,
       motherboardTempC: moboTemp,
       batteryPercent: batteryPercent,
-      batteryCharging: batteryStatusStr == 'Charging',
+      batteryCharging: batteryStatusStr == null ? null : batteryStatusStr == 'Charging',
       batteryPowerDrawW: batteryDraw,
       diskTempC: diskTemp,
     );
