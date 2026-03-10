@@ -178,7 +178,6 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   }
 
   Widget _buildPage(AppSection section) {
-    // Temporary stubs for new sections — replaced as each task completes.
     switch (section) {
       case AppSection.dashboard:
         return const DashboardPage();
