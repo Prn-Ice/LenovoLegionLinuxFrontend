@@ -1,9 +1,11 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../bloc/fans_bloc.dart';
 import '../bloc/fans_event.dart';
 import '../models/fan_curve.dart';
 import '../providers/fans_provider.dart';
@@ -25,94 +27,109 @@ class FansPage extends ConsumerWidget {
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
-        AppSectionCard(
-          title: 'Current Context',
+        // Action row
+        Row(
           children: [
-            Text('Profile: ${state.platformProfile ?? 'Unknown'}'),
-            Text(
-              'Power source: ${state.onPowerSupply == null ? 'Unknown' : (state.onPowerSupply! ? 'AC' : 'Battery')}',
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed:
+                    state.maximumFanSpeedEnabled == null || state.isApplying
+                    ? null
+                    : () async {
+                        final enabled = !(state.maximumFanSpeedEnabled ?? false);
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Toggle maximum fan speed',
+                          message:
+                              'This action uses privileged access and may prompt for authentication.',
+                          confirmLabel: 'Apply',
+                        );
+                        if (!context.mounted || !confirmed) return;
+                        bloc.add(MaximumFanSpeedSetRequested(enabled));
+                      },
+                icon: const Icon(YaruIcons.gears),
+                label: Text(
+                  (state.maximumFanSpeedEnabled ?? false)
+                      ? 'Max Fan: On'
+                      : 'Max Fan Speed',
+                ),
+                style: (state.maximumFanSpeedEnabled ?? false)
+                    ? OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+              ),
             ),
-            Text(
-              'Recommended preset: ${state.recommendedPreset ?? 'Unavailable'}',
-            ),
-            const SizedBox(height: 12),
-            const PrivilegedActionNotice(),
-            const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: state.isApplying
-                  ? null
-                  : () async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Apply context preset',
-                        message:
-                            'Applying a fan preset writes hardware controls and may prompt for authentication.',
-                        confirmLabel: 'Apply preset',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      bloc.add(const FansApplyCurrentPresetRequested());
-                    },
-              icon: state.isApplying
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: YaruCircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.tune),
-              label: const Text('Apply context preset'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed:
+                    state.availablePresets.isEmpty || state.isApplying
+                    ? null
+                    : () => _showPresetDialog(context, state, bloc),
+                icon: const Icon(Icons.tune),
+                label: const Text('Apply Preset'),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        AppSectionCard(
-          title: 'Manual Preset',
+        // Fan Curve card
+        AppControlCard(
+          icon: Icons.show_chart,
+          title: 'Fan Curve',
+          description:
+              'Custom 10-point temperature/RPM curve. '
+              'Lower temp = hysteresis threshold; Upper temp = trigger threshold.',
           children: [
-            DropdownButtonFormField<String>(
-              initialValue: state.selectedPreset,
-              items: state.availablePresets
-                  .map(
-                    (preset) => DropdownMenuItem<String>(
-                      value: preset,
-                      child: Text(preset),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: state.isApplying
-                  ? null
-                  : (value) {
-                      if (value == null) {
-                        return;
+            if (state.fanCurve == null)
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Fan curve editor'),
+                subtitle: Text('Unavailable — hwmon driver not detected.'),
+              )
+            else ...[
+              const PrivilegedActionNotice(),
+              const SizedBox(height: 8),
+              _FanCurveChart(
+                curve: state.fanCurve!,
+                enabled: !state.isApplying,
+                onPointChanged: (index, point) =>
+                    bloc.add(FanCurvePointUpdated(index: index, point: point)),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: (state.fanCurveDirty && !state.isApplying)
+                    ? () async {
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Apply fan curve',
+                          message:
+                              'Writing a custom fan curve requires privileged access and may prompt for authentication.',
+                          confirmLabel: 'Apply',
+                        );
+                        if (!context.mounted || !confirmed) {
+                          return;
+                        }
+                        bloc.add(const FanCurveSaveRequested());
                       }
-                      bloc.add(FansPresetSelectionChanged(value));
-                    },
-              decoration: const InputDecoration(labelText: 'Fan preset'),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: state.isApplying
-                  ? null
-                  : () async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Apply selected fan preset',
-                        message:
-                            'Applying fan presets requires privileged access and may prompt for authentication.',
-                        confirmLabel: 'Apply preset',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      bloc.add(const FansApplySelectedPresetRequested());
-                    },
-              icon: const Icon(Icons.playlist_add_check),
-              label: const Text('Apply selected preset'),
-            ),
+                    : null,
+                icon: state.isApplying
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: YaruCircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                label: const Text('Apply to hardware'),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 16),
-        AppSectionCard(
+        // Fan Controls card
+        AppControlCard(
+          icon: YaruIcons.gears,
           title: 'Fan Controls',
           children: [
             const PrivilegedActionNotice(),
@@ -159,78 +176,6 @@ class FansPage extends ConsumerWidget {
               title: 'Lock fan controller',
               subtitle: boolEnabledLabel(state.lockFanControllerEnabled),
             ),
-            AppSwitchTile(
-              value: state.maximumFanSpeedEnabled ?? false,
-              onChanged:
-                  (state.maximumFanSpeedEnabled != null && !state.isApplying)
-                  ? (enabled) async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Set maximum fan speed',
-                        message:
-                            'This action uses privileged access and may prompt for authentication.',
-                        confirmLabel: 'Apply',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      bloc.add(MaximumFanSpeedSetRequested(enabled));
-                    }
-                  : null,
-              title: 'Maximum fan speed',
-              subtitle: boolEnabledLabel(state.maximumFanSpeedEnabled),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        AppSectionCard(
-          title: 'Fan Curve',
-          description:
-              'Custom 10-point temperature/RPM curve. '
-              'Lower temp = hysteresis threshold; Upper temp = trigger threshold.',
-          children: [
-            if (state.fanCurve == null)
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('Fan curve editor'),
-                subtitle: Text('Unavailable — hwmon driver not detected.'),
-              )
-            else ...[
-              const PrivilegedActionNotice(),
-              const SizedBox(height: 8),
-              _FanCurveTable(
-                curve: state.fanCurve!,
-                enabled: !state.isApplying,
-                onPointChanged: (index, point) =>
-                    bloc.add(FanCurvePointUpdated(index: index, point: point)),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: (state.fanCurveDirty && !state.isApplying)
-                    ? () async {
-                        final confirmed = await confirmPrivilegedAction(
-                          context,
-                          title: 'Apply fan curve',
-                          message:
-                              'Writing a custom fan curve requires privileged access and may prompt for authentication.',
-                          confirmLabel: 'Apply',
-                        );
-                        if (!context.mounted || !confirmed) {
-                          return;
-                        }
-                        bloc.add(const FanCurveSaveRequested());
-                      }
-                    : null,
-                icon: state.isApplying
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: YaruCircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save),
-                label: const Text('Apply to hardware'),
-              ),
-            ],
           ],
         ),
         const SizedBox(height: 16),
@@ -245,8 +190,52 @@ class FansPage extends ConsumerWidget {
   }
 }
 
-class _FanCurveTable extends StatefulWidget {
-  const _FanCurveTable({
+Future<void> _showPresetDialog(
+  BuildContext context,
+  dynamic state,
+  FansBloc bloc,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const YaruDialogTitleBar(title: Text('Select Fan Preset')),
+      titlePadding: EdgeInsets.zero,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: (state.availablePresets as List<String>).map((preset) {
+          final isRecommended = preset == state.recommendedPreset;
+          return ListTile(
+            title: Text(preset),
+            subtitle: isRecommended
+                ? const Text('Recommended for current context')
+                : null,
+            trailing: isRecommended
+                ? Icon(
+                    YaruIcons.star_filled,
+                    color: Theme.of(dialogContext).colorScheme.primary,
+                  )
+                : null,
+            onTap: () async {
+              Navigator.of(dialogContext).pop();
+              bloc.add(FansPresetSelectionChanged(preset));
+              final confirmed = await confirmPrivilegedAction(
+                context,
+                title: 'Apply fan preset',
+                message: 'Applying fan presets requires privileged access.',
+                confirmLabel: 'Apply preset',
+              );
+              if (!context.mounted || !confirmed) return;
+              bloc.add(const FansApplySelectedPresetRequested());
+            },
+          );
+        }).toList(),
+      ),
+    ),
+  );
+}
+
+class _FanCurveChart extends StatefulWidget {
+  const _FanCurveChart({
     required this.curve,
     required this.enabled,
     required this.onPointChanged,
@@ -257,136 +246,131 @@ class _FanCurveTable extends StatefulWidget {
   final void Function(int index, FanCurvePoint point) onPointChanged;
 
   @override
-  State<_FanCurveTable> createState() => _FanCurveTableState();
+  State<_FanCurveChart> createState() => _FanCurveChartState();
 }
 
-class _FanCurveTableState extends State<_FanCurveTable> {
-  late final List<List<TextEditingController>> _controllers;
+class _FanCurveChartState extends State<_FanCurveChart> {
+  static const _maxRpm = 5000.0;
+  int? _draggingIndex;
 
-  @override
-  void initState() {
-    super.initState();
-    _controllers = List.generate(10, (i) {
-      final p = widget.curve.points[i];
-      return [
-        TextEditingController(text: '${p.cpuLowerTemp}'),
-        TextEditingController(text: '${p.cpuUpperTemp}'),
-        TextEditingController(text: '${p.gpuLowerTemp}'),
-        TextEditingController(text: '${p.gpuUpperTemp}'),
-        TextEditingController(text: '${p.fan1Rpm}'),
-        TextEditingController(text: '${p.fan2Rpm}'),
-      ];
-    });
-  }
-
-  @override
-  void didUpdateWidget(_FanCurveTable oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.curve != widget.curve) {
-      for (var i = 0; i < 10; i++) {
-        final p = widget.curve.points[i];
-        final vals = [
-          '${p.cpuLowerTemp}',
-          '${p.cpuUpperTemp}',
-          '${p.gpuLowerTemp}',
-          '${p.gpuUpperTemp}',
-          '${p.fan1Rpm}',
-          '${p.fan2Rpm}',
-        ];
-        for (var j = 0; j < 6; j++) {
-          if (_controllers[i][j].text != vals[j]) {
-            _controllers[i][j].text = vals[j];
-          }
-        }
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final row in _controllers) {
-      for (final c in row) {
-        c.dispose();
-      }
-    }
-    super.dispose();
-  }
-
-  void _commitRow(int index) {
-    final row = _controllers[index];
-    final point = widget.curve.points[index];
-    final cpuLo = int.tryParse(row[0].text) ?? point.cpuLowerTemp;
-    final cpuHi = int.tryParse(row[1].text) ?? point.cpuUpperTemp;
-    final gpuLo = int.tryParse(row[2].text) ?? point.gpuLowerTemp;
-    final gpuHi = int.tryParse(row[3].text) ?? point.gpuUpperTemp;
-    final fan1 = int.tryParse(row[4].text) ?? point.fan1Rpm;
-    final fan2 = int.tryParse(row[5].text) ?? point.fan2Rpm;
-
-    widget.onPointChanged(
-      index,
-      point.copyWith(
-        cpuLowerTemp: cpuLo,
-        cpuUpperTemp: cpuHi,
-        gpuLowerTemp: gpuLo,
-        gpuUpperTemp: gpuHi,
-        fan1Rpm: fan1,
-        fan2Rpm: fan2,
-      ),
-    );
-  }
-
-  Widget _cell(TextEditingController ctrl, int rowIndex) {
-    return SizedBox(
-      width: 84,
-      child: TextFormField(
-        controller: ctrl,
-        enabled: widget.enabled,
-        keyboardType: TextInputType.number,
-        textAlign: TextAlign.center,
-        decoration: const InputDecoration(
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+  List<FlSpot> _fan1Spots() => List.generate(
+        10,
+        (i) => FlSpot(
+          widget.curve.points[i].cpuUpperTemp.toDouble(),
+          widget.curve.points[i].fan1Rpm.toDouble(),
         ),
-        onEditingComplete: () => _commitRow(rowIndex),
-      ),
-    );
+      );
+
+  List<FlSpot> _fan2Spots() => List.generate(
+        10,
+        (i) => FlSpot(
+          widget.curve.points[i].cpuUpperTemp.toDouble(),
+          widget.curve.points[i].fan2Rpm.toDouble(),
+        ),
+      );
+
+  void _handlePanUpdate(DragUpdateDetails details, BoxConstraints constraints) {
+    if (!widget.enabled) return;
+    final chartWidth = constraints.maxWidth;
+    final chartHeight = constraints.maxHeight;
+    final x = details.localPosition.dx / chartWidth * 100;
+    final y = (1 - details.localPosition.dy / chartHeight) * _maxRpm;
+
+    if (_draggingIndex != null) {
+      final point = widget.curve.points[_draggingIndex!];
+      widget.onPointChanged(
+        _draggingIndex!,
+        point.copyWith(
+          cpuUpperTemp: x.round().clamp(0, 100),
+          fan1Rpm: y.round().clamp(0, _maxRpm.round()),
+          fan2Rpm: y.round().clamp(0, _maxRpm.round()),
+        ),
+      );
+    }
   }
+
+  void _handlePanStart(DragStartDetails details, BoxConstraints constraints) {
+    if (!widget.enabled) return;
+    final chartWidth = constraints.maxWidth;
+    final x = details.localPosition.dx / chartWidth * 100;
+    // Find nearest point
+    int nearest = 0;
+    double minDist = double.maxFinite;
+    for (var i = 0; i < 10; i++) {
+      final dist =
+          (widget.curve.points[i].cpuUpperTemp.toDouble() - x).abs();
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = i;
+      }
+    }
+    setState(() => _draggingIndex = nearest);
+  }
+
+  void _handlePanEnd(DragEndDetails _) => setState(() => _draggingIndex = null);
 
   @override
   Widget build(BuildContext context) {
-    return YaruBorderContainer(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          headingRowHeight: 36,
-          dataRowMinHeight: 40,
-          dataRowMaxHeight: 52,
-          columnSpacing: 8,
-          columns: const [
-            DataColumn(label: Text('#')),
-            DataColumn(label: Text('CPU Lo (°C)')),
-            DataColumn(label: Text('CPU Hi (°C)')),
-            DataColumn(label: Text('GPU Lo (°C)')),
-            DataColumn(label: Text('GPU Hi (°C)')),
-            DataColumn(label: Text('Fan1 RPM')),
-            DataColumn(label: Text('Fan2 RPM')),
-          ],
-          rows: List.generate(10, (i) {
-            final row = _controllers[i];
-            return DataRow(
-              cells: [
-                DataCell(Text('${i + 1}')),
-                DataCell(_cell(row[0], i)),
-                DataCell(_cell(row[1], i)),
-                DataCell(_cell(row[2], i)),
-                DataCell(_cell(row[3], i)),
-                DataCell(_cell(row[4], i)),
-                DataCell(_cell(row[5], i)),
-              ],
-            );
-          }),
-        ),
-      ),
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          onPanStart: (d) => _handlePanStart(d, constraints),
+          onPanUpdate: (d) => _handlePanUpdate(d, constraints),
+          onPanEnd: _handlePanEnd,
+          child: SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: 100,
+                minY: 0,
+                maxY: _maxRpm,
+                gridData: const FlGridData(show: true),
+                borderData: FlBorderData(show: true),
+                titlesData: FlTitlesData(
+                  bottomTitles: AxisTitles(
+                    axisNameWidget: const Text('Temperature (°C)'),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 20,
+                      getTitlesWidget: (v, _) => Text('${v.round()}'),
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    axisNameWidget: const Text('RPM'),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1000,
+                      getTitlesWidget: (v, _) => Text('${v.round()}'),
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: _fan1Spots(),
+                    color: scheme.primary,
+                    dotData: const FlDotData(show: true),
+                    isCurved: false,
+                  ),
+                  LineChartBarData(
+                    spots: _fan2Spots(),
+                    color: scheme.secondary,
+                    dotData: const FlDotData(show: true),
+                    isCurved: false,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
