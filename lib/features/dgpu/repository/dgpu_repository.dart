@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/services/legion_sysfs_service.dart';
 import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
 
@@ -14,16 +15,26 @@ class DgpuRepositoryException implements Exception {
 }
 
 class DgpuRepository {
-  const DgpuRepository({required LegionFrontendBridgeService bridgeService})
-    : _bridgeService = bridgeService;
+  const DgpuRepository({
+    required LegionFrontendBridgeService bridgeService,
+    required LegionSysfsService sysfsService,
+  }) : _bridgeService = bridgeService,
+       _sysfsService = sysfsService;
 
   final LegionFrontendBridgeService _bridgeService;
+  final LegionSysfsService _sysfsService;
 
   static const _knownRuntimeStatusPath =
       '/sys/bus/pci/devices/0000:01:00.0/power/runtime_status';
 
   Future<DgpuSnapshot> loadSnapshot() async {
-    final pciAddress = await _findNvidiaGpuPciAddress();
+    final results = await Future.wait([
+      _findNvidiaGpuPciAddress(),
+      _sysfsService.readHybridMode(),
+    ]);
+    final pciAddress = results[0] as String?;
+    final hybridMode = results[1] as bool?;
+
     final bool? isActive;
     if (pciAddress != null) {
       final runtimePath =
@@ -37,6 +48,20 @@ class DgpuRepository {
       isActive: isActive,
       processes: processes,
       pciAddress: pciAddress,
+      hybridModeEnabled: hybridMode,
+      hybridModeSupported: hybridMode != null,
+    );
+  }
+
+  Future<bool?> readHybridMode() => _sysfsService.readHybridMode();
+
+  Future<void> setHybridMode(bool enabled) async {
+    final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
+    await _runPrivilegedCommand(
+      [command],
+      method: 'hybrid_mode.set',
+      failurePrefix:
+          'Failed to set hybrid mode to ${enabled ? 'on' : 'off'}',
     );
   }
 

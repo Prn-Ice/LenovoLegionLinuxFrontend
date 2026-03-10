@@ -11,6 +11,8 @@ class DgpuState extends Equatable {
     required this.isApplying,
     required this.errorMessage,
     required this.noticeMessage,
+    required this.hybridModeEnabled,
+    required this.hybridModeSupported,
   });
 
   factory DgpuState.initial() => const DgpuState(
@@ -21,6 +23,8 @@ class DgpuState extends Equatable {
     isApplying: false,
     errorMessage: null,
     noticeMessage: null,
+    hybridModeEnabled: null,
+    hybridModeSupported: false,
   );
 
   static const _unset = Object();
@@ -34,6 +38,12 @@ class DgpuState extends Equatable {
   final String? errorMessage;
   final String? noticeMessage;
 
+  /// null if hybrid mode sysfs file is not present (unsupported).
+  final bool? hybridModeEnabled;
+
+  /// true when the hybrid mode sysfs file was found.
+  final bool hybridModeSupported;
+
   /// true when the GPU sysfs entry was found (even if suspended)
   bool get isAvailable => isActive != null;
 
@@ -45,6 +55,8 @@ class DgpuState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
+    Object? hybridModeEnabled = _unset,
+    bool? hybridModeSupported,
   }) {
     return DgpuState(
       isActive: isActive == _unset ? this.isActive : isActive as bool?,
@@ -56,6 +68,10 @@ class DgpuState extends Equatable {
           errorMessage == _unset ? this.errorMessage : errorMessage as String?,
       noticeMessage:
           noticeMessage == _unset ? this.noticeMessage : noticeMessage as String?,
+      hybridModeEnabled: hybridModeEnabled == _unset
+          ? this.hybridModeEnabled
+          : hybridModeEnabled as bool?,
+      hybridModeSupported: hybridModeSupported ?? this.hybridModeSupported,
     );
   }
 
@@ -68,5 +84,7 @@ class DgpuState extends Equatable {
     isApplying,
     errorMessage,
     noticeMessage,
+    hybridModeEnabled,
+    hybridModeSupported,
   ];
 }

@@ -19,6 +19,8 @@ void main() {
         isActive: true,
         processes: [],
         pciAddress: '0000:01:00.0',
+        hybridModeEnabled: null,
+        hybridModeSupported: false,
       ),
     );
   });

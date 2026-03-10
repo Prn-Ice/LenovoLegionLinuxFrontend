@@ -28,3 +28,13 @@ final class DgpuKillProcessesRequested extends DgpuEvent {
 final class DgpuRestartPciRequested extends DgpuEvent {
   const DgpuRestartPciRequested();
 }
+
+/// Enable or disable hybrid mode (privileged). Reboot required.
+final class HybridModeSetRequested extends DgpuEvent {
+  const HybridModeSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}

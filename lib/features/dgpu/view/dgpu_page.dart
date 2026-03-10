@@ -4,17 +4,36 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../power/bloc/power_event.dart';
+import '../../power/providers/power_provider.dart';
+import '../../sensors/bloc/live_sensor_event.dart';
+import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/dgpu_bloc.dart';
 import '../bloc/dgpu_event.dart';
 import '../models/dgpu_process.dart';
 import '../providers/dgpu_provider.dart';
 
-class DgpuPage extends ConsumerWidget {
+class DgpuPage extends ConsumerStatefulWidget {
   const DgpuPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DgpuPage> createState() => _DgpuPageState();
+}
+
+class _DgpuPageState extends ConsumerState<DgpuPage> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(liveSensorBlocProvider.bloc).add(const LiveSensorStarted());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(dgpuBlocProvider);
+    final sensorState = ref.watch(liveSensorBlocProvider);
+    final powerState = ref.watch(powerBlocProvider);
     final bloc = ref.read(dgpuBlocProvider.bloc);
 
     if (state.isLoading && !state.isAvailable) {
@@ -26,14 +45,11 @@ class DgpuPage extends ConsumerWidget {
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
-        AppSectionCard(
-          title: 'Status',
-          children: [
-            AppRefreshButton(
-              isBusy: state.isLoading,
-              onPressed: () => bloc.add(const DgpuRefreshRequested()),
-            ),
-            if (!state.isAvailable)
+        if (!state.isAvailable)
+          AppControlCard(
+            icon: Icons.memory,
+            title: 'GPU',
+            children: [
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('NVIDIA GPU not detected'),
@@ -41,30 +57,102 @@ class DgpuPage extends ConsumerWidget {
                   'This feature requires a Lenovo Legion with NVIDIA discrete '
                   'graphics in hybrid mode.',
                 ),
-              )
-            else ...[
-              _StatusRow(isActive: state.isActive!),
+              ),
+            ],
+          )
+        else ...[
+          // ── Stats ────────────────────────────────────────────────────────
+          AppControlCard(
+            icon: Icons.memory,
+            title: 'Stats',
+            trailing: AppRefreshButton(
+              isBusy: state.isLoading,
+              onPressed: () => bloc.add(const DgpuRefreshRequested()),
+            ),
+            children: [
               if (state.pciAddress != null) ...[
+                _infoRow(context, 'PCI address', state.pciAddress!),
+                _infoRow(
+                  context,
+                  'Runtime',
+                  state.isActive == true ? 'Active' : 'Suspended (D3cold)',
+                ),
                 const SizedBox(height: 4),
-                Text(
-                  'PCI address: ${state.pciAddress}',
-                  style: Theme.of(context).textTheme.bodySmall,
+              ],
+              if (!sensorState.snapshot.gpuIsDiscrete)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('GPU stats'),
+                  subtitle: Text(
+                    'Discrete GPU is not active — using integrated graphics',
+                  ),
+                )
+              else ...[
+                _infoRow(
+                  context,
+                  'Name',
+                  sensorState.snapshot.gpuName ?? '—',
+                ),
+                _infoRow(
+                  context,
+                  'Utilisation',
+                  sensorState.snapshot.gpuUtilPercent != null
+                      ? '${sensorState.snapshot.gpuUtilPercent!.toStringAsFixed(0)}%'
+                      : '—',
+                ),
+                _infoRow(
+                  context,
+                  'Clock',
+                  sensorState.snapshot.gpuClockGhz != null
+                      ? '${sensorState.snapshot.gpuClockGhz!.toStringAsFixed(2)} GHz'
+                      : '—',
+                ),
+                _infoRow(
+                  context,
+                  'Temperature',
+                  sensorState.snapshot.gpuTempC != null
+                      ? '${sensorState.snapshot.gpuTempC!.toStringAsFixed(1)} °C'
+                      : '—',
+                ),
+                _infoRow(
+                  context,
+                  'Fan',
+                  sensorState.snapshot.gpuFanRpm != null
+                      ? '${sensorState.snapshot.gpuFanRpm!.round()} RPM'
+                      : '—',
+                ),
+                _infoRow(
+                  context,
+                  'VRAM used',
+                  sensorState.snapshot.gpuVramUsedGb != null
+                      ? '${sensorState.snapshot.gpuVramUsedGb!.toStringAsFixed(1)} / '
+                            '${sensorState.snapshot.gpuVramTotalGb?.toStringAsFixed(1) ?? '?'} GiB'
+                      : '—',
+                ),
+                _infoRow(
+                  context,
+                  'Power',
+                  sensorState.snapshot.gpuPowerDrawW != null
+                      ? '${sensorState.snapshot.gpuPowerDrawW!.toStringAsFixed(1)} W'
+                      : '—',
                 ),
               ],
             ],
-          ],
-        ),
-        if (state.isAvailable) ...[
+          ),
+
           const SizedBox(height: 16),
-          AppSectionCard(
-            title: 'Compute Processes',
+
+          // ── Processes ────────────────────────────────────────────────────
+          AppControlCard(
+            icon: Icons.list_alt_outlined,
+            title: 'Processes',
             children: [
               if (state.processes.isEmpty)
                 Text(
                   'No compute processes on GPU.',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
                 )
               else
                 _ProcessTable(processes: state.processes),
@@ -74,53 +162,140 @@ class DgpuPage extends ConsumerWidget {
                 '(Xorg, Wayland compositor) may not appear here.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+              const SizedBox(height: 8),
+              const PrivilegedActionNotice(),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: state.isApplying
+                    ? null
+                    : () => _killProcesses(context, bloc),
+                icon: state.isApplying
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: YaruCircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.close_outlined, size: 16),
+                label: const Text('Kill GPU Processes'),
+              ),
             ],
           ),
+
           const SizedBox(height: 16),
-          AppSectionCard(
-            title: 'Deactivation',
-            children: [
-              Text(
+
+          // ── PCI ──────────────────────────────────────────────────────────
+          AppControlCard(
+            icon: Icons.developer_board_outlined,
+            title: 'PCI',
+            description:
                 'Kill GPU processes before restarting the PCI device. '
                 'Restarting the PCI device will briefly remove the GPU from '
                 'the system. Save any work before proceeding.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
+            children: [
               const PrivilegedActionNotice(),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    onPressed: state.isApplying
-                        ? null
-                        : () => _killProcesses(context, bloc),
-                    icon: state.isApplying
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: YaruCircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(Icons.close_outlined, size: 16),
-                    label: const Text('Kill GPU Processes'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: state.isApplying
-                        ? null
-                        : () => _restartPci(context, bloc),
-                    icon: const Icon(Icons.refresh_outlined, size: 16),
-                    label: const Text('Restart PCI Device'),
-                  ),
-                ],
+              OutlinedButton.icon(
+                onPressed: state.isApplying
+                    ? null
+                    : () => _restartPci(context, bloc),
+                icon: const Icon(Icons.refresh_outlined, size: 16),
+                label: const Text('Restart PCI Device'),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Performance ──────────────────────────────────────────────────
+          AppControlCard(
+            icon: Icons.speed_outlined,
+            title: 'Performance',
+            children: [
+              const PrivilegedActionNotice(),
+              const SizedBox(height: 8),
+              AppSwitchTile(
+                value: powerState.gpuOverclockEnabled ?? false,
+                onChanged: (powerState.gpuOverclockEnabled != null &&
+                        !powerState.isApplying)
+                    ? (enabled) async {
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Toggle GPU overclock',
+                          message:
+                              'This action uses privileged access and may require authentication.',
+                          confirmLabel: 'Apply',
+                        );
+                        if (!context.mounted || !confirmed) return;
+                        ref
+                            .read(powerBlocProvider.bloc)
+                            .add(GpuOverclockSetRequested(enabled));
+                      }
+                    : null,
+                title: 'GPU overclock',
+                subtitle: powerState.gpuOverclockEnabled == null
+                    ? 'Not supported on this device'
+                    : boolEnabledLabel(powerState.gpuOverclockEnabled),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Hybrid Mode ──────────────────────────────────────────────────
+          AppControlCard(
+            icon: Icons.device_hub_outlined,
+            title: 'Hybrid Mode',
+            description: 'Changes take full effect after reboot.',
+            children: [
+              const PrivilegedActionNotice(),
+              const SizedBox(height: 8),
+              AppSwitchTile(
+                value: state.hybridModeEnabled ?? false,
+                onChanged:
+                    (state.hybridModeSupported && !state.isApplying)
+                        ? (enabled) async {
+                            final confirmed = await confirmPrivilegedAction(
+                              context,
+                              title: 'Toggle hybrid mode',
+                              message:
+                                  'This action uses privileged access and may require authentication.',
+                              confirmLabel: 'Apply',
+                            );
+                            if (!context.mounted || !confirmed) return;
+                            bloc.add(HybridModeSetRequested(enabled));
+                          }
+                        : null,
+                title: 'Hybrid mode',
+                subtitle: state.hybridModeSupported
+                    ? boolEnabledLabel(state.hybridModeEnabled)
+                    : 'Not supported on this device',
               ),
             ],
           ),
         ],
       ],
+    );
+  }
+
+  Widget _infoRow(BuildContext context, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 
@@ -151,32 +326,6 @@ class DgpuPage extends ConsumerWidget {
     if (confirmed && context.mounted) {
       bloc.add(const DgpuRestartPciRequested());
     }
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.isActive});
-
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          isActive ? Icons.memory : Icons.power_settings_new_outlined,
-          size: 18,
-          color: isActive
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outline,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          isActive ? 'GPU active' : 'GPU suspended (D3cold)',
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ],
-    );
   }
 }
 

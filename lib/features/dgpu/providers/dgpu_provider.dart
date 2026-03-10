@@ -8,7 +8,11 @@ import '../repository/dgpu_repository.dart';
 
 final dgpuRepositoryProvider = Provider<DgpuRepository>((ref) {
   final bridgeService = ref.watch(legionBridgeServiceProvider);
-  return DgpuRepository(bridgeService: bridgeService);
+  final sysfsService = ref.watch(legionSysfsServiceProvider);
+  return DgpuRepository(
+    bridgeService: bridgeService,
+    sysfsService: sysfsService,
+  );
 });
 
 final dgpuBlocProvider =
