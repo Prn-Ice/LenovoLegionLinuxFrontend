@@ -12,6 +12,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
     on<SettingsStarted>(_onStarted);
     on<SettingsRefreshRequested>(_onRefreshRequested);
     on<SettingsServiceToggled>(_onServiceToggled);
+    on<ThemeModeChanged>(_onThemeModeChanged);
+    on<YaruVariantChanged>(_onYaruVariantChanged);
   }
 
   final SettingsRepository _repository;
@@ -96,6 +98,20 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         ),
       );
     }
+  }
+
+  void _onThemeModeChanged(
+    ThemeModeChanged event,
+    Emitter<SettingsState> emit,
+  ) {
+    emit(state.copyWith(themeMode: event.themeMode));
+  }
+
+  void _onYaruVariantChanged(
+    YaruVariantChanged event,
+    Emitter<SettingsState> emit,
+  ) {
+    emit(state.copyWith(yaruVariant: event.variant));
   }
 
   ServiceControl? _findServiceById(String id, List<ServiceControl> services) {

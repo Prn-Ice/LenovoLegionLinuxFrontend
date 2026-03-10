@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../models/service_control.dart';
 
@@ -9,6 +11,8 @@ class SettingsState extends Equatable {
     required this.isApplying,
     required this.errorMessage,
     required this.noticeMessage,
+    required this.themeMode,
+    required this.yaruVariant,
   });
 
   factory SettingsState.initial() => const SettingsState(
@@ -17,6 +21,8 @@ class SettingsState extends Equatable {
     isApplying: false,
     errorMessage: null,
     noticeMessage: null,
+    themeMode: ThemeMode.system,
+    yaruVariant: null,
   );
 
   static const _unset = Object();
@@ -26,6 +32,8 @@ class SettingsState extends Equatable {
   final bool isApplying;
   final String? errorMessage;
   final String? noticeMessage;
+  final ThemeMode themeMode;
+  final YaruVariant? yaruVariant;
 
   bool get hasLoaded => services.isNotEmpty;
 
@@ -35,6 +43,8 @@ class SettingsState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
+    ThemeMode? themeMode,
+    Object? yaruVariant = _unset,
   }) {
     return SettingsState(
       services: services ?? this.services,
@@ -46,6 +56,10 @@ class SettingsState extends Equatable {
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,
+      themeMode: themeMode ?? this.themeMode,
+      yaruVariant: yaruVariant == _unset
+          ? this.yaruVariant
+          : yaruVariant as YaruVariant?,
     );
   }
 
@@ -56,5 +70,7 @@ class SettingsState extends Equatable {
     isApplying,
     errorMessage,
     noticeMessage,
+    themeMode,
+    yaruVariant,
   ];
 }
