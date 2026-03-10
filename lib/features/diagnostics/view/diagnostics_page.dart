@@ -29,15 +29,17 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   void initState() {
     super.initState();
     // aboutBlocProvider auto-dispatches AboutStarted in its provider constructor.
-    ref.read(analyticsBlocProvider.bloc).add(const AnalyticsStarted());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(analyticsBlocProvider.bloc).add(const AnalyticsStarted());
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final analyticsState = ref.watch(analyticsBlocProvider);
     final aboutState = ref.watch(aboutBlocProvider);
-    final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
-    final aboutBloc = ref.read(aboutBlocProvider.bloc);
     final snapshot = aboutState.snapshot;
 
     return AppPageBody(
@@ -60,7 +62,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               isSelected: AnalyticsTimeWindow.values
                   .map((w) => w == analyticsState.window)
                   .toList(),
-              onSelected: (i) => analyticsBloc
+              onSelected: (i) => ref
+                  .read(analyticsBlocProvider.bloc)
                   .add(AnalyticsWindowChanged(AnalyticsTimeWindow.values[i])),
             ),
             const SizedBox(height: 12),
@@ -224,7 +227,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           children: [
             AppRefreshButton(
               isBusy: aboutState.isLoading,
-              onPressed: () => aboutBloc.add(const AboutRefreshRequested()),
+              onPressed: () => ref
+                  .read(aboutBlocProvider.bloc)
+                  .add(const AboutRefreshRequested()),
               label: 'Refresh diagnostics',
             ),
           ],
