@@ -61,7 +61,7 @@ class PowerPage extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                _modeDescription(state.currentMode),
+                state.currentMode?.description ?? '',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -128,8 +128,6 @@ class PowerPage extends ConsumerWidget {
         AppControlCard(
           icon: Icons.tune,
           title: 'Power Limits',
-          description:
-              'These limits are hardware-dependent and may only apply in custom/performance profiles.',
           children: [
             YaruExpandable(
               isExpanded: false,
@@ -180,22 +178,6 @@ class PowerPage extends ConsumerWidget {
         ),
       ],
     );
-  }
-
-  static String _modeDescription(PowerMode? mode) {
-    if (mode == null) return '';
-    switch (mode.value) {
-      case 'quiet':
-        return 'Optimised for silence — fan speed minimised';
-      case 'balanced':
-        return 'Balanced performance and power consumption';
-      case 'performance':
-        return 'Maximum performance — higher fan noise and power draw';
-      case 'balanced-performance':
-        return 'Custom tuning (balanced-performance profile)';
-      default:
-        return '';
-    }
   }
 
   void _setMode(PowerBloc bloc, PowerMode mode) {

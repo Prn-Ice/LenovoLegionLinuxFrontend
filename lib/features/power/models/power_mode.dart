@@ -25,6 +25,21 @@ class PowerMode extends Equatable {
     }
   }
 
+  String get description {
+    switch (value) {
+      case 'quiet':
+        return 'Optimised for silence — fan speed minimised';
+      case 'balanced':
+        return 'Balanced performance and power consumption';
+      case 'performance':
+        return 'Maximum performance — higher fan noise and power draw';
+      case 'balanced-performance':
+        return 'Custom tuning (balanced-performance profile)';
+      default:
+        return label;
+    }
+  }
+
   @override
   List<Object?> get props => [value];
 }
