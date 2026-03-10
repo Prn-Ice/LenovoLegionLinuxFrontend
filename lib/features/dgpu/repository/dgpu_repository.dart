@@ -53,15 +53,13 @@ class DgpuRepository {
     );
   }
 
-  Future<bool?> readHybridMode() => _sysfsService.readHybridMode();
-
   Future<void> setHybridMode(bool enabled) async {
     final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
     await _runPrivilegedCommand(
       [command],
       method: 'hybrid_mode.set',
-      failurePrefix:
-          'Failed to set hybrid mode to ${enabled ? 'on' : 'off'}',
+      failurePrefix: 'Failed to set hybrid mode to ${enabled ? 'on' : 'off'}',
+      detectUnavailableResponse: true,
     );
   }
 
@@ -148,12 +146,14 @@ class DgpuRepository {
     required String method,
     required String failurePrefix,
     Duration timeout = const Duration(seconds: 10),
+    bool detectUnavailableResponse = false,
   }) async {
     try {
       await _bridgeService.runPrivilegedCommand(
         method: method,
         args: args,
         timeout: timeout,
+        detectUnavailableResponse: detectUnavailableResponse,
       );
     } on LegionBridgeException catch (error) {
       final details = error.details;
