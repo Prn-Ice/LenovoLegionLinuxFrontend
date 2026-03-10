@@ -7,6 +7,7 @@ import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/fans_bloc.dart';
 import '../bloc/fans_event.dart';
+import '../bloc/fans_state.dart';
 import '../models/fan_curve.dart';
 import '../providers/fans_provider.dart';
 
@@ -192,7 +193,7 @@ class FansPage extends ConsumerWidget {
 
 Future<void> _showPresetDialog(
   BuildContext context,
-  dynamic state,
+  FansState state,
   FansBloc bloc,
 ) async {
   await showDialog<void>(
@@ -202,7 +203,7 @@ Future<void> _showPresetDialog(
       titlePadding: EdgeInsets.zero,
       content: Column(
         mainAxisSize: MainAxisSize.min,
-        children: (state.availablePresets as List<String>).map((preset) {
+        children: state.availablePresets.map((preset) {
           final isRecommended = preset == state.recommendedPreset;
           return ListTile(
             title: Text(preset),
@@ -278,12 +279,13 @@ class _FanCurveChartState extends State<_FanCurveChart> {
 
     if (_draggingIndex != null) {
       final point = widget.curve.points[_draggingIndex!];
+      // Drag controls fan1 only; fan2 is a separate hardware value displayed
+      // for reference. TODO: account for fl_chart axis insets in coordinate mapping.
       widget.onPointChanged(
         _draggingIndex!,
         point.copyWith(
           cpuUpperTemp: x.round().clamp(0, 100),
           fan1Rpm: y.round().clamp(0, _maxRpm.round()),
-          fan2Rpm: y.round().clamp(0, _maxRpm.round()),
         ),
       );
     }
