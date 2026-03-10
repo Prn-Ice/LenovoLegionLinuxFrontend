@@ -41,6 +41,7 @@ class SettingsPage extends ConsumerWidget {
             Text('Theme', style: textTheme.labelMedium),
             const SizedBox(height: 8),
             YaruChoiceChipBar(
+              selectedFirst: false,
               labels: const [Text('System'), Text('Light'), Text('Dark')],
               isSelected: [
                 state.themeMode == ThemeMode.system,
