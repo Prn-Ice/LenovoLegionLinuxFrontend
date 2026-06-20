@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/responsive_card_grid.dart';
 import '../bloc/dashboard_event.dart';
 import '../models/dashboard_snapshot.dart';
 import '../providers/dashboard_provider.dart';
@@ -37,7 +39,11 @@ class DashboardPage extends ConsumerStatefulWidget {
       title: 'Automation & System',
       description:
           'Rules, service management, and diagnostics for troubleshooting.',
-      sections: [AppSection.automation, AppSection.settings, AppSection.diagnostics],
+      sections: [
+        AppSection.automation,
+        AppSection.settings,
+        AppSection.diagnostics,
+      ],
     ),
   ];
 
@@ -60,6 +66,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final sensorState = ref.watch(liveSensorBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
+    final accent =
+        LegionAccent.fromPowerModeValue(
+          snapshot.status.powerProfile?.trim(),
+        )?.color ??
+        Theme.of(context).colorScheme.primary;
 
     return AppPageBody(
       title: 'Legion Control Center',
@@ -69,9 +80,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       children: [
         DeviceIdentityCard(identity: snapshot.deviceIdentity),
         const SizedBox(height: 16),
-        SensorStrip(snapshot: sensors),
+        SensorStrip(snapshot: sensors, accent: accent),
         const SizedBox(height: 16),
-        _buildControlCards(context, snapshot, state),
+        _buildControlCards(context, snapshot, state, accent),
         const SizedBox(height: 16),
         ..._buildSectionGroups(context),
         const SizedBox(height: 16),
@@ -91,242 +102,227 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     BuildContext context,
     DashboardSnapshot snapshot,
     DashboardState state,
+    Color accent,
   ) {
     final bloc = ref.read(dashboardBlocProvider.bloc);
     final navigationBloc = ref.read(navigationBlocProvider.bloc);
 
-    final cardWidth = _cardWidth(context);
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
+    return ResponsiveCardGrid(
+      minCardWidth: 360,
       children: [
         // Power Mode card
-        SizedBox(
-          width: cardWidth,
-          child: DashboardCard(
-            icon: Icons.bolt,
-            title: 'Power Mode',
-            tint: Theme.of(context).colorScheme.primary,
-            children: [
-              Text(
-                snapshot.status.powerProfileLabel,
-                style: Theme.of(context).textTheme.headlineSmall,
+        DashboardCard(
+          icon: Icons.bolt,
+          title: 'Power Mode',
+          tint: accent,
+          children: [
+            Text(
+              snapshot.status.powerProfileLabel,
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Updated: ${snapshot.status.updatedAt.toLocal()}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (snapshot.status.hasError) ...[
+              const SizedBox(height: 8),
+              AppStatusBanner(
+                message: snapshot.status.error!,
+                tone: AppStatusTone.error,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Updated: ${snapshot.status.updatedAt.toLocal()}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (snapshot.status.hasError) ...[
-                const SizedBox(height: 8),
-                AppStatusBanner(
-                  message: snapshot.status.error!,
-                  tone: AppStatusTone.error,
-                ),
-              ],
-              const SizedBox(height: 12),
-              Text(
-                'Power source: ${_powerSourceLabel(snapshot.onPowerSupply)}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              Text(
-                'Context fan preset: ${snapshot.recommendedFanPreset ?? 'Unavailable'}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              if (snapshot.availablePowerModes.isEmpty)
-                const Text('No writable power modes available.')
-              else
-                YaruChoiceChipBar(
-                  labels: snapshot.availablePowerModes
-                      .map((mode) => Text(mode))
-                      .toList(growable: false),
-                  isSelected: snapshot.availablePowerModes
-                      .map(
-                        (mode) =>
-                            snapshot.status.powerProfile?.trim() == mode,
-                      )
-                      .toList(growable: false),
-                  onSelected: state.isApplying
-                      ? null
-                      : (index) async {
-                          final mode = snapshot.availablePowerModes[index];
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Set power mode',
-                            message:
-                                'Changing power mode runs a privileged command and may prompt for authentication.',
-                            confirmLabel: 'Set mode',
-                          );
-                          if (!context.mounted || !confirmed) {
-                            return;
-                          }
-                          bloc.add(DashboardPowerModeSetRequested(mode));
-                        },
-                ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: state.isApplying
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'Power source: ${_powerSourceLabel(snapshot.onPowerSupply)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            Text(
+              'Context fan preset: ${snapshot.recommendedFanPreset ?? 'Unavailable'}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            if (snapshot.availablePowerModes.isEmpty)
+              const Text('No writable power modes available.')
+            else
+              YaruChoiceChipBar(
+                labels: snapshot.availablePowerModes
+                    .map((mode) => Text(mode))
+                    .toList(growable: false),
+                isSelected: snapshot.availablePowerModes
+                    .map((mode) => snapshot.status.powerProfile?.trim() == mode)
+                    .toList(growable: false),
+                onSelected: state.isApplying
                     ? null
-                    : () async {
+                    : (index) async {
+                        final mode = snapshot.availablePowerModes[index];
                         final confirmed = await confirmPrivilegedAction(
                           context,
-                          title: 'Apply context fan preset',
+                          title: 'Set power mode',
                           message:
-                              'Applying fan presets writes hardware controls and may prompt for authentication.',
-                          confirmLabel: 'Apply preset',
+                              'Changing power mode runs a privileged command and may prompt for authentication.',
+                          confirmLabel: 'Set mode',
                         );
                         if (!context.mounted || !confirmed) {
                           return;
                         }
-                        bloc.add(const DashboardApplyContextFanPresetRequested());
+                        bloc.add(DashboardPowerModeSetRequested(mode));
                       },
-                icon: state.isApplying
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: YaruCircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.tune),
-                label: const Text('Apply context fan preset'),
               ),
-            ],
-          ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: state.isApplying
+                  ? null
+                  : () async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Apply context fan preset',
+                        message:
+                            'Applying fan presets writes hardware controls and may prompt for authentication.',
+                        confirmLabel: 'Apply preset',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(const DashboardApplyContextFanPresetRequested());
+                    },
+              icon: state.isApplying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: YaruCircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.tune),
+              label: const Text('Apply context fan preset'),
+            ),
+          ],
         ),
 
         // Graphics Mode card
-        SizedBox(
-          width: cardWidth,
-          child: DashboardCard(
-            icon: Icons.display_settings,
-            title: 'Graphics Mode',
-            children: [
-              const PrivilegedActionNotice(),
-              const SizedBox(height: 8),
-              AppSwitchTile(
-                value: snapshot.hybridModeEnabled ?? false,
-                onChanged:
-                    snapshot.hybridModeEnabled != null && !state.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Toggle hybrid mode',
-                              message:
-                                  'This action uses privileged access and may require authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) {
-                              return;
-                            }
-                            bloc.add(DashboardHybridModeSetRequested(enabled));
-                          }
-                        : null,
-                title: 'Hybrid mode',
-                subtitle: boolEnabledLabel(snapshot.hybridModeEnabled),
+        DashboardCard(
+          icon: Icons.display_settings,
+          title: 'Graphics Mode',
+          children: [
+            const PrivilegedActionNotice(),
+            const SizedBox(height: 8),
+            AppSwitchTile(
+              value: snapshot.hybridModeEnabled ?? false,
+              onChanged: snapshot.hybridModeEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle hybrid mode',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardHybridModeSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Hybrid mode',
+              subtitle: boolEnabledLabel(snapshot.hybridModeEnabled),
+            ),
+            AppSwitchTile(
+              value: snapshot.overdriveEnabled ?? false,
+              onChanged: snapshot.overdriveEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Toggle overdrive',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardOverdriveModeSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Overdrive',
+              subtitle: boolEnabledLabel(snapshot.overdriveEnabled),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  navigationBloc.add(
+                    const NavigationSectionSelected(AppSection.display),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Display & Lighting'),
               ),
-              AppSwitchTile(
-                value: snapshot.overdriveEnabled ?? false,
-                onChanged:
-                    snapshot.overdriveEnabled != null && !state.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Toggle overdrive',
-                              message:
-                                  'This action uses privileged access and may require authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) {
-                              return;
-                            }
-                            bloc.add(DashboardOverdriveModeSetRequested(enabled));
-                          }
-                        : null,
-                title: 'Overdrive',
-                subtitle: boolEnabledLabel(snapshot.overdriveEnabled),
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    navigationBloc.add(
-                      const NavigationSectionSelected(AppSection.display),
-                    );
-                  },
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open Display & Lighting'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
 
         // Battery card
-        SizedBox(
-          width: cardWidth,
-          child: DashboardCard(
-            icon: Icons.battery_charging_full,
-            title: 'Battery',
-            children: [
-              AppSwitchTile(
-                value: snapshot.batteryConservationEnabled ?? false,
-                onChanged:
-                    snapshot.batteryConservationEnabled != null &&
-                        !state.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Set battery conservation',
-                              message:
-                                  'This action uses privileged access and may require authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) {
-                              return;
-                            }
-                            bloc.add(
-                              DashboardBatteryConservationSetRequested(enabled),
-                            );
-                          }
-                        : null,
-                title: 'Battery conservation',
-                subtitle: boolEnabledLabel(snapshot.batteryConservationEnabled),
+        DashboardCard(
+          icon: Icons.battery_charging_full,
+          title: 'Battery',
+          children: [
+            AppSwitchTile(
+              value: snapshot.batteryConservationEnabled ?? false,
+              onChanged:
+                  snapshot.batteryConservationEnabled != null &&
+                      !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set battery conservation',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(
+                        DashboardBatteryConservationSetRequested(enabled),
+                      );
+                    }
+                  : null,
+              title: 'Battery conservation',
+              subtitle: boolEnabledLabel(snapshot.batteryConservationEnabled),
+            ),
+            AppSwitchTile(
+              value: snapshot.rapidChargingEnabled ?? false,
+              onChanged:
+                  snapshot.rapidChargingEnabled != null && !state.isApplying
+                  ? (enabled) async {
+                      final confirmed = await confirmPrivilegedAction(
+                        context,
+                        title: 'Set rapid charging',
+                        message:
+                            'This action uses privileged access and may require authentication.',
+                        confirmLabel: 'Apply',
+                      );
+                      if (!context.mounted || !confirmed) {
+                        return;
+                      }
+                      bloc.add(DashboardRapidChargingSetRequested(enabled));
+                    }
+                  : null,
+              title: 'Rapid charging',
+              subtitle: boolEnabledLabel(snapshot.rapidChargingEnabled),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  navigationBloc.add(
+                    const NavigationSectionSelected(AppSection.battery),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Open Battery & Devices'),
               ),
-              AppSwitchTile(
-                value: snapshot.rapidChargingEnabled ?? false,
-                onChanged:
-                    snapshot.rapidChargingEnabled != null && !state.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Set rapid charging',
-                              message:
-                                  'This action uses privileged access and may require authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) {
-                              return;
-                            }
-                            bloc.add(DashboardRapidChargingSetRequested(enabled));
-                          }
-                        : null,
-                title: 'Rapid charging',
-                subtitle: boolEnabledLabel(snapshot.rapidChargingEnabled),
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    navigationBloc.add(
-                      const NavigationSectionSelected(AppSection.battery),
-                    );
-                  },
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open Battery & Devices'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -383,12 +379,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
       ),
     );
-  }
-
-  double _cardWidth(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width > 900) return (width - 280 - 48) / 2;
-    return width - 32;
   }
 
   String _powerSourceLabel(bool? onPowerSupply) {

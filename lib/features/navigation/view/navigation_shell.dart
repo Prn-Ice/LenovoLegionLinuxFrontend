@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/widgets/legion_mark.dart';
 import '../../diagnostics/view/diagnostics_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/view/battery_page.dart';
@@ -119,9 +120,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return switch (entry) {
           NavHeader h => _buildSectionHeader(context, h.title),
           NavPageEntry p => YaruMasterTile(
-              leading: Icon(p.section.yaruIcon),
-              title: Text(p.section.label),
-            ),
+            leading: Icon(p.section.yaruIcon),
+            title: Text(p.section.label),
+          ),
         };
       },
       pageBuilder: (context, index) {
@@ -149,6 +150,15 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         );
       },
       appBar: YaruWindowTitleBar(
+        leading: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Center(
+            child: LegionMark(
+              color: Theme.of(context).colorScheme.primary,
+              size: 20,
+            ),
+          ),
+        ),
         title: const Text('Lenovo Legion Linux'),
         border: BorderSide.none,
         backgroundColor: YaruMasterDetailTheme.of(context).sideBarColor,
