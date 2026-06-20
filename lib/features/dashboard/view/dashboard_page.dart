@@ -12,10 +12,14 @@ import '../providers/dashboard_provider.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 import '../widgets/device_identity_card.dart';
 import '../widgets/mode_hero.dart';
+import '../widgets/quick_controls.dart';
 import '../widgets/sensor_strip.dart';
 import '../../navigation/bloc/navigation_event.dart';
 import '../../navigation/models/app_section.dart';
 import '../../navigation/providers/navigation_provider.dart';
+import '../../devices/bloc/devices_event.dart';
+import '../../devices/bloc/devices_state.dart';
+import '../../devices/providers/devices_provider.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/dashboard_state.dart';
@@ -65,6 +69,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(dashboardBlocProvider);
     final sensorState = ref.watch(liveSensorBlocProvider);
+    final devicesState = ref.watch(devicesBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
     final accentObj = LegionAccent.fromPowerModeValue(
@@ -109,6 +114,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         const SizedBox(height: 16),
         SensorStrip(snapshot: sensors, accent: accent),
         const SizedBox(height: 16),
+        _buildQuickControls(context, snapshot, state, devicesState, accent),
+        const SizedBox(height: 16),
         _buildControlCards(context, snapshot, state, accent),
         const SizedBox(height: 16),
         ..._buildSectionGroups(context),
@@ -120,6 +127,89 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               : () => ref
                     .read(dashboardBlocProvider.bloc)
                     .add(const DashboardRefreshRequested()),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickControls(
+    BuildContext context,
+    DashboardSnapshot snapshot,
+    DashboardState state,
+    DevicesState devicesState,
+    Color accent,
+  ) {
+    final dashboardBloc = ref.read(dashboardBlocProvider.bloc);
+    final devicesBloc = ref.read(devicesBlocProvider.bloc);
+
+    ValueChanged<bool>? guard({
+      required bool supported,
+      required bool applying,
+      required String title,
+      required void Function(bool) apply,
+    }) {
+      if (!supported || applying) return null;
+      return (enabled) async {
+        final confirmed = await confirmPrivilegedAction(
+          context,
+          title: title,
+          message:
+              'This action uses privileged access and may require authentication.',
+          confirmLabel: 'Apply',
+        );
+        if (!context.mounted || !confirmed) return;
+        apply(enabled);
+      };
+    }
+
+    return QuickControls(
+      accent: accent,
+      controls: [
+        QuickControl(
+          title: 'Rapid charge',
+          subtitle: 'Charge to full as fast as possible',
+          value: snapshot.rapidChargingEnabled ?? false,
+          onChanged: guard(
+            supported: snapshot.rapidChargingEnabled != null,
+            applying: state.isApplying,
+            title: 'Set rapid charging',
+            apply: (v) =>
+                dashboardBloc.add(DashboardRapidChargingSetRequested(v)),
+          ),
+        ),
+        QuickControl(
+          title: 'Battery health',
+          subtitle: 'Stop charging near 80% to extend lifespan',
+          value: snapshot.batteryConservationEnabled ?? false,
+          onChanged: guard(
+            supported: snapshot.batteryConservationEnabled != null,
+            applying: state.isApplying,
+            title: 'Set battery conservation',
+            apply: (v) =>
+                dashboardBloc.add(DashboardBatteryConservationSetRequested(v)),
+          ),
+        ),
+        QuickControl(
+          title: 'Fn lock',
+          subtitle: 'F-keys act as F1–F12 directly',
+          value: devicesState.fnLockEnabled ?? false,
+          onChanged: guard(
+            supported: devicesState.fnLockSupported,
+            applying: devicesState.isApplying,
+            title: 'Set Fn lock',
+            apply: (v) => devicesBloc.add(FnLockSetRequested(v)),
+          ),
+        ),
+        QuickControl(
+          title: 'Touchpad',
+          subtitle: 'Tap and click enabled',
+          value: devicesState.touchpadEnabled ?? false,
+          onChanged: guard(
+            supported: devicesState.touchpadSupported,
+            applying: devicesState.isApplying,
+            title: 'Set touchpad',
+            apply: (v) => devicesBloc.add(TouchpadSetRequested(v)),
+          ),
         ),
       ],
     );
@@ -254,71 +344,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 },
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Open Display & Lighting'),
-              ),
-            ),
-          ],
-        ),
-
-        // Battery card
-        DashboardCard(
-          icon: Icons.battery_charging_full,
-          title: 'Battery',
-          children: [
-            AppSwitchTile(
-              value: snapshot.batteryConservationEnabled ?? false,
-              onChanged:
-                  snapshot.batteryConservationEnabled != null &&
-                      !state.isApplying
-                  ? (enabled) async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Set battery conservation',
-                        message:
-                            'This action uses privileged access and may require authentication.',
-                        confirmLabel: 'Apply',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      bloc.add(
-                        DashboardBatteryConservationSetRequested(enabled),
-                      );
-                    }
-                  : null,
-              title: 'Battery conservation',
-              subtitle: boolEnabledLabel(snapshot.batteryConservationEnabled),
-            ),
-            AppSwitchTile(
-              value: snapshot.rapidChargingEnabled ?? false,
-              onChanged:
-                  snapshot.rapidChargingEnabled != null && !state.isApplying
-                  ? (enabled) async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Set rapid charging',
-                        message:
-                            'This action uses privileged access and may require authentication.',
-                        confirmLabel: 'Apply',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      bloc.add(DashboardRapidChargingSetRequested(enabled));
-                    }
-                  : null,
-              title: 'Rapid charging',
-              subtitle: boolEnabledLabel(snapshot.rapidChargingEnabled),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () {
-                  navigationBloc.add(
-                    const NavigationSectionSelected(AppSection.battery),
-                  );
-                },
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Open Battery & Devices'),
               ),
             ),
           ],
