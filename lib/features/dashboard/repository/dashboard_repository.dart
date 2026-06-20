@@ -1,4 +1,4 @@
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/dashboard_snapshot.dart';
 import '../models/device_identity_snapshot.dart';
@@ -12,15 +12,17 @@ class DashboardRepositoryException implements Exception {
   String toString() => message;
 }
 
-class DashboardRepository {
+class DashboardRepository extends PrivilegedRepository {
   const DashboardRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) =>
+      DashboardRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -87,16 +89,21 @@ class DashboardRepository {
   }
 
   Future<void> setPowerMode(String mode) async {
-    await _runPrivilegedCommand(
-      ['set-feature', 'PlatformProfileFeature', mode], // legion_linux/legion.py:PlatformProfileFeature
+    await runPrivilegedCommand(
+      [
+        'set-feature',
+        'PlatformProfileFeature',
+        mode,
+      ], // legion_linux/legion.py:PlatformProfileFeature
       method: 'feature.set',
       failurePrefix: 'Failed to set power mode to "$mode"',
+      detectUnavailableResponse: false,
     );
   }
 
   Future<void> setHybridMode(bool enabled) async {
     final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'hybrid_mode.set',
       failurePrefix: 'Failed to set Hybrid mode',
@@ -105,16 +112,21 @@ class DashboardRepository {
   }
 
   Future<void> applyContextFanPreset() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       const ['fancurve-write-current-preset-to-hw'],
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply current context fan preset',
+      detectUnavailableResponse: false,
     );
   }
 
   Future<void> setOverdriveMode(bool enabled) async {
-    await _runPrivilegedCommand(
-      ['set-feature', 'OverdriveFeature', enabled ? '1' : '0'], // legion_linux/legion.py:OverdriveFeature
+    await runPrivilegedCommand(
+      [
+        'set-feature',
+        'OverdriveFeature',
+        enabled ? '1' : '0',
+      ], // legion_linux/legion.py:OverdriveFeature
       method: 'feature.set',
       failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
       detectUnavailableResponse: true,
@@ -125,7 +137,7 @@ class DashboardRepository {
     final command = enabled
         ? 'batteryconservation-enable'
         : 'batteryconservation-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'battery_conservation.set',
       failurePrefix:
@@ -138,7 +150,7 @@ class DashboardRepository {
     final command = enabled
         ? 'rapid-charging-enable'
         : 'rapid-charging-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'rapid_charging.set',
       failurePrefix:
@@ -157,26 +169,5 @@ class DashboardRepository {
 
     final suffix = onPowerSupply ? 'ac' : 'battery';
     return '${profile.trim()}-$suffix';
-  }
-
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-    bool detectUnavailableResponse = false,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: method,
-        args: args,
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? '$failurePrefix.'
-          : '$failurePrefix: $details';
-      throw DashboardRepositoryException(message);
-    }
   }
 }

@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';
@@ -14,15 +14,16 @@ class FansRepositoryException implements Exception {
   String toString() => message;
 }
 
-class FansRepository {
+class FansRepository extends PrivilegedRepository {
   const FansRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) => FansRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   static const List<String> defaultPresets = [
     'quiet-battery',
@@ -63,7 +64,7 @@ class FansRepository {
   }
 
   Future<void> applyCurrentContextPreset() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['fancurve-write-current-preset-to-hw'],
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply current context fan preset',
@@ -71,7 +72,7 @@ class FansRepository {
   }
 
   Future<void> applyPreset(String presetName) async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['fancurve-write-preset-to-hw', presetName],
       method: 'fan_curve.apply_preset',
       failurePrefix: 'Failed to apply fan preset "$presetName"',
@@ -80,7 +81,7 @@ class FansRepository {
 
   Future<void> setMiniFanCurve(bool enabled) async {
     final command = enabled ? 'minifancurve-enable' : 'minifancurve-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'mini_fan_curve.set',
       failurePrefix:
@@ -92,7 +93,7 @@ class FansRepository {
     final command = enabled
         ? 'lockfancontroller-enable'
         : 'lockfancontroller-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'lock_fan_controller.set',
       failurePrefix:
@@ -104,7 +105,7 @@ class FansRepository {
     final command = enabled
         ? 'maximumfanspeed-enable'
         : 'maximumfanspeed-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'maximum_fan_speed.set',
       failurePrefix:
@@ -121,7 +122,7 @@ class FansRepository {
       );
     }
 
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['fancurve-write-file-to-hw', _tempCurvePath],
       method: 'fan_curve.write_to_hw',
       failurePrefix: 'Failed to write fan curve to hardware',
@@ -144,21 +145,5 @@ class FansRepository {
     }
 
     return preset;
-  }
-
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(method: method, args: args);
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? '$failurePrefix.'
-          : '$failurePrefix: $details';
-      throw FansRepositoryException(message);
-    }
   }
 }

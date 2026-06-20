@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';
@@ -16,15 +16,17 @@ class AutomationRepositoryException implements Exception {
   String toString() => message;
 }
 
-class AutomationRepository {
+class AutomationRepository extends PrivilegedRepository {
   const AutomationRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) =>
+      AutomationRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   Future<AutomationConfig> loadConfig() async {
     final file = _configFile;
@@ -66,7 +68,7 @@ class AutomationRepository {
   }
 
   Future<void> applyFanPresetForCurrentContext() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['fancurve-write-current-preset-to-hw'],
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply fan preset for current context',
@@ -77,7 +79,7 @@ class AutomationRepository {
     required int lowerLimit,
     required int upperLimit,
   }) async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['custom-conservation-mode-apply', '$lowerLimit', '$upperLimit'],
       method: 'battery_conservation.custom_apply',
       failurePrefix: 'Failed to apply custom conservation automation',
@@ -88,7 +90,7 @@ class AutomationRepository {
     final command = enabled
         ? 'rapid-charging-enable'
         : 'rapid-charging-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'rapid_charging.set',
       failurePrefix:
@@ -96,30 +98,15 @@ class AutomationRepository {
     );
   }
 
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(method: method, args: args);
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? '$failurePrefix.'
-          : '$failurePrefix: $details';
-      throw AutomationRepositoryException(message);
-    }
-  }
-
   /// Runs [command] as the current user (NOT privileged — no pkexec).
   /// Returns the trimmed stdout on success.
   /// Throws [AutomationRepositoryException] on non-zero exit or timeout.
   Future<String> runShellCommand(String command) async {
     try {
-      final result = await Process.run('sh', ['-c', command]).timeout(
-        const Duration(seconds: 30),
-      );
+      final result = await Process.run('sh', [
+        '-c',
+        command,
+      ]).timeout(const Duration(seconds: 30));
       if (result.exitCode == 0) {
         return '${result.stdout}'.trim();
       }

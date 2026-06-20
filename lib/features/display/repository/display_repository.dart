@@ -1,4 +1,4 @@
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/xrandr_service.dart';
 import '../models/display_snapshot.dart';
@@ -12,17 +12,19 @@ class DisplayRepositoryException implements Exception {
   String toString() => message;
 }
 
-class DisplayRepository {
+class DisplayRepository extends PrivilegedRepository {
   const DisplayRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
+    required super.bridgeService,
     required XrandrService xrandrService,
   }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService,
        _xrandrService = xrandrService;
 
+  @override
+  Exception wrapBridgeError(String message) =>
+      DisplayRepositoryException(message);
+
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
   final XrandrService _xrandrService;
 
   Future<DisplaySnapshot> loadSnapshot() async {
@@ -40,7 +42,8 @@ class DisplayRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'OverdriveFeature', // legion_linux/legion.py:OverdriveFeature
+      featureName:
+          'OverdriveFeature', // legion_linux/legion.py:OverdriveFeature
       enabled: enabled,
       settingLabel: 'Overdrive',
     );
@@ -59,20 +62,10 @@ class DisplayRepository {
     required bool enabled,
     required String settingLabel,
     bool detectUnavailableResponse = false,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', featureName, enabled ? '1' : '0'],
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}.'
-          : 'Failed to set $settingLabel: $details';
-
-      throw DisplayRepositoryException(message);
-    }
-  }
+  }) => runPrivilegedCommand(
+    ['set-feature', featureName, enabled ? '1' : '0'],
+    method: 'feature.set',
+    failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
+    detectUnavailableResponse: detectUnavailableResponse,
+  );
 }

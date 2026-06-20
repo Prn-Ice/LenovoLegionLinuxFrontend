@@ -1,4 +1,4 @@
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/power_limit.dart';
 import '../models/power_mode.dart';
@@ -13,15 +13,17 @@ class PowerRepositoryException implements Exception {
   String toString() => message;
 }
 
-class PowerRepository {
+class PowerRepository extends PrivilegedRepository {
   const PowerRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) =>
+      PowerRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -34,7 +36,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_longterm',
       label: 'CPU Long Term Power Limit',
-      featureName: 'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
+      featureName:
+          'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_longterm_powerlimit',
       min: 5,
@@ -43,7 +46,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_shortterm',
       label: 'CPU Short Term Power Limit',
-      featureName: 'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
+      featureName:
+          'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_shortterm_powerlimit',
       min: 5,
@@ -52,7 +56,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_peak',
       label: 'CPU Peak Power Limit',
-      featureName: 'CPUPeakPowerLimit', // legion_linux/legion.py:CPUPeakPowerLimit
+      featureName:
+          'CPUPeakPowerLimit', // legion_linux/legion.py:CPUPeakPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_peak_powerlimit',
       min: 0,
@@ -61,7 +66,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_cross_loading',
       label: 'CPU Cross Loading Power Limit',
-      featureName: 'CPUCrossLoadingPowerLimit', // legion_linux/legion.py:CPUCrossLoadingPowerLimit
+      featureName:
+          'CPUCrossLoadingPowerLimit', // legion_linux/legion.py:CPUCrossLoadingPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_cross_loading_powerlimit',
       min: 0,
@@ -70,7 +76,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_apu_sppt',
       label: 'CPU APU SPPT Power Limit',
-      featureName: 'CPUAPUSPPTPowerLimit', // legion_linux/legion.py:CPUAPUSPPTPowerLimit
+      featureName:
+          'CPUAPUSPPTPowerLimit', // legion_linux/legion.py:CPUAPUSPPTPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_apu_sppt_powerlimit',
       min: 0,
@@ -79,7 +86,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'cpu_default',
       label: 'CPU Default Power Limit',
-      featureName: 'CPUDefaultPowerLimit', // legion_linux/legion.py:CPUDefaultPowerLimit
+      featureName:
+          'CPUDefaultPowerLimit', // legion_linux/legion.py:CPUDefaultPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_default_powerlimit',
       min: 0,
@@ -88,7 +96,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_ctgp',
       label: 'GPU cTGP Power Limit',
-      featureName: 'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
+      featureName:
+          'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ctgp_powerlimit',
       min: 0,
@@ -97,7 +106,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_ppab',
       label: 'GPU PPAB Power Limit',
-      featureName: 'GPUPPABPowerLimit', // legion_linux/legion.py:GPUPPABPowerLimit
+      featureName:
+          'GPUPPABPowerLimit', // legion_linux/legion.py:GPUPPABPowerLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ppab_powerlimit',
       min: 0,
@@ -115,7 +125,8 @@ class PowerRepository {
     PowerLimitSpec(
       id: 'gpu_temperature',
       label: 'GPU Temperature Limit',
-      featureName: 'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
+      featureName:
+          'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
       sysfsPath:
           '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_temperature_limit',
       min: 0,
@@ -168,19 +179,15 @@ class PowerRepository {
   }
 
   Future<void> setPowerMode(PowerMode mode) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', 'PlatformProfileFeature', mode.value], // legion_linux/legion.py:PlatformProfileFeature
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? 'Failed to set power mode to ${mode.label}.'
-          : 'Failed to set power mode to ${mode.label}: $details';
-
-      throw PowerRepositoryException(message);
-    }
+    await runPrivilegedCommand(
+      [
+        'set-feature',
+        'PlatformProfileFeature',
+        mode.value,
+      ], // legion_linux/legion.py:PlatformProfileFeature
+      method: 'feature.set',
+      failurePrefix: 'Failed to set power mode to ${mode.label}',
+    );
   }
 
   Future<void> setPowerLimit(PowerLimitSpec limit, int value) async {
@@ -190,19 +197,11 @@ class PowerRepository {
       );
     }
 
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', limit.featureName, '$value'],
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? 'Failed to set ${limit.label}.'
-          : 'Failed to set ${limit.label}: $details';
-
-      throw PowerRepositoryException(message);
-    }
+    await runPrivilegedCommand(
+      ['set-feature', limit.featureName, '$value'],
+      method: 'feature.set',
+      failurePrefix: 'Failed to set ${limit.label}',
+    );
   }
 
   Future<void> setCpuOverclock(bool enabled) async {
@@ -228,20 +227,10 @@ class PowerRepository {
     required bool enabled,
     required String settingLabel,
     bool detectUnavailableResponse = false,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', featureName, enabled ? '1' : '0'],
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}.'
-          : 'Failed to set $settingLabel: $details';
-
-      throw PowerRepositoryException(message);
-    }
-  }
+  }) => runPrivilegedCommand(
+    ['set-feature', featureName, enabled ? '1' : '0'],
+    method: 'feature.set',
+    failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
+    detectUnavailableResponse: detectUnavailableResponse,
+  );
 }

@@ -1,4 +1,4 @@
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../models/boot_logo_snapshot.dart';
 import '../models/boot_logo_status.dart';
 
@@ -11,15 +11,16 @@ class BootLogoRepositoryException implements Exception {
   String toString() => message;
 }
 
-class BootLogoRepository {
-  const BootLogoRepository({required LegionFrontendBridgeService bridgeService})
-    : _bridgeService = bridgeService;
+class BootLogoRepository extends PrivilegedRepository {
+  const BootLogoRepository({required super.bridgeService});
 
-  final LegionFrontendBridgeService _bridgeService;
+  @override
+  Exception wrapBridgeError(String message) =>
+      BootLogoRepositoryException(message);
 
   Future<BootLogoSnapshot> loadSnapshot() async {
     try {
-      final result = await _bridgeService.runCommand(
+      final result = await bridgeService.runCommand(
         method: 'boot-logo.status',
         args: ['boot-logo', 'status'],
         privileged: false,
@@ -38,39 +39,20 @@ class BootLogoRepository {
   }
 
   Future<void> enableBootLogo(String imagePath) async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['boot-logo', 'enable', imagePath],
       method: 'boot-logo.enable',
       failurePrefix: 'Failed to enable boot logo',
+      timeout: const Duration(seconds: 30),
     );
   }
 
   Future<void> restoreBootLogo() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['boot-logo', 'restore'],
       method: 'boot-logo.restore',
       failurePrefix: 'Failed to restore boot logo',
+      timeout: const Duration(seconds: 30),
     );
-  }
-
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-    Duration timeout = const Duration(seconds: 30),
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: method,
-        args: args,
-        timeout: timeout,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? '$failurePrefix.'
-          : '$failurePrefix: $details';
-      throw BootLogoRepositoryException(message);
-    }
   }
 }

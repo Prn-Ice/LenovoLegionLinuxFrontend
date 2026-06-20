@@ -1,4 +1,4 @@
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/lighting_snapshot.dart';
 
@@ -11,15 +11,17 @@ class LightingRepositoryException implements Exception {
   String toString() => message;
 }
 
-class LightingRepository {
+class LightingRepository extends PrivilegedRepository {
   const LightingRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) =>
+      LightingRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   Future<LightingSnapshot> loadSnapshot() async {
     final whiteKeyboardBacklight = await _sysfsService
@@ -39,7 +41,8 @@ class LightingRepository {
 
   Future<void> setWhiteKeyboardBacklight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'WhiteKeyboardBacklightFeature', // legion_linux/legion.py:WhiteKeyboardBacklightFeature
+      featureName:
+          'WhiteKeyboardBacklightFeature', // legion_linux/legion.py:WhiteKeyboardBacklightFeature
       enabled: enabled,
       settingLabel: 'White keyboard backlight',
       detectUnavailableResponse: true,
@@ -69,20 +72,10 @@ class LightingRepository {
     required bool enabled,
     required String settingLabel,
     bool detectUnavailableResponse = false,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', featureName, enabled ? '1' : '0'],
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}.'
-          : 'Failed to set $settingLabel: $details';
-
-      throw LightingRepositoryException(message);
-    }
-  }
+  }) => runPrivilegedCommand(
+    ['set-feature', featureName, enabled ? '1' : '0'],
+    method: 'feature.set',
+    failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
+    detectUnavailableResponse: detectUnavailableResponse,
+  );
 }

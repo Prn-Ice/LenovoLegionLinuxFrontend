@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/battery_snapshot.dart';
 
@@ -13,15 +13,17 @@ class BatteryRepositoryException implements Exception {
   String toString() => message;
 }
 
-class BatteryRepository {
+class BatteryRepository extends PrivilegedRepository {
   const BatteryRepository({
     required LegionSysfsService sysfsService,
-    required LegionFrontendBridgeService bridgeService,
-  }) : _sysfsService = sysfsService,
-       _bridgeService = bridgeService;
+    required super.bridgeService,
+  }) : _sysfsService = sysfsService;
+
+  @override
+  Exception wrapBridgeError(String message) =>
+      BatteryRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
-  final LegionFrontendBridgeService _bridgeService;
 
   Future<BatterySnapshot> loadSnapshot() async {
     final results = await Future.wait([
@@ -70,7 +72,7 @@ class BatteryRepository {
     final command = enabled
         ? 'batteryconservation-enable'
         : 'batteryconservation-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'battery_conservation.set',
       failurePrefix:
@@ -82,7 +84,7 @@ class BatteryRepository {
     final command = enabled
         ? 'rapid-charging-enable'
         : 'rapid-charging-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'rapid_charging.set',
       failurePrefix:
@@ -97,28 +99,6 @@ class BatteryRepository {
       return (await file.readAsString()).trim();
     } catch (_) {
       return null;
-    }
-  }
-
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-    bool detectUnavailableResponse = true,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: method,
-        args: args,
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message = details.isEmpty
-          ? '$failurePrefix.'
-          : '$failurePrefix: $details';
-
-      throw BatteryRepositoryException(message);
     }
   }
 }

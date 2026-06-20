@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../../../core/services/legion_frontend_bridge_service.dart';
+import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
@@ -14,14 +14,15 @@ class DgpuRepositoryException implements Exception {
   String toString() => message;
 }
 
-class DgpuRepository {
+class DgpuRepository extends PrivilegedRepository {
   const DgpuRepository({
-    required LegionFrontendBridgeService bridgeService,
+    required super.bridgeService,
     required LegionSysfsService sysfsService,
-  }) : _bridgeService = bridgeService,
-       _sysfsService = sysfsService;
+  }) : _sysfsService = sysfsService;
 
-  final LegionFrontendBridgeService _bridgeService;
+  @override
+  Exception wrapBridgeError(String message) => DgpuRepositoryException(message);
+
   final LegionSysfsService _sysfsService;
 
   static const _knownRuntimeStatusPath =
@@ -55,29 +56,32 @@ class DgpuRepository {
 
   Future<void> setHybridMode(bool enabled) async {
     final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       [command],
       method: 'hybrid_mode.set',
       failurePrefix: 'Failed to set hybrid mode to ${enabled ? 'on' : 'off'}',
+      timeout: const Duration(seconds: 10),
       detectUnavailableResponse: true,
     );
   }
 
   Future<void> killGpuProcesses() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['dgpu', 'kill-processes'],
       method: 'dgpu.kill_processes',
       failurePrefix: 'Failed to kill GPU processes',
       timeout: const Duration(seconds: 15),
+      detectUnavailableResponse: false,
     );
   }
 
   Future<void> restartPciDevice() async {
-    await _runPrivilegedCommand(
+    await runPrivilegedCommand(
       ['dgpu', 'restart-pci'],
       method: 'dgpu.restart_pci',
       failurePrefix: 'Failed to restart GPU PCI device',
       timeout: const Duration(seconds: 20),
+      detectUnavailableResponse: false,
     );
   }
 
@@ -103,8 +107,10 @@ class DgpuRepository {
         if (vendor != '0x10de') continue;
         final classFile = File('${entity.path}/class');
         if (!await classFile.exists()) continue;
-        final classHex =
-            (await classFile.readAsString()).trim().replaceFirst('0x', '');
+        final classHex = (await classFile.readAsString()).trim().replaceFirst(
+          '0x',
+          '',
+        );
         final deviceClass = int.tryParse(classHex, radix: 16);
         if (deviceClass == null || (deviceClass >> 16) != 0x03) continue;
         final runtimeFile = File('${entity.path}/power/runtime_status');
@@ -138,28 +144,6 @@ class DgpuRepository {
       return DgpuProcess.parseNvidiaSmiOutput('${result.stdout}');
     } on Exception catch (_) {
       return [];
-    }
-  }
-
-  Future<void> _runPrivilegedCommand(
-    List<String> args, {
-    required String method,
-    required String failurePrefix,
-    Duration timeout = const Duration(seconds: 10),
-    bool detectUnavailableResponse = false,
-  }) async {
-    try {
-      await _bridgeService.runPrivilegedCommand(
-        method: method,
-        args: args,
-        timeout: timeout,
-        detectUnavailableResponse: detectUnavailableResponse,
-      );
-    } on LegionBridgeException catch (error) {
-      final details = error.details;
-      final message =
-          details.isEmpty ? '$failurePrefix.' : '$failurePrefix: $details';
-      throw DgpuRepositoryException(message);
     }
   }
 }
