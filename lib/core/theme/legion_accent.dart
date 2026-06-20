@@ -15,40 +15,34 @@ class LegionAccent {
     required this.mode,
     required this.color,
     required this.label,
-    required this.description,
   });
 
   final LegionAccentMode mode;
   final Color color;
   final String label;
-  final String description;
 
   static const LegionAccent quiet = LegionAccent(
     mode: LegionAccentMode.quiet,
     color: Color(0xFF12A4B8),
     label: 'Quiet',
-    description: 'Cool and silent',
   );
 
   static const LegionAccent balanced = LegionAccent(
     mode: LegionAccentMode.balanced,
     color: Color(0xFF3A9D4F),
     label: 'Balanced',
-    description: 'Smart middle',
   );
 
   static const LegionAccent performance = LegionAccent(
     mode: LegionAccentMode.performance,
     color: Color(0xFFEC5F2A),
     label: 'Performance',
-    description: 'Full power',
   );
 
   static const LegionAccent custom = LegionAccent(
     mode: LegionAccentMode.custom,
     color: Color(0xFF8056D6),
     label: 'Custom',
-    description: 'User tuned',
   );
 
   static const List<LegionAccent> all = [quiet, balanced, performance, custom];

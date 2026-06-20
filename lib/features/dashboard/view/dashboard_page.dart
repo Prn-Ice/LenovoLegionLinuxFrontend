@@ -86,7 +86,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ModeHero(
           accent: accent,
           label: accentObj?.label ?? snapshot.status.powerProfileLabel,
-          description: accentObj?.description ?? '',
           availableModes: snapshot.availablePowerModes,
           selectedMode: snapshot.status.powerProfile,
           isApplying: state.isApplying,

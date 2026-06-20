@@ -8,28 +8,24 @@ void main() {
       expect(LegionAccent.quiet.mode, LegionAccentMode.quiet);
       expect(LegionAccent.quiet.color, const Color(0xFF12A4B8));
       expect(LegionAccent.quiet.label, 'Quiet');
-      expect(LegionAccent.quiet.description, 'Cool and silent');
     });
 
     test('balanced', () {
       expect(LegionAccent.balanced.mode, LegionAccentMode.balanced);
       expect(LegionAccent.balanced.color, const Color(0xFF3A9D4F));
       expect(LegionAccent.balanced.label, 'Balanced');
-      expect(LegionAccent.balanced.description, 'Smart middle');
     });
 
     test('performance', () {
       expect(LegionAccent.performance.mode, LegionAccentMode.performance);
       expect(LegionAccent.performance.color, const Color(0xFFEC5F2A));
       expect(LegionAccent.performance.label, 'Performance');
-      expect(LegionAccent.performance.description, 'Full power');
     });
 
     test('custom', () {
       expect(LegionAccent.custom.mode, LegionAccentMode.custom);
       expect(LegionAccent.custom.color, const Color(0xFF8056D6));
       expect(LegionAccent.custom.label, 'Custom');
-      expect(LegionAccent.custom.description, 'User tuned');
     });
   });
 
