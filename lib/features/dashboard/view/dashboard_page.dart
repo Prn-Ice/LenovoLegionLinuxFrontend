@@ -11,6 +11,7 @@ import '../models/dashboard_snapshot.dart';
 import '../providers/dashboard_provider.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 import '../widgets/device_identity_card.dart';
+import '../widgets/mode_hero.dart';
 import '../widgets/sensor_strip.dart';
 import '../../navigation/bloc/navigation_event.dart';
 import '../../navigation/models/app_section.dart';
@@ -66,11 +67,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final sensorState = ref.watch(liveSensorBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
-    final accent =
-        LegionAccent.fromPowerModeValue(
-          snapshot.status.powerProfile?.trim(),
-        )?.color ??
-        Theme.of(context).colorScheme.primary;
+    final accentObj = LegionAccent.fromPowerModeValue(
+      snapshot.status.powerProfile?.trim(),
+    );
+    final accent = accentObj?.color ?? Theme.of(context).colorScheme.primary;
 
     return AppPageBody(
       title: 'Legion Control Center',
@@ -78,6 +78,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
+        ModeHero(
+          accent: accent,
+          label: accentObj?.label ?? snapshot.status.powerProfileLabel,
+          description: accentObj?.description ?? '',
+          availableModes: snapshot.availablePowerModes,
+          selectedMode: snapshot.status.powerProfile,
+          isApplying: state.isApplying,
+          onModeSelected: state.isApplying
+              ? null
+              : (index) async {
+                  final mode = snapshot.availablePowerModes[index];
+                  final confirmed = await confirmPrivilegedAction(
+                    context,
+                    title: 'Set power mode',
+                    message:
+                        'Changing power mode runs a privileged command and may prompt for authentication.',
+                    confirmLabel: 'Set mode',
+                  );
+                  if (!context.mounted || !confirmed) {
+                    return;
+                  }
+                  ref
+                      .read(dashboardBlocProvider.bloc)
+                      .add(DashboardPowerModeSetRequested(mode));
+                },
+        ),
+        const SizedBox(height: 16),
         DeviceIdentityCard(identity: snapshot.deviceIdentity),
         const SizedBox(height: 16),
         SensorStrip(snapshot: sensors, accent: accent),
@@ -141,34 +168,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               'Context fan preset: ${snapshot.recommendedFanPreset ?? 'Unavailable'}',
               style: Theme.of(context).textTheme.bodySmall,
             ),
-            const SizedBox(height: 12),
-            if (snapshot.availablePowerModes.isEmpty)
-              const Text('No writable power modes available.')
-            else
-              YaruChoiceChipBar(
-                labels: snapshot.availablePowerModes
-                    .map((mode) => Text(mode))
-                    .toList(growable: false),
-                isSelected: snapshot.availablePowerModes
-                    .map((mode) => snapshot.status.powerProfile?.trim() == mode)
-                    .toList(growable: false),
-                onSelected: state.isApplying
-                    ? null
-                    : (index) async {
-                        final mode = snapshot.availablePowerModes[index];
-                        final confirmed = await confirmPrivilegedAction(
-                          context,
-                          title: 'Set power mode',
-                          message:
-                              'Changing power mode runs a privileged command and may prompt for authentication.',
-                          confirmLabel: 'Set mode',
-                        );
-                        if (!context.mounted || !confirmed) {
-                          return;
-                        }
-                        bloc.add(DashboardPowerModeSetRequested(mode));
-                      },
-              ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: state.isApplying
