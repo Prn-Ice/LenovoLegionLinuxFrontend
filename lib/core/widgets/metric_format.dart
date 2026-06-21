@@ -4,6 +4,10 @@
 // without pumping widgets. All accept nullable values because sensors are
 // frequently unavailable.
 
+/// Monospace family for telemetry numbers, matching the design's mono digits.
+/// (System font for now; bundle for distribution.)
+const String kMonoFontFamily = 'JetBrains Mono';
+
 /// Formats [value] to [fractionDigits] decimals, returning [placeholder] when
 /// the value is absent or not a number.
 String formatMetric(

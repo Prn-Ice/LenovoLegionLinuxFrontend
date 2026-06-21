@@ -63,6 +63,7 @@ class MetricTile extends StatelessWidget {
                   TextSpan(
                     text: formatMetric(value, fractionDigits: fractionDigits),
                     style: textTheme.titleSmall?.copyWith(
+                      fontFamily: kMonoFontFamily,
                       fontFeatures: const [FontFeature.tabularFigures()],
                       fontWeight: FontWeight.w700,
                       color: critical ? scheme.error : null,

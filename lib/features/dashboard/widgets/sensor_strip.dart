@@ -55,6 +55,26 @@ class SensorStrip extends StatelessWidget {
           label: 'GPU fan',
           accent: accent,
         ),
+      if (snapshot.motherboardTempC != null)
+        _GaugeCard(
+          value: snapshot.motherboardTempC,
+          min: 30,
+          max: 100,
+          label: 'Board temp',
+          unit: '°',
+          accent: accent,
+          critical: _tempCritical,
+        ),
+      if (snapshot.diskTempC != null)
+        _GaugeCard(
+          value: snapshot.diskTempC,
+          min: 20,
+          max: 90,
+          label: 'Disk temp',
+          unit: '°',
+          accent: accent,
+          critical: 75,
+        ),
     ];
 
     final tiles = <Widget>[
@@ -184,9 +204,6 @@ class _SecondaryLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <String>[];
-    if (snapshot.motherboardTempC != null) {
-      items.add('Board ${snapshot.motherboardTempC!.toStringAsFixed(0)}°C');
-    }
     if (snapshot.batteryPercent != null) {
       final state = snapshot.batteryCharging == true
           ? 'charging'
@@ -195,9 +212,6 @@ class _SecondaryLine extends StatelessWidget {
           ? ' ${snapshot.batteryPowerDrawW!.toStringAsFixed(0)}W'
           : '';
       items.add('Battery ${snapshot.batteryPercent}% $state$draw');
-    }
-    if (snapshot.diskTempC != null) {
-      items.add('Disk ${snapshot.diskTempC!.toStringAsFixed(0)}°C');
     }
     if (items.isEmpty) return const SizedBox.shrink();
 

@@ -56,17 +56,25 @@ class MetricGauge extends StatelessWidget {
                 TextSpan(
                   text: formatMetric(value, fractionDigits: fractionDigits),
                   style: textTheme.headlineMedium?.copyWith(
+                    fontFamily: kMonoFontFamily,
                     fontFeatures: const [FontFeature.tabularFigures()],
                     fontWeight: FontWeight.w700,
                     color: critical ? scheme.error : null,
                   ),
                 ),
                 if (unit.isNotEmpty)
-                  TextSpan(
-                    text: unit,
-                    style: textTheme.titleMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.top,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 1, top: 3),
+                      child: Text(
+                        unit,
+                        style: textTheme.titleMedium?.copyWith(
+                          fontFamily: kMonoFontFamily,
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
               ],
