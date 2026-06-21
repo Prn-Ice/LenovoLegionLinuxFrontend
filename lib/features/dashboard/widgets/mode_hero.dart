@@ -3,6 +3,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
+import '../../../core/widgets/metric_format.dart';
 
 /// Title-cases a raw platform-profile value for display: `low-power` -> `Low
 /// Power`, `balanced` -> `Balanced`.
@@ -26,6 +27,7 @@ class ModeHero extends StatelessWidget {
     required this.selectedMode,
     required this.isApplying,
     required this.onModeSelected,
+    this.facts,
   });
 
   final Color accent;
@@ -37,6 +39,10 @@ class ModeHero extends StatelessWidget {
 
   /// Invoked with the index into [availableModes]; null disables selection.
   final ValueChanged<int>? onModeSelected;
+
+  /// Optional factual summary shown in the banner (e.g. the mode's power
+  /// limits read from sysfs). Null hides it.
+  final String? facts;
 
   @override
   Widget build(BuildContext context) {
@@ -79,15 +85,27 @@ class ModeHero extends StatelessWidget {
               children: [
                 LegionMark(color: accent, size: 24),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    humanizeMode(selected),
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: accent,
-                    ),
+                Text(
+                  humanizeMode(selected),
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: accent,
                   ),
                 ),
+                if (facts != null) ...[
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      facts!,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontFamily: kMonoFontFamily,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ] else
+                  const Spacer(),
               ],
             ),
           ),

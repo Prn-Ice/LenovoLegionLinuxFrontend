@@ -15,6 +15,8 @@ import '../widgets/sensor_strip.dart';
 import '../../devices/bloc/devices_event.dart';
 import '../../devices/bloc/devices_state.dart';
 import '../../devices/providers/devices_provider.dart';
+import '../../power/models/power_limit.dart';
+import '../../power/providers/power_provider.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/dashboard_state.dart';
@@ -40,12 +42,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final state = ref.watch(dashboardBlocProvider);
     final sensorState = ref.watch(liveSensorBlocProvider);
     final devicesState = ref.watch(devicesBlocProvider);
+    final powerState = ref.watch(powerBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
     final accentObj = LegionAccent.fromPowerModeValue(
       snapshot.status.powerProfile?.trim(),
     );
     final accent = accentObj?.color ?? Theme.of(context).colorScheme.primary;
+    final modeFacts = _modeFacts(powerState.powerLimits);
 
     return AppPageBody(
       title: 'Legion Control Center',
@@ -55,6 +59,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       children: [
         ModeHero(
           accent: accent,
+          facts: modeFacts,
           availableModes: snapshot.availablePowerModes,
           selectedMode: snapshot.status.powerProfile,
           isApplying: state.isApplying,
@@ -181,6 +186,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         ),
       ],
     );
+  }
+
+  /// A concise factual summary of the active mode's power limits, read live
+  /// from sysfs (null when no limits are exposed on this host).
+  String? _modeFacts(List<PowerLimitReading> limits) {
+    int? valueFor(String id) {
+      for (final reading in limits) {
+        if (reading.spec.id == id) return reading.value;
+      }
+      return null;
+    }
+
+    final parts = <String>[];
+    final cpu = valueFor('cpu_longterm');
+    final gpu = valueFor('gpu_ctgp');
+    if (cpu != null) parts.add('CPU ${cpu}W');
+    if (gpu != null) parts.add('GPU ${gpu}W');
+    return parts.isEmpty ? null : parts.join('  ·  ');
   }
 
   Widget _buildStatusLine(
