@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'metric_format.dart';
+import 'metric_text.dart';
 
 /// A compact metric readout: a label, a formatted tabular value with optional
 /// unit, and an optional thin progress bar. Used for utilisation bars
@@ -62,25 +63,12 @@ class MetricTile extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: formatMetric(value, fractionDigits: fractionDigits),
-                    style: TextStyle(
-                      fontFamily: kMonoFontFamily,
-                      package: kMonoFontPackage,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: critical ? scheme.error : scheme.onSurface,
+                    style: monoBarStyle(
+                      critical ? scheme.error : scheme.onSurface,
                     ),
                   ),
                   if (unit.isNotEmpty)
-                    TextSpan(
-                      text: unit,
-                      style: TextStyle(
-                        fontFamily: kMonoFontFamily,
-                        package: kMonoFontPackage,
-                        fontSize: 12,
-                        color: scheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    ),
+                    TextSpan(text: unit, style: monoUnitStyle(scheme)),
                 ],
               ),
             ),

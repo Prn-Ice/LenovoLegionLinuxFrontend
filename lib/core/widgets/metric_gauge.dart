@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'metric_format.dart';
+import 'metric_text.dart';
 
 /// A radial-arc telemetry gauge: a 270° track that fills with the value and a
 /// large tabular number (with optional unit) centered in the arc. No label —
@@ -39,8 +40,6 @@ class MetricGauge extends StatelessWidget {
     final fraction = metricFraction(value, min, max);
     final critical = isMetricCritical(value, criticalThreshold);
     final arcColor = critical ? scheme.error : accent;
-    // Design: 116px gauge, 27px number -> ~0.23 of the gauge size.
-    final numberSize = size * 0.23;
 
     return SizedBox.square(
       dimension: size,
@@ -55,14 +54,9 @@ class MetricGauge extends StatelessWidget {
         child: Center(
           child: Text(
             '${formatMetric(value, fractionDigits: fractionDigits)}$unit',
-            style: TextStyle(
-              fontFamily: kMonoFontFamily,
-              package: kMonoFontPackage,
-              fontFeatures: const [FontFeature.tabularFigures()],
-              fontWeight: FontWeight.w700,
-              fontSize: numberSize,
-              height: 1,
-              color: critical ? scheme.error : scheme.onSurface,
+            style: monoGaugeStyle(
+              size,
+              critical ? scheme.error : scheme.onSurface,
             ),
           ),
         ),

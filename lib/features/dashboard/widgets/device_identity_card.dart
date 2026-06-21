@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/widgets/metric_format.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../models/device_identity_snapshot.dart';
 
@@ -63,12 +63,7 @@ class DeviceIdentityCard extends StatelessWidget {
                   Text(
                     meta,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: kMonoFontFamily,
-                      package: kMonoFontPackage,
-                      fontSize: 12,
-                      color: scheme.onSurface.withValues(alpha: 0.56),
-                    ),
+                    style: monoMetaStyle(scheme),
                   ),
                 ],
               ],
@@ -80,14 +75,7 @@ class DeviceIdentityCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  stat.$1,
-                  style: const TextStyle(
-                    fontFamily: kMonoFontFamily,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                Text(stat.$1, style: monoStatValueStyle),
                 Text(
                   stat.$2,
                   style: TextStyle(

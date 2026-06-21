@@ -3,7 +3,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
-import '../../../core/widgets/metric_format.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
 
 /// Title-cases a raw platform-profile value for display: `low-power` -> `Low
@@ -99,12 +99,7 @@ class ModeHero extends StatelessWidget {
                     child: Text(
                       facts!,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: kMonoFontFamily,
-                        package: kMonoFontPackage,
-                        fontSize: 13,
-                        color: scheme.onSurface.withValues(alpha: 0.7),
-                      ),
+                      style: monoFactStyle(scheme),
                     ),
                   ),
                 ] else
