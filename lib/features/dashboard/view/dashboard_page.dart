@@ -54,6 +54,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     return AppPageBody(
       title: 'Legion Control Center',
       subtitle: _buildStatusLine(context, snapshot, sensors),
+      headerAction: IconButton(
+        tooltip: 'Refresh',
+        onPressed: state.isApplying || state.isLoading
+            ? null
+            : () => ref
+                  .read(dashboardBlocProvider.bloc)
+                  .add(const DashboardRefreshRequested()),
+        icon: state.isLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.refresh),
+      ),
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
@@ -88,15 +103,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         SensorStrip(snapshot: sensors, accent: accent),
         const SizedBox(height: 16),
         _buildQuickControls(context, snapshot, state, devicesState, accent),
-        const SizedBox(height: 16),
-        AppRefreshButton(
-          isBusy: state.isLoading,
-          onPressed: state.isApplying
-              ? null
-              : () => ref
-                    .read(dashboardBlocProvider.bloc)
-                    .add(const DashboardRefreshRequested()),
-        ),
       ],
     );
   }

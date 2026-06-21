@@ -8,6 +8,7 @@ class AppPageBody extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.headerAction,
     this.errorMessage,
     this.noticeMessage,
     required this.children,
@@ -15,6 +16,9 @@ class AppPageBody extends StatelessWidget {
 
   final String title;
   final Widget? subtitle;
+
+  /// Optional action shown at the top-right of the page header (e.g. refresh).
+  final Widget? headerAction;
   final String? errorMessage;
   final String? noticeMessage;
   final List<Widget> children;
@@ -32,14 +36,27 @@ class AppPageBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(title, style: textTheme.headlineMedium),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  DefaultTextStyle(
-                    style: textTheme.bodySmall!,
-                    child: subtitle!,
-                  ),
-                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: textTheme.headlineMedium),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 4),
+                            DefaultTextStyle(
+                              style: textTheme.bodySmall!,
+                              child: subtitle!,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    ?headerAction,
+                  ],
+                ),
                 const SizedBox(height: 16),
                 if (errorMessage != null || noticeMessage != null) ...[
                   AppStatusMessages(
@@ -318,9 +335,7 @@ class DashboardCard extends StatelessWidget {
               children: [
                 Icon(icon, size: 20, color: scheme.primary),
                 const SizedBox(width: 10),
-                Expanded(
-                  child: Text(title, style: textTheme.titleMedium),
-                ),
+                Expanded(child: Text(title, style: textTheme.titleMedium)),
                 ?trailing,
               ],
             ),

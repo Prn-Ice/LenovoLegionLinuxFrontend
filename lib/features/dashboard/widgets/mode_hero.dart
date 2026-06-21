@@ -138,6 +138,12 @@ class _ModeCard extends StatelessWidget {
     return SizedBox(
       width: 178,
       child: YaruBorderContainer(
+        color: selected
+            ? Color.alphaBlend(
+                dotColor.withValues(alpha: 0.13),
+                scheme.surfaceContainerHigh,
+              )
+            : null,
         border: selected ? Border.all(color: dotColor, width: 2) : null,
         padding: EdgeInsets.zero,
         child: Material(

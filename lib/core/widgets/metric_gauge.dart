@@ -36,10 +36,10 @@ class MetricGauge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final fraction = metricFraction(value, min, max);
     final critical = isMetricCritical(value, criticalThreshold);
     final arcColor = critical ? scheme.error : accent;
+    final numberSize = size * 0.31;
 
     return SizedBox.square(
       dimension: size,
@@ -55,25 +55,26 @@ class MetricGauge extends StatelessWidget {
               children: [
                 TextSpan(
                   text: formatMetric(value, fractionDigits: fractionDigits),
-                  style: textTheme.headlineMedium?.copyWith(
+                  style: TextStyle(
                     fontFamily: kMonoFontFamily,
                     fontFeatures: const [FontFeature.tabularFigures()],
                     fontWeight: FontWeight.w700,
-                    color: critical ? scheme.error : null,
+                    fontSize: numberSize,
+                    height: 1,
+                    color: critical ? scheme.error : scheme.onSurface,
                   ),
                 ),
                 if (unit.isNotEmpty)
                   WidgetSpan(
                     alignment: PlaceholderAlignment.top,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 1, top: 3),
-                      child: Text(
-                        unit,
-                        style: textTheme.titleMedium?.copyWith(
-                          fontFamily: kMonoFontFamily,
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    child: Text(
+                      unit,
+                      style: TextStyle(
+                        fontFamily: kMonoFontFamily,
+                        fontWeight: FontWeight.w600,
+                        fontSize: numberSize * 0.5,
+                        height: 1,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ),
