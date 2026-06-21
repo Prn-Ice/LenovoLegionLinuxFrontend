@@ -65,6 +65,7 @@ class DeviceIdentityCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontFamily: kMonoFontFamily,
+                      package: kMonoFontPackage,
                       fontSize: 12,
                       color: scheme.onSurface.withValues(alpha: 0.56),
                     ),

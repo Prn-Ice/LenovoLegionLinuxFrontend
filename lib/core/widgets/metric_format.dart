@@ -4,9 +4,11 @@
 // without pumping widgets. All accept nullable values because sensors are
 // frequently unavailable.
 
-/// Monospace family for telemetry numbers, matching the design (Ubuntu Mono,
-/// bundled in assets/fonts).
-const String kMonoFontFamily = 'Ubuntu Mono';
+/// Monospace family for telemetry numbers, matching the design (Ubuntu Mono).
+/// Uses the copy the Yaru package bundles — always in the build — referenced
+/// together with [kMonoFontPackage].
+const String kMonoFontFamily = 'UbuntuMono';
+const String kMonoFontPackage = 'yaru';
 
 /// Formats [value] to [fractionDigits] decimals, returning [placeholder] when
 /// the value is absent or not a number.

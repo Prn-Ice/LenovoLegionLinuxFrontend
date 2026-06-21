@@ -64,6 +64,7 @@ class MetricTile extends StatelessWidget {
                     text: formatMetric(value, fractionDigits: fractionDigits),
                     style: TextStyle(
                       fontFamily: kMonoFontFamily,
+                      package: kMonoFontPackage,
                       fontFeatures: const [FontFeature.tabularFigures()],
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
@@ -75,6 +76,7 @@ class MetricTile extends StatelessWidget {
                       text: unit,
                       style: TextStyle(
                         fontFamily: kMonoFontFamily,
+                        package: kMonoFontPackage,
                         fontSize: 12,
                         color: scheme.onSurface.withValues(alpha: 0.5),
                       ),

@@ -101,6 +101,7 @@ class ModeHero extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: kMonoFontFamily,
+                        package: kMonoFontPackage,
                         fontSize: 13,
                         color: scheme.onSurface.withValues(alpha: 0.7),
                       ),

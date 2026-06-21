@@ -57,6 +57,7 @@ class MetricGauge extends StatelessWidget {
             '${formatMetric(value, fractionDigits: fractionDigits)}$unit',
             style: TextStyle(
               fontFamily: kMonoFontFamily,
+              package: kMonoFontPackage,
               fontFeatures: const [FontFeature.tabularFigures()],
               fontWeight: FontWeight.w700,
               fontSize: numberSize,
