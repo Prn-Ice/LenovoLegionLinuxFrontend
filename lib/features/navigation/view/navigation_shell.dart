@@ -63,7 +63,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     if (section != AppSection.dashboard) return const [];
     return [
       IconButton(
-        icon: const Icon(Icons.refresh, size: 18),
+        icon: const Icon(YaruIcons.refresh, size: 18),
         tooltip: 'Refresh',
         onPressed: () => ref
             .read(dashboardBlocProvider.bloc)

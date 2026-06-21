@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
@@ -123,7 +124,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       accent: accent,
       controls: [
         QuickControl(
-          icon: Icons.bolt,
+          icon: YaruIcons.thunderbolt,
           title: 'Rapid charge',
           subtitle: 'Charge to full as fast as possible',
           value: snapshot.rapidChargingEnabled ?? false,
@@ -136,7 +137,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         QuickControl(
-          icon: Icons.health_and_safety_outlined,
+          icon: YaruIcons.health,
           title: 'Battery health',
           subtitle: 'Stop charging near 80% to extend lifespan',
           value: snapshot.batteryConservationEnabled ?? false,
@@ -149,7 +150,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         QuickControl(
-          icon: Icons.keyboard_outlined,
+          icon: YaruIcons.keyboard,
           title: 'Fn lock',
           subtitle: 'F-keys act as F1–F12 directly',
           value: devicesState.fnLockEnabled ?? false,
@@ -161,7 +162,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         QuickControl(
-          icon: Icons.touch_app_outlined,
+          icon: YaruIcons.touchpad,
           title: 'Touchpad',
           subtitle: 'Tap and click enabled',
           value: devicesState.touchpadEnabled ?? false,

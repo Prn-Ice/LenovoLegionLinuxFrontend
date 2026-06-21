@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -44,7 +45,7 @@ class DeviceIdentityCard extends StatelessWidget {
               color: accent.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.memory_outlined, color: accent, size: 22),
+            child: Icon(YaruIcons.chip, color: accent, size: 22),
           ),
           const SizedBox(width: 14),
           Expanded(

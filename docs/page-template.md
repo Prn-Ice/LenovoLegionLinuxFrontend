@@ -110,6 +110,13 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   (quiet=teal, balanced=green, performance=orange, custom=violet). Thread the
   resolved `Color accent` into cards.
 
+## Icons
+
+Use **`YaruIcons.*`**, not Material `Icons.*` — the app is Yaru-native. The nav
+rail already does (via each section's `yaruIcon`); dashboard content uses
+`YaruIcons.chip` (device), `thunderbolt` (power/charge), `health` (battery
+health), `keyboard` (Fn), `touchpad`, `refresh`. `import 'package:yaru/yaru.dart'`.
+
 ## 6. Privileged actions
 
 Toggles/buttons that change hardware go through a confirm + guard pattern (see
