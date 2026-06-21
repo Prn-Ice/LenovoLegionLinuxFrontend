@@ -68,8 +68,9 @@ class MetricGauge extends StatelessWidget {
                     if (unit.isNotEmpty)
                       TextSpan(
                         text: unit,
-                        style: textTheme.bodySmall?.copyWith(
+                        style: textTheme.titleMedium?.copyWith(
                           color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                   ],

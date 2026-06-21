@@ -25,7 +25,7 @@ class SensorStrip extends StatelessWidget {
           30,
           100,
           'CPU temp',
-          '°C',
+          '°',
           critical: _tempCritical,
         ),
       if (snapshot.gpuTempC != null)
@@ -34,7 +34,7 @@ class SensorStrip extends StatelessWidget {
           30,
           100,
           snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
-          '°C',
+          '°',
           critical: _tempCritical,
         ),
       if (snapshot.fan1Rpm != null)
@@ -106,7 +106,7 @@ class SensorStrip extends StatelessWidget {
   }) => SizedBox(
     width: 168,
     child: YaruBorderContainer(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 18),
       child: MetricGauge(
         value: value,
         min: min,
@@ -115,7 +115,7 @@ class SensorStrip extends StatelessWidget {
         unit: unit,
         accent: accent,
         criticalThreshold: critical,
-        size: 120,
+        size: 132,
       ),
     ),
   );

@@ -246,9 +246,16 @@ class LegionSysfsService {
 
   /// CPU package temperature in °C. Returns null if unavailable.
   Future<double?> readCpuTempC() async {
-    final path = await _findHwmonTempInput(
+    // Prefer the dedicated CPU sensor (Intel coretemp / AMD k10temp).
+    var path = await _findHwmonTempInput(
       driverNames: {'coretemp', 'k10temp'},
       label: 'Package id 0',
+      fallbackIndex: 1,
+    );
+    // Fall back to the ACPI thermal zone when no CPU hwmon is present — e.g.
+    // k10temp not loaded on some AMD systems, where acpitz tracks SoC temp.
+    path ??= await _findHwmonTempInput(
+      driverNames: {'acpitz'},
       fallbackIndex: 1,
     );
     final raw = path == null ? null : await readIntFile(path);
@@ -277,8 +284,16 @@ class LegionSysfsService {
       final line2 = await _readFirstCpuStatLine();
       if (line2 == null) return null;
 
-      final fields1 = line1.split(RegExp(r'\s+')).skip(1).map(int.parse).toList();
-      final fields2 = line2.split(RegExp(r'\s+')).skip(1).map(int.parse).toList();
+      final fields1 = line1
+          .split(RegExp(r'\s+'))
+          .skip(1)
+          .map(int.parse)
+          .toList();
+      final fields2 = line2
+          .split(RegExp(r'\s+'))
+          .skip(1)
+          .map(int.parse)
+          .toList();
 
       final idle1 = fields1.length > 3 ? fields1[3] : 0;
       final idle2 = fields2.length > 3 ? fields2[3] : 0;
@@ -432,10 +447,11 @@ class LegionSysfsService {
     try {
       final file = File('/proc/cpuinfo');
       if (!await file.exists()) return null;
-      await for (final line in file
-          .openRead()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in file
+              .openRead()
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         if (line.startsWith('model name')) {
           final parts = line.split(':');
           if (parts.length >= 2) return parts.sublist(1).join(':').trim();
@@ -506,10 +522,7 @@ class LegionSysfsService {
       final file = File('/proc/stat');
       if (!await file.exists()) return null;
       final lines = await file.readAsLines();
-      return lines.firstWhere(
-        (l) => l.startsWith('cpu '),
-        orElse: () => '',
-      );
+      return lines.firstWhere((l) => l.startsWith('cpu '), orElse: () => '');
     } catch (_) {
       return null;
     }
