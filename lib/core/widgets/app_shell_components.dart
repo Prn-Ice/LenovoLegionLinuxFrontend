@@ -43,7 +43,13 @@ class AppPageBody extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title, style: textTheme.headlineMedium),
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           if (subtitle != null) ...[
                             const SizedBox(height: 4),
                             DefaultTextStyle(
