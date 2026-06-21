@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/metric_gauge.dart';
 import '../../../core/widgets/metric_tile.dart';
+import '../../../core/widgets/surface_card.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 
 /// Telemetry hero for the dashboard: a row of gauge cards (temperatures + fan
@@ -97,7 +97,7 @@ class SensorStrip extends StatelessWidget {
     ];
 
     if (gauges.isEmpty && tiles.isEmpty) {
-      return YaruBorderContainer(
+      return SurfaceCard(
         padding: const EdgeInsets.all(16),
         child: const Center(child: Text('Sensor data unavailable.')),
       );
@@ -110,7 +110,7 @@ class SensorStrip extends StatelessWidget {
           Wrap(spacing: 12, runSpacing: 12, children: gauges),
         if (gauges.isNotEmpty && tiles.isNotEmpty) const SizedBox(height: 12),
         if (tiles.isNotEmpty)
-          YaruBorderContainer(
+          SurfaceCard(
             padding: const EdgeInsets.all(18),
             child: Column(
               children: [
@@ -167,7 +167,7 @@ class _GaugeCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 176,
-      child: YaruBorderContainer(
+      child: SurfaceCard(
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,

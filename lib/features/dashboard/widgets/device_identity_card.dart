@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/metric_format.dart';
+import '../../../core/widgets/surface_card.dart';
 import '../models/device_identity_snapshot.dart';
 
 /// The product-information header: device name + product/BIOS/CPU meta on the
@@ -33,7 +33,7 @@ class DeviceIdentityCard extends StatelessWidget {
       if (identity.uptimeLabel != null) (identity.uptimeLabel!, 'Uptime'),
     ];
 
-    return YaruBorderContainer(
+    return SurfaceCard(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
@@ -66,7 +66,7 @@ class DeviceIdentityCard extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: kMonoFontFamily,
                       fontSize: 12,
-                      color: scheme.onSurfaceVariant,
+                      color: scheme.onSurface.withValues(alpha: 0.56),
                     ),
                   ),
                 ],
@@ -91,7 +91,7 @@ class DeviceIdentityCard extends StatelessWidget {
                   stat.$2,
                   style: TextStyle(
                     fontSize: 11,
-                    color: scheme.onSurface.withValues(alpha: 0.6),
+                    color: scheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
               ],

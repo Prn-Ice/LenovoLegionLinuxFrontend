@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/responsive_card_grid.dart';
+import '../../../core/widgets/surface_card.dart';
 
 /// One toggle in the dashboard [QuickControls] hub.
 class QuickControl {
@@ -59,7 +60,7 @@ class _QuickControlCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final enabled = control.onChanged != null;
 
-    return YaruBorderContainer(
+    return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
@@ -91,7 +92,7 @@ class _QuickControlCard extends StatelessWidget {
                   control.subtitle,
                   style: TextStyle(
                     fontSize: 12,
-                    color: scheme.onSurfaceVariant,
+                    color: scheme.onSurface.withValues(alpha: 0.56),
                   ),
                 ),
               ],

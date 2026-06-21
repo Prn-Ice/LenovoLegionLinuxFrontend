@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_format.dart';
+import '../../../core/widgets/surface_card.dart';
 
 /// Title-cases a raw platform-profile value for display: `low-power` -> `Low
 /// Power`, `balanced` -> `Balanced`.
@@ -137,7 +138,7 @@ class _ModeCard extends StatelessWidget {
 
     return SizedBox(
       width: 178,
-      child: YaruBorderContainer(
+      child: SurfaceCard(
         color: selected
             ? Color.alphaBlend(
                 dotColor.withValues(alpha: 0.13),
