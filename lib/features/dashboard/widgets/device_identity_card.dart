@@ -18,7 +18,6 @@ class DeviceIdentityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
 
     final meta = <String>[
@@ -54,8 +53,9 @@ class DeviceIdentityCard extends StatelessWidget {
               children: [
                 Text(
                   identity.displayName,
-                  style: textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 if (meta.isNotEmpty) ...[
@@ -63,7 +63,9 @@ class DeviceIdentityCard extends StatelessWidget {
                   Text(
                     meta,
                     overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
+                    style: TextStyle(
+                      fontFamily: kMonoFontFamily,
+                      fontSize: 12,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
@@ -79,15 +81,17 @@ class DeviceIdentityCard extends StatelessWidget {
               children: [
                 Text(
                   stat.$1,
-                  style: textTheme.titleSmall?.copyWith(
+                  style: const TextStyle(
                     fontFamily: kMonoFontFamily,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   stat.$2,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
               ],

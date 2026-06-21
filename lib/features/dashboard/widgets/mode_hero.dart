@@ -47,7 +47,6 @@ class ModeHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final selected = selectedMode?.trim();
     final enabled = !isApplying && onModeSelected != null;
 
@@ -87,8 +86,9 @@ class ModeHero extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   humanizeMode(selected),
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                     color: accent,
                   ),
                 ),
@@ -98,9 +98,10 @@ class ModeHero extends StatelessWidget {
                     child: Text(
                       facts!,
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(
+                      style: TextStyle(
                         fontFamily: kMonoFontFamily,
-                        color: scheme.onSurfaceVariant,
+                        fontSize: 13,
+                        color: scheme.onSurface.withValues(alpha: 0.7),
                       ),
                     ),
                   ),
@@ -131,7 +132,6 @@ class _ModeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final dotColor =
         LegionAccent.fromPowerModeValue(mode)?.color ?? scheme.primary;
 
@@ -152,24 +152,25 @@ class _ModeCard extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(kYaruContainerRadius),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
               child: Row(
                 children: [
                   Container(
-                    width: 12,
-                    height: 12,
+                    width: 11,
+                    height: 11,
                     decoration: BoxDecoration(
                       color: dotColor,
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 11),
                   Expanded(
                     child: Text(
                       humanizeMode(mode),
                       overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),

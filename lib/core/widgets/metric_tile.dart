@@ -35,7 +35,6 @@ class MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final fraction = metricFraction(value, min, max);
     final critical = isMetricCritical(value, criticalThreshold);
     final barColor = critical ? scheme.error : (accent ?? scheme.primary);
@@ -51,8 +50,9 @@ class MetricTile extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ),
@@ -62,18 +62,21 @@ class MetricTile extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: formatMetric(value, fractionDigits: fractionDigits),
-                    style: textTheme.titleSmall?.copyWith(
+                    style: TextStyle(
                       fontFamily: kMonoFontFamily,
                       fontFeatures: const [FontFeature.tabularFigures()],
-                      fontWeight: FontWeight.w700,
-                      color: critical ? scheme.error : null,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: critical ? scheme.error : scheme.onSurface,
                     ),
                   ),
                   if (unit.isNotEmpty)
                     TextSpan(
                       text: unit,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                      style: TextStyle(
+                        fontFamily: kMonoFontFamily,
+                        fontSize: 12,
+                        color: scheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                 ],
@@ -88,7 +91,7 @@ class MetricTile extends StatelessWidget {
             child: LinearProgressIndicator(
               value: fraction ?? 0,
               minHeight: 7,
-              backgroundColor: scheme.surfaceContainerHighest,
+              backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),
           ),

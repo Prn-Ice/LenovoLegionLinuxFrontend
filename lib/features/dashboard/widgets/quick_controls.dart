@@ -57,7 +57,6 @@ class _QuickControlCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final enabled = control.onChanged != null;
 
     return YaruBorderContainer(
@@ -65,12 +64,14 @@ class _QuickControlCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(8),
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(control.icon, color: accent, size: 20),
+            child: Icon(control.icon, color: accent, size: 19),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -80,14 +81,16 @@ class _QuickControlCard extends StatelessWidget {
               children: [
                 Text(
                   control.title,
-                  style: textTheme.titleSmall?.copyWith(
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: enabled ? null : scheme.onSurfaceVariant,
                   ),
                 ),
                 Text(
                   control.subtitle,
-                  style: textTheme.bodySmall?.copyWith(
+                  style: TextStyle(
+                    fontSize: 12,
                     color: scheme.onSurfaceVariant,
                   ),
                 ),

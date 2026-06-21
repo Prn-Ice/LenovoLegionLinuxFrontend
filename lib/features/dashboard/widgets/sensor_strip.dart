@@ -164,11 +164,11 @@ class _GaugeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 176,
       child: YaruBorderContainer(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -179,13 +179,15 @@ class _GaugeCard extends StatelessWidget {
               unit: unit,
               accent: accent,
               criticalThreshold: critical,
-              size: 120,
+              size: 116,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Text(
               label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: scheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
           ],

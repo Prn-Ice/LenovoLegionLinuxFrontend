@@ -39,7 +39,8 @@ class MetricGauge extends StatelessWidget {
     final fraction = metricFraction(value, min, max);
     final critical = isMetricCritical(value, criticalThreshold);
     final arcColor = critical ? scheme.error : accent;
-    final numberSize = size * 0.31;
+    // Design: 116px gauge, 27px number -> ~0.23 of the gauge size.
+    final numberSize = size * 0.23;
 
     return SizedBox.square(
       dimension: size,
@@ -47,38 +48,20 @@ class MetricGauge extends StatelessWidget {
         painter: GaugeArcPainter(
           fraction: fraction ?? 0,
           color: arcColor,
-          trackColor: scheme.surfaceContainerHighest,
+          trackColor: scheme.onSurface.withValues(alpha: 0.08),
         ),
+        // The degree (and other units) is inline at the same size, like the
+        // design — the ° glyph naturally sits high.
         child: Center(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: formatMetric(value, fractionDigits: fractionDigits),
-                  style: TextStyle(
-                    fontFamily: kMonoFontFamily,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    fontWeight: FontWeight.w700,
-                    fontSize: numberSize,
-                    height: 1,
-                    color: critical ? scheme.error : scheme.onSurface,
-                  ),
-                ),
-                if (unit.isNotEmpty)
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.top,
-                    child: Text(
-                      unit,
-                      style: TextStyle(
-                        fontFamily: kMonoFontFamily,
-                        fontWeight: FontWeight.w600,
-                        fontSize: numberSize * 0.5,
-                        height: 1,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
+          child: Text(
+            '${formatMetric(value, fractionDigits: fractionDigits)}$unit',
+            style: TextStyle(
+              fontFamily: kMonoFontFamily,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w700,
+              fontSize: numberSize,
+              height: 1,
+              color: critical ? scheme.error : scheme.onSurface,
             ),
           ),
         ),
@@ -107,7 +90,7 @@ class GaugeArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.width * 0.10;
+    final stroke = size.width * 0.086;
     final inset = (Offset.zero & size).deflate(stroke / 2 + 1);
 
     final track = Paint()
