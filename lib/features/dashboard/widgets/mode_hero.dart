@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
@@ -118,33 +117,52 @@ class _ModeCard extends StatelessWidget {
         LegionAccent.fromPowerModeValue(mode)?.color ?? scheme.primary;
 
     return SizedBox(
-      width: 152,
-      child: YaruSelectableContainer(
-        selected: selected,
-        selectionColor: dotColor,
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: dotColor,
-                shape: BoxShape.circle,
+      width: 178,
+      child: Material(
+        color: selected
+            ? Color.alphaBlend(
+                dotColor.withValues(alpha: 0.10),
+                scheme.surfaceContainerHigh,
+              )
+            : scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected
+                    ? dotColor
+                    : scheme.outlineVariant.withValues(alpha: 0.6),
+                width: selected ? 2 : 1,
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                humanizeMode(mode),
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    humanizeMode(mode),
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

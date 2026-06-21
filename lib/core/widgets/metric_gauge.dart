@@ -59,9 +59,9 @@ class MetricGauge extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: formatMetric(value, fractionDigits: fractionDigits),
-                      style: textTheme.headlineSmall?.copyWith(
+                      style: textTheme.headlineMedium?.copyWith(
                         fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: critical ? scheme.error : null,
                       ),
                     ),
@@ -109,7 +109,7 @@ class GaugeArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.width * 0.09;
+    final stroke = size.width * 0.11;
     final inset = (Offset.zero & size).deflate(stroke / 2 + 1);
 
     final track = Paint()
