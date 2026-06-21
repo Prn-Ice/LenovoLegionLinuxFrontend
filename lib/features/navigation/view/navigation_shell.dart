@@ -103,6 +103,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
               final section = ref.watch(navigationBlocProvider).section;
               return YaruWindowTitleBar(
                 title: Text(section.label),
+                centerTitle: false,
                 border: BorderSide.none,
                 actions: _titleBarActions(section),
               );
@@ -150,6 +151,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
           return YaruDetailPage(
             appBar: YaruWindowTitleBar(
               border: BorderSide.none,
+              centerTitle: false,
               title: Text(currentSection.label),
               actions: _titleBarActions(currentSection),
             ),
@@ -159,6 +161,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         return YaruDetailPage(
           appBar: YaruWindowTitleBar(
             border: BorderSide.none,
+            centerTitle: false,
             leading: Navigator.of(context).canPop()
                 ? const YaruBackButton()
                 : null,
