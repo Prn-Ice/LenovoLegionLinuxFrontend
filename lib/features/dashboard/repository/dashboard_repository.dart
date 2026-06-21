@@ -79,12 +79,20 @@ class DashboardRepository extends PrivilegedRepository {
       _sysfsService.readDeviceProductName(),
       _sysfsService.readDeviceSerial(),
       _sysfsService.readBiosVersion(),
+      _sysfsService.readCpuName(),
+      _sysfsService.readKernelRelease(),
+      _sysfsService.readLegionModuleVersion(),
     ]);
+    final uptime = await _sysfsService.readUptimeSeconds();
     return DeviceIdentitySnapshot(
       productFamily: results[0],
       productName: results[1],
       serial: results[2],
       biosVersion: results[3],
+      cpuName: results[4],
+      kernelRelease: results[5],
+      legionModuleVersion: results[6],
+      uptimeSeconds: uptime,
     );
   }
 

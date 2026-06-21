@@ -463,6 +463,22 @@ class LegionSysfsService {
     return null;
   }
 
+  /// Kernel release string, e.g. `7.0.12`.
+  Future<String?> readKernelRelease() async =>
+      _readTrimmedFile('/proc/sys/kernel/osrelease');
+
+  /// legion_laptop module version, or null when the module is absent.
+  Future<String?> readLegionModuleVersion() async =>
+      _readTrimmedFile('/sys/module/legion_laptop/version');
+
+  /// System uptime in seconds, or null if unreadable.
+  Future<int?> readUptimeSeconds() async {
+    final raw = await _readTrimmedFile('/proc/uptime');
+    if (raw == null) return null;
+    final first = raw.split(RegExp(r'\s+')).first;
+    return double.tryParse(first)?.round();
+  }
+
   Future<String?> _findHwmonTempInput({
     required Set<String> driverNames,
     String? label,

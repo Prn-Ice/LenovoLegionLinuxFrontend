@@ -98,7 +98,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 },
         ),
         const SizedBox(height: 16),
-        DeviceIdentityCard(identity: snapshot.deviceIdentity),
+        DeviceIdentityCard(identity: snapshot.deviceIdentity, accent: accent),
         const SizedBox(height: 16),
         SensorStrip(snapshot: sensors, accent: accent),
         const SizedBox(height: 16),
