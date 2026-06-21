@@ -52,8 +52,8 @@ void main() {
       ),
     );
 
-    expect(find.text('CPU'), findsOneWidget); // gauge label
-    expect(find.text('dGPU'), findsOneWidget); // discrete gpu gauge label
+    expect(find.text('CPU temp'), findsOneWidget); // gauge label
+    expect(find.text('dGPU temp'), findsOneWidget); // discrete gpu gauge label
     expect(find.textContaining('72'), findsWidgets);
     expect(find.text('CPU load'), findsOneWidget); // utilisation tile
   });

@@ -31,7 +31,7 @@ void main() {
     await tester.pump(Duration.zero);
 
     expect(find.text('Power'), findsWidgets);
-    expect(find.text('Power Mode'), findsOneWidget);
+    expect(find.text('Rapid charge'), findsOneWidget);
     expect(find.text('Battery'), findsWidgets);
   });
 

@@ -5,9 +5,9 @@ import '../../../core/widgets/metric_gauge.dart';
 import '../../../core/widgets/metric_tile.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 
-/// Telemetry hero for the dashboard: prominent temperature/fan gauges plus
-/// utilisation and secondary metric tiles, all derived from the shared
-/// [LiveSensorSnapshot]. [accent] follows the current power mode.
+/// Telemetry hero for the dashboard: a row of gauge cards (temperatures + fan
+/// speeds) above a load card with utilisation bars and power, all from the
+/// shared [LiveSensorSnapshot]. [accent] follows the current power mode.
 class SensorStrip extends StatelessWidget {
   const SensorStrip({super.key, required this.snapshot, required this.accent});
 
@@ -20,27 +20,27 @@ class SensorStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final gauges = <Widget>[
       if (snapshot.cpuTempC != null)
-        _gauge(
+        _gaugeCard(
           snapshot.cpuTempC,
           30,
           100,
-          'CPU',
+          'CPU temp',
           '°C',
           critical: _tempCritical,
         ),
       if (snapshot.gpuTempC != null)
-        _gauge(
+        _gaugeCard(
           snapshot.gpuTempC,
           30,
           100,
-          snapshot.gpuIsDiscrete ? 'dGPU' : 'iGPU',
+          snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
           '°C',
           critical: _tempCritical,
         ),
       if (snapshot.fan1Rpm != null)
-        _gauge(snapshot.fan1Rpm!.toDouble(), 0, 6000, 'CPU fan', ''),
+        _gaugeCard(snapshot.fan1Rpm!.toDouble(), 0, 6000, 'CPU fan', ''),
       if (snapshot.gpuFanRpm != null)
-        _gauge(snapshot.gpuFanRpm!.toDouble(), 0, 6000, 'GPU fan', ''),
+        _gaugeCard(snapshot.gpuFanRpm!.toDouble(), 0, 6000, 'GPU fan', ''),
     ];
 
     final tiles = <Widget>[
@@ -63,45 +63,61 @@ class SensorStrip extends StatelessWidget {
     ];
 
     if (gauges.isEmpty && tiles.isEmpty) {
-      return const YaruSection(child: Text('Sensor data unavailable.'));
+      return _card(
+        context,
+        const Center(child: Text('Sensor data unavailable.')),
+      );
     }
 
-    return YaruSection(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (gauges.isNotEmpty)
-            Wrap(
-              spacing: 20,
-              runSpacing: 16,
-              alignment: WrapAlignment.spaceEvenly,
-              children: gauges,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (gauges.isNotEmpty)
+          Wrap(spacing: 12, runSpacing: 12, children: gauges),
+        if (gauges.isNotEmpty && tiles.isNotEmpty) const SizedBox(height: 12),
+        if (tiles.isNotEmpty)
+          _card(
+            context,
+            Column(
+              children: [
+                for (final tile in tiles)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: tile,
+                  ),
+                _SecondaryLine(snapshot: snapshot),
+              ],
             ),
-          if (gauges.isNotEmpty && tiles.isNotEmpty) const SizedBox(height: 20),
-          for (final tile in tiles)
-            Padding(padding: const EdgeInsets.only(bottom: 8), child: tile),
-          _SecondaryLine(snapshot: snapshot),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
-  Widget _gauge(
+  Widget _card(BuildContext context, Widget child) =>
+      YaruBorderContainer(padding: const EdgeInsets.all(16), child: child);
+
+  Widget _gaugeCard(
     double? value,
     double min,
     double max,
     String label,
     String unit, {
     double? critical,
-  }) => MetricGauge(
-    value: value,
-    min: min,
-    max: max,
-    label: label,
-    unit: unit,
-    accent: accent,
-    criticalThreshold: critical,
-    size: 116,
+  }) => SizedBox(
+    width: 168,
+    child: YaruBorderContainer(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: MetricGauge(
+        value: value,
+        min: min,
+        max: max,
+        label: label,
+        unit: unit,
+        accent: accent,
+        criticalThreshold: critical,
+        size: 120,
+      ),
+    ),
   );
 
   Widget _tile(
@@ -145,11 +161,14 @@ class _SecondaryLine extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Text(
-        items.join('   ·   '),
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+      padding: const EdgeInsets.only(top: 6),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          items.join('   ·   '),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

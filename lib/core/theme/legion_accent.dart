@@ -54,10 +54,12 @@ class LegionAccent {
   static LegionAccent? fromPowerModeValue(String? value) {
     switch (value) {
       case 'quiet':
+      case 'low-power':
         return quiet;
       case 'balanced':
         return balanced;
       case 'performance':
+      case 'max-power':
         return performance;
       case 'balanced-performance':
       case 'custom':

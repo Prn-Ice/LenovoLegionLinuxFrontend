@@ -13,12 +13,11 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 void main() {
   const accent = Color(0xFFEC5F2A);
 
-  testWidgets('shows mode chips and the accent banner', (tester) async {
+  testWidgets('shows mode cards and the accent banner', (tester) async {
     await _pump(
       tester,
       ModeHero(
         accent: accent,
-        label: 'Performance',
         availableModes: const ['quiet', 'balanced', 'performance'],
         selectedMode: 'performance',
         isApplying: false,
@@ -32,20 +31,19 @@ void main() {
     expect(find.textContaining('Performance'), findsWidgets);
   });
 
-  testWidgets('maps balanced-performance to a Custom chip', (tester) async {
+  testWidgets('humanizes hyphenated mode names', (tester) async {
     await _pump(
       tester,
       ModeHero(
         accent: accent,
-        label: 'Custom',
-        availableModes: const ['balanced-performance'],
-        selectedMode: 'balanced-performance',
+        availableModes: const ['low-power'],
+        selectedMode: 'low-power',
         isApplying: false,
         onModeSelected: (_) {},
       ),
     );
 
-    expect(find.text('Custom'), findsWidgets);
+    expect(find.textContaining('Low Power'), findsWidgets);
   });
 
   testWidgets('shows a message when there are no writable modes', (
@@ -55,7 +53,6 @@ void main() {
       tester,
       const ModeHero(
         accent: accent,
-        label: 'Unknown',
         availableModes: [],
         selectedMode: null,
         isApplying: false,

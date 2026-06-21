@@ -18,12 +18,14 @@ void main() {
         accent: const Color(0xFFEC5F2A),
         controls: [
           QuickControl(
+            icon: Icons.bolt,
             title: 'Rapid charge',
             subtitle: 'Charge to full as fast as possible',
             value: true,
             onChanged: (_) {},
           ),
           const QuickControl(
+            icon: Icons.keyboard_outlined,
             title: 'Fn lock',
             subtitle: 'F-keys act as F1–F12 directly',
             value: false,
