@@ -20,27 +20,41 @@ class SensorStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final gauges = <Widget>[
       if (snapshot.cpuTempC != null)
-        _gaugeCard(
-          snapshot.cpuTempC,
-          30,
-          100,
-          'CPU temp',
-          '°',
+        _GaugeCard(
+          value: snapshot.cpuTempC,
+          min: 30,
+          max: 100,
+          label: 'CPU temp',
+          unit: '°',
+          accent: accent,
           critical: _tempCritical,
         ),
       if (snapshot.gpuTempC != null)
-        _gaugeCard(
-          snapshot.gpuTempC,
-          30,
-          100,
-          snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
-          '°',
+        _GaugeCard(
+          value: snapshot.gpuTempC,
+          min: 30,
+          max: 100,
+          label: snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
+          unit: '°',
+          accent: accent,
           critical: _tempCritical,
         ),
       if (snapshot.fan1Rpm != null)
-        _gaugeCard(snapshot.fan1Rpm!.toDouble(), 0, 6000, 'CPU fan', ''),
+        _GaugeCard(
+          value: snapshot.fan1Rpm!.toDouble(),
+          min: 0,
+          max: 6000,
+          label: 'CPU fan',
+          accent: accent,
+        ),
       if (snapshot.gpuFanRpm != null)
-        _gaugeCard(snapshot.gpuFanRpm!.toDouble(), 0, 6000, 'GPU fan', ''),
+        _GaugeCard(
+          value: snapshot.gpuFanRpm!.toDouble(),
+          min: 0,
+          max: 6000,
+          label: 'GPU fan',
+          accent: accent,
+        ),
     ];
 
     final tiles = <Widget>[
@@ -63,9 +77,9 @@ class SensorStrip extends StatelessWidget {
     ];
 
     if (gauges.isEmpty && tiles.isEmpty) {
-      return _card(
-        context,
-        const Center(child: Text('Sensor data unavailable.')),
+      return YaruBorderContainer(
+        padding: const EdgeInsets.all(16),
+        child: const Center(child: Text('Sensor data unavailable.')),
       );
     }
 
@@ -76,13 +90,13 @@ class SensorStrip extends StatelessWidget {
           Wrap(spacing: 12, runSpacing: 12, children: gauges),
         if (gauges.isNotEmpty && tiles.isNotEmpty) const SizedBox(height: 12),
         if (tiles.isNotEmpty)
-          _card(
-            context,
-            Column(
+          YaruBorderContainer(
+            padding: const EdgeInsets.all(18),
+            child: Column(
               children: [
                 for (final tile in tiles)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    padding: const EdgeInsets.symmetric(vertical: 7),
                     child: tile,
                   ),
                 _SecondaryLine(snapshot: snapshot),
@@ -92,33 +106,6 @@ class SensorStrip extends StatelessWidget {
       ],
     );
   }
-
-  Widget _card(BuildContext context, Widget child) =>
-      YaruBorderContainer(padding: const EdgeInsets.all(16), child: child);
-
-  Widget _gaugeCard(
-    double? value,
-    double min,
-    double max,
-    String label,
-    String unit, {
-    double? critical,
-  }) => SizedBox(
-    width: 168,
-    child: YaruBorderContainer(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: MetricGauge(
-        value: value,
-        min: min,
-        max: max,
-        label: label,
-        unit: unit,
-        accent: accent,
-        criticalThreshold: critical,
-        size: 132,
-      ),
-    ),
-  );
 
   Widget _tile(
     String label,
@@ -132,6 +119,60 @@ class SensorStrip extends StatelessWidget {
     accent: accent,
     showBar: showBar,
   );
+}
+
+/// A single gauge card: the radial gauge centered in a bordered surface with
+/// its label below.
+class _GaugeCard extends StatelessWidget {
+  const _GaugeCard({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.label,
+    required this.accent,
+    this.unit = '',
+    this.critical,
+  });
+
+  final double? value;
+  final double min;
+  final double max;
+  final String label;
+  final Color accent;
+  final String unit;
+  final double? critical;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      width: 176,
+      child: YaruBorderContainer(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MetricGauge(
+              value: value,
+              min: min,
+              max: max,
+              unit: unit,
+              accent: accent,
+              criticalThreshold: critical,
+              size: 120,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              label,
+              style: textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Compact one-line readout for the lower-priority sensors.
@@ -161,7 +202,7 @@ class _SecondaryLine extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 8),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(

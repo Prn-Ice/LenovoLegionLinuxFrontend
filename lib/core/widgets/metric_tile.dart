@@ -62,9 +62,9 @@ class MetricTile extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: formatMetric(value, fractionDigits: fractionDigits),
-                    style: textTheme.bodyMedium?.copyWith(
+                    style: textTheme.titleSmall?.copyWith(
                       fontFeatures: const [FontFeature.tabularFigures()],
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: critical ? scheme.error : null,
                     ),
                   ),
@@ -81,12 +81,12 @@ class MetricTile extends StatelessWidget {
           ],
         ),
         if (showBar) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 7),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: fraction ?? 0,
-              minHeight: 5,
+              minHeight: 7,
               backgroundColor: scheme.surfaceContainerHighest,
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
             ),

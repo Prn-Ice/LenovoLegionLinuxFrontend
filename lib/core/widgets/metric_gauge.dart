@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 
 import 'metric_format.dart';
 
-/// A radial-arc telemetry gauge: a 270° track that fills with the value, a
-/// large tabular center number with optional unit, and a label below it.
+/// A radial-arc telemetry gauge: a 270° track that fills with the value and a
+/// large tabular number (with optional unit) centered in the arc. No label —
+/// callers place a label below the gauge.
 ///
 /// Uses [accent] normally and flips the value arc and number to the theme's
 /// error color once [value] reaches [criticalThreshold]. Renders cleanly when
@@ -16,7 +17,6 @@ class MetricGauge extends StatelessWidget {
     required this.value,
     required this.min,
     required this.max,
-    required this.label,
     required this.accent,
     this.unit = '',
     this.criticalThreshold,
@@ -27,7 +27,6 @@ class MetricGauge extends StatelessWidget {
   final double? value;
   final double min;
   final double max;
-  final String label;
   final Color accent;
   final String unit;
   final double? criticalThreshold;
@@ -51,38 +50,27 @@ class MetricGauge extends StatelessWidget {
           trackColor: scheme.surfaceContainerHighest,
         ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(
+          child: Text.rich(
+            TextSpan(
+              children: [
                 TextSpan(
-                  children: [
-                    TextSpan(
-                      text: formatMetric(value, fractionDigits: fractionDigits),
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                        fontWeight: FontWeight.w700,
-                        color: critical ? scheme.error : null,
-                      ),
+                  text: formatMetric(value, fractionDigits: fractionDigits),
+                  style: textTheme.headlineMedium?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    fontWeight: FontWeight.w700,
+                    color: critical ? scheme.error : null,
+                  ),
+                ),
+                if (unit.isNotEmpty)
+                  TextSpan(
+                    text: unit,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
-                    if (unit.isNotEmpty)
-                      TextSpan(
-                        text: unit,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Text(
-                label,
-                style: textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -110,7 +98,7 @@ class GaugeArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final stroke = size.width * 0.11;
+    final stroke = size.width * 0.10;
     final inset = (Offset.zero & size).deflate(stroke / 2 + 1);
 
     final track = Paint()

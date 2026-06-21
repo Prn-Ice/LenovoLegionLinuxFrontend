@@ -14,22 +14,14 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 void main() {
   const accent = Color(0xFF3A9D4F);
 
-  testWidgets('MetricGauge shows the value, unit and label', (tester) async {
+  testWidgets('MetricGauge shows the value and unit', (tester) async {
     await _pump(
       tester,
-      const MetricGauge(
-        value: 72,
-        min: 0,
-        max: 100,
-        label: 'CPU',
-        unit: '°C',
-        accent: accent,
-      ),
+      const MetricGauge(value: 72, min: 0, max: 100, unit: '°', accent: accent),
     );
 
     expect(find.textContaining('72'), findsOneWidget);
-    expect(find.textContaining('°C'), findsOneWidget);
-    expect(find.text('CPU'), findsOneWidget);
+    expect(find.textContaining('°'), findsOneWidget);
   });
 
   testWidgets('MetricGauge renders the placeholder for a null value', (
@@ -37,13 +29,7 @@ void main() {
   ) async {
     await _pump(
       tester,
-      const MetricGauge(
-        value: null,
-        min: 0,
-        max: 100,
-        label: 'GPU',
-        accent: accent,
-      ),
+      const MetricGauge(value: null, min: 0, max: 100, accent: accent),
     );
 
     expect(find.textContaining('—'), findsOneWidget);
