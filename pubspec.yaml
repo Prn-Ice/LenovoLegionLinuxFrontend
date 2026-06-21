@@ -38,6 +38,7 @@ dependencies:
   equatable: ^2.0.8
   flutter_riverpod: ^3.2.1
   yaru: ^9.0.1
+  handy_window: ^0.4.2
   file_picker: ^8.0.7
   hive_ce: ^2.19.3
   hive_ce_flutter: ^2.3.4
