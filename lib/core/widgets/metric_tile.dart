@@ -51,8 +51,7 @@ class MetricTile extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),

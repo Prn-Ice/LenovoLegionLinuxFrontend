@@ -184,9 +184,7 @@ class _GaugeCard extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: scheme.onSurface.withValues(alpha: 0.7),
               ),
             ),

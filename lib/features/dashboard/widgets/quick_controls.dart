@@ -58,6 +58,7 @@ class _QuickControlCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final enabled = control.onChanged != null;
 
     return SurfaceCard(
@@ -82,16 +83,13 @@ class _QuickControlCard extends StatelessWidget {
               children: [
                 Text(
                   control.title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                  style: textTheme.titleSmall?.copyWith(
                     color: enabled ? null : scheme.onSurfaceVariant,
                   ),
                 ),
                 Text(
                   control.subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
+                  style: textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.56),
                   ),
                 ),

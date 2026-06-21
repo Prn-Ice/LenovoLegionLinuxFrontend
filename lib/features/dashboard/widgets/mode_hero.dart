@@ -48,6 +48,7 @@ class ModeHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final selected = selectedMode?.trim();
     final enabled = !isApplying && onModeSelected != null;
 
@@ -87,11 +88,7 @@ class ModeHero extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   humanizeMode(selected),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: accent,
-                  ),
+                  style: textTheme.titleSmall?.copyWith(color: accent),
                 ),
                 if (facts != null) ...[
                   const SizedBox(width: 14),
@@ -165,10 +162,7 @@ class _ModeCard extends StatelessWidget {
                     child: Text(
                       humanizeMode(mode),
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
                 ],

@@ -19,6 +19,7 @@ class DeviceIdentityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     final meta = <String>[
       if (identity.productName != null) 'Product ${identity.productName}',
@@ -51,13 +52,7 @@ class DeviceIdentityCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  identity.displayName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                Text(identity.displayName, style: textTheme.titleMedium),
                 if (meta.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
@@ -78,8 +73,7 @@ class DeviceIdentityCard extends StatelessWidget {
                 Text(stat.$1, style: monoStatValueStyle),
                 Text(
                   stat.$2,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: textTheme.labelSmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
