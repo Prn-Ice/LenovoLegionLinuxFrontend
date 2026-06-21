@@ -6,6 +6,8 @@ import '../../../core/widgets/legion_mark.dart';
 import '../../diagnostics/view/diagnostics_page.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/view/battery_page.dart';
+import '../../dashboard/bloc/dashboard_event.dart';
+import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/view/dashboard_page.dart';
 import '../../devices/view/devices_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
@@ -56,6 +58,20 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     bloc.add(NavigationSectionSelected(section));
   }
 
+  /// Title-bar actions for the active section (currently a Dashboard refresh).
+  List<Widget> _titleBarActions(AppSection section) {
+    if (section != AppSection.dashboard) return const [];
+    return [
+      IconButton(
+        icon: const Icon(Icons.refresh, size: 18),
+        tooltip: 'Refresh',
+        onPressed: () => ref
+            .read(dashboardBlocProvider.bloc)
+            .add(const DashboardRefreshRequested()),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Keep controllers in sync with navigation bloc.
@@ -88,6 +104,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
               return YaruWindowTitleBar(
                 title: Text(section.label),
                 border: BorderSide.none,
+                actions: _titleBarActions(section),
               );
             },
           ),
@@ -134,6 +151,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             appBar: YaruWindowTitleBar(
               border: BorderSide.none,
               title: Text(currentSection.label),
+              actions: _titleBarActions(currentSection),
             ),
             body: _buildPage(currentSection),
           );
@@ -145,6 +163,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
                 ? const YaruBackButton()
                 : null,
             title: Text(entry.section.label),
+            actions: _titleBarActions(entry.section),
           ),
           body: _buildPage(entry.section),
         );

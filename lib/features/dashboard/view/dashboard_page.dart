@@ -7,7 +7,6 @@ import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
 import '../models/dashboard_snapshot.dart';
 import '../providers/dashboard_provider.dart';
-import '../../sensors/models/live_sensor_snapshot.dart';
 import '../widgets/device_identity_card.dart';
 import '../widgets/mode_hero.dart';
 import '../widgets/quick_controls.dart';
@@ -52,23 +51,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final modeFacts = _modeFacts(powerState.powerLimits);
 
     return AppPageBody(
-      title: 'Legion Control Center',
-      subtitle: _buildStatusLine(context, snapshot, sensors),
-      headerAction: IconButton(
-        tooltip: 'Refresh',
-        onPressed: state.isApplying || state.isLoading
-            ? null
-            : () => ref
-                  .read(dashboardBlocProvider.bloc)
-                  .add(const DashboardRefreshRequested()),
-        icon: state.isLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.refresh),
-      ),
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
@@ -210,41 +192,5 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     if (cpu != null) parts.add('CPU ${cpu}W');
     if (gpu != null) parts.add('GPU ${gpu}W');
     return parts.isEmpty ? null : parts.join('  ·  ');
-  }
-
-  Widget _buildStatusLine(
-    BuildContext context,
-    DashboardSnapshot snapshot,
-    LiveSensorSnapshot sensors,
-  ) {
-    final parts = <String>[];
-
-    final mode = snapshot.status.powerProfile?.trim() ?? '';
-    if (mode.isNotEmpty) parts.add(humanizeMode(mode));
-
-    if (snapshot.hybridModeEnabled == true) {
-      parts.add('Hybrid');
-    } else if (snapshot.hybridModeEnabled == false) {
-      parts.add('Discrete');
-    }
-
-    if (sensors.cpuTempC != null) {
-      parts.add('${sensors.cpuTempC!.toStringAsFixed(0)}°C');
-    }
-
-    if (snapshot.onPowerSupply == true) {
-      parts.add('AC');
-    } else if (snapshot.onPowerSupply == false) {
-      parts.add('Battery');
-    }
-
-    if (parts.isEmpty) return const SizedBox.shrink();
-
-    return Text(
-      parts.join('  ·  '),
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
-      ),
-    );
   }
 }

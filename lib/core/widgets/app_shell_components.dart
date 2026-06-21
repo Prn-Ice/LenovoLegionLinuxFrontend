@@ -6,7 +6,7 @@ enum AppStatusTone { error, notice }
 class AppPageBody extends StatelessWidget {
   const AppPageBody({
     super.key,
-    required this.title,
+    this.title,
     this.subtitle,
     this.headerAction,
     this.errorMessage,
@@ -14,7 +14,7 @@ class AppPageBody extends StatelessWidget {
     required this.children,
   });
 
-  final String title;
+  final String? title;
   final Widget? subtitle;
 
   /// Optional action shown at the top-right of the page header (e.g. refresh).
@@ -36,34 +36,36 @@ class AppPageBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                if (title != null) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title!,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 4),
-                            DefaultTextStyle(
-                              style: textTheme.bodySmall!,
-                              child: subtitle!,
-                            ),
+                            if (subtitle != null) ...[
+                              const SizedBox(height: 4),
+                              DefaultTextStyle(
+                                style: textTheme.bodySmall!,
+                                child: subtitle!,
+                              ),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    ?headerAction,
-                  ],
-                ),
-                const SizedBox(height: 16),
+                      ?headerAction,
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (errorMessage != null || noticeMessage != null) ...[
                   AppStatusMessages(
                     errorMessage: errorMessage,
