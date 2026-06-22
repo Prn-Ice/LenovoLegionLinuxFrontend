@@ -1,19 +1,23 @@
 import 'dart:typed_data';
 
-/// Wire format for the Lenovo Legion "Spectrum" per-key keyboard (ITE 8258,
-/// Gen 7/8 protocol, e.g. 048d:c987). Ported from OpenRGB's LenovoUSBController.
+/// Wire format for the Lenovo Legion "Spectrum" per-key keyboard, **Gen 7/8**
+/// (ITE 8258, e.g. 048d:c987). Ported from OpenRGB's `LenovoUSBController_Gen7_8`.
 /// Pure byte-packing so it's unit-tested without touching the device.
+///
+/// Every feature report is 960 bytes, report id `0x07`, with a `0xC0, 0x03`
+/// preamble after the opcode. Per-key direct flow: enable direct mode (`0xD0`),
+/// then push a frame (`0xA1`) of `[ledValue(LE16), R, G, B]` blocks — all ~113
+/// keys fit in one packet. LED values start at 1 (`0` terminates the frame).
 
-/// Every feature report is exactly this many bytes.
-const int kSpectrumPacketSize = 192;
+const int kSpectrumPacketSize = 960;
 
-const int _instructionStart = 0x07;
-const int _zoneId0 = 0xA0;
-const int _maxLedsPerPacket = 0x2F; // 47
-const int _softwareMode = 0xB2;
-const int _hardwareMode = 0xB1;
+const int _reportId = 0x07;
+const int _directMode = 0xA1; // push a direct frame
+const int _setDirectMode = 0xD0; // enable/disable direct mode
+const int _setBrightness = 0xCE;
+const int _getActiveProfile = 0xCA;
 
-/// One LED's hardware [number] and RGB for a direct frame.
+/// One LED's hardware [number] (uint16) and RGB for a direct frame.
 class SpectrumLed {
   const SpectrumLed(this.number, this.r, this.g, this.b);
 
@@ -23,47 +27,59 @@ class SpectrumLed {
   final int b;
 }
 
-/// "Software mode" report — must be sent before direct writes so the keyboard
-/// listens to the software protocol instead of its onboard controller.
-Uint8List spectrumSoftwareModePacket() => _instruction(_softwareMode);
-
-/// Releases the device back to onboard (hardware) control.
-Uint8List spectrumHardwareModePacket() => _instruction(_hardwareMode);
-
-Uint8List _instruction(int instruction) {
+Uint8List _packet(List<int> head) {
   final buffer = Uint8List(kSpectrumPacketSize);
-  buffer[0] = _instructionStart;
-  buffer[1] = instruction;
+  buffer.setRange(0, head.length, head);
   return buffer;
 }
 
-/// The Linux `HIDIOCSFEATURE(length)` ioctl request number — send a feature
-/// report of [length] bytes: `_IOC(_IOC_READ|_IOC_WRITE, 'H', 0x06, length)`.
+/// Enables (or disables) direct mode for [profile] — required before pushing
+/// direct frames so the keyboard listens to per-key colors.
+Uint8List spectrumDirectModePacket({required bool enable, int profile = 1}) =>
+    _packet([
+      _reportId,
+      _setDirectMode,
+      0xC0,
+      0x03,
+      enable ? 0x01 : 0x02,
+      profile,
+    ]);
+
+/// Sets keyboard brightness (0–255; the device exposes 0–9 in practice).
+Uint8List spectrumBrightnessPacket(int brightness) =>
+    _packet([_reportId, _setBrightness, 0xC0, 0x03, brightness & 0xFF]);
+
+/// Reads the active profile id — send via HIDIOCGFEATURE; profile is byte 4 of
+/// the response.
+Uint8List spectrumGetActiveProfilePacket() =>
+    _packet([_reportId, _getActiveProfile, 0xC0, 0x03]);
+
+/// Builds the direct frame for [leds]: `[0x07, 0xA1, 0xC0, 0x03,
+/// (valueLo, valueHi, R, G, B)…]`, the rest zero-padded (a zero value ends it).
+Uint8List spectrumDirectFramePacket(List<SpectrumLed> leds) {
+  final buffer = Uint8List(kSpectrumPacketSize);
+  buffer[0] = _reportId;
+  buffer[1] = _directMode;
+  buffer[2] = 0xC0;
+  buffer[3] = 0x03;
+  var offset = 4;
+  for (final led in leds) {
+    if (offset + 5 > kSpectrumPacketSize) break;
+    buffer[offset++] = led.number & 0xFF;
+    buffer[offset++] = (led.number >> 8) & 0xFF;
+    buffer[offset++] = led.r & 0xFF;
+    buffer[offset++] = led.g & 0xFF;
+    buffer[offset++] = led.b & 0xFF;
+  }
+  return buffer;
+}
+
+/// The Linux `HIDIOCSFEATURE(length)` ioctl request — send a feature report:
+/// `_IOC(_IOC_READ|_IOC_WRITE, 'H', 0x06, length)`.
 int hidiocSetFeature(int length) =>
     (3 << 30) | (0x48 << 8) | 0x06 | (length << 16);
 
-/// Builds the direct-mode feature reports for [leds] on [zone] (0 = keyboard),
-/// split into packets of at most 47 LEDs. Each LED block is
-/// `[number, R, G, B]` at offset `i*4 + 4`.
-List<Uint8List> spectrumDirectPackets(List<SpectrumLed> leds, {int zone = 0}) {
-  final packets = <Uint8List>[];
-  for (var start = 0; start < leds.length; start += _maxLedsPerPacket) {
-    final end = start + _maxLedsPerPacket < leds.length
-        ? start + _maxLedsPerPacket
-        : leds.length;
-    final buffer = Uint8List(kSpectrumPacketSize);
-    buffer[0] = _instructionStart;
-    buffer[1] = _zoneId0 + zone;
-    buffer[2] = end - start;
-    buffer[3] = 0;
-    for (var i = start; i < end; i++) {
-      final offset = (i - start) * 4 + 4;
-      buffer[offset] = leds[i].number & 0xFF;
-      buffer[offset + 1] = leds[i].r & 0xFF;
-      buffer[offset + 2] = leds[i].g & 0xFF;
-      buffer[offset + 3] = leds[i].b & 0xFF;
-    }
-    packets.add(buffer);
-  }
-  return packets;
-}
+/// The Linux `HIDIOCGFEATURE(length)` ioctl request — get a feature report:
+/// `_IOC(_IOC_READ|_IOC_WRITE, 'H', 0x07, length)`.
+int hidiocGetFeature(int length) =>
+    (3 << 30) | (0x48 << 8) | 0x07 | (length << 16);

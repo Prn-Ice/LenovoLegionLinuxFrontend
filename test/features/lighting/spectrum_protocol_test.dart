@@ -2,66 +2,63 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 
 void main() {
-  group('spectrumSoftwareModePacket', () {
-    test('is a 192-byte [0x07, 0xB2, 0, …] feature report', () {
-      final packet = spectrumSoftwareModePacket();
-      expect(packet.length, kSpectrumPacketSize);
-      expect(packet[0], 0x07);
-      expect(packet[1], 0xB2);
-      expect(packet.skip(2).every((b) => b == 0), isTrue);
+  test('all packets are 960 bytes', () {
+    expect(spectrumDirectModePacket(enable: true).length, kSpectrumPacketSize);
+    expect(spectrumBrightnessPacket(6).length, kSpectrumPacketSize);
+    expect(spectrumDirectFramePacket(const []).length, kSpectrumPacketSize);
+  });
+
+  group('spectrumDirectModePacket', () {
+    test('enable / disable header with profile', () {
+      expect(spectrumDirectModePacket(enable: true, profile: 2).sublist(0, 6), [
+        0x07,
+        0xD0,
+        0xC0,
+        0x03,
+        0x01,
+        2,
+      ]);
+      expect(
+        spectrumDirectModePacket(enable: false, profile: 2).sublist(0, 6),
+        [0x07, 0xD0, 0xC0, 0x03, 0x02, 2],
+      );
     });
   });
 
-  group('spectrumDirectPackets', () {
-    test('encodes a single LED: header + ledNum + RGB at offset 4', () {
-      final packets = spectrumDirectPackets([
-        const SpectrumLed(5, 0xFF, 0x80, 0x00),
+  test('spectrumBrightnessPacket', () {
+    expect(spectrumBrightnessPacket(6).sublist(0, 5), [
+      0x07,
+      0xCE,
+      0xC0,
+      0x03,
+      6,
+    ]);
+  });
+
+  group('spectrumDirectFramePacket', () {
+    test('writes the header then LED blocks (value LE + RGB)', () {
+      final packet = spectrumDirectFramePacket([
+        const SpectrumLed(0x1234, 0xAA, 0xBB, 0xCC),
+        const SpectrumLed(0x0056, 1, 2, 3),
       ]);
-      expect(packets.length, 1);
-      final packet = packets.single;
+      expect(packet.sublist(0, 4), [0x07, 0xA1, 0xC0, 0x03]);
+      expect(packet.sublist(4, 9), [0x34, 0x12, 0xAA, 0xBB, 0xCC]);
+      expect(packet.sublist(9, 14), [0x56, 0x00, 1, 2, 3]);
+    });
+
+    test('fits all 113 keys in a single packet', () {
+      final leds = [for (var i = 1; i <= 113; i++) SpectrumLed(i, 0, 0, 0)];
+      final packet = spectrumDirectFramePacket(leds);
       expect(packet.length, kSpectrumPacketSize);
-      expect(packet.sublist(0, 8), [0x07, 0xA0, 1, 0, 5, 0xFF, 0x80, 0x00]);
-    });
-
-    test('packs up to 47 LEDs in one packet', () {
-      final leds = [for (var i = 0; i < 47; i++) SpectrumLed(i, i, 0, 0)];
-      final packets = spectrumDirectPackets(leds);
-      expect(packets.length, 1);
-      expect(packets.single[2], 47);
-    });
-
-    test('splits 113 LEDs into 47 + 47 + 19', () {
-      final leds = [for (var i = 0; i < 113; i++) SpectrumLed(i, 0, 0, 0)];
-      final packets = spectrumDirectPackets(leds);
-      expect(packets.map((p) => p[2]).toList(), [47, 47, 19]);
-    });
-
-    test('applies the zone offset to the header byte', () {
-      final packets = spectrumDirectPackets([
-        const SpectrumLed(0, 0, 0, 0),
-      ], zone: 1);
-      expect(packets.single[1], 0xA1);
-    });
-
-    test('writes each LED block at offset i*4+4', () {
-      final packets = spectrumDirectPackets([
-        const SpectrumLed(10, 1, 2, 3),
-        const SpectrumLed(20, 4, 5, 6),
-      ]);
-      final packet = packets.single;
-      expect(packet.sublist(4, 8), [10, 1, 2, 3]);
-      expect(packet.sublist(8, 12), [20, 4, 5, 6]);
-    });
-
-    test('no LEDs yields no packets', () {
-      expect(spectrumDirectPackets(const []), isEmpty);
+      // 4-byte header + 113*5 = 569 bytes; the 113th block's value-lo == 113.
+      expect(packet[4 + 112 * 5], 113);
     });
   });
 
-  group('hidiocSetFeature', () {
-    test('computes the HIDIOCSFEATURE ioctl request number', () {
-      expect(hidiocSetFeature(192), 0xC0C04806);
-      expect(hidiocSetFeature(0), 0xC0004806);
+  group('hidioc ioctl numbers', () {
+    test('set / get feature for a 960-byte report', () {
+      expect(hidiocSetFeature(960), 0xC3C04806);
+      expect(hidiocGetFeature(960), 0xC3C04807);
     });
   });
 }
