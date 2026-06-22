@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/battery_snapshot.dart';
@@ -29,8 +27,8 @@ class BatteryRepository extends PrivilegedRepository {
     final results = await Future.wait([
       _sysfsService.readBatteryConservationMode(),
       _sysfsService.readRapidChargingMode(),
-      _sysfsService.readIntFile('/sys/class/power_supply/BAT0/capacity'),
-      _readBatteryStatus(),
+      _sysfsService.readBatteryPercent(),
+      _sysfsService.readBatteryStatus(),
       _sysfsService.readBatteryPowerDrawW(),
       _sysfsService.readBatteryCycleCount(),
       _sysfsService.readBatteryFullCapacityWh(),
@@ -90,15 +88,5 @@ class BatteryRepository extends PrivilegedRepository {
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
     );
-  }
-
-  Future<String?> _readBatteryStatus() async {
-    try {
-      final file = File('/sys/class/power_supply/BAT0/status');
-      if (!await file.exists()) return null;
-      return (await file.readAsString()).trim();
-    } catch (_) {
-      return null;
-    }
   }
 }

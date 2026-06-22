@@ -46,7 +46,9 @@ class LegionSysfsService {
   static const String _onPowerSupplyAcPath =
       '/sys/class/power_supply/AC/online';
 
-  static const String _batteryPath = '/sys/class/power_supply/BAT0';
+  static const String _legacyBatteryPath = '/sys/class/power_supply/BAT0';
+
+  final Map<String, String?> _powerSupplyDirCache = {};
   static const String _dmiPath = '/sys/class/dmi/id';
 
   static const String _lockFanControllerPath =
@@ -149,7 +151,47 @@ class LegionSysfsService {
   }
 
   Future<bool?> readOnPowerSupplyMode() async {
+    final acDir = await _powerSupplyDirOfType('Mains');
+    if (acDir != null) {
+      final online = await readIntFile('$acDir/online');
+      if (online != null) return online == 1;
+    }
     return _readBoolFromPaths([_onPowerSupplyAdp0Path, _onPowerSupplyAcPath]);
+  }
+
+  /// Battery charge percentage (0–100) from the discovered battery supply.
+  Future<int?> readBatteryPercent() async =>
+      readIntFile('${await _batteryBase()}/capacity');
+
+  /// Battery charge status (e.g. 'Charging', 'Discharging', 'Full').
+  Future<String?> readBatteryStatus() async =>
+      _readTrimmedFile('${await _batteryBase()}/status');
+
+  /// Base dir of the first Battery-type power supply (BAT0, BAT1, …), falling
+  /// back to the legacy fixed path when discovery finds nothing.
+  Future<String> _batteryBase() async =>
+      (await _powerSupplyDirOfType('Battery')) ?? _legacyBatteryPath;
+
+  /// First `/sys/class/power_supply/*` whose `type` equals [type] (e.g.
+  /// 'Battery', 'Mains'). Cached per type so the directory scan runs once.
+  Future<String?> _powerSupplyDirOfType(String type) async {
+    if (_powerSupplyDirCache.containsKey(type)) {
+      return _powerSupplyDirCache[type];
+    }
+    String? found;
+    try {
+      final root = Directory('/sys/class/power_supply');
+      if (root.existsSync()) {
+        for (final entry in root.listSync()) {
+          if (await _readTrimmedFile('${entry.path}/type') == type) {
+            found = entry.path;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+    _powerSupplyDirCache[type] = found;
+    return found;
   }
 
   Future<bool?> readLockFanControllerMode() async {
@@ -340,15 +382,15 @@ class LegionSysfsService {
 
   /// Battery cycle count from /sys/class/power_supply/BAT0/cycle_count.
   Future<int?> readBatteryCycleCount() async {
-    return readIntFile('$_batteryPath/cycle_count');
+    return readIntFile('${await _batteryBase()}/cycle_count');
   }
 
   /// Battery full charge capacity in Wh.
   Future<double?> readBatteryFullCapacityWh() async {
-    final energyFull = await readIntFile('$_batteryPath/energy_full');
+    final energyFull = await readIntFile('${await _batteryBase()}/energy_full');
     if (energyFull != null) return energyFull / 1e6;
-    final chargeFull = await readIntFile('$_batteryPath/charge_full');
-    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    final chargeFull = await readIntFile('${await _batteryBase()}/charge_full');
+    final voltageNow = await readIntFile('${await _batteryBase()}/voltage_now');
     if (chargeFull != null && voltageNow != null) {
       return (chargeFull / 1e6) * (voltageNow / 1e6);
     }
@@ -357,10 +399,14 @@ class LegionSysfsService {
 
   /// Battery design capacity in Wh.
   Future<double?> readBatteryDesignCapacityWh() async {
-    final energyDesign = await readIntFile('$_batteryPath/energy_full_design');
+    final energyDesign = await readIntFile(
+      '${await _batteryBase()}/energy_full_design',
+    );
     if (energyDesign != null) return energyDesign / 1e6;
-    final chargeDesign = await readIntFile('$_batteryPath/charge_full_design');
-    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    final chargeDesign = await readIntFile(
+      '${await _batteryBase()}/charge_full_design',
+    );
+    final voltageNow = await readIntFile('${await _batteryBase()}/voltage_now');
     if (chargeDesign != null && voltageNow != null) {
       return (chargeDesign / 1e6) * (voltageNow / 1e6);
     }
@@ -369,10 +415,10 @@ class LegionSysfsService {
 
   /// Battery current capacity in Wh.
   Future<double?> readBatteryCurrentCapacityWh() async {
-    final energyNow = await readIntFile('$_batteryPath/energy_now');
+    final energyNow = await readIntFile('${await _batteryBase()}/energy_now');
     if (energyNow != null) return energyNow / 1e6;
-    final chargeNow = await readIntFile('$_batteryPath/charge_now');
-    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    final chargeNow = await readIntFile('${await _batteryBase()}/charge_now');
+    final voltageNow = await readIntFile('${await _batteryBase()}/voltage_now');
     if (chargeNow != null && voltageNow != null) {
       return (chargeNow / 1e6) * (voltageNow / 1e6);
     }
@@ -381,16 +427,16 @@ class LegionSysfsService {
 
   /// Battery power draw in watts (positive = discharging, negative = charging).
   Future<double?> readBatteryPowerDrawW() async {
-    final powerNow = await readIntFile('$_batteryPath/power_now');
+    final powerNow = await readIntFile('${await _batteryBase()}/power_now');
     if (powerNow != null) {
-      final status = await _readTrimmedFile('$_batteryPath/status');
+      final status = await _readTrimmedFile('${await _batteryBase()}/status');
       final sign = status == 'Charging' ? -1.0 : 1.0;
       return sign * powerNow / 1e6;
     }
-    final currentNow = await readIntFile('$_batteryPath/current_now');
-    final voltageNow = await readIntFile('$_batteryPath/voltage_now');
+    final currentNow = await readIntFile('${await _batteryBase()}/current_now');
+    final voltageNow = await readIntFile('${await _batteryBase()}/voltage_now');
     if (currentNow != null && voltageNow != null) {
-      final status = await _readTrimmedFile('$_batteryPath/status');
+      final status = await _readTrimmedFile('${await _batteryBase()}/status');
       final sign = status == 'Charging' ? -1.0 : 1.0;
       return sign * (currentNow / 1e6) * (voltageNow / 1e6);
     }
@@ -399,7 +445,7 @@ class LegionSysfsService {
 
   /// Battery temperature in °C (from power_supply temp file, tenths of °C).
   Future<double?> readBatteryTempC() async {
-    final raw = await readIntFile('$_batteryPath/temp');
+    final raw = await readIntFile('${await _batteryBase()}/temp');
     if (raw != null) return raw / 10.0;
     return null;
   }

@@ -95,6 +95,12 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     final accent =
         LegionAccent.fromPowerModeValue(mode)?.color ??
         Theme.of(context).colorScheme.primary;
+    // The sidebar pane reads a touch darker than the content, per the design.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sidebarColor = Color.alphaBlend(
+      Colors.black.withValues(alpha: isDark ? 0.18 : 0.03),
+      Theme.of(context).colorScheme.surface,
+    );
 
     final width = MediaQuery.of(context).size.width;
 
@@ -135,58 +141,66 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     }
 
     // Wide layout — flat sidebar with an accent-tinted active item.
-    return YaruMasterDetailPage(
-      controller: _wideController,
-      paneLayoutDelegate: const YaruResizablePaneDelegate(
-        initialPaneSize: 280,
-        minPageSize: kYaruMasterDetailBreakpoint / 2,
-        minPaneSize: 175,
-      ),
-      tileBuilder: (context, index, selected, availableWidth) {
-        final section = NavShellEntries.sections[index];
-        return ListTileTheme(
-          selectedColor: accent,
-          selectedTileColor: accent.withValues(alpha: 0.18),
-          child: YaruMasterTile(
-            leading: Icon(section.yaruIcon),
-            title: Text(section.label),
-          ),
-        );
-      },
-      pageBuilder: (context, index) {
-        final section = NavShellEntries.sections[index];
-        return YaruDetailPage(
-          appBar: YaruWindowTitleBar(
-            border: BorderSide.none,
-            centerTitle: false,
-            leading: Navigator.of(context).canPop()
-                ? const YaruBackButton()
-                : null,
-            title: Text(section.label),
-            actions: _titleBarActions(section),
-          ),
-          body: _buildPage(section),
-        );
-      },
-      appBar: YaruWindowTitleBar(
-        leading: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Center(
-            child: LegionMark(
-              color: Theme.of(context).colorScheme.primary,
-              size: 20,
+    return YaruMasterDetailTheme(
+      data: YaruMasterDetailTheme.of(
+        context,
+      ).copyWith(sideBarColor: sidebarColor),
+      child: YaruMasterDetailPage(
+        controller: _wideController,
+        paneLayoutDelegate: const YaruResizablePaneDelegate(
+          initialPaneSize: 280,
+          minPageSize: kYaruMasterDetailBreakpoint / 2,
+          minPaneSize: 175,
+        ),
+        tileBuilder: (context, index, selected, availableWidth) {
+          final section = NavShellEntries.sections[index];
+          return ListTileTheme(
+            selectedColor: accent,
+            selectedTileColor: accent.withValues(alpha: 0.18),
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(8)),
+            ),
+            child: YaruMasterTile(
+              leading: Icon(section.yaruIcon),
+              title: Text(section.label),
+            ),
+          );
+        },
+        pageBuilder: (context, index) {
+          final section = NavShellEntries.sections[index];
+          return YaruDetailPage(
+            appBar: YaruWindowTitleBar(
+              border: BorderSide.none,
+              centerTitle: false,
+              leading: Navigator.of(context).canPop()
+                  ? const YaruBackButton()
+                  : null,
+              title: Text(section.label),
+              actions: _titleBarActions(section),
+            ),
+            body: _buildPage(section),
+          );
+        },
+        appBar: YaruWindowTitleBar(
+          leading: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Center(
+              child: LegionMark(
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
             ),
           ),
+          title: const Text('Legion'),
+          border: BorderSide.none,
+          backgroundColor: sidebarColor,
         ),
-        title: const Text('Legion'),
-        border: BorderSide.none,
-        backgroundColor: YaruMasterDetailTheme.of(context).sideBarColor,
+        bottomBar: const _SidebarStatusFooter(),
+        onSelected: (index) {
+          if (index == null) return;
+          _navigateTo(NavShellEntries.sections[index]);
+        },
       ),
-      bottomBar: const _SidebarStatusFooter(),
-      onSelected: (index) {
-        if (index == null) return;
-        _navigateTo(NavShellEntries.sections[index]);
-      },
     );
   }
 
