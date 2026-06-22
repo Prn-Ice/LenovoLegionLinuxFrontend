@@ -165,8 +165,6 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-            horizontalTitleGap: 8,
             child: YaruMasterTile(
               leading: Icon(section.yaruIcon),
               title: Text(section.label),
