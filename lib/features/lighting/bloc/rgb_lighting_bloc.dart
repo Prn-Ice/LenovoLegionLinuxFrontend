@@ -2,8 +2,10 @@ import 'dart:ui' show Color;
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../models/openrgb_device.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../repository/spectrum_rgb_repository.dart';
+import '../services/spectrum_led_map.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
 
@@ -35,9 +37,18 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   ) async {
     emit(state.copyWith(isLoading: true, errorMessage: null));
     try {
-      final device = await _repository.loadKeyboard();
+      final nativeOk = _native?.isAvailable ?? false;
+      final device =
+          await _repository.loadKeyboard() ?? _syntheticNativeDevice(nativeOk);
       if (device == null) {
-        emit(state.copyWith(available: false, device: null, isLoading: false));
+        emit(
+          state.copyWith(
+            available: false,
+            device: null,
+            isLoading: false,
+            nativeAvailable: false,
+          ),
+        );
         return;
       }
       emit(
@@ -47,7 +58,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           activeMode: device.activeMode,
           keyColors: List<Color>.filled(device.ledCount, _off),
           isLoading: false,
-          nativeAvailable: _native?.isAvailable ?? false,
+          nativeAvailable: nativeOk,
         ),
       );
     } catch (error) {
@@ -59,6 +70,20 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         ),
       );
     }
+  }
+
+  /// A device synthesized from the native LED map, for when OpenRGB isn't
+  /// running but the keyboard is present — makes native fully standalone.
+  OpenRgbDevice? _syntheticNativeDevice(bool nativeOk) {
+    if (!nativeOk) return null;
+    return OpenRgbDevice(
+      index: 0,
+      name: 'Legion Keyboard',
+      type: 'Keyboard',
+      modes: const ['Direct'],
+      activeMode: 'Direct',
+      leds: kSpectrumLedValues.keys.toList(),
+    );
   }
 
   Future<void> _onModeSelected(
