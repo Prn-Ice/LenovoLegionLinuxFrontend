@@ -187,6 +187,70 @@ const List<KeyRow> kKeyboardLayout = [
   ),
 ];
 
+/// Named key regions for one-tap "quick fill", mapped to their OpenRGB LED
+/// names. Names that a given device doesn't expose are simply skipped.
+final Map<String, List<String>> kKeyboardRegions = {
+  'Function': [
+    'Key: Escape',
+    for (var i = 1; i <= 12; i++) 'Key: F$i',
+    'Key: Print Screen',
+  ],
+  'Numbers': [
+    'Key: `',
+    for (final c in '1234567890'.split('')) 'Key: $c',
+    'Key: -',
+    'Key: =',
+  ],
+  'Letters': [
+    for (final c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')) 'Key: $c',
+  ],
+  'WASD': ['Key: W', 'Key: A', 'Key: S', 'Key: D'],
+  'Numpad': [
+    'Key: Num Lock',
+    for (final s in [
+      '/',
+      '*',
+      '-',
+      '7',
+      '8',
+      '9',
+      '+',
+      '4',
+      '5',
+      '6',
+      '1',
+      '2',
+      '3',
+      '0',
+      '.',
+      'Enter',
+    ])
+      'Key: Number Pad $s',
+  ],
+  'Arrows': [
+    'Key: Up Arrow',
+    'Key: Down Arrow',
+    'Key: Left Arrow',
+    'Key: Right Arrow',
+  ],
+  'Modifiers': [
+    'Key: Left Control',
+    'Key: Left Fn',
+    'Key: Left Windows',
+    'Key: Left Alt',
+    'Key: Space',
+    'Key: Right Alt',
+    'Key: Right Control',
+    'Key: Left Shift',
+    'Key: Right Shift',
+    'Key: Caps Lock',
+    'Key: Tab',
+    'Key: Enter',
+    'Key: Backspace',
+  ],
+  'Neon': kNeonLeds,
+};
+
 /// The perimeter "Neon" accent LED names, in order.
 const List<String> kNeonLeds = [
   'Neon group 1',

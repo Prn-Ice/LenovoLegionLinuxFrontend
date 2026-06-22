@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HardwareKeyboard;
 
 import 'keyboard_layout.dart';
 
 /// A stylized, paintable keyboard. Each key is colored from [keyColors] (by the
 /// LED index of its name in [leds]). Click a key — or press and **drag** across
-/// keys — to paint them with the active color via [onPaint] (the LED index).
-/// Off keys render dim; the 10 "Neon group" LEDs show as a perimeter strip.
+/// keys — to paint with the active color ([onPaint]). Hold **Shift** to erase
+/// ([onErase]) or **Alt** to eyedrop a key's color ([onPick]); all take the LED
+/// index. Off keys render dim; the 10 "Neon group" LEDs show as a perimeter.
 class KeyboardPreview extends StatefulWidget {
   const KeyboardPreview({
     super.key,
@@ -13,12 +15,16 @@ class KeyboardPreview extends StatefulWidget {
     required this.keyColors,
     required this.enabled,
     required this.onPaint,
+    required this.onErase,
+    required this.onPick,
   });
 
   final List<String> leds;
   final List<Color> keyColors;
   final bool enabled;
   final ValueChanged<int> onPaint;
+  final ValueChanged<int> onErase;
+  final ValueChanged<int> onPick;
 
   @override
   State<KeyboardPreview> createState() => _KeyboardPreviewState();
@@ -35,8 +41,18 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
     return (index >= 0 && index < widget.keyColors.length) ? index : -1;
   }
 
-  void _paint(int index) {
-    if (widget.enabled && index >= 0) widget.onPaint(index);
+  /// Routes a key interaction by held modifier: Shift = erase, Alt = eyedrop
+  /// (pick, only on a deliberate press, not a drag), otherwise paint.
+  void _apply(int index, {required bool isDrag}) {
+    if (!widget.enabled || index < 0) return;
+    final keys = HardwareKeyboard.instance;
+    if (keys.isShiftPressed) {
+      widget.onErase(index);
+    } else if (keys.isAltPressed) {
+      if (!isDrag) widget.onPick(index);
+    } else {
+      widget.onPaint(index);
+    }
   }
 
   @override
@@ -56,7 +72,7 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
-                  'Pick a color, then click — or press and drag — across keys.',
+                  'Click or drag to paint  ·  Shift = erase  ·  Alt = pick color',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.5),
                   ),
@@ -119,10 +135,10 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
               ? SystemMouseCursors.click
               : MouseCursor.defer,
           onEnter: (_) {
-            if (_painting) _paint(index);
+            if (_painting) _apply(index, isDrag: true);
           },
           child: Listener(
-            onPointerDown: (_) => _paint(index),
+            onPointerDown: (_) => _apply(index, isDrag: false),
             child: Container(
               alignment: Alignment.center,
               decoration: BoxDecoration(
@@ -162,10 +178,10 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
                 final color = index >= 0 ? widget.keyColors[index] : null;
                 return MouseRegion(
                   onEnter: (_) {
-                    if (_painting) _paint(index);
+                    if (_painting) _apply(index, isDrag: true);
                   },
                   child: Listener(
-                    onPointerDown: (_) => _paint(index),
+                    onPointerDown: (_) => _apply(index, isDrag: false),
                     child: Container(
                       height: 8,
                       margin: const EdgeInsets.symmetric(horizontal: 2),

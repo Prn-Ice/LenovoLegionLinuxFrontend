@@ -59,6 +59,36 @@ final class RgbKeyPainted extends RgbLightingEvent {
   List<Object?> get props => [ledIndex];
 }
 
+/// Turn a single LED off (Direct mode) — shift-click "erase".
+final class RgbKeyErased extends RgbLightingEvent {
+  const RgbKeyErased(this.ledIndex);
+
+  final int ledIndex;
+
+  @override
+  List<Object?> get props => [ledIndex];
+}
+
+/// Copy an LED's current color into the selected color (eyedropper).
+final class RgbKeyPicked extends RgbLightingEvent {
+  const RgbKeyPicked(this.ledIndex);
+
+  final int ledIndex;
+
+  @override
+  List<Object?> get props => [ledIndex];
+}
+
+/// Paint a subset of LEDs (by index) with the selected color — region fills.
+final class RgbRegionFilled extends RgbLightingEvent {
+  const RgbRegionFilled(this.ledIndices);
+
+  final List<int> ledIndices;
+
+  @override
+  List<Object?> get props => [ledIndices];
+}
+
 /// Fill every LED with [color] (Direct mode) — the basis for presets.
 final class RgbAllKeysFilled extends RgbLightingEvent {
   const RgbAllKeysFilled(this.color);

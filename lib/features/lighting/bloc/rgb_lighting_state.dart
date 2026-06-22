@@ -18,6 +18,7 @@ class RgbLightingState extends Equatable {
     this.isApplying = false,
     this.errorMessage,
     this.nativeAvailable = false,
+    this.directColors = const [],
   });
 
   static const _unset = Object();
@@ -48,6 +49,10 @@ class RgbLightingState extends Equatable {
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
   final bool nativeAvailable;
 
+  /// The per-key Direct buffer saved when switching to a non-Direct mode, so
+  /// returning to Direct restores the painting instead of a flat fill.
+  final List<Color> directColors;
+
   RgbLightingState copyWith({
     bool? available,
     Object? device = _unset,
@@ -59,6 +64,7 @@ class RgbLightingState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     bool? nativeAvailable,
+    List<Color>? directColors,
   }) {
     return RgbLightingState(
       available: available ?? this.available,
@@ -75,6 +81,7 @@ class RgbLightingState extends Equatable {
           ? this.errorMessage
           : errorMessage as String?,
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
+      directColors: directColors ?? this.directColors,
     );
   }
 
@@ -90,5 +97,6 @@ class RgbLightingState extends Equatable {
     isApplying,
     errorMessage,
     nativeAvailable,
+    directColors,
   ];
 }

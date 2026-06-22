@@ -145,5 +145,75 @@ void main() {
         expect(repo.lastDirect?.length, 3);
       },
     );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'KeyErased turns a painted LED off',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbColorSelected(Color(0xFFFF0000)));
+        b.add(const RgbKeyPainted(1));
+        b.add(const RgbKeyErased(1));
+      }),
+      verify: (b) {
+        expect(b.state.keyColors[1], const Color(0xFF000000));
+        expect(repo.lastDirect?[1], const Color(0xFF000000));
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'KeyPicked copies an LED color into the selected color',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbColorSelected(Color(0xFF00FF00)));
+        b.add(const RgbKeyPainted(2));
+        b.add(const RgbColorSelected(Color(0xFFFF0000)));
+        b.add(const RgbKeyPicked(2));
+      }),
+      verify: (b) => expect(b.state.selectedColor, const Color(0xFF00FF00)),
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'RegionFilled paints only the given LEDs',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbColorSelected(Color(0xFF0000FF)));
+        b.add(const RgbRegionFilled([0, 2]));
+      }),
+      verify: (b) {
+        expect(b.state.keyColors[0], const Color(0xFF0000FF));
+        expect(b.state.keyColors[1], const Color(0xFF000000));
+        expect(b.state.keyColors[2], const Color(0xFF0000FF));
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Static fills the keyboard, saving the Direct buffer; Direct restores it',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbColorSelected(Color(0xFFFF0000)));
+        b.add(const RgbKeyPainted(0));
+        b.add(const RgbColorSelected(Color(0xFF00FF00)));
+        b.add(const RgbModeSelected('Static'));
+        b.add(const RgbModeSelected('Direct'));
+      }),
+      verify: (b) {
+        expect(b.state.activeMode, 'Direct');
+        expect(b.state.keyColors[0], const Color(0xFFFF0000));
+        expect(b.state.keyColors[1], const Color(0xFF000000));
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Static applies color changes immediately as a uniform fill',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbModeSelected('Static'));
+        b.add(const RgbColorSelected(Color(0xFF123456)));
+      }),
+      verify: (b) {
+        expect(b.state.activeMode, 'Static');
+        expect(b.state.keyColors, everyElement(const Color(0xFF123456)));
+      },
+    );
   });
 }

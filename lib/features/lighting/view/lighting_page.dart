@@ -14,6 +14,7 @@ import '../bloc/rgb_lighting_event.dart';
 import '../models/openrgb_device.dart';
 import '../providers/lighting_provider.dart';
 import '../repository/rgb_lighting_repository.dart';
+import 'keyboard_layout.dart';
 import 'keyboard_preview.dart';
 
 /// The lighting identity accent (magenta), local to this page — it does not
@@ -88,6 +89,8 @@ class LightingPage extends ConsumerWidget {
             keyColors: rgb.keyColors,
             enabled: !rgb.isApplying,
             onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
+            onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
+            onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
           ),
           const SizedBox(height: 16),
           _ColorCard(
@@ -95,6 +98,12 @@ class LightingPage extends ConsumerWidget {
             enabled: !rgb.isApplying,
             onSelected: (color) => rgbBloc.add(RgbColorSelected(color)),
             onFill: () => rgbBloc.add(RgbAllKeysFilled(rgb.selectedColor)),
+          ),
+          const SizedBox(height: 16),
+          _QuickFillCard(
+            leds: device.leds,
+            enabled: !rgb.isApplying,
+            onFill: (indices) => rgbBloc.add(RgbRegionFilled(indices)),
           ),
           const SizedBox(height: 16),
           _ControlCard(
@@ -218,12 +227,16 @@ class _KeyboardCard extends StatelessWidget {
     required this.keyColors,
     required this.enabled,
     required this.onPaint,
+    required this.onErase,
+    required this.onPick,
   });
 
   final List<String> leds;
   final List<Color> keyColors;
   final bool enabled;
   final ValueChanged<int> onPaint;
+  final ValueChanged<int> onErase;
+  final ValueChanged<int> onPick;
 
   @override
   Widget build(BuildContext context) {
@@ -239,6 +252,49 @@ class _KeyboardCard extends StatelessWidget {
         keyColors: keyColors,
         enabled: enabled,
         onPaint: onPaint,
+        onErase: onErase,
+        onPick: onPick,
+      ),
+    );
+  }
+}
+
+/// One-tap fills for named key regions (Function row, Numpad, …). Resolves each
+/// region's LED names against [leds] and emits the matched indices.
+class _QuickFillCard extends StatelessWidget {
+  const _QuickFillCard({
+    required this.leds,
+    required this.enabled,
+    required this.onFill,
+  });
+
+  final List<String> leds;
+  final bool enabled;
+  final ValueChanged<List<int>> onFill;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ControlCard(
+      title: 'Quick fill',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final entry in kKeyboardRegions.entries)
+            ActionChip(
+              label: Text(entry.key),
+              onPressed: enabled
+                  ? () {
+                      final indices = <int>[];
+                      for (final name in entry.value) {
+                        final index = leds.indexOf(name);
+                        if (index >= 0) indices.add(index);
+                      }
+                      if (indices.isNotEmpty) onFill(indices);
+                    }
+                  : null,
+            ),
+        ],
       ),
     );
   }

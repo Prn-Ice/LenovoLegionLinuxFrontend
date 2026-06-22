@@ -65,7 +65,8 @@ class LightingState extends Equatable {
           ? this.whiteKeyboardBacklightEnabled
           : whiteKeyboardBacklightEnabled as bool?,
       whiteKeyboardBacklightSupported:
-          whiteKeyboardBacklightSupported ?? this.whiteKeyboardBacklightSupported,
+          whiteKeyboardBacklightSupported ??
+          this.whiteKeyboardBacklightSupported,
       yLogoLightEnabled: yLogoLightEnabled == _unset
           ? this.yLogoLightEnabled
           : yLogoLightEnabled as bool?,

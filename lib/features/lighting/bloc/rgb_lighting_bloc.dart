@@ -23,6 +23,9 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     on<RgbColorSelected>(_onColorSelected);
     on<RgbBrightnessChanged>(_onBrightnessChanged);
     on<RgbKeyPainted>(_onKeyPainted);
+    on<RgbKeyErased>(_onKeyErased);
+    on<RgbKeyPicked>(_onKeyPicked);
+    on<RgbRegionFilled>(_onRegionFilled);
     on<RgbAllKeysFilled>(_onAllKeysFilled);
   }
 
@@ -80,7 +83,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       index: 0,
       name: 'Legion Keyboard',
       type: 'Keyboard',
-      modes: const ['Direct'],
+      modes: const ['Direct', 'Static'],
       activeMode: 'Direct',
       leds: kSpectrumLedValues.keys.toList(),
     );
@@ -92,22 +95,60 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   ) async {
     final device = state.device;
     if (device == null) return;
-    emit(state.copyWith(activeMode: event.mode, isApplying: true));
+    final mode = event.mode;
+
+    // Remember the Direct painting before leaving it, so Direct can restore it.
+    final savedDirect = state.activeMode == 'Direct'
+        ? List<Color>.of(state.keyColors)
+        : state.directColors;
+
+    if (mode == 'Direct') {
+      final restored = state.directColors.length == device.ledCount
+          ? state.directColors
+          : state.keyColors;
+      await _applyColors(emit, device, restored, activeMode: 'Direct');
+      return;
+    }
+
+    if (mode == 'Static') {
+      // Fill the whole keyboard with the selected color to signal Static mode.
+      final filled = List<Color>.filled(device.ledCount, state.selectedColor);
+      emit(state.copyWith(directColors: savedDirect));
+      await _applyStatic(emit, device, filled);
+      return;
+    }
+
+    // Hardware animation effect (Rainbow Wave, Color Pulse, …) — OpenRGB only.
+    emit(
+      state.copyWith(
+        activeMode: mode,
+        directColors: savedDirect,
+        isApplying: true,
+      ),
+    );
     await _guard(
       emit,
       () => _repository.applyMode(
         device,
-        event.mode,
+        mode,
         color: state.selectedColor,
         brightness: state.brightness,
       ),
     );
   }
 
-  void _onColorSelected(
+  Future<void> _onColorSelected(
     RgbColorSelected event,
     Emitter<RgbLightingState> emit,
-  ) {
+  ) async {
+    final device = state.device;
+    // In Static the color is the keyboard color, so apply it immediately.
+    if (state.activeMode == 'Static' && device != null) {
+      final filled = List<Color>.filled(device.ledCount, event.color);
+      emit(state.copyWith(selectedColor: event.color));
+      await _applyStatic(emit, device, filled);
+      return;
+    }
     emit(state.copyWith(selectedColor: event.color));
   }
 
@@ -133,24 +174,41 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     RgbKeyPainted event,
     Emitter<RgbLightingState> emit,
   ) async {
+    final colors = _withLed(event.ledIndex, state.selectedColor);
+    if (colors == null) return;
+    await _applyColors(emit, state.device!, colors);
+  }
+
+  Future<void> _onKeyErased(
+    RgbKeyErased event,
+    Emitter<RgbLightingState> emit,
+  ) async {
+    final colors = _withLed(event.ledIndex, _off);
+    if (colors == null) return;
+    await _applyColors(emit, state.device!, colors);
+  }
+
+  void _onKeyPicked(RgbKeyPicked event, Emitter<RgbLightingState> emit) {
+    final index = event.ledIndex;
+    if (index < 0 || index >= state.keyColors.length) return;
+    final color = state.keyColors[index];
+    if (color == _off) return; // nothing to pick from an unlit key
+    emit(state.copyWith(selectedColor: color));
+  }
+
+  Future<void> _onRegionFilled(
+    RgbRegionFilled event,
+    Emitter<RgbLightingState> emit,
+  ) async {
     final device = state.device;
     if (device == null) return;
-    if (event.ledIndex < 0 || event.ledIndex >= state.keyColors.length) return;
     final colors = [...state.keyColors];
-    colors[event.ledIndex] = state.selectedColor;
-    if (state.nativeAvailable && _native != null) {
-      _native.paint(device.leds, colors);
-      emit(state.copyWith(keyColors: colors, activeMode: 'Direct'));
-      return;
+    for (final index in event.ledIndices) {
+      if (index >= 0 && index < colors.length) {
+        colors[index] = state.selectedColor;
+      }
     }
-    emit(
-      state.copyWith(keyColors: colors, activeMode: 'Direct', isApplying: true),
-    );
-    await _guard(
-      emit,
-      () =>
-          _repository.applyDirect(device, colors, brightness: state.brightness),
-    );
+    await _applyColors(emit, device, colors);
   }
 
   Future<void> _onAllKeysFilled(
@@ -160,13 +218,35 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     final device = state.device;
     if (device == null) return;
     final colors = List<Color>.filled(device.ledCount, event.color);
+    await _applyColors(emit, device, colors, selectedColor: event.color);
+  }
+
+  /// A copy of the key buffer with [ledIndex] set to [color], or null if the
+  /// device is missing or the index is out of range.
+  List<Color>? _withLed(int ledIndex, Color color) {
+    if (state.device == null) return null;
+    if (ledIndex < 0 || ledIndex >= state.keyColors.length) return null;
+    final colors = [...state.keyColors];
+    colors[ledIndex] = color;
+    return colors;
+  }
+
+  /// Pushes a Direct [colors] buffer to the keyboard (native frame when
+  /// available, else the OpenRGB CLI) and records it in state.
+  Future<void> _applyColors(
+    Emitter<RgbLightingState> emit,
+    OpenRgbDevice device,
+    List<Color> colors, {
+    Color? selectedColor,
+    String activeMode = 'Direct',
+  }) async {
     if (state.nativeAvailable && _native != null) {
       _native.paint(device.leds, colors);
       emit(
         state.copyWith(
           keyColors: colors,
-          selectedColor: event.color,
-          activeMode: 'Direct',
+          activeMode: activeMode,
+          selectedColor: selectedColor,
         ),
       );
       return;
@@ -174,8 +254,8 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     emit(
       state.copyWith(
         keyColors: colors,
-        selectedColor: event.color,
-        activeMode: 'Direct',
+        activeMode: activeMode,
+        selectedColor: selectedColor,
         isApplying: true,
       ),
     );
@@ -183,6 +263,32 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       emit,
       () =>
           _repository.applyDirect(device, colors, brightness: state.brightness),
+    );
+  }
+
+  /// Applies a uniform Static fill — a native Direct frame when available, else
+  /// the OpenRGB hardware "Static" mode. Keeps [keyColors] filled for the view.
+  Future<void> _applyStatic(
+    Emitter<RgbLightingState> emit,
+    OpenRgbDevice device,
+    List<Color> filled,
+  ) async {
+    if (state.nativeAvailable && _native != null) {
+      _native.paint(device.leds, filled);
+      emit(state.copyWith(keyColors: filled, activeMode: 'Static'));
+      return;
+    }
+    emit(
+      state.copyWith(keyColors: filled, activeMode: 'Static', isApplying: true),
+    );
+    await _guard(
+      emit,
+      () => _repository.applyMode(
+        device,
+        'Static',
+        color: state.selectedColor,
+        brightness: state.brightness,
+      ),
     );
   }
 
