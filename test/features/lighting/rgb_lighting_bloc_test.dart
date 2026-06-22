@@ -6,7 +6,9 @@ import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_bloc.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_event.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_state.dart';
 import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
+import 'package:legion_frontend/features/lighting/models/rgb_lighting_snapshot.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
+import 'package:legion_frontend/features/lighting/repository/rgb_lighting_store.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart';
 
 const _kbd = OpenRgbDevice(
@@ -56,6 +58,19 @@ class _FakeRepo extends RgbLightingRepository {
   Future<void> setBrightness(OpenRgbDevice device, int percent) async {
     lastBrightness = percent;
   }
+}
+
+class _FakeStore extends RgbLightingStore {
+  _FakeStore([this.snapshot]) : super(null);
+
+  final RgbLightingSnapshot? snapshot;
+  RgbLightingSnapshot? saved;
+
+  @override
+  RgbLightingSnapshot? load() => snapshot;
+
+  @override
+  Future<void> save(RgbLightingSnapshot snapshot) async => saved = snapshot;
 }
 
 /// act() that loads the device, then runs [more].
@@ -256,5 +271,49 @@ void main() {
       }),
       verify: (b) => expect(b.state.effects, isEmpty),
     );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Started restores and re-applies a saved snapshot that fits the device',
+      build: () => RgbLightingBloc(
+        repository: repo,
+        store: _FakeStore(
+          const RgbLightingSnapshot(
+            keyColors: [
+              Color(0xFFFF0000),
+              Color(0xFF00FF00),
+              Color(0xFF0000FF),
+            ],
+            selectedColor: Color(0xFF00FF00),
+            brightness: 55,
+            activeMode: 'Direct',
+            effects: [],
+          ),
+        ),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.keyColors, [
+          const Color(0xFFFF0000),
+          const Color(0xFF00FF00),
+          const Color(0xFF0000FF),
+        ]);
+        expect(b.state.brightness, 55);
+        expect(b.state.selectedColor, const Color(0xFF00FF00));
+        expect(repo.lastDirect, isNotNull); // re-applied (native absent → CLI)
+      },
+    );
+
+    test('persists the painting whenever it changes', () async {
+      final store = _FakeStore();
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      await _startThen(bloc, () {
+        bloc.add(const RgbColorSelected(Color(0xFFAABBCC)));
+        bloc.add(const RgbKeyPainted(0));
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(store.saved, isNotNull);
+      expect(store.saved!.keyColors[0], const Color(0xFFAABBCC));
+      await bloc.close();
+    });
   });
 }

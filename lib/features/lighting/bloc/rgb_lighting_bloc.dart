@@ -3,7 +3,9 @@ import 'dart:ui' show Color;
 import 'package:riverbloc/riverbloc.dart';
 
 import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_snapshot.dart';
 import '../repository/rgb_lighting_repository.dart';
+import '../repository/rgb_lighting_store.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/spectrum_effects.dart';
 import '../services/spectrum_led_map.dart';
@@ -15,8 +17,10 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   RgbLightingBloc({
     required RgbLightingRepository repository,
     SpectrumRgbRepository? nativeRepository,
+    RgbLightingStore? store,
   }) : _repository = repository,
        _native = nativeRepository,
+       _store = store,
        super(const RgbLightingState()) {
     on<RgbLightingStarted>(_onStarted);
     on<RgbLightingRefreshRequested>(_onStarted);
@@ -34,8 +38,26 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
 
   final RgbLightingRepository _repository;
   final SpectrumRgbRepository? _native;
+  final RgbLightingStore? _store;
 
   static const Color _off = Color(0xFF000000);
+
+  @override
+  void onChange(Change<RgbLightingState> change) {
+    super.onChange(change);
+    final next = change.nextState;
+    if (next.available && next.device != null && !next.isLoading) {
+      _store?.save(
+        RgbLightingSnapshot(
+          keyColors: next.keyColors,
+          selectedColor: next.selectedColor,
+          brightness: next.brightness,
+          activeMode: next.activeMode,
+          effects: next.effects,
+        ),
+      );
+    }
+  }
 
   Future<void> _onStarted(
     RgbLightingEvent event,
@@ -57,16 +79,40 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         );
         return;
       }
+      // Restore the remembered painting when it fits this keyboard.
+      final saved = _store?.load();
+      final snapshot =
+          (saved != null && saved.keyColors.length == device.ledCount)
+          ? saved
+          : null;
+      final keyColors =
+          snapshot?.keyColors ?? List<Color>.filled(device.ledCount, _off);
       emit(
         state.copyWith(
           available: true,
           device: device,
-          activeMode: device.activeMode,
-          keyColors: List<Color>.filled(device.ledCount, _off),
+          activeMode: snapshot?.activeMode ?? device.activeMode,
+          keyColors: keyColors,
+          selectedColor: snapshot?.selectedColor,
+          brightness: snapshot?.brightness,
+          effects: snapshot?.effects ?? const [],
           isLoading: false,
           nativeAvailable: nativeOk,
         ),
       );
+      // Persist & re-apply: push the remembered painting back to the keyboard.
+      if (snapshot != null) {
+        if (nativeOk && _native != null) {
+          _native.paint(device.leds, keyColors);
+          _native.setBrightness(snapshot.brightness);
+        } else {
+          await _repository.applyDirect(
+            device,
+            keyColors,
+            brightness: snapshot.brightness,
+          );
+        }
+      }
     } catch (error) {
       emit(
         state.copyWith(

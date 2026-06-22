@@ -9,6 +9,9 @@ import '../bloc/rgb_lighting_event.dart';
 import '../bloc/rgb_lighting_state.dart';
 import '../repository/lighting_repository.dart';
 import '../repository/rgb_lighting_repository.dart';
+import 'package:hive_ce/hive.dart';
+
+import '../repository/rgb_lighting_store.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/openrgb_cli_service.dart';
 import '../services/spectrum_effect_engine.dart';
@@ -51,11 +54,20 @@ final spectrumEffectEngineProvider = Provider<SpectrumEffectEngine>((ref) {
   return engine;
 });
 
+/// Persists the per-key RGB config (so it survives navigation + restarts).
+final rgbLightingStoreProvider = Provider<RgbLightingStore>(
+  (ref) => RgbLightingStore(Hive.box<dynamic>('rgb_lighting')),
+);
+
 /// Per-key RGB bloc; auto-loads the keyboard on creation.
 final rgbLightingBlocProvider =
     BlocProvider.autoDispose<RgbLightingBloc, RgbLightingState>((ref) {
       final repository = ref.watch(rgbLightingRepositoryProvider);
       final native = ref.watch(spectrumRgbRepositoryProvider);
-      return RgbLightingBloc(repository: repository, nativeRepository: native)
-        ..add(const RgbLightingStarted());
+      final store = ref.watch(rgbLightingStoreProvider);
+      return RgbLightingBloc(
+        repository: repository,
+        nativeRepository: native,
+        store: store,
+      )..add(const RgbLightingStarted());
     });

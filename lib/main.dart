@@ -12,5 +12,6 @@ Future<void> main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(SensorRecordAdapter());
   await Hive.openBox<SensorRecord>('sensor_records');
+  await Hive.openBox<dynamic>('rgb_lighting');
   runApp(const ProviderScope(child: LegionFrontendApp()));
 }
