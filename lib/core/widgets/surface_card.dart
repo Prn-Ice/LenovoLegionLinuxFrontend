@@ -28,10 +28,20 @@ class SurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Design: a subtle raise over the page (#333 over #2a2a2a), not Yaru's
+    // lightest container which reads too bright. Derive it from the surface so
+    // it tracks the theme.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final defaultFill = isDark
+        ? Color.alphaBlend(
+            Colors.white.withValues(alpha: 0.045),
+            scheme.surface,
+          )
+        : scheme.surfaceContainerLow;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? scheme.surfaceContainerHighest,
+        color: color ?? defaultFill,
         borderRadius: _radius,
         border:
             border ??

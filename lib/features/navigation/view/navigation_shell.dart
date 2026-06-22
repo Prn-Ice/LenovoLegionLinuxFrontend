@@ -83,6 +83,11 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     context,
   ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
 
+  /// Subtle 1px underline beneath the title bars, like the design.
+  BorderSide _titleBarBorder(BuildContext context) => BorderSide(
+    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+  );
+
   @override
   Widget build(BuildContext context) {
     // Keep controllers in sync with the navigation bloc.
@@ -124,7 +129,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
               return YaruWindowTitleBar(
                 title: Text(section.label, style: _titleStyle(context)),
                 centerTitle: false,
-                border: BorderSide.none,
+                border: _titleBarBorder(context),
                 actions: _titleBarActions(section),
               );
             },
@@ -175,7 +180,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
           final section = NavShellEntries.sections[index];
           return YaruDetailPage(
             appBar: YaruWindowTitleBar(
-              border: BorderSide.none,
+              border: _titleBarBorder(context),
               centerTitle: false,
               leading: Navigator.of(context).canPop()
                   ? const YaruBackButton()
@@ -194,7 +199,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             child: Center(child: LegionMark(color: accent, size: 22)),
           ),
           title: Text('Legion', style: _titleStyle(context)),
-          border: BorderSide.none,
+          border: _titleBarBorder(context),
           backgroundColor: sidebarColor,
         ),
         bottomBar: const _SidebarStatusFooter(),
