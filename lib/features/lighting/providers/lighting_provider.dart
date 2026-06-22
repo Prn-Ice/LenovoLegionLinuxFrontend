@@ -4,6 +4,9 @@ import '../../../core/providers/system_services_provider.dart';
 import '../bloc/lighting_bloc.dart';
 import '../bloc/lighting_event.dart';
 import '../bloc/lighting_state.dart';
+import '../bloc/rgb_lighting_bloc.dart';
+import '../bloc/rgb_lighting_event.dart';
+import '../bloc/rgb_lighting_state.dart';
 import '../repository/lighting_repository.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../services/openrgb_cli_service.dart';
@@ -33,3 +36,11 @@ final openRgbServiceProvider = Provider<OpenRgbCliService>(
 final rgbLightingRepositoryProvider = Provider<RgbLightingRepository>(
   (ref) => RgbLightingRepository(service: ref.watch(openRgbServiceProvider)),
 );
+
+/// Per-key RGB bloc; auto-loads the keyboard on creation.
+final rgbLightingBlocProvider =
+    BlocProvider.autoDispose<RgbLightingBloc, RgbLightingState>((ref) {
+      final repository = ref.watch(rgbLightingRepositoryProvider);
+      return RgbLightingBloc(repository: repository)
+        ..add(const RgbLightingStarted());
+    });
