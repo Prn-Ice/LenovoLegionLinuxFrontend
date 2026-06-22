@@ -17,6 +17,7 @@ class RgbLightingState extends Equatable {
     this.isLoading = false,
     this.isApplying = false,
     this.errorMessage,
+    this.nativeAvailable = false,
   });
 
   static const _unset = Object();
@@ -43,6 +44,10 @@ class RgbLightingState extends Equatable {
   final bool isApplying;
   final String? errorMessage;
 
+  /// Whether the native (real-time, hidraw) Spectrum path is available — when
+  /// true, per-key writes go direct instead of via the OpenRGB CLI.
+  final bool nativeAvailable;
+
   RgbLightingState copyWith({
     bool? available,
     Object? device = _unset,
@@ -53,6 +58,7 @@ class RgbLightingState extends Equatable {
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
+    bool? nativeAvailable,
   }) {
     return RgbLightingState(
       available: available ?? this.available,
@@ -68,6 +74,7 @@ class RgbLightingState extends Equatable {
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : errorMessage as String?,
+      nativeAvailable: nativeAvailable ?? this.nativeAvailable,
     );
   }
 
@@ -82,5 +89,6 @@ class RgbLightingState extends Equatable {
     isLoading,
     isApplying,
     errorMessage,
+    nativeAvailable,
   ];
 }

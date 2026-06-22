@@ -77,7 +77,11 @@ class LightingPage extends ConsumerWidget {
       noticeMessage: lighting.noticeMessage,
       children: [
         if (rgb.available && device != null) ...[
-          _DeviceCard(device: device, activeMode: rgb.activeMode),
+          _DeviceCard(
+            device: device,
+            activeMode: rgb.activeMode,
+            nativeAvailable: rgb.nativeAvailable,
+          ),
           const SizedBox(height: 16),
           _KeyboardCard(
             leds: device.leds,
@@ -151,10 +155,15 @@ class _ControlCard extends StatelessWidget {
 
 /// The OpenRGB keyboard identity card (magenta), with name + active effect.
 class _DeviceCard extends StatelessWidget {
-  const _DeviceCard({required this.device, required this.activeMode});
+  const _DeviceCard({
+    required this.device,
+    required this.activeMode,
+    required this.nativeAvailable,
+  });
 
   final OpenRgbDevice device;
   final String? activeMode;
+  final bool nativeAvailable;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +172,7 @@ class _DeviceCard extends StatelessWidget {
     final facts = <String>[
       if (device.ledCount > 0) '${device.ledCount} keys',
       ?activeMode,
-      'via OpenRGB',
+      if (nativeAvailable) 'real-time' else 'via OpenRGB',
     ].join('  ·  ');
 
     return SurfaceCard(

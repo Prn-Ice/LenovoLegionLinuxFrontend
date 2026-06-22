@@ -47,6 +47,7 @@ final spectrumRgbRepositoryProvider = Provider<SpectrumRgbRepository>(
 final rgbLightingBlocProvider =
     BlocProvider.autoDispose<RgbLightingBloc, RgbLightingState>((ref) {
       final repository = ref.watch(rgbLightingRepositoryProvider);
-      return RgbLightingBloc(repository: repository)
+      final native = ref.watch(spectrumRgbRepositoryProvider);
+      return RgbLightingBloc(repository: repository, nativeRepository: native)
         ..add(const RgbLightingStarted());
     });

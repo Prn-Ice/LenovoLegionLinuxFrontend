@@ -3,14 +3,18 @@ import 'dart:ui' show Color;
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/rgb_lighting_repository.dart';
+import '../repository/spectrum_rgb_repository.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
 
 /// Drives per-key keyboard RGB through [RgbLightingRepository] (OpenRGB).
 class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
-  RgbLightingBloc({required RgbLightingRepository repository})
-    : _repository = repository,
-      super(const RgbLightingState()) {
+  RgbLightingBloc({
+    required RgbLightingRepository repository,
+    SpectrumRgbRepository? nativeRepository,
+  }) : _repository = repository,
+       _native = nativeRepository,
+       super(const RgbLightingState()) {
     on<RgbLightingStarted>(_onStarted);
     on<RgbLightingRefreshRequested>(_onStarted);
     on<RgbModeSelected>(_onModeSelected);
@@ -21,6 +25,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   }
 
   final RgbLightingRepository _repository;
+  final SpectrumRgbRepository? _native;
 
   static const Color _off = Color(0xFF000000);
 
@@ -42,6 +47,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           activeMode: device.activeMode,
           keyColors: List<Color>.filled(device.ledCount, _off),
           isLoading: false,
+          nativeAvailable: _native?.isAvailable ?? false,
         ),
       );
     } catch (error) {
@@ -86,6 +92,11 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   ) async {
     final device = state.device;
     if (device == null) return;
+    if (state.nativeAvailable && _native != null) {
+      _native.setBrightness(event.brightness);
+      emit(state.copyWith(brightness: event.brightness));
+      return;
+    }
     emit(state.copyWith(brightness: event.brightness, isApplying: true));
     await _guard(
       emit,
@@ -102,6 +113,11 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     if (event.ledIndex < 0 || event.ledIndex >= state.keyColors.length) return;
     final colors = [...state.keyColors];
     colors[event.ledIndex] = state.selectedColor;
+    if (state.nativeAvailable && _native != null) {
+      _native.paint(device.leds, colors);
+      emit(state.copyWith(keyColors: colors, activeMode: 'Direct'));
+      return;
+    }
     emit(
       state.copyWith(keyColors: colors, activeMode: 'Direct', isApplying: true),
     );
@@ -119,6 +135,17 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     final device = state.device;
     if (device == null) return;
     final colors = List<Color>.filled(device.ledCount, event.color);
+    if (state.nativeAvailable && _native != null) {
+      _native.paint(device.leds, colors);
+      emit(
+        state.copyWith(
+          keyColors: colors,
+          selectedColor: event.color,
+          activeMode: 'Direct',
+        ),
+      );
+      return;
+    }
     emit(
       state.copyWith(
         keyColors: colors,
