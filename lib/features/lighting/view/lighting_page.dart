@@ -849,11 +849,11 @@ class _HexFieldState extends State<_HexField> {
         ),
         textCapitalization: TextCapitalization.characters,
         onSubmitted: _submit,
+        // Just unfocus on tap-outside; don't re-submit, or tapping a swatch /
+        // the SV square would clobber that selection with the old hex. Press
+        // Enter to apply a typed value.
         onTapOutside: (_) {
-          if (_focus.hasFocus) {
-            _submit(_controller.text);
-            _focus.unfocus();
-          }
+          if (_focus.hasFocus) _focus.unfocus();
         },
       ),
     );
