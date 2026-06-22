@@ -78,6 +78,11 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     ];
   }
 
+  /// Bold style for the window/sidebar titles, matching the design.
+  TextStyle? _titleStyle(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+
   @override
   Widget build(BuildContext context) {
     // Keep controllers in sync with the navigation bloc.
@@ -117,7 +122,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             builder: (context, ref, _) {
               final section = ref.watch(navigationBlocProvider).section;
               return YaruWindowTitleBar(
-                title: Text(section.label),
+                title: Text(section.label, style: _titleStyle(context)),
                 centerTitle: false,
                 border: BorderSide.none,
                 actions: _titleBarActions(section),
@@ -160,6 +165,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            horizontalTitleGap: 8,
             child: YaruMasterTile(
               leading: Icon(section.yaruIcon),
               title: Text(section.label),
@@ -175,23 +182,25 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
               leading: Navigator.of(context).canPop()
                   ? const YaruBackButton()
                   : null,
-              title: Text(section.label),
+              title: Text(section.label, style: _titleStyle(context)),
               actions: _titleBarActions(section),
             ),
             body: _buildPage(section),
           );
         },
         appBar: YaruWindowTitleBar(
+          centerTitle: false,
+          titleSpacing: 0,
           leading: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Center(
               child: LegionMark(
                 color: Theme.of(context).colorScheme.primary,
-                size: 20,
+                size: 22,
               ),
             ),
           ),
-          title: const Text('Legion'),
+          title: Text('Legion', style: _titleStyle(context)),
           border: BorderSide.none,
           backgroundColor: sidebarColor,
         ),
