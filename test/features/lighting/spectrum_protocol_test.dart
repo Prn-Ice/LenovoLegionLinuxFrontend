@@ -57,4 +57,11 @@ void main() {
       expect(spectrumDirectPackets(const []), isEmpty);
     });
   });
+
+  group('hidiocSetFeature', () {
+    test('computes the HIDIOCSFEATURE ioctl request number', () {
+      expect(hidiocSetFeature(192), 0xC0C04806);
+      expect(hidiocSetFeature(0), 0xC0004806);
+    });
+  });
 }

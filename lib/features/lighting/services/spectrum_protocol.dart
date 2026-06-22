@@ -37,6 +37,11 @@ Uint8List _instruction(int instruction) {
   return buffer;
 }
 
+/// The Linux `HIDIOCSFEATURE(length)` ioctl request number — send a feature
+/// report of [length] bytes: `_IOC(_IOC_READ|_IOC_WRITE, 'H', 0x06, length)`.
+int hidiocSetFeature(int length) =>
+    (3 << 30) | (0x48 << 8) | 0x06 | (length << 16);
+
 /// Builds the direct-mode feature reports for [leds] on [zone] (0 = keyboard),
 /// split into packets of at most 47 LEDs. Each LED block is
 /// `[number, R, G, B]` at offset `i*4 + 4`.
