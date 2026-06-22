@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
@@ -472,13 +470,12 @@ class _ColorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return _ControlCard(
       title: 'Color',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _ColorWheel(
+          _ColorPicker(
             selected: selected,
             onChanged: enabled ? onSelected : (_) {},
           ),
@@ -488,11 +485,10 @@ class _ColorCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '#${colorToOpenRgbHex(selected)}',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                _HexField(
+                  color: selected,
+                  enabled: enabled,
+                  onChanged: onSelected,
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -525,74 +521,239 @@ class _ColorCard extends StatelessWidget {
   }
 }
 
-/// A hue ring: tap or drag around it to pick a fully-saturated color.
-class _ColorWheel extends StatelessWidget {
-  const _ColorWheel({required this.selected, required this.onChanged});
+/// A precise color picker: a saturation/value square over the current hue, plus
+/// a hue slider. Tap or drag either — reaches every color (white, pastels, dim
+/// shades, warm whites), unlike a hue-only wheel. Keeps a remembered hue so
+/// greys/whites don't lose it.
+class _ColorPicker extends StatefulWidget {
+  const _ColorPicker({required this.selected, required this.onChanged});
 
   final Color selected;
   final ValueChanged<Color> onChanged;
 
-  static const double _size = 132;
+  static const double width = 150;
+  static const double svHeight = 110;
+  static const double hueHeight = 16;
 
-  void _pick(Offset local) {
-    const center = Offset(_size / 2, _size / 2);
-    final vector = local - center;
-    final hue = (math.atan2(vector.dy, vector.dx) * 180 / math.pi + 360) % 360;
-    onChanged(HSVColor.fromAHSV(1, hue, 1, 1).toColor());
+  @override
+  State<_ColorPicker> createState() => _ColorPickerState();
+}
+
+class _ColorPickerState extends State<_ColorPicker> {
+  late double _hue = HSVColor.fromColor(widget.selected).hue;
+
+  @override
+  void didUpdateWidget(_ColorPicker old) {
+    super.didUpdateWidget(old);
+    final hsv = HSVColor.fromColor(widget.selected);
+    if (hsv.saturation > 0.02 && hsv.value > 0.02) _hue = hsv.hue;
+  }
+
+  void _pickSv(Offset p) {
+    final s = (p.dx / _ColorPicker.width).clamp(0.0, 1.0);
+    final v = (1 - p.dy / _ColorPicker.svHeight).clamp(0.0, 1.0);
+    widget.onChanged(HSVColor.fromAHSV(1, _hue, s, v).toColor());
+  }
+
+  void _pickHue(Offset p) {
+    setState(() => _hue = (p.dx / _ColorPicker.width * 360).clamp(0.0, 359.99));
+    final hsv = HSVColor.fromColor(widget.selected);
+    widget.onChanged(
+      HSVColor.fromAHSV(1, _hue, hsv.saturation, hsv.value).toColor(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanDown: (details) => _pick(details.localPosition),
-      onPanUpdate: (details) => _pick(details.localPosition),
-      child: CustomPaint(
-        size: const Size.square(_size),
-        painter: _WheelPainter(HSVColor.fromColor(selected).hue),
-      ),
+    final hsv = HSVColor.fromColor(widget.selected);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onPanDown: (d) => _pickSv(d.localPosition),
+          onPanUpdate: (d) => _pickSv(d.localPosition),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: CustomPaint(
+              size: const Size(_ColorPicker.width, _ColorPicker.svHeight),
+              painter: _SvPainter(_hue, hsv.saturation, hsv.value),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onPanDown: (d) => _pickHue(d.localPosition),
+          onPanUpdate: (d) => _pickHue(d.localPosition),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(_ColorPicker.hueHeight / 2),
+            child: CustomPaint(
+              size: const Size(_ColorPicker.width, _ColorPicker.hueHeight),
+              painter: _HuePainter(_hue),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _WheelPainter extends CustomPainter {
-  const _WheelPainter(this.hue);
+class _SvPainter extends CustomPainter {
+  _SvPainter(this.hue, this.saturation, this.value);
+
+  final double hue;
+  final double saturation;
+  final double value;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final hueColor = HSVColor.fromAHSV(1, hue, 1, 1).toColor();
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [const Color(0xFFFFFFFF), hueColor],
+        ).createShader(rect),
+    );
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x00000000), Color(0xFF000000)],
+        ).createShader(rect),
+    );
+    final knob = Offset(saturation * size.width, (1 - value) * size.height);
+    canvas.drawCircle(
+      knob,
+      6,
+      Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SvPainter old) =>
+      old.hue != hue || old.saturation != saturation || old.value != value;
+}
+
+class _HuePainter extends CustomPainter {
+  _HuePainter(this.hue);
 
   final double hue;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final stroke = size.width * 0.18;
-    final radius = size.width / 2 - stroke / 2;
-
-    final rect = Rect.fromCircle(center: center, radius: radius);
-    final ring = Paint()
-      ..shader = SweepGradient(
-        colors: [
-          for (var h = 0; h <= 360; h += 30)
-            HSVColor.fromAHSV(1, (h % 360).toDouble(), 1, 1).toColor(),
-        ],
-      ).createShader(rect)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke;
-    canvas.drawCircle(center, radius, ring);
-
-    final angle = hue * math.pi / 180;
-    final knob = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-    canvas.drawCircle(
-      knob,
-      stroke * 0.5,
-      Paint()..color = const Color(0xFFFFFFFF),
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            for (var h = 0; h <= 360; h += 60)
+              HSVColor.fromAHSV(1, (h % 360).toDouble(), 1, 1).toColor(),
+          ],
+        ).createShader(rect),
     );
-    canvas.drawCircle(
-      knob,
-      stroke * 0.38,
-      Paint()..color = HSVColor.fromAHSV(1, hue, 1, 1).toColor(),
+    final x = hue / 360 * size.width;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(x, size.height / 2),
+          width: 5,
+          height: size.height,
+        ),
+        const Radius.circular(2.5),
+      ),
+      Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
     );
   }
 
   @override
-  bool shouldRepaint(_WheelPainter old) => old.hue != hue;
+  bool shouldRepaint(_HuePainter old) => old.hue != hue;
+}
+
+/// An editable `RRGGBB` hex field for typing an exact color.
+class _HexField extends StatefulWidget {
+  const _HexField({
+    required this.color,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Color color;
+  final bool enabled;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  State<_HexField> createState() => _HexFieldState();
+}
+
+class _HexFieldState extends State<_HexField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: colorToOpenRgbHex(widget.color),
+  );
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void didUpdateWidget(_HexField old) {
+    super.didUpdateWidget(old);
+    if (!_focus.hasFocus) {
+      final hex = colorToOpenRgbHex(widget.color);
+      if (_controller.text.toUpperCase() != hex) _controller.text = hex;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _submit(String raw) {
+    final cleaned = raw.replaceAll('#', '').trim();
+    if (RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(cleaned)) {
+      widget.onChanged(Color(0xFF000000 | int.parse(cleaned, radix: 16)));
+    } else {
+      _controller.text = colorToOpenRgbHex(widget.color);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SizedBox(
+      width: 132,
+      child: TextField(
+        controller: _controller,
+        focusNode: _focus,
+        enabled: widget.enabled,
+        style: textTheme.titleMedium?.copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+        decoration: const InputDecoration(
+          prefixText: '#',
+          isDense: true,
+          border: OutlineInputBorder(),
+        ),
+        textCapitalization: TextCapitalization.characters,
+        onSubmitted: _submit,
+        onTapOutside: (_) {
+          if (_focus.hasFocus) {
+            _submit(_controller.text);
+            _focus.unfocus();
+          }
+        },
+      ),
+    );
+  }
 }
 
 class _EffectPicker extends StatelessWidget {
