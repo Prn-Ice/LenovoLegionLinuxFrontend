@@ -191,12 +191,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
           titleSpacing: 0,
           leading: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Center(
-              child: LegionMark(
-                color: Theme.of(context).colorScheme.primary,
-                size: 22,
-              ),
-            ),
+            child: Center(child: LegionMark(color: accent, size: 22)),
           ),
           title: Text('Legion', style: _titleStyle(context)),
           border: BorderSide.none,
