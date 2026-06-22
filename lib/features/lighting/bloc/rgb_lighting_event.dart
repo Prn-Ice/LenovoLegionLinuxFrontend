@@ -109,6 +109,16 @@ final class RgbEffectsCleared extends RgbLightingEvent {
   const RgbEffectsCleared();
 }
 
+/// Remove the software effect assigned to one [scope] (a "Solid" choice).
+final class RgbScopeEffectCleared extends RgbLightingEvent {
+  const RgbScopeEffectCleared(this.scope);
+
+  final String scope;
+
+  @override
+  List<Object?> get props => [scope];
+}
+
 /// Save the current setup as a named profile.
 final class RgbProfileSaved extends RgbLightingEvent {
   const RgbProfileSaved(this.name);

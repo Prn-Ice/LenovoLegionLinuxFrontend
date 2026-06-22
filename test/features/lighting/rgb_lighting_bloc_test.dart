@@ -287,6 +287,20 @@ void main() {
     );
 
     blocTest<RgbLightingBloc, RgbLightingState>(
+      'ScopeEffectCleared removes only that scope effect',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbEffectAssigned('Numpad', [1], SpectrumEffect.pulse));
+        b.add(const RgbEffectAssigned('Function', [0], SpectrumEffect.wave));
+        b.add(const RgbScopeEffectCleared('Numpad'));
+      }),
+      verify: (b) {
+        expect(b.state.effects.length, 1);
+        expect(b.state.effects.single.label, 'Function');
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
       'Started restores and re-applies a saved snapshot that fits the device',
       build: () => RgbLightingBloc(
         repository: repo,

@@ -3,6 +3,9 @@ import 'package:flutter/services.dart' show HardwareKeyboard;
 
 import 'keyboard_layout.dart';
 
+/// The lighting accent (magenta), used to outline the active scope.
+const Color _highlight = Color(0xFFD6409F);
+
 /// A stylized, paintable keyboard. Each key is colored from [keyColors] (by the
 /// LED index of its name in [leds]). Click a key — or press and **drag** across
 /// keys — to paint with the active color ([onPaint]). Hold **Shift** to erase
@@ -17,6 +20,7 @@ class KeyboardPreview extends StatefulWidget {
     required this.onPaint,
     required this.onErase,
     required this.onPick,
+    this.highlighted = const {},
   });
 
   final List<String> leds;
@@ -25,6 +29,10 @@ class KeyboardPreview extends StatefulWidget {
   final ValueChanged<int> onPaint;
   final ValueChanged<int> onErase;
   final ValueChanged<int> onPick;
+
+  /// LED indices in the active scope: outlined in accent, the rest dimmed. Empty
+  /// = no scope highlight (every key shown normally).
+  final Set<int> highlighted;
 
   @override
   State<KeyboardPreview> createState() => _KeyboardPreviewState();
@@ -124,39 +132,47 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
     final mapped = index >= 0;
     final color = mapped ? widget.keyColors[index] : null;
     final off = _isOff(color);
+    final inScope = widget.highlighted.contains(index);
+    final dimmed = widget.highlighted.isNotEmpty && !inScope;
 
     return SizedBox(
       width: cap.width * unit,
       height: unit,
       child: Padding(
         padding: const EdgeInsets.all(1.5),
-        child: MouseRegion(
-          cursor: (widget.enabled && mapped)
-              ? SystemMouseCursors.click
-              : MouseCursor.defer,
-          onEnter: (_) {
-            if (_painting) _apply(index, isDrag: true);
-          },
-          child: Listener(
-            onPointerDown: (_) => _apply(index, isDrag: false),
-            child: Container(
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: off ? scheme.surfaceContainerHighest : color!,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: scheme.onSurface.withValues(alpha: 0.12),
+        child: Opacity(
+          opacity: dimmed ? 0.3 : 1,
+          child: MouseRegion(
+            cursor: (widget.enabled && mapped)
+                ? SystemMouseCursors.click
+                : MouseCursor.defer,
+            onEnter: (_) {
+              if (_painting) _apply(index, isDrag: true);
+            },
+            child: Listener(
+              onPointerDown: (_) => _apply(index, isDrag: false),
+              child: Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: off ? scheme.surfaceContainerHighest : color!,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: inScope
+                        ? _highlight
+                        : scheme.onSurface.withValues(alpha: 0.12),
+                    width: inScope ? 2 : 1,
+                  ),
                 ),
-              ),
-              child: Text(
-                cap.label,
-                maxLines: 1,
-                overflow: TextOverflow.clip,
-                style: TextStyle(
-                  fontSize: 8,
-                  color: off
-                      ? scheme.onSurface.withValues(alpha: 0.55)
-                      : _contrast(color!),
+                child: Text(
+                  cap.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.clip,
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: off
+                        ? scheme.onSurface.withValues(alpha: 0.55)
+                        : _contrast(color!),
+                  ),
                 ),
               ),
             ),

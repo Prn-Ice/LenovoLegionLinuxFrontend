@@ -31,11 +31,9 @@ const List<Color> _presetColors = [
   _accent,
 ];
 
-/// Curated effect order; filtered down to what the device actually supports so
-/// the noisy raw OpenRGB modes (Screw Rainbow, Audio Bounce, …) stay hidden.
-const List<String> _curatedEffects = [
-  'Static',
-  'Direct',
+/// The keyboard's built-in firmware animations (whole-keyboard, via OpenRGB),
+/// excluding the paint modes (Static/Direct) which the app handles itself.
+const List<String> _firmwareEffectNames = [
   'Rainbow Wave',
   'Color Pulse',
   'Color Wave',
@@ -46,31 +44,49 @@ const List<String> _curatedEffects = [
   'Type Lighting',
 ];
 
-List<String> _effectsFor(List<String> modes, String? active) {
+List<String> _firmwareEffectsFor(List<String> modes) {
   final available = modes.toSet();
-  final result = [
-    for (final mode in _curatedEffects)
+  return [
+    for (final mode in _firmwareEffectNames)
       if (available.contains(mode)) mode,
   ];
-  if (active != null &&
-      available.contains(active) &&
-      !result.contains(active)) {
-    result.insert(0, active);
-  }
-  return result;
 }
 
-class LightingPage extends ConsumerWidget {
+const String _wholeKeyboardScope = 'Whole keyboard';
+const String _customKeysScope = 'Custom keys';
+
+class LightingPage extends ConsumerStatefulWidget {
   const LightingPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LightingPage> createState() => _LightingPageState();
+}
+
+class _LightingPageState extends ConsumerState<LightingPage> {
+  /// The scope colors and effects apply to. One of [_wholeKeyboardScope], a
+  /// region name in [kKeyboardRegions], or [_customKeysScope] (free painting).
+  String _scope = _wholeKeyboardScope;
+
+  List<int> _scopeIndices(List<String> leds) {
+    if (_scope == _wholeKeyboardScope) {
+      return [for (var i = 0; i < leds.length; i++) i];
+    }
+    if (_scope == _customKeysScope) return const [];
+    final indices = <int>[];
+    for (final name in kKeyboardRegions[_scope] ?? const <String>[]) {
+      final index = leds.indexOf(name);
+      if (index >= 0) indices.add(index);
+    }
+    return indices;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final rgb = ref.watch(rgbLightingBlocProvider);
     final rgbBloc = ref.read(rgbLightingBlocProvider.bloc);
     final lighting = ref.watch(lightingBlocProvider);
     final lightingBloc = ref.read(lightingBlocProvider.bloc);
     final engine = ref.watch(spectrumEffectEngineProvider);
-
     final device = rgb.device;
 
     // Keep the animation engine in sync with the painting + effect assignments.
@@ -84,6 +100,40 @@ class LightingPage extends ConsumerWidget {
         );
       }
     });
+
+    final scopeIndices = _scopeIndices(device?.leds ?? const []);
+    final isCustom = _scope == _customKeysScope;
+
+    // Picking a color applies to the active scope live; in Custom it just sets
+    // the brush for click/drag painting.
+    void applyColor(Color color) {
+      rgbBloc.add(RgbColorSelected(color));
+      if (device == null || isCustom) return;
+      if (_scope == _wholeKeyboardScope) {
+        rgbBloc.add(RgbAllKeysFilled(color));
+      } else if (scopeIndices.isNotEmpty) {
+        rgbBloc.add(RgbRegionFilled(scopeIndices));
+      }
+    }
+
+    // Picking an effect (null = Solid) applies to the active scope.
+    void applyEffect(SpectrumEffect? effect) {
+      if (device == null) return;
+      if (effect == null) {
+        rgbBloc.add(RgbScopeEffectCleared(_scope));
+      } else if (scopeIndices.isNotEmpty) {
+        rgbBloc.add(RgbEffectAssigned(_scope, scopeIndices, effect));
+      }
+    }
+
+    SpectrumEffect? scopeEffect;
+    for (final effect in rgb.effects) {
+      if (effect.label == _scope) {
+        scopeEffect = effect.effect;
+        break;
+      }
+    }
+    final firmwareModes = _firmwareEffectsFor(device?.modes ?? const []);
 
     return AppPageBody(
       errorMessage: rgb.errorMessage ?? lighting.errorMessage,
@@ -101,44 +151,46 @@ class LightingPage extends ConsumerWidget {
             builder: (context, liveFrame, _) => _KeyboardCard(
               leds: device.leds,
               keyColors: liveFrame ?? rgb.keyColors,
-              enabled: !rgb.isApplying,
+              enabled: isCustom && !rgb.isApplying,
+              highlighted: isCustom ? const {} : scopeIndices.toSet(),
               onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
               onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
               onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
             ),
           ),
           const SizedBox(height: 16),
+          _ApplyToCard(
+            scope: _scope,
+            enabled: !rgb.isApplying,
+            onScope: (scope) => setState(() => _scope = scope),
+          ),
+          const SizedBox(height: 16),
           _ColorCard(
             selected: rgb.selectedColor,
+            scope: _scope,
             enabled: !rgb.isApplying,
-            onSelected: (color) => rgbBloc.add(RgbColorSelected(color)),
-            onFill: () => rgbBloc.add(RgbAllKeysFilled(rgb.selectedColor)),
+            onSelected: applyColor,
           ),
           const SizedBox(height: 16),
-          _QuickFillCard(
-            leds: device.leds,
+          _SoftwareEffectCard(
+            scope: _scope,
+            isCustom: isCustom,
+            active: scopeEffect,
             enabled: !rgb.isApplying,
-            onFill: (indices) => rgbBloc.add(RgbRegionFilled(indices)),
+            onSelected: applyEffect,
           ),
-          const SizedBox(height: 16),
-          _ControlCard(
-            title: 'Effect',
-            child: _EffectPicker(
-              modes: _effectsFor(device.modes, rgb.activeMode),
-              activeMode: rgb.activeMode,
-              enabled: !rgb.isApplying,
-              onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
+          if (firmwareModes.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _ControlCard(
+              title: 'Firmware effects · whole keyboard',
+              child: _EffectPicker(
+                modes: firmwareModes,
+                activeMode: rgb.activeMode,
+                enabled: !rgb.isApplying,
+                onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _AnimatedEffectsCard(
-            leds: device.leds,
-            activeEffects: rgb.effects,
-            enabled: !rgb.isApplying,
-            onAssign: (scope, indices, effect) =>
-                rgbBloc.add(RgbEffectAssigned(scope, indices, effect)),
-            onClear: () => rgbBloc.add(const RgbEffectsCleared()),
-          ),
+          ],
           const SizedBox(height: 16),
           _BrightnessCard(
             brightness: rgb.brightness,
@@ -158,6 +210,102 @@ class LightingPage extends ConsumerWidget {
         const SizedBox(height: 16),
         _BacklightSection(state: lighting, bloc: lightingBloc),
       ],
+    );
+  }
+}
+
+/// The "Apply to" scope selector: whole keyboard, a named region, or free
+/// painting (Custom keys). Drives the color + software-effect target.
+class _ApplyToCard extends StatelessWidget {
+  const _ApplyToCard({
+    required this.scope,
+    required this.enabled,
+    required this.onScope,
+  });
+
+  final String scope;
+  final bool enabled;
+  final ValueChanged<String> onScope;
+
+  @override
+  Widget build(BuildContext context) {
+    final scopes = [
+      _wholeKeyboardScope,
+      ...kKeyboardRegions.keys,
+      _customKeysScope,
+    ];
+    return _ControlCard(
+      title: 'Apply to',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final option in scopes)
+            ChoiceChip(
+              label: Text(option),
+              selected: scope == option,
+              selectedColor: _accent.withValues(alpha: 0.22),
+              side: scope == option ? const BorderSide(color: _accent) : null,
+              onSelected: enabled ? (_) => onScope(option) : null,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Per-scope software animation: Solid (none), Pulse, Wave, Rainbow.
+class _SoftwareEffectCard extends StatelessWidget {
+  const _SoftwareEffectCard({
+    required this.scope,
+    required this.isCustom,
+    required this.active,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final String scope;
+  final bool isCustom;
+  final SpectrumEffect? active;
+  final bool enabled;
+  final ValueChanged<SpectrumEffect?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (isCustom) {
+      return _ControlCard(
+        title: 'Effect',
+        child: Text(
+          'Pick a region or the whole keyboard to animate a section.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      );
+    }
+    final options = <(String, SpectrumEffect?)>[
+      ('Solid', null),
+      ('Pulse', SpectrumEffect.pulse),
+      ('Wave', SpectrumEffect.wave),
+      ('Rainbow', SpectrumEffect.rainbow),
+    ];
+    return _ControlCard(
+      title: 'Effect · $scope',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final (label, effect) in options)
+            ChoiceChip(
+              label: Text(label),
+              selected: active == effect,
+              selectedColor: _accent.withValues(alpha: 0.22),
+              side: active == effect ? const BorderSide(color: _accent) : null,
+              onSelected: enabled ? (_) => onSelected(effect) : null,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -258,6 +406,7 @@ class _KeyboardCard extends StatelessWidget {
     required this.leds,
     required this.keyColors,
     required this.enabled,
+    required this.highlighted,
     required this.onPaint,
     required this.onErase,
     required this.onPick,
@@ -266,6 +415,7 @@ class _KeyboardCard extends StatelessWidget {
   final List<String> leds;
   final List<Color> keyColors;
   final bool enabled;
+  final Set<int> highlighted;
   final ValueChanged<int> onPaint;
   final ValueChanged<int> onErase;
   final ValueChanged<int> onPick;
@@ -283,6 +433,7 @@ class _KeyboardCard extends StatelessWidget {
         leds: leds,
         keyColors: keyColors,
         enabled: enabled,
+        highlighted: highlighted,
         onPaint: onPaint,
         onErase: onErase,
         onPick: onPick,
@@ -290,178 +441,6 @@ class _KeyboardCard extends StatelessWidget {
     );
   }
 }
-
-/// One-tap fills for named key regions (Function row, Numpad, …). Resolves each
-/// region's LED names against [leds] and emits the matched indices.
-class _QuickFillCard extends StatelessWidget {
-  const _QuickFillCard({
-    required this.leds,
-    required this.enabled,
-    required this.onFill,
-  });
-
-  final List<String> leds;
-  final bool enabled;
-  final ValueChanged<List<int>> onFill;
-
-  @override
-  Widget build(BuildContext context) {
-    return _ControlCard(
-      title: 'Quick fill',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final entry in kKeyboardRegions.entries)
-            ActionChip(
-              label: Text(entry.key),
-              onPressed: enabled
-                  ? () {
-                      final indices = <int>[];
-                      for (final name in entry.value) {
-                        final index = leds.indexOf(name);
-                        if (index >= 0) indices.add(index);
-                      }
-                      if (indices.isNotEmpty) onFill(indices);
-                    }
-                  : null,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Software animated effects, assignable per region (Pulse/Wave/Rainbow). They
-/// run over the native path — the hardware can only animate the whole board.
-class _AnimatedEffectsCard extends StatefulWidget {
-  const _AnimatedEffectsCard({
-    required this.leds,
-    required this.activeEffects,
-    required this.enabled,
-    required this.onAssign,
-    required this.onClear,
-  });
-
-  final List<String> leds;
-  final List<SpectrumRegionEffect> activeEffects;
-  final bool enabled;
-  final void Function(String scope, List<int> indices, SpectrumEffect effect)
-  onAssign;
-  final VoidCallback onClear;
-
-  @override
-  State<_AnimatedEffectsCard> createState() => _AnimatedEffectsCardState();
-}
-
-class _AnimatedEffectsCardState extends State<_AnimatedEffectsCard> {
-  String _scope = 'All';
-
-  List<int> _indicesFor(String scope) {
-    if (scope == 'All') {
-      return [for (var i = 0; i < widget.leds.length; i++) i];
-    }
-    final indices = <int>[];
-    for (final name in kKeyboardRegions[scope] ?? const <String>[]) {
-      final index = widget.leds.indexOf(name);
-      if (index >= 0) indices.add(index);
-    }
-    return indices;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-
-    Widget caption(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        text,
-        style: textTheme.bodySmall?.copyWith(
-          color: scheme.onSurface.withValues(alpha: 0.6),
-        ),
-      ),
-    );
-
-    return _ControlCard(
-      title: 'Animated effects',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          caption('Region'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final scope in ['All', ...kKeyboardRegions.keys])
-                ChoiceChip(
-                  label: Text(scope),
-                  selected: _scope == scope,
-                  selectedColor: _accent.withValues(alpha: 0.22),
-                  side: _scope == scope
-                      ? const BorderSide(color: _accent)
-                      : null,
-                  onSelected: widget.enabled
-                      ? (_) => setState(() => _scope = scope)
-                      : null,
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          caption('Effect'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final effect in SpectrumEffect.values)
-                ActionChip(
-                  label: Text(_effectLabel(effect)),
-                  onPressed: widget.enabled
-                      ? () {
-                          final indices = _indicesFor(_scope);
-                          if (indices.isNotEmpty) {
-                            widget.onAssign(_scope, indices, effect);
-                          }
-                        }
-                      : null,
-                ),
-            ],
-          ),
-          if (widget.activeEffects.isNotEmpty) ...[
-            const Divider(height: 28),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                for (final effect in widget.activeEffects)
-                  Chip(
-                    label: Text(
-                      '${effect.label} · ${_effectLabel(effect.effect)}',
-                    ),
-                    backgroundColor: scheme.surfaceContainerHighest,
-                  ),
-                TextButton.icon(
-                  onPressed: widget.enabled ? widget.onClear : null,
-                  icon: const Icon(YaruIcons.window_close, size: 16),
-                  label: const Text('Stop all'),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-String _effectLabel(SpectrumEffect effect) => switch (effect) {
-  SpectrumEffect.pulse => 'Pulse',
-  SpectrumEffect.wave => 'Wave',
-  SpectrumEffect.rainbow => 'Rainbow',
-};
 
 /// Named profiles: save the current setup under a name, then tap to re-apply or
 /// the × to delete. The whole config (colors, brightness, effects) is stored.
@@ -562,20 +541,20 @@ class _ProfilesCardState extends State<_ProfilesCard> {
 class _ColorCard extends StatelessWidget {
   const _ColorCard({
     required this.selected,
+    required this.scope,
     required this.enabled,
     required this.onSelected,
-    required this.onFill,
   });
 
   final Color selected;
+  final String scope;
   final bool enabled;
   final ValueChanged<Color> onSelected;
-  final VoidCallback onFill;
 
   @override
   Widget build(BuildContext context) {
     return _ControlCard(
-      title: 'Color',
+      title: 'Color · $scope',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -606,15 +585,6 @@ class _ColorCard extends StatelessWidget {
                         onTap: enabled ? () => onSelected(color) : null,
                       ),
                   ],
-                ),
-                const SizedBox(height: 14),
-                OutlinedButton(
-                  onPressed: enabled ? onFill : null,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _accent,
-                    side: BorderSide(color: _accent.withValues(alpha: 0.5)),
-                  ),
-                  child: const Text('Fill keyboard'),
                 ),
               ],
             ),

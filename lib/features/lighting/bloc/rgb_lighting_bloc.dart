@@ -34,6 +34,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     on<RgbAllKeysFilled>(_onAllKeysFilled);
     on<RgbEffectAssigned>(_onEffectAssigned);
     on<RgbEffectsCleared>(_onEffectsCleared);
+    on<RgbScopeEffectCleared>(_onScopeEffectCleared);
     on<RgbProfileSaved>(_onProfileSaved);
     on<RgbProfileLoaded>(_onProfileLoaded);
     on<RgbProfileDeleted>(_onProfileDeleted);
@@ -299,6 +300,23 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     // Re-push the static painting so the keyboard leaves the last animated frame.
     final device = state.device;
     if (device != null) await _applyColors(emit, device, state.keyColors);
+  }
+
+  Future<void> _onScopeEffectCleared(
+    RgbScopeEffectCleared event,
+    Emitter<RgbLightingState> emit,
+  ) async {
+    final remaining = [
+      for (final effect in state.effects)
+        if (effect.label != event.scope) effect,
+    ];
+    if (remaining.length == state.effects.length) return;
+    emit(state.copyWith(effects: remaining));
+    // When the last effect goes, re-push the static painting to the keyboard.
+    if (remaining.isEmpty) {
+      final device = state.device;
+      if (device != null) await _applyColors(emit, device, state.keyColors);
+    }
   }
 
   void _onProfileSaved(RgbProfileSaved event, Emitter<RgbLightingState> emit) {
