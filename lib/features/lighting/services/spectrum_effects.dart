@@ -15,12 +15,17 @@ class SpectrumRegionEffect {
     required this.effect,
     required this.color,
     this.speed = 0.6,
+    this.label = '',
   });
 
   final List<int> ledIndices;
   final SpectrumEffect effect;
   final Color color;
   final double speed;
+
+  /// The scope this effect was assigned to (e.g. `Numpad`, `All`) — used to
+  /// replace an existing effect on the same scope.
+  final String label;
 }
 
 double _wrapHue(double hue) => ((hue % 360) + 360) % 360;

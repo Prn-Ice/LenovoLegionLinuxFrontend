@@ -7,6 +7,7 @@ import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_event.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_state.dart';
 import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
+import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart';
 
 const _kbd = OpenRgbDevice(
   index: 0,
@@ -214,6 +215,46 @@ void main() {
         expect(b.state.activeMode, 'Static');
         expect(b.state.keyColors, everyElement(const Color(0xFF123456)));
       },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'EffectAssigned adds a region effect tinted by the selected color',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbColorSelected(Color(0xFFFF0000)));
+        b.add(const RgbEffectAssigned('Numpad', [1, 2], SpectrumEffect.pulse));
+      }),
+      verify: (b) {
+        expect(b.state.effects.single.label, 'Numpad');
+        expect(b.state.effects.single.ledIndices, [1, 2]);
+        expect(b.state.effects.single.effect, SpectrumEffect.pulse);
+        expect(b.state.effects.single.color, const Color(0xFFFF0000));
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'EffectAssigned replaces the effect already on that scope',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(const RgbEffectAssigned('Numpad', [1], SpectrumEffect.pulse));
+        b.add(const RgbEffectAssigned('Numpad', [1], SpectrumEffect.wave));
+      }),
+      verify: (b) {
+        expect(b.state.effects.length, 1);
+        expect(b.state.effects.single.effect, SpectrumEffect.wave);
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'EffectsCleared removes every effect',
+      build: () => RgbLightingBloc(repository: repo),
+      act: (b) => _startThen(b, () {
+        b.add(
+          const RgbEffectAssigned('All', [0, 1, 2], SpectrumEffect.rainbow),
+        );
+        b.add(const RgbEffectsCleared());
+      }),
+      verify: (b) => expect(b.state.effects, isEmpty),
     );
   });
 }

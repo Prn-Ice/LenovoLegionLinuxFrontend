@@ -5,6 +5,7 @@ import 'package:riverbloc/riverbloc.dart';
 import '../models/openrgb_device.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../repository/spectrum_rgb_repository.dart';
+import '../services/spectrum_effects.dart';
 import '../services/spectrum_led_map.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
@@ -27,6 +28,8 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     on<RgbKeyPicked>(_onKeyPicked);
     on<RgbRegionFilled>(_onRegionFilled);
     on<RgbAllKeysFilled>(_onAllKeysFilled);
+    on<RgbEffectAssigned>(_onEffectAssigned);
+    on<RgbEffectsCleared>(_onEffectsCleared);
   }
 
   final RgbLightingRepository _repository;
@@ -219,6 +222,33 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     if (device == null) return;
     final colors = List<Color>.filled(device.ledCount, event.color);
     await _applyColors(emit, device, colors, selectedColor: event.color);
+  }
+
+  void _onEffectAssigned(
+    RgbEffectAssigned event,
+    Emitter<RgbLightingState> emit,
+  ) {
+    final updated = [
+      for (final effect in state.effects)
+        if (effect.label != event.scope) effect,
+      SpectrumRegionEffect(
+        ledIndices: event.ledIndices,
+        effect: event.effect,
+        color: state.selectedColor,
+        label: event.scope,
+      ),
+    ];
+    emit(state.copyWith(effects: updated));
+  }
+
+  Future<void> _onEffectsCleared(
+    RgbEffectsCleared event,
+    Emitter<RgbLightingState> emit,
+  ) async {
+    emit(state.copyWith(effects: const []));
+    // Re-push the static painting so the keyboard leaves the last animated frame.
+    final device = state.device;
+    if (device != null) await _applyColors(emit, device, state.keyColors);
   }
 
   /// A copy of the key buffer with [ledIndex] set to [color], or null if the

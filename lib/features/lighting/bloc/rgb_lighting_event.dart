@@ -2,6 +2,8 @@ import 'dart:ui' show Color;
 
 import 'package:equatable/equatable.dart';
 
+import '../services/spectrum_effects.dart';
+
 sealed class RgbLightingEvent extends Equatable {
   const RgbLightingEvent();
 
@@ -87,6 +89,24 @@ final class RgbRegionFilled extends RgbLightingEvent {
 
   @override
   List<Object?> get props => [ledIndices];
+}
+
+/// Assign a software animated [effect] to the [ledIndices] of a named [scope]
+/// (replacing any effect already on that scope), tinted by the selected color.
+final class RgbEffectAssigned extends RgbLightingEvent {
+  const RgbEffectAssigned(this.scope, this.ledIndices, this.effect);
+
+  final String scope;
+  final List<int> ledIndices;
+  final SpectrumEffect effect;
+
+  @override
+  List<Object?> get props => [scope, ledIndices, effect];
+}
+
+/// Stop and remove all software animated effects.
+final class RgbEffectsCleared extends RgbLightingEvent {
+  const RgbEffectsCleared();
 }
 
 /// Fill every LED with [color] (Direct mode) — the basis for presets.

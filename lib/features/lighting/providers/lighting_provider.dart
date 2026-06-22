@@ -11,6 +11,7 @@ import '../repository/lighting_repository.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/openrgb_cli_service.dart';
+import '../services/spectrum_effect_engine.dart';
 
 final lightingRepositoryProvider = Provider<LightingRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
@@ -42,6 +43,13 @@ final rgbLightingRepositoryProvider = Provider<RgbLightingRepository>(
 final spectrumRgbRepositoryProvider = Provider<SpectrumRgbRepository>(
   (ref) => SpectrumRgbRepository(),
 );
+
+/// Software animated-effect engine (drives region effects over the native path).
+final spectrumEffectEngineProvider = Provider<SpectrumEffectEngine>((ref) {
+  final engine = SpectrumEffectEngine(ref.watch(spectrumRgbRepositoryProvider));
+  ref.onDispose(engine.dispose);
+  return engine;
+});
 
 /// Per-key RGB bloc; auto-loads the keyboard on creation.
 final rgbLightingBlocProvider =

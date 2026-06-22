@@ -3,6 +3,7 @@ import 'dart:ui' show Color;
 import 'package:equatable/equatable.dart';
 
 import '../models/openrgb_device.dart';
+import '../services/spectrum_effects.dart';
 
 /// Per-key RGB lighting state, driven by OpenRGB. Separate from the coarse
 /// sysfs backlight [LightingState]; the page composes both.
@@ -19,6 +20,7 @@ class RgbLightingState extends Equatable {
     this.errorMessage,
     this.nativeAvailable = false,
     this.directColors = const [],
+    this.effects = const [],
   });
 
   static const _unset = Object();
@@ -53,6 +55,9 @@ class RgbLightingState extends Equatable {
   /// returning to Direct restores the painting instead of a flat fill.
   final List<Color> directColors;
 
+  /// Active software animated effects, each bound to a region of LEDs.
+  final List<SpectrumRegionEffect> effects;
+
   RgbLightingState copyWith({
     bool? available,
     Object? device = _unset,
@@ -65,6 +70,7 @@ class RgbLightingState extends Equatable {
     Object? errorMessage = _unset,
     bool? nativeAvailable,
     List<Color>? directColors,
+    List<SpectrumRegionEffect>? effects,
   }) {
     return RgbLightingState(
       available: available ?? this.available,
@@ -82,6 +88,7 @@ class RgbLightingState extends Equatable {
           : errorMessage as String?,
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
       directColors: directColors ?? this.directColors,
+      effects: effects ?? this.effects,
     );
   }
 
@@ -98,5 +105,6 @@ class RgbLightingState extends Equatable {
     errorMessage,
     nativeAvailable,
     directColors,
+    effects,
   ];
 }

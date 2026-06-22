@@ -14,6 +14,7 @@ import '../bloc/rgb_lighting_event.dart';
 import '../models/openrgb_device.dart';
 import '../providers/lighting_provider.dart';
 import '../repository/rgb_lighting_repository.dart';
+import '../services/spectrum_effects.dart';
 import 'keyboard_layout.dart';
 import 'keyboard_preview.dart';
 
@@ -70,8 +71,21 @@ class LightingPage extends ConsumerWidget {
     final rgbBloc = ref.read(rgbLightingBlocProvider.bloc);
     final lighting = ref.watch(lightingBlocProvider);
     final lightingBloc = ref.read(lightingBlocProvider.bloc);
+    final engine = ref.watch(spectrumEffectEngineProvider);
 
     final device = rgb.device;
+
+    // Keep the animation engine in sync with the painting + effect assignments.
+    ref.listen(rgbLightingBlocProvider, (_, next) {
+      final dev = next.device;
+      if (next.available && dev != null) {
+        engine.configure(
+          base: next.keyColors,
+          leds: dev.leds,
+          effects: next.effects,
+        );
+      }
+    });
 
     return AppPageBody(
       errorMessage: rgb.errorMessage ?? lighting.errorMessage,
@@ -84,13 +98,16 @@ class LightingPage extends ConsumerWidget {
             nativeAvailable: rgb.nativeAvailable,
           ),
           const SizedBox(height: 16),
-          _KeyboardCard(
-            leds: device.leds,
-            keyColors: rgb.keyColors,
-            enabled: !rgb.isApplying,
-            onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
-            onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
-            onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
+          ValueListenableBuilder<List<Color>?>(
+            valueListenable: engine.frame,
+            builder: (context, liveFrame, _) => _KeyboardCard(
+              leds: device.leds,
+              keyColors: liveFrame ?? rgb.keyColors,
+              enabled: !rgb.isApplying,
+              onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
+              onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
+              onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
+            ),
           ),
           const SizedBox(height: 16),
           _ColorCard(
@@ -114,6 +131,15 @@ class LightingPage extends ConsumerWidget {
               enabled: !rgb.isApplying,
               onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
             ),
+          ),
+          const SizedBox(height: 16),
+          _AnimatedEffectsCard(
+            leds: device.leds,
+            activeEffects: rgb.effects,
+            enabled: !rgb.isApplying,
+            onAssign: (scope, indices, effect) =>
+                rgbBloc.add(RgbEffectAssigned(scope, indices, effect)),
+            onClear: () => rgbBloc.add(const RgbEffectsCleared()),
           ),
           const SizedBox(height: 16),
           _BrightnessCard(
@@ -299,6 +325,137 @@ class _QuickFillCard extends StatelessWidget {
     );
   }
 }
+
+/// Software animated effects, assignable per region (Pulse/Wave/Rainbow). They
+/// run over the native path — the hardware can only animate the whole board.
+class _AnimatedEffectsCard extends StatefulWidget {
+  const _AnimatedEffectsCard({
+    required this.leds,
+    required this.activeEffects,
+    required this.enabled,
+    required this.onAssign,
+    required this.onClear,
+  });
+
+  final List<String> leds;
+  final List<SpectrumRegionEffect> activeEffects;
+  final bool enabled;
+  final void Function(String scope, List<int> indices, SpectrumEffect effect)
+  onAssign;
+  final VoidCallback onClear;
+
+  @override
+  State<_AnimatedEffectsCard> createState() => _AnimatedEffectsCardState();
+}
+
+class _AnimatedEffectsCardState extends State<_AnimatedEffectsCard> {
+  String _scope = 'All';
+
+  List<int> _indicesFor(String scope) {
+    if (scope == 'All') {
+      return [for (var i = 0; i < widget.leds.length; i++) i];
+    }
+    final indices = <int>[];
+    for (final name in kKeyboardRegions[scope] ?? const <String>[]) {
+      final index = widget.leds.indexOf(name);
+      if (index >= 0) indices.add(index);
+    }
+    return indices;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+
+    Widget caption(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: textTheme.bodySmall?.copyWith(
+          color: scheme.onSurface.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+
+    return _ControlCard(
+      title: 'Animated effects',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          caption('Region'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final scope in ['All', ...kKeyboardRegions.keys])
+                ChoiceChip(
+                  label: Text(scope),
+                  selected: _scope == scope,
+                  selectedColor: _accent.withValues(alpha: 0.22),
+                  side: _scope == scope
+                      ? const BorderSide(color: _accent)
+                      : null,
+                  onSelected: widget.enabled
+                      ? (_) => setState(() => _scope = scope)
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          caption('Effect'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final effect in SpectrumEffect.values)
+                ActionChip(
+                  label: Text(_effectLabel(effect)),
+                  onPressed: widget.enabled
+                      ? () {
+                          final indices = _indicesFor(_scope);
+                          if (indices.isNotEmpty) {
+                            widget.onAssign(_scope, indices, effect);
+                          }
+                        }
+                      : null,
+                ),
+            ],
+          ),
+          if (widget.activeEffects.isNotEmpty) ...[
+            const Divider(height: 28),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                for (final effect in widget.activeEffects)
+                  Chip(
+                    label: Text(
+                      '${effect.label} · ${_effectLabel(effect.effect)}',
+                    ),
+                    backgroundColor: scheme.surfaceContainerHighest,
+                  ),
+                TextButton.icon(
+                  onPressed: widget.enabled ? widget.onClear : null,
+                  icon: const Icon(YaruIcons.window_close, size: 16),
+                  label: const Text('Stop all'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _effectLabel(SpectrumEffect effect) => switch (effect) {
+  SpectrumEffect.pulse => 'Pulse',
+  SpectrumEffect.wave => 'Wave',
+  SpectrumEffect.rainbow => 'Rainbow',
+};
 
 class _ColorCard extends StatelessWidget {
   const _ColorCard({
