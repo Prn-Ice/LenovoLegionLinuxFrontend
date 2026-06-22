@@ -9,6 +9,7 @@ import '../bloc/rgb_lighting_event.dart';
 import '../bloc/rgb_lighting_state.dart';
 import '../repository/lighting_repository.dart';
 import '../repository/rgb_lighting_repository.dart';
+import '../repository/spectrum_rgb_repository.dart';
 import '../services/openrgb_cli_service.dart';
 
 final lightingRepositoryProvider = Provider<LightingRepository>((ref) {
@@ -35,6 +36,11 @@ final openRgbServiceProvider = Provider<OpenRgbCliService>(
 /// High-level keyboard RGB control (over [openRgbServiceProvider]).
 final rgbLightingRepositoryProvider = Provider<RgbLightingRepository>(
   (ref) => RgbLightingRepository(service: ref.watch(openRgbServiceProvider)),
+);
+
+/// Native real-time per-key RGB (direct hidraw, no OpenRGB).
+final spectrumRgbRepositoryProvider = Provider<SpectrumRgbRepository>(
+  (ref) => SpectrumRgbRepository(),
 );
 
 /// Per-key RGB bloc; auto-loads the keyboard on creation.
