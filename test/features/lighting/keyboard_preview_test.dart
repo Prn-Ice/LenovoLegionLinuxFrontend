@@ -15,6 +15,8 @@ void main() {
             keyColors: const [Color(0xFFFFFFFF)],
             enabled: true,
             onPaint: (_) {},
+            onErase: (_) {},
+            onPick: (_) {},
           ),
         ),
       ),

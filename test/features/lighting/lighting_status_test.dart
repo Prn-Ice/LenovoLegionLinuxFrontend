@@ -53,10 +53,7 @@ void main() {
     });
 
     test('an unknown (null) zone state counts as off', () {
-      expect(
-        activeZoneCount(_state(kbdSupported: true, kbdEnabled: null)),
-        0,
-      );
+      expect(activeZoneCount(_state(kbdSupported: true, kbdEnabled: null)), 0);
     });
 
     test('ignores an enabled zone the device does not support', () {
