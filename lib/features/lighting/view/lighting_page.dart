@@ -11,6 +11,7 @@ import '../bloc/lighting_state.dart';
 import '../bloc/rgb_lighting_event.dart';
 import '../models/openrgb_device.dart';
 import '../providers/lighting_provider.dart';
+import 'keyboard_preview.dart';
 
 /// The lighting identity accent (magenta), local to this page — it does not
 /// override the global power-mode accent.
@@ -70,6 +71,16 @@ class LightingPage extends ConsumerWidget {
             brightness: rgb.brightness,
             enabled: !rgb.isApplying,
             onChanged: (value) => rgbBloc.add(RgbBrightnessChanged(value)),
+          ),
+          const SizedBox(height: 16),
+          _Section(
+            title: 'Per-key',
+            child: KeyboardPreview(
+              leds: device.leds,
+              keyColors: rgb.keyColors,
+              enabled: !rgb.isApplying,
+              onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
+            ),
           ),
         ] else
           const _UnavailableCard(),
@@ -348,39 +359,44 @@ class _BacklightSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tiles = <Widget>[
+      if (state.whiteKeyboardBacklightSupported)
+        _toggle(
+          context,
+          icon: YaruIcons.keyboard,
+          title: 'Keyboard backlight',
+          enabled: state.whiteKeyboardBacklightEnabled,
+          confirmTitle: 'Toggle keyboard backlight',
+          onApply: (v) => bloc.add(WhiteKeyboardBacklightSetRequested(v)),
+        ),
+      if (state.yLogoLightSupported)
+        _toggle(
+          context,
+          icon: YaruIcons.color_select,
+          title: 'Y-logo light',
+          enabled: state.yLogoLightEnabled,
+          confirmTitle: 'Toggle Y-logo light',
+          onApply: (v) => bloc.add(YLogoLightSetRequested(v)),
+        ),
+      if (state.ioPortLightSupported)
+        _toggle(
+          context,
+          icon: YaruIcons.thunderbolt,
+          title: 'IO-port light',
+          enabled: state.ioPortLightEnabled,
+          confirmTitle: 'Toggle IO-port light',
+          onApply: (v) => bloc.add(IoPortLightSetRequested(v)),
+        ),
+    ];
+    if (tiles.isEmpty) return const SizedBox.shrink();
     return _Section(
       title: 'Backlight',
       child: Column(
         children: [
-          _toggle(
-            context,
-            icon: YaruIcons.keyboard,
-            title: 'Keyboard backlight',
-            supported: state.whiteKeyboardBacklightSupported,
-            enabled: state.whiteKeyboardBacklightEnabled,
-            confirmTitle: 'Toggle keyboard backlight',
-            onApply: (v) => bloc.add(WhiteKeyboardBacklightSetRequested(v)),
-          ),
-          const SizedBox(height: 12),
-          _toggle(
-            context,
-            icon: YaruIcons.color_select,
-            title: 'Y-logo light',
-            supported: state.yLogoLightSupported,
-            enabled: state.yLogoLightEnabled,
-            confirmTitle: 'Toggle Y-logo light',
-            onApply: (v) => bloc.add(YLogoLightSetRequested(v)),
-          ),
-          const SizedBox(height: 12),
-          _toggle(
-            context,
-            icon: YaruIcons.thunderbolt,
-            title: 'IO-port light',
-            supported: state.ioPortLightSupported,
-            enabled: state.ioPortLightEnabled,
-            confirmTitle: 'Toggle IO-port light',
-            onApply: (v) => bloc.add(IoPortLightSetRequested(v)),
-          ),
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            tiles[i],
+          ],
         ],
       ),
     );
@@ -390,7 +406,6 @@ class _BacklightSection extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
-    required bool supported,
     required bool? enabled,
     required String confirmTitle,
     required void Function(bool) onApply,
@@ -398,7 +413,7 @@ class _BacklightSection extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final on = enabled ?? false;
-    final canToggle = supported && !state.isApplying;
+    final canToggle = !state.isApplying;
 
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -420,16 +435,9 @@ class _BacklightSection extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(title, style: textTheme.titleSmall),
                 Text(
-                  title,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: supported ? null : scheme.onSurfaceVariant,
-                  ),
-                ),
-                Text(
-                  supported
-                      ? (on ? 'On' : 'Off')
-                      : 'Not supported on this device',
+                  on ? 'On' : 'Off',
                   style: textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.56),
                   ),
