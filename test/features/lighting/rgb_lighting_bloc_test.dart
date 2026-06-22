@@ -65,12 +65,26 @@ class _FakeStore extends RgbLightingStore {
 
   final RgbLightingSnapshot? snapshot;
   RgbLightingSnapshot? saved;
+  final Map<String, RgbLightingSnapshot> profiles = {};
 
   @override
   RgbLightingSnapshot? load() => snapshot;
 
   @override
   Future<void> save(RgbLightingSnapshot snapshot) async => saved = snapshot;
+
+  @override
+  List<String> profileNames() => profiles.keys.toList();
+
+  @override
+  RgbLightingSnapshot? loadProfile(String name) => profiles[name];
+
+  @override
+  Future<void> saveProfile(String name, RgbLightingSnapshot s) async =>
+      profiles[name] = s;
+
+  @override
+  Future<void> deleteProfile(String name) async => profiles.remove(name);
 }
 
 /// act() that loads the device, then runs [more].
@@ -313,6 +327,55 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(store.saved, isNotNull);
       expect(store.saved!.keyColors[0], const Color(0xFFAABBCC));
+      await bloc.close();
+    });
+
+    test('ProfileSaved stores the current setup and lists the name', () async {
+      final store = _FakeStore();
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      await _startThen(bloc, () {
+        bloc.add(const RgbColorSelected(Color(0xFF112233)));
+        bloc.add(const RgbKeyPainted(0));
+        bloc.add(const RgbProfileSaved('Gaming'));
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(store.profiles['Gaming']?.keyColors[0], const Color(0xFF112233));
+      expect(bloc.state.profileNames, contains('Gaming'));
+      await bloc.close();
+    });
+
+    test('ProfileLoaded restores and re-applies a saved profile', () async {
+      final store = _FakeStore();
+      store.profiles['Work'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFFAA0000), Color(0xFF00BB00), Color(0xFF0000CC)],
+        selectedColor: Color(0xFF00BB00),
+        brightness: 42,
+        activeMode: 'Direct',
+        effects: [],
+      );
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      await _startThen(bloc, () => bloc.add(const RgbProfileLoaded('Work')));
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.keyColors[0], const Color(0xFFAA0000));
+      expect(bloc.state.brightness, 42);
+      expect(repo.lastDirect, isNotNull); // re-applied (native absent → CLI)
+      await bloc.close();
+    });
+
+    test('ProfileDeleted removes the profile and its name', () async {
+      final store = _FakeStore();
+      store.profiles['Old'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFF000000), Color(0xFF000000), Color(0xFF000000)],
+        selectedColor: Color(0xFFFFFFFF),
+        brightness: 100,
+        activeMode: 'Direct',
+        effects: [],
+      );
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      await _startThen(bloc, () => bloc.add(const RgbProfileDeleted('Old')));
+      await Future<void>.delayed(Duration.zero);
+      expect(store.profiles.containsKey('Old'), isFalse);
+      expect(bloc.state.profileNames, isNot(contains('Old')));
       await bloc.close();
     });
   });

@@ -109,6 +109,36 @@ final class RgbEffectsCleared extends RgbLightingEvent {
   const RgbEffectsCleared();
 }
 
+/// Save the current setup as a named profile.
+final class RgbProfileSaved extends RgbLightingEvent {
+  const RgbProfileSaved(this.name);
+
+  final String name;
+
+  @override
+  List<Object?> get props => [name];
+}
+
+/// Load a named profile and apply it to the keyboard.
+final class RgbProfileLoaded extends RgbLightingEvent {
+  const RgbProfileLoaded(this.name);
+
+  final String name;
+
+  @override
+  List<Object?> get props => [name];
+}
+
+/// Delete a named profile.
+final class RgbProfileDeleted extends RgbLightingEvent {
+  const RgbProfileDeleted(this.name);
+
+  final String name;
+
+  @override
+  List<Object?> get props => [name];
+}
+
 /// Fill every LED with [color] (Direct mode) — the basis for presets.
 final class RgbAllKeysFilled extends RgbLightingEvent {
   const RgbAllKeysFilled(this.color);

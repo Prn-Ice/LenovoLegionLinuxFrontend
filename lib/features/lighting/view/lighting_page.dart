@@ -145,6 +145,14 @@ class LightingPage extends ConsumerWidget {
             enabled: !rgb.isApplying,
             onChanged: (value) => rgbBloc.add(RgbBrightnessChanged(value)),
           ),
+          const SizedBox(height: 16),
+          _ProfilesCard(
+            profileNames: rgb.profileNames,
+            enabled: !rgb.isApplying,
+            onSave: (name) => rgbBloc.add(RgbProfileSaved(name)),
+            onLoad: (name) => rgbBloc.add(RgbProfileLoaded(name)),
+            onDelete: (name) => rgbBloc.add(RgbProfileDeleted(name)),
+          ),
         ] else
           const _UnavailableCard(),
         const SizedBox(height: 16),
@@ -454,6 +462,102 @@ String _effectLabel(SpectrumEffect effect) => switch (effect) {
   SpectrumEffect.wave => 'Wave',
   SpectrumEffect.rainbow => 'Rainbow',
 };
+
+/// Named profiles: save the current setup under a name, then tap to re-apply or
+/// the × to delete. The whole config (colors, brightness, effects) is stored.
+class _ProfilesCard extends StatefulWidget {
+  const _ProfilesCard({
+    required this.profileNames,
+    required this.enabled,
+    required this.onSave,
+    required this.onLoad,
+    required this.onDelete,
+  });
+
+  final List<String> profileNames;
+  final bool enabled;
+  final ValueChanged<String> onSave;
+  final ValueChanged<String> onLoad;
+  final ValueChanged<String> onDelete;
+
+  @override
+  State<_ProfilesCard> createState() => _ProfilesCardState();
+}
+
+class _ProfilesCardState extends State<_ProfilesCard> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final name = _controller.text.trim();
+    if (name.isEmpty) return;
+    widget.onSave(name);
+    _controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ControlCard(
+      title: 'Profiles',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  enabled: widget.enabled,
+                  decoration: const InputDecoration(
+                    hintText: 'Profile name',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _save(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton(
+                onPressed: widget.enabled ? _save : null,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _accent,
+                  side: BorderSide(color: _accent.withValues(alpha: 0.5)),
+                ),
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+          if (widget.profileNames.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final name in widget.profileNames)
+                  InputChip(
+                    label: Text(name),
+                    onPressed: widget.enabled
+                        ? () => widget.onLoad(name)
+                        : null,
+                    onDeleted: widget.enabled
+                        ? () => widget.onDelete(name)
+                        : null,
+                    deleteIcon: const Icon(YaruIcons.window_close, size: 16),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _ColorCard extends StatelessWidget {
   const _ColorCard({

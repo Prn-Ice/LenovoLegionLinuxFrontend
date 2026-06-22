@@ -21,6 +21,7 @@ class RgbLightingState extends Equatable {
     this.nativeAvailable = false,
     this.directColors = const [],
     this.effects = const [],
+    this.profileNames = const [],
   });
 
   static const _unset = Object();
@@ -58,6 +59,9 @@ class RgbLightingState extends Equatable {
   /// Active software animated effects, each bound to a region of LEDs.
   final List<SpectrumRegionEffect> effects;
 
+  /// Names of saved named profiles, in creation order.
+  final List<String> profileNames;
+
   RgbLightingState copyWith({
     bool? available,
     Object? device = _unset,
@@ -71,6 +75,7 @@ class RgbLightingState extends Equatable {
     bool? nativeAvailable,
     List<Color>? directColors,
     List<SpectrumRegionEffect>? effects,
+    List<String>? profileNames,
   }) {
     return RgbLightingState(
       available: available ?? this.available,
@@ -89,6 +94,7 @@ class RgbLightingState extends Equatable {
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
       directColors: directColors ?? this.directColors,
       effects: effects ?? this.effects,
+      profileNames: profileNames ?? this.profileNames,
     );
   }
 
@@ -106,5 +112,6 @@ class RgbLightingState extends Equatable {
     nativeAvailable,
     directColors,
     effects,
+    profileNames,
   ];
 }

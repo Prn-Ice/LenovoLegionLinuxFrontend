@@ -34,6 +34,9 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     on<RgbAllKeysFilled>(_onAllKeysFilled);
     on<RgbEffectAssigned>(_onEffectAssigned);
     on<RgbEffectsCleared>(_onEffectsCleared);
+    on<RgbProfileSaved>(_onProfileSaved);
+    on<RgbProfileLoaded>(_onProfileLoaded);
+    on<RgbProfileDeleted>(_onProfileDeleted);
   }
 
   final RgbLightingRepository _repository;
@@ -47,17 +50,17 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     super.onChange(change);
     final next = change.nextState;
     if (next.available && next.device != null && !next.isLoading) {
-      _store?.save(
-        RgbLightingSnapshot(
-          keyColors: next.keyColors,
-          selectedColor: next.selectedColor,
-          brightness: next.brightness,
-          activeMode: next.activeMode,
-          effects: next.effects,
-        ),
-      );
+      _store?.save(_snapshotOf(next));
     }
   }
+
+  RgbLightingSnapshot _snapshotOf(RgbLightingState s) => RgbLightingSnapshot(
+    keyColors: s.keyColors,
+    selectedColor: s.selectedColor,
+    brightness: s.brightness,
+    activeMode: s.activeMode,
+    effects: s.effects,
+  );
 
   Future<void> _onStarted(
     RgbLightingEvent event,
@@ -96,6 +99,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           selectedColor: snapshot?.selectedColor,
           brightness: snapshot?.brightness,
           effects: snapshot?.effects ?? const [],
+          profileNames: _store?.profileNames() ?? const [],
           isLoading: false,
           nativeAvailable: nativeOk,
         ),
@@ -295,6 +299,61 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     // Re-push the static painting so the keyboard leaves the last animated frame.
     final device = state.device;
     if (device != null) await _applyColors(emit, device, state.keyColors);
+  }
+
+  void _onProfileSaved(RgbProfileSaved event, Emitter<RgbLightingState> emit) {
+    final name = event.name.trim();
+    if (name.isEmpty) return;
+    _store?.saveProfile(name, _snapshotOf(state));
+    if (!state.profileNames.contains(name)) {
+      emit(state.copyWith(profileNames: [...state.profileNames, name]));
+    }
+  }
+
+  Future<void> _onProfileLoaded(
+    RgbProfileLoaded event,
+    Emitter<RgbLightingState> emit,
+  ) async {
+    final device = state.device;
+    final snapshot = _store?.loadProfile(event.name);
+    if (device == null ||
+        snapshot == null ||
+        snapshot.keyColors.length != device.ledCount) {
+      return;
+    }
+    emit(
+      state.copyWith(
+        keyColors: snapshot.keyColors,
+        selectedColor: snapshot.selectedColor,
+        brightness: snapshot.brightness,
+        activeMode: snapshot.activeMode,
+        effects: snapshot.effects,
+      ),
+    );
+    if (state.nativeAvailable && _native != null) {
+      _native.paint(device.leds, snapshot.keyColors);
+      _native.setBrightness(snapshot.brightness);
+    } else {
+      await _repository.applyDirect(
+        device,
+        snapshot.keyColors,
+        brightness: snapshot.brightness,
+      );
+    }
+  }
+
+  void _onProfileDeleted(
+    RgbProfileDeleted event,
+    Emitter<RgbLightingState> emit,
+  ) {
+    _store?.deleteProfile(event.name);
+    emit(
+      state.copyWith(
+        profileNames: state.profileNames
+            .where((name) => name != event.name)
+            .toList(),
+      ),
+    );
   }
 
   /// A copy of the key buffer with [ledIndex] set to [color], or null if the
