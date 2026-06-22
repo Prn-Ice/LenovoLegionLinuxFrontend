@@ -4,7 +4,8 @@ import 'keyboard_layout.dart';
 
 /// A stylized, paintable keyboard. Each key is colored from [keyColors] (by the
 /// LED index of its name in [leds]); tapping a key reports its LED index via
-/// [onPaint]. Off keys render as dim caps. Scales to the available width.
+/// [onPaint]. Rows are laid out in three fixed-width column groups (main / nav /
+/// numpad) so the clusters line up. Scales to the available width.
 class KeyboardPreview extends StatelessWidget {
   const KeyboardPreview({
     super.key,
@@ -19,48 +20,68 @@ class KeyboardPreview extends StatelessWidget {
   final bool enabled;
   final ValueChanged<int> onPaint;
 
+  static const double _totalUnits =
+      kMainUnits + kGroupGap + kNavUnits + kGroupGap + kNumpadUnits;
+
   @override
   Widget build(BuildContext context) {
-    final maxUnits = kKeyboardLayout
-        .map((row) => row.fold<double>(0, (sum, cap) => sum + cap.width))
-        .reduce((a, b) => a > b ? a : b);
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        final unit = (constraints.maxWidth / maxUnits).clamp(16.0, 34.0);
+        final unit = (constraints.maxWidth / _totalUnits).clamp(16.0, 34.0);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final row in kKeyboardLayout)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  children: [
-                    for (final cap in row)
-                      cap.isGap
-                          ? SizedBox(width: cap.width * unit)
-                          : _Key(
-                              cap: cap,
-                              unit: unit,
-                              index: _indexOf(cap.led),
-                              colors: keyColors,
-                              enabled: enabled,
-                              onPaint: onPaint,
-                            ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 10),
             _NeonStrip(
               leds: leds,
               colors: keyColors,
               enabled: enabled,
               onPaint: onPaint,
             ),
+            const SizedBox(height: 12),
+            for (final row in kKeyboardLayout)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: kMainUnits * unit,
+                      child: _group(row.main, unit),
+                    ),
+                    SizedBox(width: kGroupGap * unit),
+                    SizedBox(
+                      width: kNavUnits * unit,
+                      child: _group(row.nav, unit),
+                    ),
+                    SizedBox(width: kGroupGap * unit),
+                    SizedBox(
+                      width: kNumpadUnits * unit,
+                      child: _group(row.numpad, unit),
+                    ),
+                  ],
+                ),
+              ),
           ],
         );
       },
+    );
+  }
+
+  Widget _group(List<KeyCap> caps, double unit) {
+    return Row(
+      children: [
+        for (final cap in caps)
+          cap.isGap
+              ? SizedBox(width: cap.width * unit)
+              : _Key(
+                  cap: cap,
+                  unit: unit,
+                  index: _indexOf(cap.led),
+                  colors: keyColors,
+                  enabled: enabled,
+                  onPaint: onPaint,
+                ),
+      ],
     );
   }
 
