@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../dashboard/providers/dashboard_provider.dart';
 import '../bloc/lighting_bloc.dart';
 import '../bloc/lighting_event.dart';
 import '../bloc/lighting_state.dart';
@@ -16,9 +18,11 @@ import '../services/spectrum_effects.dart';
 import 'keyboard_layout.dart';
 import 'keyboard_preview.dart';
 
-/// The lighting identity accent (magenta), local to this page — it does not
-/// override the global power-mode accent.
-const Color _accent = Color(0xFFD6409F);
+/// This page's accent — the current power-mode accent (matching the sidebar),
+/// injected as `colorScheme.primary` over the whole page in [build] so every
+/// control (and the Yaru widgets) share it.
+Color _pageAccent(BuildContext context) =>
+    Theme.of(context).colorScheme.primary;
 
 const List<Color> _presetColors = [
   Color(0xFFFFFFFF),
@@ -28,7 +32,7 @@ const List<Color> _presetColors = [
   Color(0xFF2ECC40),
   Color(0xFF00C2D1),
   Color(0xFF3D7BFF),
-  _accent,
+  Color(0xFFD6409F),
 ];
 
 /// The keyboard's built-in firmware animations (whole-keyboard, via OpenRGB),
@@ -89,6 +93,16 @@ class _LightingPageState extends ConsumerState<LightingPage> {
     final engine = ref.watch(spectrumEffectEngineProvider);
     final device = rgb.device;
 
+    // Tint the whole page with the current power-mode accent, like the sidebar.
+    final theme = Theme.of(context);
+    final accent =
+        LegionAccent.fromPowerModeValue(
+          ref.watch(
+            dashboardBlocProvider.select((s) => s.snapshot.status.powerProfile),
+          ),
+        )?.color ??
+        theme.colorScheme.primary;
+
     // Keep the animation engine in sync with the painting + effect assignments.
     ref.listen(rgbLightingBlocProvider, (_, next) {
       final dev = next.device;
@@ -135,81 +149,86 @@ class _LightingPageState extends ConsumerState<LightingPage> {
     }
     final firmwareModes = _firmwareEffectsFor(device?.modes ?? const []);
 
-    return AppPageBody(
-      errorMessage: rgb.errorMessage ?? lighting.errorMessage,
-      noticeMessage: lighting.noticeMessage,
-      children: [
-        if (rgb.available && device != null) ...[
-          _DeviceCard(
-            device: device,
-            activeMode: rgb.activeMode,
-            nativeAvailable: rgb.nativeAvailable,
-          ),
-          const SizedBox(height: 16),
-          ValueListenableBuilder<List<Color>?>(
-            valueListenable: engine.frame,
-            builder: (context, liveFrame, _) => _KeyboardCard(
-              leds: device.leds,
-              keyColors: liveFrame ?? rgb.keyColors,
-              enabled: isCustom && !rgb.isApplying,
-              highlighted: isCustom ? const {} : scopeIndices.toSet(),
-              onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
-              onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
-              onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
+    return Theme(
+      data: theme.copyWith(
+        colorScheme: theme.colorScheme.copyWith(primary: accent),
+      ),
+      child: AppPageBody(
+        errorMessage: rgb.errorMessage ?? lighting.errorMessage,
+        noticeMessage: lighting.noticeMessage,
+        children: [
+          if (rgb.available && device != null) ...[
+            _DeviceCard(
+              device: device,
+              activeMode: rgb.activeMode,
+              nativeAvailable: rgb.nativeAvailable,
             ),
-          ),
-          const SizedBox(height: 16),
-          _ApplyToCard(
-            scope: _scope,
-            enabled: !rgb.isApplying,
-            onScope: (scope) => setState(() => _scope = scope),
-          ),
-          const SizedBox(height: 16),
-          _ColorCard(
-            selected: rgb.selectedColor,
-            scope: _scope,
-            enabled: !rgb.isApplying,
-            onSelected: applyColor,
-          ),
-          const SizedBox(height: 16),
-          _SoftwareEffectCard(
-            scope: _scope,
-            isCustom: isCustom,
-            active: scopeEffect,
-            enabled: !rgb.isApplying,
-            onSelected: applyEffect,
-          ),
-          if (firmwareModes.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _ControlCard(
-              title: 'Firmware effects · whole keyboard',
-              child: _EffectPicker(
-                modes: firmwareModes,
-                activeMode: rgb.activeMode,
-                enabled: !rgb.isApplying,
-                onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
+            ValueListenableBuilder<List<Color>?>(
+              valueListenable: engine.frame,
+              builder: (context, liveFrame, _) => _KeyboardCard(
+                leds: device.leds,
+                keyColors: liveFrame ?? rgb.keyColors,
+                enabled: isCustom && !rgb.isApplying,
+                highlighted: isCustom ? const {} : scopeIndices.toSet(),
+                onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
+                onErase: (index) => rgbBloc.add(RgbKeyErased(index)),
+                onPick: (index) => rgbBloc.add(RgbKeyPicked(index)),
               ),
             ),
-          ],
+            const SizedBox(height: 16),
+            _ApplyToCard(
+              scope: _scope,
+              enabled: !rgb.isApplying,
+              onScope: (scope) => setState(() => _scope = scope),
+            ),
+            const SizedBox(height: 16),
+            _ColorCard(
+              selected: rgb.selectedColor,
+              scope: _scope,
+              enabled: !rgb.isApplying,
+              onSelected: applyColor,
+            ),
+            const SizedBox(height: 16),
+            _SoftwareEffectCard(
+              scope: _scope,
+              isCustom: isCustom,
+              active: scopeEffect,
+              enabled: !rgb.isApplying,
+              onSelected: applyEffect,
+            ),
+            if (firmwareModes.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _ControlCard(
+                title: 'Firmware effects · whole keyboard',
+                child: _EffectPicker(
+                  modes: firmwareModes,
+                  activeMode: rgb.activeMode,
+                  enabled: !rgb.isApplying,
+                  onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            _BrightnessCard(
+              brightness: rgb.brightness,
+              enabled: !rgb.isApplying,
+              onChanged: (value) => rgbBloc.add(RgbBrightnessChanged(value)),
+            ),
+            const SizedBox(height: 16),
+            _ProfilesCard(
+              profileNames: rgb.profileNames,
+              enabled: !rgb.isApplying,
+              onSave: (name) => rgbBloc.add(RgbProfileSaved(name)),
+              onLoad: (name) => rgbBloc.add(RgbProfileLoaded(name)),
+              onDelete: (name) => rgbBloc.add(RgbProfileDeleted(name)),
+            ),
+          ] else
+            const _UnavailableCard(),
           const SizedBox(height: 16),
-          _BrightnessCard(
-            brightness: rgb.brightness,
-            enabled: !rgb.isApplying,
-            onChanged: (value) => rgbBloc.add(RgbBrightnessChanged(value)),
-          ),
-          const SizedBox(height: 16),
-          _ProfilesCard(
-            profileNames: rgb.profileNames,
-            enabled: !rgb.isApplying,
-            onSave: (name) => rgbBloc.add(RgbProfileSaved(name)),
-            onLoad: (name) => rgbBloc.add(RgbProfileLoaded(name)),
-            onDelete: (name) => rgbBloc.add(RgbProfileDeleted(name)),
-          ),
-        ] else
-          const _UnavailableCard(),
-        const SizedBox(height: 16),
-        _BacklightSection(state: lighting, bloc: lightingBloc),
-      ],
+          _BacklightSection(state: lighting, bloc: lightingBloc),
+        ],
+      ),
     );
   }
 }
@@ -244,8 +263,10 @@ class _ApplyToCard extends StatelessWidget {
             ChoiceChip(
               label: Text(option),
               selected: scope == option,
-              selectedColor: _accent.withValues(alpha: 0.22),
-              side: scope == option ? const BorderSide(color: _accent) : null,
+              selectedColor: _pageAccent(context).withValues(alpha: 0.22),
+              side: scope == option
+                  ? BorderSide(color: _pageAccent(context))
+                  : null,
               onSelected: enabled ? (_) => onScope(option) : null,
             ),
         ],
@@ -300,8 +321,10 @@ class _SoftwareEffectCard extends StatelessWidget {
             ChoiceChip(
               label: Text(label),
               selected: active == effect,
-              selectedColor: _accent.withValues(alpha: 0.22),
-              side: active == effect ? const BorderSide(color: _accent) : null,
+              selectedColor: _pageAccent(context).withValues(alpha: 0.22),
+              side: active == effect
+                  ? BorderSide(color: _pageAccent(context))
+                  : null,
               onSelected: enabled ? (_) => onSelected(effect) : null,
             ),
         ],
@@ -365,17 +388,24 @@ class _DeviceCard extends StatelessWidget {
     ].join('  ·  ');
 
     return SurfaceCard(
-      color: Color.alphaBlend(_accent.withValues(alpha: 0.10), scheme.surface),
-      border: Border.all(color: _accent.withValues(alpha: 0.45)),
+      color: Color.alphaBlend(
+        _pageAccent(context).withValues(alpha: 0.10),
+        scheme.surface,
+      ),
+      border: Border.all(color: _pageAccent(context).withValues(alpha: 0.45)),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _accent.withValues(alpha: 0.16),
+              color: _pageAccent(context).withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(YaruIcons.keyboard, color: _accent, size: 22),
+            child: Icon(
+              YaruIcons.keyboard,
+              color: _pageAccent(context),
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -505,8 +535,10 @@ class _ProfilesCardState extends State<_ProfilesCard> {
               OutlinedButton(
                 onPressed: widget.enabled ? _save : null,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: _accent,
-                  side: BorderSide(color: _accent.withValues(alpha: 0.5)),
+                  foregroundColor: _pageAccent(context),
+                  side: BorderSide(
+                    color: _pageAccent(context).withValues(alpha: 0.5),
+                  ),
                 ),
                 child: const Text('Save'),
               ),
@@ -853,8 +885,10 @@ class _EffectPicker extends StatelessWidget {
           ChoiceChip(
             label: Text(mode),
             selected: activeMode == mode,
-            selectedColor: _accent.withValues(alpha: 0.22),
-            side: activeMode == mode ? const BorderSide(color: _accent) : null,
+            selectedColor: _pageAccent(context).withValues(alpha: 0.22),
+            side: activeMode == mode
+                ? BorderSide(color: _pageAccent(context))
+                : null,
             onSelected: enabled ? (_) => onSelected(mode) : null,
           ),
       ],
@@ -936,7 +970,7 @@ class _BrightnessCardState extends State<_BrightnessCard> {
           Slider(
             value: _value,
             max: 100,
-            activeColor: _accent,
+            activeColor: _pageAccent(context),
             onChanged: widget.enabled
                 ? (value) => setState(() => _value = value)
                 : null,
@@ -961,10 +995,14 @@ class _UnavailableCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: _accent.withValues(alpha: 0.14),
+              color: _pageAccent(context).withValues(alpha: 0.14),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(YaruIcons.keyboard, color: _accent, size: 22),
+            child: Icon(
+              YaruIcons.keyboard,
+              color: _pageAccent(context),
+              size: 22,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1063,10 +1101,10 @@ class _BacklightSection extends StatelessWidget {
           height: 36,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: _accent.withValues(alpha: 0.14),
+            color: _pageAccent(context).withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(9),
           ),
-          child: Icon(icon, color: _accent, size: 19),
+          child: Icon(icon, color: _pageAccent(context), size: 19),
         ),
         const SizedBox(width: 12),
         Expanded(

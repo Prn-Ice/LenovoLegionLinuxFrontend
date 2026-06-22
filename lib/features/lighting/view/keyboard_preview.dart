@@ -3,9 +3,6 @@ import 'package:flutter/services.dart' show HardwareKeyboard;
 
 import 'keyboard_layout.dart';
 
-/// The lighting accent (magenta), used to outline the active scope.
-const Color _highlight = Color(0xFFD6409F);
-
 /// A stylized, paintable keyboard. Each key is colored from [keyColors] (by the
 /// LED index of its name in [leds]). Click a key — or press and **drag** across
 /// keys — to paint with the active color ([onPaint]). Hold **Shift** to erase
@@ -158,7 +155,7 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(
                     color: inScope
-                        ? _highlight
+                        ? scheme.primary
                         : scheme.onSurface.withValues(alpha: 0.12),
                     width: inScope ? 2 : 1,
                   ),
