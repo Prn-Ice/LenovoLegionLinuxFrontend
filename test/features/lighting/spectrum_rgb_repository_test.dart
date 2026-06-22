@@ -45,6 +45,15 @@ void main() {
       expect(leds.single.number, 0x01);
       expect([leds.single.r, leds.single.g, leds.single.b], [255, 0, 0]);
     });
+
+    test('caps full white to the per-LED power budget so it lights', () {
+      final led = spectrumLedsFor(
+        const ['Key: Escape'],
+        const [Color(0xFFFFFFFF)],
+      ).single;
+      expect(led.r + led.g + led.b, lessThanOrEqualTo(720));
+      expect([led.r, led.g, led.b], everyElement(greaterThan(220)));
+    });
   });
 
   group('SpectrumRgbRepository', () {

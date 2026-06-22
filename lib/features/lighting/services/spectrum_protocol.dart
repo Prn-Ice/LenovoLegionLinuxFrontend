@@ -11,6 +11,21 @@ import 'dart:typed_data';
 
 const int kSpectrumPacketSize = 960;
 
+/// Max per-LED total (R+G+B) the keyboard will actually light. Above this the
+/// firmware drops the LED (a per-key power cap), so full white (765) shows as
+/// nothing — measured on hardware: 720 lights, 762 doesn't.
+const int kSpectrumMaxLedSum = 720;
+
+/// Caps an LED's [r],[g],[b] to the per-key power budget, scaling all channels
+/// proportionally (so hue is preserved) only when the total exceeds the budget.
+/// Colors under it pass through unchanged.
+(int, int, int) capPowerRgb(int r, int g, int b) {
+  final sum = r + g + b;
+  if (sum <= kSpectrumMaxLedSum || sum == 0) return (r, g, b);
+  final scale = kSpectrumMaxLedSum / sum;
+  return ((r * scale).round(), (g * scale).round(), (b * scale).round());
+}
+
 const int _reportId = 0x07;
 const int _directMode = 0xA1; // push a direct frame
 const int _setDirectMode = 0xD0; // enable/disable direct mode

@@ -2,6 +2,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 
 void main() {
+  group('capPowerRgb', () {
+    test('passes colors under the per-LED power budget through unchanged', () {
+      expect(capPowerRgb(255, 0, 0), (255, 0, 0)); // red
+      expect(capPowerRgb(255, 0, 255), (255, 0, 255)); // magenta
+      expect(capPowerRgb(160, 160, 160), (160, 160, 160)); // grey
+      expect(capPowerRgb(0, 0, 0), (0, 0, 0));
+    });
+
+    test('scales near-white down to a displayable white, preserving hue', () {
+      final (r, g, b) = capPowerRgb(255, 255, 255);
+      expect(r + g + b, lessThanOrEqualTo(kSpectrumMaxLedSum));
+      expect(r, g);
+      expect(g, b); // stays neutral
+      expect(r, greaterThan(220)); // still a bright white
+    });
+  });
+
   test('all packets are 960 bytes', () {
     expect(spectrumDirectModePacket(enable: true).length, kSpectrumPacketSize);
     expect(spectrumBrightnessPacket(6).length, kSpectrumPacketSize);
