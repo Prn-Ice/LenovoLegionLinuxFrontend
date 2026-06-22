@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
-import '../../diagnostics/view/diagnostics_page.dart';
+import '../../../core/widgets/metric_format.dart';
 import '../../automation/view/automation_page.dart';
+import '../../battery/providers/battery_provider.dart';
 import '../../battery/view/battery_page.dart';
 import '../../dashboard/bloc/dashboard_event.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/view/dashboard_page.dart';
 import '../../devices/view/devices_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
+import '../../diagnostics/view/diagnostics_page.dart';
 import '../../display/view/display_page.dart';
 import '../../fans/view/fans_page.dart';
 import '../../lighting/view/lighting_page.dart';
@@ -35,14 +38,16 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   @override
   void initState() {
     super.initState();
-    final initial = ref.read(navigationBlocProvider).section;
+    final initialIndex = NavShellEntries.indexFor(
+      ref.read(navigationBlocProvider).section,
+    );
     _wideController = YaruPageController(
-      length: NavShellEntries.all.length,
-      initialIndex: NavShellEntries.indexFor(initial),
+      length: NavShellEntries.sections.length,
+      initialIndex: initialIndex,
     );
     _narrowController = YaruPageController(
-      length: NavShellEntries.pages.length,
-      initialIndex: NavShellEntries.narrowIndexFor(initial),
+      length: NavShellEntries.sections.length,
+      initialIndex: initialIndex,
     );
   }
 
@@ -54,8 +59,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   }
 
   void _navigateTo(AppSection section) {
-    final bloc = ref.read(navigationBlocProvider.bloc);
-    bloc.add(NavigationSectionSelected(section));
+    ref
+        .read(navigationBlocProvider.bloc)
+        .add(NavigationSectionSelected(section));
   }
 
   /// Title-bar actions for the active section (currently a Dashboard refresh).
@@ -74,23 +80,26 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    // Keep controllers in sync with navigation bloc.
+    // Keep controllers in sync with the navigation bloc.
     ref.listen(navigationBlocProvider, (prev, next) {
       if (prev?.section == next.section) return;
-      final wideIdx = NavShellEntries.indexFor(next.section);
-      if (_wideController.index != wideIdx) {
-        _wideController.index = wideIdx;
-      }
-      final narrowIdx = NavShellEntries.narrowIndexFor(next.section);
-      if (_narrowController.index != narrowIdx) {
-        _narrowController.index = narrowIdx;
-      }
+      final idx = NavShellEntries.indexFor(next.section);
+      if (_wideController.index != idx) _wideController.index = idx;
+      if (_narrowController.index != idx) _narrowController.index = idx;
     });
+
+    // The selected sidebar item re-tints with the current power-mode accent.
+    final mode = ref.watch(
+      dashboardBlocProvider.select((s) => s.snapshot.status.powerProfile),
+    );
+    final accent =
+        LegionAccent.fromPowerModeValue(mode)?.color ??
+        Theme.of(context).colorScheme.primary;
 
     final width = MediaQuery.of(context).size.width;
 
     if (width < kYaruMasterDetailBreakpoint) {
-      // Narrow layout — icons-only rail, no section headers.
+      // Narrow layout — icons-only rail.
       final style = width > 500
           ? YaruNavigationRailStyle.labelled
           : YaruNavigationRailStyle.compact;
@@ -113,19 +122,19 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         body: YaruNavigationPage(
           controller: _narrowController,
           itemBuilder: (context, index, selected) => YaruNavigationRailItem(
-            icon: Icon(NavShellEntries.pages[index].yaruIcon),
-            label: Text(NavShellEntries.pages[index].label),
-            tooltip: NavShellEntries.pages[index].label,
+            icon: Icon(NavShellEntries.sections[index].yaruIcon),
+            label: Text(NavShellEntries.sections[index].label),
+            tooltip: NavShellEntries.sections[index].label,
             style: style,
           ),
           pageBuilder: (context, index) =>
-              _buildPage(NavShellEntries.pages[index]),
-          onSelected: (index) => _navigateTo(NavShellEntries.pages[index]),
+              _buildPage(NavShellEntries.sections[index]),
+          onSelected: (index) => _navigateTo(NavShellEntries.sections[index]),
         ),
       );
     }
 
-    // Wide layout — sidebar with section headers.
+    // Wide layout — flat sidebar with an accent-tinted active item.
     return YaruMasterDetailPage(
       controller: _wideController,
       paneLayoutDelegate: const YaruResizablePaneDelegate(
@@ -134,30 +143,18 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         minPaneSize: 175,
       ),
       tileBuilder: (context, index, selected, availableWidth) {
-        final entry = NavShellEntries.all[index];
-        return switch (entry) {
-          NavHeader h => _buildSectionHeader(context, h.title),
-          NavPageEntry p => YaruMasterTile(
-            leading: Icon(p.section.yaruIcon),
-            title: Text(p.section.label),
+        final section = NavShellEntries.sections[index];
+        return ListTileTheme(
+          selectedColor: accent,
+          selectedTileColor: accent.withValues(alpha: 0.18),
+          child: YaruMasterTile(
+            leading: Icon(section.yaruIcon),
+            title: Text(section.label),
           ),
-        };
+        );
       },
       pageBuilder: (context, index) {
-        final entry = NavShellEntries.all[index];
-        if (entry is! NavPageEntry) {
-          // Headers have no detail page — show whatever was previously selected.
-          final currentSection = ref.read(navigationBlocProvider).section;
-          return YaruDetailPage(
-            appBar: YaruWindowTitleBar(
-              border: BorderSide.none,
-              centerTitle: false,
-              title: Text(currentSection.label),
-              actions: _titleBarActions(currentSection),
-            ),
-            body: _buildPage(currentSection),
-          );
-        }
+        final section = NavShellEntries.sections[index];
         return YaruDetailPage(
           appBar: YaruWindowTitleBar(
             border: BorderSide.none,
@@ -165,10 +162,10 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             leading: Navigator.of(context).canPop()
                 ? const YaruBackButton()
                 : null,
-            title: Text(entry.section.label),
-            actions: _titleBarActions(entry.section),
+            title: Text(section.label),
+            actions: _titleBarActions(section),
           ),
-          body: _buildPage(entry.section),
+          body: _buildPage(section),
         );
       },
       appBar: YaruWindowTitleBar(
@@ -181,31 +178,15 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             ),
           ),
         ),
-        title: const Text('Lenovo Legion Linux'),
+        title: const Text('Legion'),
         border: BorderSide.none,
         backgroundColor: YaruMasterDetailTheme.of(context).sideBarColor,
       ),
+      bottomBar: const _SidebarStatusFooter(),
       onSelected: (index) {
         if (index == null) return;
-        final entry = NavShellEntries.all[index];
-        if (entry is NavPageEntry) {
-          _navigateTo(entry.section);
-        }
-        // NavHeader taps are ignored.
+        _navigateTo(NavShellEntries.sections[index]);
       },
-    );
-  }
-
-  Widget _buildSectionHeader(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-          letterSpacing: 1.1,
-        ),
-      ),
     );
   }
 
@@ -234,5 +215,81 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       case AppSection.diagnostics:
         return const DiagnosticsPage();
     }
+  }
+}
+
+/// Sidebar footer: AC/charging status with the battery percentage, matching the
+/// design. Watches power + battery state directly (page-level composition).
+class _SidebarStatusFooter extends ConsumerWidget {
+  const _SidebarStatusFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final onAc = ref.watch(
+      dashboardBlocProvider.select((s) => s.snapshot.onPowerSupply),
+    );
+    final percent = ref.watch(
+      batteryBlocProvider.select((s) => s.batteryPercent),
+    );
+    final charging = ref.watch(
+      batteryBlocProvider.select((s) => s.batteryCharging),
+    );
+
+    final status = charging == true
+        ? 'Charging'
+        : onAc == true
+        ? 'On AC power'
+        : onAc == false
+        ? 'On battery'
+        : 'Power';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: scheme.onSurface.withValues(alpha: 0.06)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            charging == true
+                ? YaruIcons.battery_full_charging
+                : YaruIcons.battery,
+            size: 18,
+            color: scheme.onSurface.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  status,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (percent != null)
+                  Text(
+                    'Battery $percent%',
+                    style: TextStyle(
+                      fontFamily: kMonoFontFamily,
+                      package: kMonoFontPackage,
+                      fontSize: 11,
+                      color: scheme.onSurface.withValues(alpha: 0.55),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
