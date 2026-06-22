@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
@@ -11,6 +13,7 @@ import '../bloc/lighting_state.dart';
 import '../bloc/rgb_lighting_event.dart';
 import '../models/openrgb_device.dart';
 import '../providers/lighting_provider.dart';
+import '../repository/rgb_lighting_repository.dart';
 import 'keyboard_preview.dart';
 
 /// The lighting identity accent (magenta), local to this page — it does not
@@ -27,6 +30,35 @@ const List<Color> _presetColors = [
   Color(0xFF3D7BFF),
   _accent,
 ];
+
+/// Curated effect order; filtered down to what the device actually supports so
+/// the noisy raw OpenRGB modes (Screw Rainbow, Audio Bounce, …) stay hidden.
+const List<String> _curatedEffects = [
+  'Static',
+  'Direct',
+  'Rainbow Wave',
+  'Color Pulse',
+  'Color Wave',
+  'Smooth',
+  'Ripple',
+  'Rain',
+  'Color Change',
+  'Type Lighting',
+];
+
+List<String> _effectsFor(List<String> modes, String? active) {
+  final available = modes.toSet();
+  final result = [
+    for (final mode in _curatedEffects)
+      if (available.contains(mode)) mode,
+  ];
+  if (active != null &&
+      available.contains(active) &&
+      !result.contains(active)) {
+    result.insert(0, active);
+  }
+  return result;
+}
 
 class LightingPage extends ConsumerWidget {
   const LightingPage({super.key});
@@ -47,23 +79,27 @@ class LightingPage extends ConsumerWidget {
         if (rgb.available && device != null) ...[
           _DeviceCard(device: device, activeMode: rgb.activeMode),
           const SizedBox(height: 16),
-          _Section(
+          _KeyboardCard(
+            leds: device.leds,
+            keyColors: rgb.keyColors,
+            enabled: !rgb.isApplying,
+            onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
+          ),
+          const SizedBox(height: 16),
+          _ColorCard(
+            selected: rgb.selectedColor,
+            enabled: !rgb.isApplying,
+            onSelected: (color) => rgbBloc.add(RgbColorSelected(color)),
+            onFill: () => rgbBloc.add(RgbAllKeysFilled(rgb.selectedColor)),
+          ),
+          const SizedBox(height: 16),
+          _ControlCard(
             title: 'Effect',
             child: _EffectPicker(
-              modes: device.modes,
+              modes: _effectsFor(device.modes, rgb.activeMode),
               activeMode: rgb.activeMode,
               enabled: !rgb.isApplying,
               onSelected: (mode) => rgbBloc.add(RgbModeSelected(mode)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _Section(
-            title: 'Color',
-            child: _ColorRow(
-              selected: rgb.selectedColor,
-              enabled: !rgb.isApplying,
-              onSelected: (color) => rgbBloc.add(RgbColorSelected(color)),
-              onFill: () => rgbBloc.add(RgbAllKeysFilled(rgb.selectedColor)),
             ),
           ),
           const SizedBox(height: 16),
@@ -72,21 +108,43 @@ class LightingPage extends ConsumerWidget {
             enabled: !rgb.isApplying,
             onChanged: (value) => rgbBloc.add(RgbBrightnessChanged(value)),
           ),
-          const SizedBox(height: 16),
-          _Section(
-            title: 'Per-key',
-            child: KeyboardPreview(
-              leds: device.leds,
-              keyColors: rgb.keyColors,
-              enabled: !rgb.isApplying,
-              onPaint: (index) => rgbBloc.add(RgbKeyPainted(index)),
-            ),
-          ),
         ] else
           const _UnavailableCard(),
         const SizedBox(height: 16),
         _BacklightSection(state: lighting, bloc: lightingBloc),
       ],
+    );
+  }
+}
+
+/// A SurfaceCard with a small caps title, for grouping a control.
+class _ControlCard extends StatelessWidget {
+  const _ControlCard({required this.title, required this.child, this.color});
+
+  final String title;
+  final Widget child;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SurfaceCard(
+      color: color,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.5),
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -144,6 +202,177 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
+/// The keyboard preview on a darker surface so the keys pop, like the design.
+class _KeyboardCard extends StatelessWidget {
+  const _KeyboardCard({
+    required this.leds,
+    required this.keyColors,
+    required this.enabled,
+    required this.onPaint,
+  });
+
+  final List<String> leds;
+  final List<Color> keyColors;
+  final bool enabled;
+  final ValueChanged<int> onPaint;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return _ControlCard(
+      title: 'Per-key',
+      color: Color.alphaBlend(
+        Colors.black.withValues(alpha: 0.4),
+        scheme.surface,
+      ),
+      child: KeyboardPreview(
+        leds: leds,
+        keyColors: keyColors,
+        enabled: enabled,
+        onPaint: onPaint,
+      ),
+    );
+  }
+}
+
+class _ColorCard extends StatelessWidget {
+  const _ColorCard({
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+    required this.onFill,
+  });
+
+  final Color selected;
+  final bool enabled;
+  final ValueChanged<Color> onSelected;
+  final VoidCallback onFill;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return _ControlCard(
+      title: 'Color',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _ColorWheel(
+            selected: selected,
+            onChanged: enabled ? onSelected : (_) {},
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '#${colorToOpenRgbHex(selected)}',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final color in _presetColors)
+                      _Swatch(
+                        color: color,
+                        selected: color == selected,
+                        onTap: enabled ? () => onSelected(color) : null,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                OutlinedButton(
+                  onPressed: enabled ? onFill : null,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _accent,
+                    side: BorderSide(color: _accent.withValues(alpha: 0.5)),
+                  ),
+                  child: const Text('Fill keyboard'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A hue ring: tap or drag around it to pick a fully-saturated color.
+class _ColorWheel extends StatelessWidget {
+  const _ColorWheel({required this.selected, required this.onChanged});
+
+  final Color selected;
+  final ValueChanged<Color> onChanged;
+
+  static const double _size = 132;
+
+  void _pick(Offset local) {
+    const center = Offset(_size / 2, _size / 2);
+    final vector = local - center;
+    final hue = (math.atan2(vector.dy, vector.dx) * 180 / math.pi + 360) % 360;
+    onChanged(HSVColor.fromAHSV(1, hue, 1, 1).toColor());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanDown: (details) => _pick(details.localPosition),
+      onPanUpdate: (details) => _pick(details.localPosition),
+      child: CustomPaint(
+        size: const Size.square(_size),
+        painter: _WheelPainter(HSVColor.fromColor(selected).hue),
+      ),
+    );
+  }
+}
+
+class _WheelPainter extends CustomPainter {
+  const _WheelPainter(this.hue);
+
+  final double hue;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final stroke = size.width * 0.18;
+    final radius = size.width / 2 - stroke / 2;
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final ring = Paint()
+      ..shader = SweepGradient(
+        colors: [
+          for (var h = 0; h <= 360; h += 30)
+            HSVColor.fromAHSV(1, (h % 360).toDouble(), 1, 1).toColor(),
+        ],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke;
+    canvas.drawCircle(center, radius, ring);
+
+    final angle = hue * math.pi / 180;
+    final knob = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+    canvas.drawCircle(
+      knob,
+      stroke * 0.5,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      knob,
+      stroke * 0.38,
+      Paint()..color = HSVColor.fromAHSV(1, hue, 1, 1).toColor(),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_WheelPainter old) => old.hue != hue;
+}
+
 class _EffectPicker extends StatelessWidget {
   const _EffectPicker({
     required this.modes,
@@ -176,51 +405,6 @@ class _EffectPicker extends StatelessWidget {
   }
 }
 
-class _ColorRow extends StatelessWidget {
-  const _ColorRow({
-    required this.selected,
-    required this.enabled,
-    required this.onSelected,
-    required this.onFill,
-  });
-
-  final Color selected;
-  final bool enabled;
-  final ValueChanged<Color> onSelected;
-  final VoidCallback onFill;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final color in _presetColors)
-                _Swatch(
-                  color: color,
-                  selected: color == selected,
-                  onTap: enabled ? () => onSelected(color) : null,
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        OutlinedButton(
-          onPressed: enabled ? onFill : null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: _accent,
-            side: BorderSide(color: _accent.withValues(alpha: 0.5)),
-          ),
-          child: const Text('Fill'),
-        ),
-      ],
-    );
-  }
-}
-
 class _Swatch extends StatelessWidget {
   const _Swatch({required this.color, required this.selected, this.onTap});
 
@@ -234,8 +418,8 @@ class _Swatch extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 30,
-        height: 30,
+        width: 28,
+        height: 28,
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
@@ -350,7 +534,7 @@ class _UnavailableCard extends StatelessWidget {
 }
 
 /// The coarse sysfs backlight zones (white keyboard / Y-logo / IO-port),
-/// complementary to the per-key RGB above.
+/// complementary to the per-key RGB above. Hidden when none are supported.
 class _BacklightSection extends StatelessWidget {
   const _BacklightSection({required this.state, required this.bloc});
 
@@ -389,7 +573,7 @@ class _BacklightSection extends StatelessWidget {
         ),
     ];
     if (tiles.isEmpty) return const SizedBox.shrink();
-    return _Section(
+    return _ControlCard(
       title: 'Backlight',
       child: Column(
         children: [
@@ -415,85 +599,52 @@ class _BacklightSection extends StatelessWidget {
     final on = enabled ?? false;
     final canToggle = !state.isApplying;
 
-    return SurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: _accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Icon(icon, color: _accent, size: 19),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(title, style: textTheme.titleSmall),
-                Text(
-                  on ? 'On' : 'Off',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.56),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          YaruSwitch(
-            value: on,
-            onChanged: canToggle
-                ? (v) async {
-                    final confirmed = await confirmPrivilegedAction(
-                      context,
-                      title: confirmTitle,
-                      message:
-                          'This uses privileged access and may prompt for '
-                          'authentication.',
-                      confirmLabel: 'Apply',
-                    );
-                    if (!context.mounted || !confirmed) return;
-                    onApply(v);
-                  }
-                : null,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A titled section: a small caps label above [child].
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.5),
-              letterSpacing: 1.1,
-            ),
+        Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _accent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, color: _accent, size: 19),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: textTheme.titleSmall),
+              Text(
+                on ? 'On' : 'Off',
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurface.withValues(alpha: 0.56),
+                ),
+              ),
+            ],
           ),
         ),
-        child,
+        const SizedBox(width: 12),
+        YaruSwitch(
+          value: on,
+          onChanged: canToggle
+              ? (v) async {
+                  final confirmed = await confirmPrivilegedAction(
+                    context,
+                    title: confirmTitle,
+                    message:
+                        'This uses privileged access and may prompt for '
+                        'authentication.',
+                    confirmLabel: 'Apply',
+                  );
+                  if (!context.mounted || !confirmed) return;
+                  onApply(v);
+                }
+              : null,
+        ),
       ],
     );
   }
