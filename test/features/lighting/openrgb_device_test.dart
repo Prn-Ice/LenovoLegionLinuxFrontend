@@ -52,6 +52,16 @@ void main() {
       expect(device.leds, ['Key: Escape', 'Key: F1', 'Neon group 1']);
     });
 
+    test('parses an LED name containing an apostrophe + the next LED', () {
+      // OpenRGB quotes names without escaping, so the apostrophe key "Key: '"
+      // is printed as 'Key: '' — the inner apostrophe must not be mistaken for
+      // the closing quote (which would also mangle the following key).
+      final device = parseOpenRgbDevices(
+        "0: Pad\n  Type: Keyboard\n  LEDs: 'Key: ;' 'Key: '' 'Key: Enter'\n",
+      ).single;
+      expect(device.leds, ['Key: ;', "Key: '", 'Key: Enter']);
+    });
+
     test('parses multiple device blocks', () {
       final devices = parseOpenRgbDevices(
         '$_fixture\n1: Some Other Device\n  Type:           DRAM\n',

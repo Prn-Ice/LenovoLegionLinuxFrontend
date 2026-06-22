@@ -137,7 +137,15 @@ List<OpenRgbDevice> parseOpenRgbDevices(String output) {
     if (i < s.length && s[i] == "'") {
       i++;
       final start = i;
-      while (i < s.length && s[i] != "'") {
+      // A "'" closes the token only when followed by a separator (space, ']',
+      // or end-of-string). Otherwise it's a literal apostrophe in the name:
+      // OpenRGB quotes without escaping, so "Key: '" prints as 'Key: '' and the
+      // inner apostrophe must not be read as the closing quote.
+      while (i < s.length) {
+        if (s[i] == "'") {
+          final next = i + 1 < s.length ? s[i + 1] : null;
+          if (next == null || next == ' ' || next == ']') break;
+        }
         i++;
       }
       name = s.substring(start, i);
