@@ -9,7 +9,10 @@ import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
 import 'package:legion_frontend/features/lighting/models/rgb_lighting_snapshot.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_store.dart';
+import 'package:legion_frontend/features/lighting/repository/spectrum_rgb_repository.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart';
+import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
+import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 
 const _kbd = OpenRgbDevice(
   index: 0,
@@ -85,6 +88,24 @@ class _FakeStore extends RgbLightingStore {
 
   @override
   Future<void> deleteProfile(String name) async => profiles.remove(name);
+}
+
+class _RecordingHid extends SpectrumHidService {
+  List<SpectrumLed>? lastFrame;
+  int paints = 0;
+
+  @override
+  String? findHidrawPath() => '/dev/hidraw0';
+
+  @override
+  bool sendDirectFrame(List<SpectrumLed> leds) {
+    lastFrame = leds;
+    paints++;
+    return true;
+  }
+
+  @override
+  bool setBrightness(int brightness) => true;
 }
 
 /// act() that loads the device, then runs [more].
@@ -392,5 +413,32 @@ void main() {
       expect(bloc.state.profileNames, isNot(contains('Old')));
       await bloc.close();
     });
+
+    test(
+      'AllKeysFilled re-paints natively even when the color is unchanged',
+      () async {
+        final hid = _RecordingHid();
+        const realKbd = OpenRgbDevice(
+          index: 0,
+          name: 'KB',
+          type: 'Keyboard',
+          modes: ['Direct'],
+          leds: ['Key: Escape', 'Key: F1', 'Key: F2'],
+        );
+        final bloc = RgbLightingBloc(
+          repository: _FakeRepo(device: realKbd),
+          nativeRepository: SpectrumRgbRepository(service: hid),
+        );
+        await _startThen(bloc, () {});
+        bloc.add(const RgbAllKeysFilled(Color(0xFFFFFFFF)));
+        await Future<void>.delayed(Duration.zero);
+        final before = hid.paints;
+        // Re-fill the SAME color — must still push a frame to the keyboard.
+        bloc.add(const RgbAllKeysFilled(Color(0xFFFFFFFF)));
+        await Future<void>.delayed(Duration.zero);
+        expect(hid.paints, greaterThan(before));
+        await bloc.close();
+      },
+    );
   });
 }
