@@ -46,13 +46,14 @@ void main() {
       expect([leds.single.r, leds.single.g, leds.single.b], [255, 0, 0]);
     });
 
-    test('caps full white to the per-LED power budget so it lights', () {
+    test('caps + white-balances full white so it lights neutral', () {
       final led = spectrumLedsFor(
         const ['Key: Escape'],
         const [Color(0xFFFFFFFF)],
       ).single;
-      expect(led.r + led.g + led.b, lessThanOrEqualTo(720));
-      expect([led.r, led.g, led.b], everyElement(greaterThan(220)));
+      expect(led.r + led.g + led.b, lessThanOrEqualTo(720)); // lit (power cap)
+      expect([led.r, led.g, led.b], everyElement(greaterThan(150))); // all on
+      expect(led.g, lessThan(led.r)); // green pulled down (white balance)
     });
   });
 
@@ -72,7 +73,7 @@ void main() {
       ).paint(const ['Key: Escape'], const [Color(0xFF00FF00)]);
       expect(ok, isTrue);
       expect(fake.lastFrame!.single.number, 0x01);
-      expect(fake.lastFrame!.single.g, 255);
+      expect(fake.lastFrame!.single.g, greaterThan(200)); // white-balanced (~224)
     });
 
     test('setBrightness maps the percentage to a device level', () {

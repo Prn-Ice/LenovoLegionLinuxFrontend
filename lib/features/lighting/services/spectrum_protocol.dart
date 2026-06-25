@@ -26,6 +26,18 @@ const int kSpectrumMaxLedSum = 720;
   return ((r * scale).round(), (g * scale).round(), (b * scale).round());
 }
 
+/// The panel's green LEDs are much brighter than red/blue, so equal RGB reads
+/// green in Direct mode (the firmware's own modes apply this balance for us, but
+/// Direct is a raw passthrough). Scaling green to this fraction makes white —
+/// and yellows/cyans — read neutral. Measured on hardware: (255,225,255) ≈
+/// neutral white, i.e. green ≈ 0.88× red/blue.
+const double kSpectrumGreenGain = 0.88;
+
+/// Applies the panel white-balance: pulls green down so equal RGB reads neutral.
+/// Red/blue pass through; a green-free color is unchanged.
+(int, int, int) whiteBalanceRgb(int r, int g, int b) =>
+    (r, (g * kSpectrumGreenGain).round(), b);
+
 const int _reportId = 0x07;
 const int _directMode = 0xA1; // push a direct frame
 const int _setDirectMode = 0xD0; // enable/disable direct mode

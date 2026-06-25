@@ -20,11 +20,12 @@ List<SpectrumLed> spectrumLedsFor(List<String> ledNames, List<Color> colors) {
     final value = kSpectrumLedValues[ledNames[i]];
     if (value == null) continue;
     final color = colors[i];
-    final (r, g, b) = capPowerRgb(
+    final (wr, wg, wb) = whiteBalanceRgb(
       (color.r * 255.0).round(),
       (color.g * 255.0).round(),
       (color.b * 255.0).round(),
     );
+    final (r, g, b) = capPowerRgb(wr, wg, wb);
     result.add(SpectrumLed(value, r, g, b));
   }
   return result;

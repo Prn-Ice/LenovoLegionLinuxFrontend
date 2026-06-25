@@ -19,6 +19,19 @@ void main() {
     });
   });
 
+  group('whiteBalanceRgb', () {
+    test('pulls green down (the panel green is brighter), leaves red/blue', () {
+      final (r, g, b) = whiteBalanceRgb(255, 255, 255);
+      expect([r, b], [255, 255]); // red/blue untouched
+      expect(g, lessThan(255)); // green reduced so equal RGB reads neutral
+      expect(g, greaterThan(200)); // ~0.88x, not drastic
+    });
+
+    test('leaves a green-free color unchanged', () {
+      expect(whiteBalanceRgb(255, 0, 128), (255, 0, 128));
+    });
+  });
+
   test('all packets are 960 bytes', () {
     expect(spectrumDirectModePacket(enable: true).length, kSpectrumPacketSize);
     expect(spectrumBrightnessPacket(6).length, kSpectrumPacketSize);
