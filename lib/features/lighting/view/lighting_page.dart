@@ -26,7 +26,7 @@ Color _pageAccent(BuildContext context) =>
 
 const List<Color> _presetColors = [
   Color(0xFFFFFFFF),
-  Color(0xFFFF3B30),
+  Color(0xFF960800),
   Color(0xFFFF7A00),
   Color(0xFFFFD400),
   Color(0xFF2ECC40),
