@@ -1,9 +1,9 @@
 import 'package:equatable/equatable.dart';
 
-/// A single RGB device as reported by `openrgb --list-devices`.
-/// FIXME: This has nothing to do with openrgb
-class OpenRgbDevice extends Equatable {
-  const OpenRgbDevice({
+/// A controllable RGB lighting device, whether discovered through OpenRGB or
+/// synthesized for the native Spectrum path.
+class RgbLightingDevice extends Equatable {
+  const RgbLightingDevice({
     required this.index,
     required this.name,
     this.type = '',
@@ -14,7 +14,7 @@ class OpenRgbDevice extends Equatable {
     this.leds = const [],
   });
 
-  /// The `-d` device index passed to the CLI.
+  /// Backend device index, passed to OpenRGB's `-d` option when applicable.
   final int index;
   final String name;
   final String type;
@@ -29,7 +29,7 @@ class OpenRgbDevice extends Equatable {
   /// Zone names, e.g. `Keyboard`, `Neon`.
   final List<String> zones;
 
-  /// Per-LED names, in the order the CLI's `-c` color list addresses them.
+  /// Per-LED names in the order the active backend addresses them.
   final List<String> leds;
 
   int get ledCount => leds.length;
@@ -49,8 +49,8 @@ class OpenRgbDevice extends Equatable {
 
 /// Parses the textual output of `openrgb --list-devices` into devices. Server
 /// chatter lines (e.g. "Connected to server") and blank lines are ignored.
-List<OpenRgbDevice> parseOpenRgbDevices(String output) {
-  final devices = <OpenRgbDevice>[];
+List<RgbLightingDevice> parseOpenRgbDevices(String output) {
+  final devices = <RgbLightingDevice>[];
 
   int? index;
   var name = '';
@@ -65,7 +65,7 @@ List<OpenRgbDevice> parseOpenRgbDevices(String output) {
     final idx = index;
     if (idx != null) {
       devices.add(
-        OpenRgbDevice(
+        RgbLightingDevice(
           index: idx,
           name: name,
           type: type,

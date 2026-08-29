@@ -89,11 +89,14 @@ class SpectrumHidService {
   bool sendDirectFrame(List<SpectrumLed> leds) {
     if (!open()) return false;
     if (!_directEnabled) {
-      final on = spectrumDirectModePacket(
-        enable: true,
-        profile: _activeProfile(),
-      );
+      final profile = _activeProfile();
+      final on = spectrumDirectModePacket(enable: true, profile: profile);
       if (!_setFeature(on)) return false;
+      final directProfile = spectrumDirectProfilePacket(
+        profile: profile,
+        leds: leds,
+      );
+      if (!_setFeature(directProfile)) return false;
       _directEnabled = true;
     }
     return _setFeature(spectrumDirectFramePacket(leds));
@@ -118,7 +121,9 @@ class SpectrumHidService {
   }
 
   int _activeProfile() {
-    final response = _getFeature(spectrumGetActiveProfilePacket());
+    final request = spectrumGetActiveProfilePacket();
+    if (!_setFeature(request)) return 1;
+    final response = _getFeature(request);
     return (response != null && response.length > 4) ? response[4] : 1;
   }
 

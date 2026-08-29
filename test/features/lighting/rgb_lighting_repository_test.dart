@@ -1,7 +1,7 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
+import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
 import 'package:legion_frontend/features/lighting/services/openrgb_cli_service.dart';
 
@@ -9,11 +9,11 @@ import 'package:legion_frontend/features/lighting/services/openrgb_cli_service.d
 class _FakeService extends OpenRgbCliService {
   _FakeService(this._devices);
 
-  final List<OpenRgbDevice> _devices;
+  final List<RgbLightingDevice> _devices;
   Map<String, Object?>? lastApply;
 
   @override
-  Future<List<OpenRgbDevice>> listDevices() async => _devices;
+  Future<List<RgbLightingDevice>> listDevices() async => _devices;
 
   @override
   Future<void> apply({
@@ -35,7 +35,7 @@ class _FakeService extends OpenRgbCliService {
   }
 }
 
-const _kbd = OpenRgbDevice(
+const _kbd = RgbLightingDevice(
   index: 0,
   name: 'Legion KB',
   type: 'Keyboard',
@@ -62,7 +62,7 @@ void main() {
     test('loadKeyboard picks the Keyboard-type device', () async {
       final repo = RgbLightingRepository(
         service: _FakeService([
-          const OpenRgbDevice(index: 0, name: 'RAM', type: 'DRAM'),
+          const RgbLightingDevice(index: 0, name: 'RAM', type: 'DRAM'),
           _kbd,
         ]),
       );

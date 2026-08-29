@@ -9,12 +9,14 @@ class _FakeService extends SpectrumHidService {
   String? path = '/dev/hidraw0';
   List<SpectrumLed>? lastFrame;
   int? lastBrightness;
+  int frameCount = 0;
 
   @override
   String? findHidrawPath() => path;
 
   @override
   bool sendDirectFrame(List<SpectrumLed> leds) {
+    frameCount++;
     lastFrame = leds;
     return true;
   }
@@ -32,6 +34,20 @@ void main() {
       expect(spectrumBrightnessLevel(0), 0);
       expect(spectrumBrightnessLevel(100), 9);
       expect(spectrumBrightnessLevel(50), 5); // 4.5 -> 5
+    });
+  });
+
+  group('spectrumGreenGainForBrightness', () {
+    test('uses measured dim and full-brightness gains', () {
+      expect(spectrumGreenGainForBrightness(33), closeTo(0.94, 0.001));
+      expect(
+        spectrumGreenGainForBrightness(100),
+        closeTo(kSpectrumGreenGain, 0.001),
+      );
+    });
+
+    test('interpolates between measured brightness levels', () {
+      expect(spectrumGreenGainForBrightness(67), closeTo(0.91, 0.001));
     });
   });
 
@@ -73,7 +89,10 @@ void main() {
       ).paint(const ['Key: Escape'], const [Color(0xFF00FF00)]);
       expect(ok, isTrue);
       expect(fake.lastFrame!.single.number, 0x01);
-      expect(fake.lastFrame!.single.g, greaterThan(200)); // white-balanced (~224)
+      expect(
+        fake.lastFrame!.single.g,
+        greaterThan(200),
+      ); // white-balanced (~224)
     });
 
     test('setBrightness maps the percentage to a device level', () {
@@ -81,5 +100,21 @@ void main() {
       SpectrumRgbRepository(service: fake).setBrightness(100);
       expect(fake.lastBrightness, 9);
     });
+
+    test(
+      'brightness changes repaint the last frame with the adjusted gain',
+      () {
+        final fake = _FakeService();
+        final repo = SpectrumRgbRepository(service: fake);
+        repo.paint(const ['Key: Escape'], const [Color(0xFFFFFFFF)]);
+        final fullBrightnessGreen = fake.lastFrame!.single.g;
+
+        expect(repo.setBrightness(33), isTrue);
+
+        expect(fake.lastBrightness, 3);
+        expect(fake.frameCount, 2);
+        expect(fake.lastFrame!.single.g, greaterThan(fullBrightnessGreen));
+      },
+    );
   });
 }

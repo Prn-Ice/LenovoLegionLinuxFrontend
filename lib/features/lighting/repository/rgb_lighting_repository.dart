@@ -1,6 +1,6 @@
 import 'dart:ui' show Color;
 
-import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_device.dart';
 import '../services/openrgb_cli_service.dart';
 
 /// Formats a [Color] as OpenRGB's `RRGGBB` (uppercase, no leading `#`).
@@ -25,7 +25,7 @@ class RgbLightingRepository {
 
   /// The keyboard device (first `Keyboard`-type, else the first device), or
   /// null when OpenRGB exposes no devices / isn't running.
-  Future<OpenRgbDevice?> loadKeyboard() async {
+  Future<RgbLightingDevice?> loadKeyboard() async {
     final devices = await _service.listDevices();
     if (devices.isEmpty) return null;
     for (final device in devices) {
@@ -37,7 +37,7 @@ class RgbLightingRepository {
   /// Applies a named [mode] (effect), optionally with a single [color] and
   /// [brightness] (0–100).
   Future<void> applyMode(
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     String mode, {
     Color? color,
     int? brightness,
@@ -52,7 +52,7 @@ class RgbLightingRepository {
 
   /// Paints each LED in order via Direct mode (per-key colors).
   Future<void> applyDirect(
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     List<Color> colors, {
     int? brightness,
   }) {
@@ -65,7 +65,7 @@ class RgbLightingRepository {
   }
 
   /// Sets brightness (0–100) without changing the mode.
-  Future<void> setBrightness(OpenRgbDevice device, int percent) {
+  Future<void> setBrightness(RgbLightingDevice device, int percent) {
     return _service.apply(device: device.index, brightness: percent);
   }
 }

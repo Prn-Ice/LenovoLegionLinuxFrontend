@@ -2,7 +2,7 @@ import 'dart:ui' show Color;
 
 import 'package:riverbloc/riverbloc.dart';
 
-import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_device.dart';
 import '../models/rgb_lighting_snapshot.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../repository/rgb_lighting_store.dart';
@@ -131,9 +131,9 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
 
   /// A device synthesized from the native LED map, for when OpenRGB isn't
   /// running but the keyboard is present — makes native fully standalone.
-  OpenRgbDevice? _syntheticNativeDevice(bool nativeOk) {
+  RgbLightingDevice? _syntheticNativeDevice(bool nativeOk) {
     if (!nativeOk) return null;
-    return OpenRgbDevice(
+    return RgbLightingDevice(
       index: 0,
       name: 'Legion Keyboard',
       type: 'Keyboard',
@@ -388,7 +388,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   /// available, else the OpenRGB CLI) and records it in state.
   Future<void> _applyColors(
     Emitter<RgbLightingState> emit,
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     List<Color> colors, {
     Color? selectedColor,
     String activeMode = 'Direct',
@@ -423,7 +423,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   /// the OpenRGB hardware "Static" mode. Keeps [keyColors] filled for the view.
   Future<void> _applyStatic(
     Emitter<RgbLightingState> emit,
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     List<Color> filled,
   ) async {
     if (state.nativeAvailable && _native != null) {

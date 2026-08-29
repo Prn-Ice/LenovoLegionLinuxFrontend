@@ -28,19 +28,24 @@ const int kSpectrumMaxLedSum = 720;
 
 /// The panel's green LEDs are much brighter than red/blue, so equal RGB reads
 /// green in Direct mode (the firmware's own modes apply this balance for us, but
-/// Direct is a raw passthrough). Scaling green to this fraction makes white —
-/// and yellows/cyans — read neutral. Measured on hardware: (255,225,255) ≈
+/// Direct is a raw passthrough). Scaling green to this fraction makes white -
+/// and yellows/cyans - read neutral. Measured on hardware: (255,225,255) ~=
 /// neutral white, i.e. green ≈ 0.88× red/blue.
 const double kSpectrumGreenGain = 0.88;
 
 /// Applies the panel white-balance: pulls green down so equal RGB reads neutral.
 /// Red/blue pass through; a green-free color is unchanged.
-(int, int, int) whiteBalanceRgb(int r, int g, int b) =>
-    (r, (g * kSpectrumGreenGain).round(), b);
+(int, int, int) whiteBalanceRgb(
+  int r,
+  int g,
+  int b, {
+  double greenGain = kSpectrumGreenGain,
+}) => (r, (g * greenGain).round(), b);
 
 const int _reportId = 0x07;
 const int _directMode = 0xA1; // push a direct frame
 const int _setDirectMode = 0xD0; // enable/disable direct mode
+const int _setProfile = 0xCB;
 const int _setBrightness = 0xCE;
 const int _getActiveProfile = 0xCA;
 
@@ -71,6 +76,48 @@ Uint8List spectrumDirectModePacket({required bool enable, int profile = 1}) =>
       enable ? 0x01 : 0x02,
       profile,
     ]);
+
+/// Configures [profile] for Aura Sync/Direct mode (`0x0D`) and assigns [leds]
+/// to its single lighting group. Required once before streaming direct frames.
+Uint8List spectrumDirectProfilePacket({
+  required int profile,
+  required List<SpectrumLed> leds,
+}) {
+  final buffer = _packet([
+    _reportId,
+    _setProfile,
+    26 + leds.length * 2,
+    0x03,
+    profile,
+    0x01,
+    0x01,
+    0x01,
+    0x06,
+    0x01,
+    0x0D,
+    0x02,
+    0x00,
+    0x03,
+    0x00,
+    0x04,
+    0x00,
+    0x05,
+    0x02,
+    0x06,
+    0x00,
+    0x01,
+    0x00,
+    0x00,
+    0x00,
+    leds.length,
+  ]);
+  var offset = 26;
+  for (final led in leds) {
+    buffer[offset++] = led.number & 0xFF;
+    buffer[offset++] = (led.number >> 8) & 0xFF;
+  }
+  return buffer;
+}
 
 /// Sets keyboard brightness (0–255; the device exposes 0–9 in practice).
 Uint8List spectrumBrightnessPacket(int brightness) =>

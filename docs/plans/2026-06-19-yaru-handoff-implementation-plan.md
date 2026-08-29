@@ -29,8 +29,9 @@ status. That epic predates this handoff.
   then implemented the foundation, Dashboard, shell, Lighting, and native
   Spectrum support.
 - Current branch: `feat/spectrum-native`.
-- Current committed checkpoint: `568bc5b` (`feat(lighting): white-balance the
-  native path so white reads neutral`).
+- The recovered hardware checkpoint began at `568bc5b` (`feat(lighting):
+  white-balance the native path so white reads neutral`). Lighting validation
+  has since completed as recorded below and in `lllf-cqn.1`.
 - `feat/yaru-handoff` at `d67615e` and local `main` at `89d9da3` are ancestors
   of the current branch. The native Spectrum commits continue the handoff's
   Lighting phase rather than forming a separate product direction.
@@ -42,51 +43,47 @@ status. That epic predates this handoff.
 | Phase 0 — Repository hygiene | Complete | Orphaned combined modules deleted; `PrivilegedRepository` extracted. |
 | Phase 1 — Shared visual foundation | Mostly complete | Accent tokens, Legion mark, metric widgets, responsive grid, Dashboard application, and shell polish landed. Target navigation migration is intentionally incomplete while controls still need new homes. |
 | Phase 2 — Dashboard | Substantially complete | Mode hero, telemetry gauges, quick controls, product information, responsive cards, typography, and power-mode accent behavior landed. |
-| Phase 3 — Lighting | Functionally complete; hardware validation paused | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, and white balance landed. Complete the recovered hardware checkpoint below before closing the phase. |
+| Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. |
 | Phase 4 — Fans | Not yet given the new handoff pass | The older fan page exists, but it has not been matched to this design source. This is the next major design phase. |
 | Phase 5 — Power | Not yet given the new handoff pass | Existing controls predate this handoff. |
 | Phase 6a — Battery & dGPU | Not yet given the new handoff pass | Existing pages predate this handoff; Always-on USB has not been migrated. |
 | Phase 6b — Automation, Settings & About | Not yet given the new handoff pass | Existing pages predate this handoff; Diagnostics/Devices/Display absorption remains. |
 | Phase 7 — Platform surfaces | Not started | OSD, tray, and notification integration remain. |
 
-### Exact Hardware Checkpoint
+### Completed Hardware Validation
 
-The last session used untracked `tool/_step.dart` for one-at-a-time keyboard
-tests. The final exchange was:
+The retained `tool/_step.dart` diagnostic produced these verified results:
 
-1. Full-white Direct mode was reported neutral at full brightness but more
-   purple at lower brightness.
-2. Claude added the measured green gain (`0.88`), ran the full analyzer/test
-   gate, and created commit `568bc5b`.
-3. Claude ran `dart run tool/_step.dart 5`, the **per-key rainbow** test.
-4. The session stopped before the user reported whether that rainbow frame was
-   correct.
-
-Resume by recording the result of step 5. Treat the low-brightness purple shift
-as a known hardware calibration issue; do not add a brightness-dependent curve
-without new measurements at several brightness levels.
+1. Step 5 displayed the expected static per-key rainbow across all 111 LEDs.
+2. Step 6 confirmed function, number, letter, numpad, and remaining-key mapping.
+3. Steps 9-11 bracketed dim-white green gain, found `0.93` and `0.95` visually
+   equivalent, and validated the `0.94` midpoint across all keys at device
+   brightness 3. Production now interpolates from `0.94` at levels 0-3 to the
+   full-brightness `0.88` gain at level 9 and repaints after brightness changes.
+4. Step 8 confirmed single-key painting: only Escape illuminated red.
+5. Step 12 exposed the missing Direct-profile initialization. Native streaming
+   now sends the required `0xCB` Aura Sync (`0x0D`) profile configuration after
+   entering Direct mode and performs the required `0xCA` set/get profile read.
+6. A 30-second, 900-frame rainbow streamed smoothly without flicker, stalls, or
+   dropped keys. The complete Lighting suite (83 tests) and analyzer passed.
 
 ### Worktree Notes At Recovery
 
-- `tool/_step.dart` is an untracked hardware diagnostic, not production code.
-- `lib/features/lighting/models/openrgb_device.dart` has an uncommitted FIXME
-  noting that the model now represents more than OpenRGB. The likely cleanup is
-  to generalize its name after hardware validation, not merely keep the FIXME.
+- `tool/_step.dart` is retained as a tracked hardware diagnostic with static,
+  mapping, calibration, single-key, and configurable-duration animation steps.
+- The shared device model is now `RgbLightingDevice`; OpenRGB naming remains
+  only on the parser and CLI adapter where it accurately describes the backend.
 - `pubspec.lock` contains incidental transitive test-package updates.
 - `docs/Legion Yaru Redesign.dc.html` is the generated visual source and
   `docs/support.js` is generated runtime support. Do not hand-edit either.
 
 ### Resume Order
 
-1. Finish Lighting hardware validation, beginning with the pending step 5
-   rainbow report.
-2. Decide whether the low-brightness purple shift needs measured calibration or
-   remains documented device behavior.
-3. Generalize the OpenRGB-named device model and decide whether to retain the
-   hardware diagnostic under `tool/`.
-4. Start Phase 4 — Fans using the design handoff, not the older fan page as the
+1. Start Phase 4 — Fans using the design handoff, not the older fan page as the
    visual source of truth.
-5. Migrate omitted controls before removing Devices, Display, or Diagnostics
+2. Continue with Power, then Battery/dGPU and Automation/Settings as encoded in
+   the Beads dependency graph.
+3. Migrate omitted controls before removing Devices, Display, or Diagnostics
    from top-level navigation.
 
 ### Beads Tracking

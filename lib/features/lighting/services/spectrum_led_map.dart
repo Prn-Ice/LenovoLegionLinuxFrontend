@@ -1,5 +1,5 @@
 /// Maps OpenRGB LED names (as reported by `openrgb --list-devices`, the
-/// order our app stores in `OpenRgbDevice.leds`) to the Gen 7/8 hardware LED
+/// order our app stores in `RgbLightingDevice.leds`) to the Gen 7/8 hardware LED
 /// value for the Legion Spectrum keyboard (c987). Ported from OpenRGB's
 /// legion7_gen7and8_ansi_leds + the neon zone. Names absent here aren't
 /// individually addressable over the native path.

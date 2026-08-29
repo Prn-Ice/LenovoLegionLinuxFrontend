@@ -30,6 +30,10 @@ void main() {
     test('leaves a green-free color unchanged', () {
       expect(whiteBalanceRgb(255, 0, 128), (255, 0, 128));
     });
+
+    test('accepts a measured brightness-specific green gain', () {
+      expect(whiteBalanceRgb(255, 255, 255, greenGain: 0.94), (255, 240, 255));
+    });
   });
 
   test('all packets are 960 bytes', () {
@@ -53,6 +57,32 @@ void main() {
         [0x07, 0xD0, 0xC0, 0x03, 0x02, 2],
       );
     });
+  });
+
+  test('spectrumDirectProfilePacket configures Direct mode and LED ids', () {
+    final packet = spectrumDirectProfilePacket(
+      profile: 2,
+      leds: const [SpectrumLed(0x1234, 0, 0, 0), SpectrumLed(0x0056, 0, 0, 0)],
+    );
+    expect(packet.sublist(0, 7), [0x07, 0xCB, 30, 0x03, 2, 1, 1]);
+    expect(packet.sublist(7, 21), [
+      0x01,
+      0x06,
+      0x01,
+      0x0D,
+      0x02,
+      0x00,
+      0x03,
+      0x00,
+      0x04,
+      0x00,
+      0x05,
+      0x02,
+      0x06,
+      0x00,
+    ]);
+    expect(packet.sublist(21, 26), [0x01, 0x00, 0x00, 0x00, 2]);
+    expect(packet.sublist(26, 30), [0x34, 0x12, 0x56, 0x00]);
   });
 
   test('spectrumBrightnessPacket', () {

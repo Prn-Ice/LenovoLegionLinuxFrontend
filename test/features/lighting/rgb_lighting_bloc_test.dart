@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_bloc.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_event.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_state.dart';
-import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
+import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 import 'package:legion_frontend/features/lighting/models/rgb_lighting_snapshot.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_store.dart';
@@ -14,7 +14,7 @@ import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 
-const _kbd = OpenRgbDevice(
+const _kbd = RgbLightingDevice(
   index: 0,
   name: 'Legion KB',
   type: 'Keyboard',
@@ -25,7 +25,7 @@ const _kbd = OpenRgbDevice(
 class _FakeRepo extends RgbLightingRepository {
   _FakeRepo({this.device = _kbd}) : super();
 
-  final OpenRgbDevice? device;
+  final RgbLightingDevice? device;
 
   String? lastMode;
   Color? lastModeColor;
@@ -33,11 +33,11 @@ class _FakeRepo extends RgbLightingRepository {
   int? lastBrightness;
 
   @override
-  Future<OpenRgbDevice?> loadKeyboard() async => device;
+  Future<RgbLightingDevice?> loadKeyboard() async => device;
 
   @override
   Future<void> applyMode(
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     String mode, {
     Color? color,
     int? brightness,
@@ -49,7 +49,7 @@ class _FakeRepo extends RgbLightingRepository {
 
   @override
   Future<void> applyDirect(
-    OpenRgbDevice device,
+    RgbLightingDevice device,
     List<Color> colors, {
     int? brightness,
   }) async {
@@ -58,7 +58,7 @@ class _FakeRepo extends RgbLightingRepository {
   }
 
   @override
-  Future<void> setBrightness(OpenRgbDevice device, int percent) async {
+  Future<void> setBrightness(RgbLightingDevice device, int percent) async {
     lastBrightness = percent;
   }
 }
@@ -418,7 +418,7 @@ void main() {
       'AllKeysFilled re-paints natively even when the color is unchanged',
       () async {
         final hid = _RecordingHid();
-        const realKbd = OpenRgbDevice(
+        const realKbd = RgbLightingDevice(
           index: 0,
           name: 'KB',
           type: 'Keyboard',

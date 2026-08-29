@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/features/lighting/models/openrgb_device.dart';
+import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 
 // A trimmed but representative `openrgb --list-devices` capture (real device,
 // LED list shortened). The active mode is the one in [brackets]; multi-word

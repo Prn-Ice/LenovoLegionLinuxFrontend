@@ -1,5 +1,5 @@
 /// A single key in the visual keyboard layout. [led] is the exact OpenRGB LED
-/// name (matched against `OpenRgbDevice.leds`); [label] is the short cap text;
+/// name (matched against `RgbLightingDevice.leds`); [label] is the short cap text;
 /// [width] is in key units. A gap has an empty [led].
 class KeyCap {
   const KeyCap(this.led, this.label, {this.width = 1});

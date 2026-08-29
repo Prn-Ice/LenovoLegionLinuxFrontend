@@ -2,11 +2,11 @@ import 'dart:ui' show Color;
 
 import 'package:equatable/equatable.dart';
 
-import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_device.dart';
 import '../services/spectrum_effects.dart';
 
-/// Per-key RGB lighting state, driven by OpenRGB. Separate from the coarse
-/// sysfs backlight [LightingState]; the page composes both.
+/// Per-key RGB lighting state, driven by native Spectrum HID when available and
+/// otherwise by OpenRGB. Separate from the coarse sysfs backlight state.
 class RgbLightingState extends Equatable {
   const RgbLightingState({
     this.available = false,
@@ -26,22 +26,22 @@ class RgbLightingState extends Equatable {
 
   static const _unset = Object();
 
-  /// Whether OpenRGB is reachable and exposes a controllable device.
+  /// Whether either backend exposes a controllable RGB device.
   final bool available;
 
   /// The keyboard device, or null when unavailable.
-  final OpenRgbDevice? device;
+  final RgbLightingDevice? device;
 
   /// The currently applied effect/mode (e.g. `Static`, `Direct`).
   final String? activeMode;
 
-  /// Brightness 0–100 (write-only via the CLI; defaults to full).
+  /// Brightness 0–100; defaults to full.
   final int brightness;
 
   /// The color used to paint keys / tint color-modes.
   final Color selectedColor;
 
-  /// Per-LED colors, indexed like [OpenRgbDevice.leds] (the Direct buffer).
+  /// Per-LED colors, indexed like [RgbLightingDevice.leds] (the Direct buffer).
   final List<Color> keyColors;
 
   final bool isLoading;
@@ -79,7 +79,7 @@ class RgbLightingState extends Equatable {
   }) {
     return RgbLightingState(
       available: available ?? this.available,
-      device: device == _unset ? this.device : device as OpenRgbDevice?,
+      device: device == _unset ? this.device : device as RgbLightingDevice?,
       activeMode: activeMode == _unset
           ? this.activeMode
           : activeMode as String?,

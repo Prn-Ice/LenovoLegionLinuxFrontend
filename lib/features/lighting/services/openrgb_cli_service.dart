@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_device.dart';
 
 /// Builds the `openrgb` CLI argument list for an apply operation. Pure so the
 /// command construction (CLI order rules: `-z` after `-d`, mode/color after) is
@@ -44,7 +44,7 @@ class OpenRgbCliService {
   }
 
   /// Lists RGB devices the OpenRGB server/host exposes.
-  Future<List<OpenRgbDevice>> listDevices() async {
+  Future<List<RgbLightingDevice>> listDevices() async {
     final result = await Process.run(executable, ['--list-devices']);
     if (result.exitCode != 0) return const [];
     return parseOpenRgbDevices(result.stdout as String);

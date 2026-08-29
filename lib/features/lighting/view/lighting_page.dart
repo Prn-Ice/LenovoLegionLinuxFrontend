@@ -11,7 +11,7 @@ import '../bloc/lighting_bloc.dart';
 import '../bloc/lighting_event.dart';
 import '../bloc/lighting_state.dart';
 import '../bloc/rgb_lighting_event.dart';
-import '../models/openrgb_device.dart';
+import '../models/rgb_lighting_device.dart';
 import '../providers/lighting_provider.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../services/spectrum_effects.dart';
@@ -373,7 +373,7 @@ class _DeviceCard extends StatelessWidget {
     required this.nativeAvailable,
   });
 
-  final OpenRgbDevice device;
+  final RgbLightingDevice device;
   final String? activeMode;
   final bool nativeAvailable;
 
