@@ -330,6 +330,7 @@ LiveSensorSnapshot _sensorSnapshot() => const LiveSensorSnapshot(
   cpuTempC: 64,
   cpuUtilPercent: 35,
   cpuClockGhz: 4.1,
+  cpuPackagePowerW: 24.5,
   fan1Rpm: 2180,
   fan2Rpm: 1940,
   gpuName: 'Test GPU',

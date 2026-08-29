@@ -10,10 +10,13 @@ final _liveSensorRepositoryProvider = Provider<LiveSensorRepository>((ref) {
   return LiveSensorRepository(
     sysfsService: ref.watch(legionSysfsServiceProvider),
     nvidiaSmiService: NvidiaSmiService(),
+    packagePowerTelemetryClient: ref.watch(packagePowerTelemetryClientProvider),
   );
 });
 
 final liveSensorBlocProvider =
     BlocProvider.autoDispose<LiveSensorBloc, LiveSensorState>((ref) {
-  return LiveSensorBloc(repository: ref.watch(_liveSensorRepositoryProvider));
-});
+      return LiveSensorBloc(
+        repository: ref.watch(_liveSensorRepositoryProvider),
+      );
+    });

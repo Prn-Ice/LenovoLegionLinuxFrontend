@@ -1,12 +1,30 @@
 import 'dart:io';
-import 'dart:ui' show Size;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/app.dart';
+import 'package:legion_frontend/core/providers/system_services_provider.dart';
+import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/diagnostics/view/diagnostics_page.dart';
+
+class _UnavailablePackagePowerClient implements PackagePowerTelemetryClient {
+  const _UnavailablePackagePowerClient();
+
+  @override
+  Future<double?> readPackagePowerWatts() async => null;
+}
+
+Widget _testApp() => ProviderScope(
+  overrides: [
+    packagePowerTelemetryClientProvider.overrideWithValue(
+      const _UnavailablePackagePowerClient(),
+    ),
+  ],
+  child: const LegionFrontendApp(),
+);
 
 void main() {
   late Directory hiveDir;
@@ -26,7 +44,7 @@ void main() {
   });
 
   testWidgets('renders navigation shell and dashboard actions', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: LegionFrontendApp()));
+    await tester.pumpWidget(_testApp());
     // Pump once so post-frame callbacks (e.g. sensor bloc start) run.
     await tester.pump(Duration.zero);
 
@@ -41,7 +59,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
 
-    await tester.pumpWidget(const ProviderScope(child: LegionFrontendApp()));
+    await tester.pumpWidget(_testApp());
     // Pump once so post-frame callbacks (e.g. sensor bloc start) run.
     await tester.pump(Duration.zero);
 

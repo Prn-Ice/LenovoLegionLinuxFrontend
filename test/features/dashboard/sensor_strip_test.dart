@@ -12,6 +12,7 @@ LiveSensorSnapshot _snapshot({
   cpuTempC: cpuTempC,
   cpuUtilPercent: cpuUtilPercent,
   cpuClockGhz: null,
+  cpuPackagePowerW: null,
   fan1Rpm: null,
   fan2Rpm: null,
   gpuName: null,

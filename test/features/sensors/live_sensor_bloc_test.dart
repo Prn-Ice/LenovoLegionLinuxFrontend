@@ -22,6 +22,7 @@ void main() {
       cpuTempC: 61.0,
       cpuUtilPercent: 12.0,
       cpuClockGhz: 3.1,
+      cpuPackagePowerW: 24.5,
       fan1Rpm: 1800,
       fan2Rpm: 1500,
       gpuName: null,
@@ -52,8 +53,7 @@ void main() {
     blocTest<LiveSensorBloc, LiveSensorState>(
       'emits loaded snapshot on LiveSensorStarted',
       build: () {
-        when(() => repository.loadSnapshot())
-            .thenAnswer((_) async => snapshot);
+        when(() => repository.loadSnapshot()).thenAnswer((_) async => snapshot);
         return LiveSensorBloc(
           repository: repository,
           pollInterval: const Duration(seconds: 60),
@@ -61,16 +61,15 @@ void main() {
       },
       act: (bloc) => bloc.add(const LiveSensorStarted()),
       wait: const Duration(milliseconds: 100),
-      expect: () => [
-        LiveSensorState(snapshot: snapshot, isLoading: false),
-      ],
+      expect: () => [LiveSensorState(snapshot: snapshot, isLoading: false)],
     );
 
     blocTest<LiveSensorBloc, LiveSensorState>(
       'emits error state when loadSnapshot throws',
       build: () {
-        when(() => repository.loadSnapshot())
-            .thenThrow(Exception('sysfs error'));
+        when(
+          () => repository.loadSnapshot(),
+        ).thenThrow(Exception('sysfs error'));
         return LiveSensorBloc(
           repository: repository,
           pollInterval: const Duration(seconds: 60),
@@ -79,7 +78,11 @@ void main() {
       act: (bloc) => bloc.add(const LiveSensorStarted()),
       wait: const Duration(milliseconds: 100),
       expect: () => [
-        isA<LiveSensorState>().having((s) => s.errorMessage, 'error', isNotNull),
+        isA<LiveSensorState>().having(
+          (s) => s.errorMessage,
+          'error',
+          isNotNull,
+        ),
       ],
     );
   });

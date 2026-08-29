@@ -6,6 +6,7 @@ class LiveSensorSnapshot extends Equatable {
     required this.cpuTempC,
     required this.cpuUtilPercent,
     required this.cpuClockGhz,
+    required this.cpuPackagePowerW,
     required this.fan1Rpm,
     required this.fan2Rpm,
     required this.gpuName,
@@ -29,6 +30,7 @@ class LiveSensorSnapshot extends Equatable {
     cpuTempC: null,
     cpuUtilPercent: null,
     cpuClockGhz: null,
+    cpuPackagePowerW: null,
     fan1Rpm: null,
     fan2Rpm: null,
     gpuName: null,
@@ -51,6 +53,7 @@ class LiveSensorSnapshot extends Equatable {
   final double? cpuTempC;
   final double? cpuUtilPercent;
   final double? cpuClockGhz;
+  final double? cpuPackagePowerW;
   final int? fan1Rpm;
   final int? fan2Rpm;
 
@@ -73,12 +76,26 @@ class LiveSensorSnapshot extends Equatable {
 
   @override
   List<Object?> get props => [
-    cpuName, cpuTempC, cpuUtilPercent, cpuClockGhz,
-    fan1Rpm, fan2Rpm,
-    gpuName, gpuTempC, gpuUtilPercent, gpuClockGhz,
-    gpuVramUsedGb, gpuVramTotalGb, gpuFanRpm, gpuPowerDrawW, gpuIsDiscrete,
+    cpuName,
+    cpuTempC,
+    cpuUtilPercent,
+    cpuClockGhz,
+    cpuPackagePowerW,
+    fan1Rpm,
+    fan2Rpm,
+    gpuName,
+    gpuTempC,
+    gpuUtilPercent,
+    gpuClockGhz,
+    gpuVramUsedGb,
+    gpuVramTotalGb,
+    gpuFanRpm,
+    gpuPowerDrawW,
+    gpuIsDiscrete,
     motherboardTempC,
-    batteryPercent, batteryCharging, batteryPowerDrawW,
+    batteryPercent,
+    batteryCharging,
+    batteryPowerDrawW,
     diskTempC,
   ];
 }

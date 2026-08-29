@@ -11,10 +11,17 @@ import 'package:legion_frontend/features/power/models/power_snapshot.dart';
 import 'package:legion_frontend/features/power/providers/power_provider.dart';
 import 'package:legion_frontend/features/power/repository/power_repository.dart';
 import 'package:legion_frontend/features/power/view/power_page.dart';
+import 'package:legion_frontend/features/sensors/bloc/live_sensor_bloc.dart';
+import 'package:legion_frontend/features/sensors/bloc/live_sensor_event.dart';
+import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
+import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
+import 'package:legion_frontend/features/sensors/repository/live_sensor_repository.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:yaru/yaru.dart';
 
 class _MockPowerRepository extends Mock implements PowerRepository {}
+
+class _MockLiveSensorRepository extends Mock implements LiveSensorRepository {}
 
 void main() {
   setUpAll(() {
@@ -189,6 +196,22 @@ void main() {
     expect(find.text('powersave'), findsOneWidget);
     expect(find.text('balance_performance'), findsOneWidget);
     expect(find.text('420-3800 MHz'), findsOneWidget);
+    expect(find.text('3.10 GHz'), findsOneWidget);
+    expect(find.text('24.5 W'), findsOneWidget);
+  });
+
+  testWidgets('live CPU facts show a truthful unavailable state', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 800,
+      sensorSnapshot: LiveSensorSnapshot.initial(),
+    );
+
+    expect(find.text('Average clock'), findsOneWidget);
+    expect(find.text('CPU package power'), findsOneWidget);
+    expect(find.text('Unavailable'), findsNWidgets(2));
   });
 
   testWidgets('supported overclock toggle keeps its adjacent warning', (
@@ -217,6 +240,7 @@ Future<_PowerHarness> _pumpPage(
   required double width,
   bool dark = false,
   PowerSnapshot? snapshot,
+  LiveSensorSnapshot? sensorSnapshot,
 }) async {
   tester.view.physicalSize = Size(width, 1200);
   tester.view.devicePixelRatio = 1;
@@ -231,6 +255,11 @@ Future<_PowerHarness> _pumpPage(
   when(() => repository.setPowerLimits(any())).thenAnswer((_) async {});
   when(() => repository.setCpuOverclock(any())).thenAnswer((_) async {});
   when(() => repository.setGpuOverclock(any())).thenAnswer((_) async {});
+  final sensorRepository = _MockLiveSensorRepository();
+  final resolvedSensorSnapshot = sensorSnapshot ?? _liveSensorSnapshot;
+  when(
+    () => sensorRepository.loadSnapshot(),
+  ).thenAnswer((_) async => resolvedSensorSnapshot);
 
   final bloc = PowerBloc(
     repository: repository,
@@ -240,9 +269,22 @@ Future<_PowerHarness> _pumpPage(
   bloc.add(const PowerStarted());
   await loaded;
 
+  final sensorBloc = LiveSensorBloc(
+    repository: sensorRepository,
+    pollInterval: const Duration(days: 1),
+  );
+  final sensorsLoaded = sensorBloc.stream.firstWhere(
+    (state) => !state.isLoading,
+  );
+  sensorBloc.add(const LiveSensorStarted());
+  await sensorsLoaded;
+
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [powerBlocProvider.overrideWith((ref) => bloc)],
+      overrides: [
+        powerBlocProvider.overrideWith((ref) => bloc),
+        liveSensorBlocProvider.overrideWith((ref) => sensorBloc),
+      ],
       child: YaruTheme(
         data: const YaruThemeData(),
         builder: (context, yaru, child) => MaterialApp(
@@ -314,6 +356,30 @@ const _cpuPolicy = CpuPolicySnapshot(
   boostEnabled: true,
   minimumFrequencyKhz: 420000,
   maximumFrequencyKhz: 3800000,
+);
+
+const _liveSensorSnapshot = LiveSensorSnapshot(
+  cpuName: 'Test CPU',
+  cpuTempC: 62,
+  cpuUtilPercent: 18,
+  cpuClockGhz: 3.1,
+  cpuPackagePowerW: 24.5,
+  fan1Rpm: null,
+  fan2Rpm: null,
+  gpuName: null,
+  gpuTempC: null,
+  gpuUtilPercent: null,
+  gpuClockGhz: null,
+  gpuVramUsedGb: null,
+  gpuVramTotalGb: null,
+  gpuFanRpm: null,
+  gpuPowerDrawW: null,
+  gpuIsDiscrete: false,
+  motherboardTempC: null,
+  batteryPercent: null,
+  batteryCharging: null,
+  batteryPowerDrawW: null,
+  diskTempC: null,
 );
 
 class _PowerHarness {

@@ -7,6 +7,7 @@ void main() {
       final s = LiveSensorSnapshot.initial();
       expect(s.cpuName, isNull);
       expect(s.cpuTempC, isNull);
+      expect(s.cpuPackagePowerW, isNull);
       expect(s.fan1Rpm, isNull);
       expect(s.batteryPercent, isNull);
     });
@@ -17,6 +18,7 @@ void main() {
         cpuTempC: 61.0,
         cpuUtilPercent: 12.0,
         cpuClockGhz: 3.1,
+        cpuPackagePowerW: 24.5,
         fan1Rpm: 1800,
         fan2Rpm: 1500,
         gpuName: null,

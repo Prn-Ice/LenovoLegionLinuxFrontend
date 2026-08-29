@@ -2,17 +2,21 @@ import 'dart:io';
 
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/nvidia_smi_service.dart';
+import '../../../core/services/package_power_telemetry_service.dart';
 import '../models/live_sensor_snapshot.dart';
 
 class LiveSensorRepository {
   const LiveSensorRepository({
     required LegionSysfsService sysfsService,
     required NvidiaSmiService nvidiaSmiService,
-  })  : _sysfs = sysfsService,
-        _nvidia = nvidiaSmiService;
+    required PackagePowerTelemetryClient packagePowerTelemetryClient,
+  }) : _sysfs = sysfsService,
+       _nvidia = nvidiaSmiService,
+       _packagePowerTelemetry = packagePowerTelemetryClient;
 
   final LegionSysfsService _sysfs;
   final NvidiaSmiService _nvidia;
+  final PackagePowerTelemetryClient _packagePowerTelemetry;
 
   Future<LiveSensorSnapshot> loadSnapshot() async {
     final results = await Future.wait([
@@ -20,6 +24,7 @@ class LiveSensorRepository {
       _sysfs.readCpuTempC(),
       _sysfs.readCpuUtilisationPercent(),
       _sysfs.readAverageCpuClockGhz(),
+      _packagePowerTelemetry.readPackagePowerWatts(),
       _sysfs.readFan1Rpm(),
       _sysfs.readFan2Rpm(),
       _sysfs.readMotherboardTempC(),
@@ -32,12 +37,13 @@ class LiveSensorRepository {
     final cpuTempC = results[1] as double?;
     final cpuUtil = results[2] as double?;
     final cpuClock = results[3] as double?;
-    final fan1 = results[4] as int?;
-    final fan2 = results[5] as int?;
-    final moboTemp = results[6] as double?;
-    final batteryDraw = results[7] as double?;
-    final diskTemp = results[8] as double?;
-    final nvidia = results[9] as NvidiaSmiSnapshot?;
+    final cpuPackagePower = results[4] as double?;
+    final fan1 = results[5] as int?;
+    final fan2 = results[6] as int?;
+    final moboTemp = results[7] as double?;
+    final batteryDraw = results[8] as double?;
+    final diskTemp = results[9] as double?;
+    final nvidia = results[10] as NvidiaSmiSnapshot?;
 
     // Battery percent from sysfs.
     final batteryPercent = await _sysfs.readIntFile(
@@ -53,6 +59,7 @@ class LiveSensorRepository {
         cpuTempC: cpuTempC,
         cpuUtilPercent: cpuUtil,
         cpuClockGhz: cpuClock,
+        cpuPackagePowerW: cpuPackagePower,
         fan1Rpm: fan1,
         fan2Rpm: fan2,
         gpuName: nvidia.name,
@@ -66,7 +73,9 @@ class LiveSensorRepository {
         gpuIsDiscrete: true,
         motherboardTempC: moboTemp,
         batteryPercent: batteryPercent,
-        batteryCharging: batteryStatusStr == null ? null : batteryStatusStr == 'Charging',
+        batteryCharging: batteryStatusStr == null
+            ? null
+            : batteryStatusStr == 'Charging',
         batteryPowerDrawW: batteryDraw,
         diskTempC: diskTemp,
       );
@@ -79,6 +88,7 @@ class LiveSensorRepository {
       cpuTempC: cpuTempC,
       cpuUtilPercent: cpuUtil,
       cpuClockGhz: cpuClock,
+      cpuPackagePowerW: cpuPackagePower,
       fan1Rpm: fan1,
       fan2Rpm: fan2,
       gpuName: null,
@@ -92,7 +102,9 @@ class LiveSensorRepository {
       gpuIsDiscrete: false,
       motherboardTempC: moboTemp,
       batteryPercent: batteryPercent,
-      batteryCharging: batteryStatusStr == null ? null : batteryStatusStr == 'Charging',
+      batteryCharging: batteryStatusStr == null
+          ? null
+          : batteryStatusStr == 'Charging',
       batteryPowerDrawW: batteryDraw,
       diskTempC: diskTemp,
     );

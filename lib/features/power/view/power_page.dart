@@ -10,6 +10,8 @@ import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../dashboard/widgets/mode_hero.dart';
+import '../../sensors/bloc/live_sensor_event.dart';
+import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/power_bloc.dart';
 import '../bloc/power_event.dart';
 import '../bloc/power_state.dart';
@@ -26,8 +28,17 @@ class PowerPage extends ConsumerStatefulWidget {
 
 class _PowerPageState extends ConsumerState<PowerPage> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(liveSensorBlocProvider.bloc).add(const LiveSensorStarted());
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = ref.watch(powerBlocProvider);
+    final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(powerBlocProvider.bloc);
     final accent =
         LegionAccent.fromPowerModeValue(state.currentMode?.value)?.color ??
@@ -56,6 +67,8 @@ class _PowerPageState extends ConsumerState<PowerPage> {
           daemon: state.daemonSnapshot,
           cpuPolicy: state.cpuPolicy,
           currentMode: state.currentMode,
+          averageClockGhz: sensors.cpuClockGhz,
+          packagePowerW: sensors.cpuPackagePowerW,
         ),
         const SizedBox(height: 16),
         _PowerLimitsCard(
@@ -227,11 +240,15 @@ class _CpuPolicyDetailsCard extends StatelessWidget {
     required this.daemon,
     required this.cpuPolicy,
     required this.currentMode,
+    required this.averageClockGhz,
+    required this.packagePowerW,
   });
 
   final PowerProfilesDaemonSnapshot? daemon;
   final CpuPolicySnapshot? cpuPolicy;
   final PowerMode? currentMode;
+  final double? averageClockGhz;
+  final double? packagePowerW;
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +304,19 @@ class _CpuPolicyDetailsCard extends StatelessWidget {
     final policy = cpuPolicy;
     final cpuDrivers = daemonSnapshot?.cpuDrivers ?? const <String>[];
     final platformDrivers = daemonSnapshot?.platformDrivers ?? const <String>[];
+
+    facts.add((
+      label: 'Average clock',
+      value: averageClockGhz == null
+          ? 'Unavailable'
+          : '${averageClockGhz!.toStringAsFixed(2)} GHz',
+    ));
+    facts.add((
+      label: 'CPU package power',
+      value: packagePowerW == null
+          ? 'Unavailable'
+          : '${packagePowerW!.toStringAsFixed(1)} W',
+    ));
 
     if (daemonSnapshot != null) {
       facts.add((

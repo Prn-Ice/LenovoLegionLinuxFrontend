@@ -6,6 +6,7 @@ import 'package:riverbloc/riverbloc.dart';
 import '../services/legion_cli_service.dart';
 import '../services/legion_frontend_bridge_service.dart';
 import '../services/legion_sysfs_service.dart';
+import '../services/package_power_telemetry_service.dart';
 import '../services/power_profile_service.dart';
 import '../services/xrandr_service.dart';
 import '../../features/analytics/models/sensor_record.dart';
@@ -35,6 +36,13 @@ final powerProfileServiceProvider = Provider<PowerProfileService>((ref) {
     daemonClient: daemonClient,
   );
 });
+
+final packagePowerTelemetryClientProvider =
+    Provider<PackagePowerTelemetryClient>((ref) {
+      final client = DBusPackagePowerTelemetryClient();
+      ref.onDispose(() => unawaited(client.close()));
+      return client;
+    });
 
 final sensorRecordBoxProvider = Provider<Box<SensorRecord>>(
   (ref) => Hive.box<SensorRecord>('sensor_records'),

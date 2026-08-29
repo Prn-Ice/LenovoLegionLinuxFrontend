@@ -88,6 +88,10 @@ install(CODE "
   file(REMOVE_RECURSE \"${BUILD_BUNDLE_DIR}/\")
   " COMPONENT Runtime)
 
+# Build and bundle the root-owned, read-only package power service. System
+# packages install its unit and D-Bus policy from the bundle into /usr.
+add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
+
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
