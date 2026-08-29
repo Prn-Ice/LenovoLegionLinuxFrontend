@@ -69,26 +69,40 @@ layout. Current upstream Python chooses the same Kernel 7 root.
 
 ## Safe deployment work
 
-The active NixOS worktree already contains user changes, including changes to
-`legion_slim.nix`. Preserve and review those changes rather than replacing the
-file wholesale.
+Decision made on 2026-08-29: pin official upstream directly and drop the fork's
+`read_file_fix` branch. That branch was based on pre-Kernel-7 upstream, so it
+could not take the Kernel 7 fixes without a merge, and its net diff is only a
+two-file change: switching M1CN fan-curve access from WMI3 to EC, and making
+the Python `FanCurveIO._read_file` tolerate missing files. The EC access-method
+switch can be re-added as a small patch later if upstream WMI3 fan-curve access
+fails on this machine.
 
-1. Update the `Prn-Ice/LenovoLegionLinux` deployment revision to a tested fork
-   commit that contains both upstream merge commits above and preserves any
-   still-needed `read_file_fix` work.
-2. Change the overlay from the mutable branch name to that immutable commit and
-   update the `fetchFromGitHub` hash. Using `lib.fakeHash` for one evaluation is
-   a safe way to obtain Nix's expected source hash.
-3. Build a new NixOS generation. Do not test by stealing the live EC device from
-   `acpi-ec`; boot the generation normally so module ordering and dependencies
-   match production.
-4. Reboot and perform the read-only checks below before exercising any write
-   command from the frontend or `legion_cli`.
+The active NixOS worktree already contained user changes, including changes to
+`legion_slim.nix`; only the source pin inside the overlay was modified and the
+rest was preserved.
 
-Pinning current official upstream directly is another option, but it must first
-be checked against the fork's custom commits and the machine's existing NixOS
-changes. At the time of diagnosis, official `main` was
-`3893e203332d60effea688a3043abd86046997ad`.
+Deployment changes applied to
+`/home/prnice/Dotfiles/nixos-flaky-tests/hosts/nixos/hardware/legion_slim.nix`:
+
+1. `fetchFromGitHub` now pins `johnfanv2/LenovoLegionLinux` at
+   `3893e203332d60effea688a3043abd86046997ad` (upstream `main` at diagnosis),
+   which contains both Kernel 7 merge commits. Hash:
+   `sha256-e/h/n4cYw/T+6iroF0SD564MNbi6aX+usVp0+e5LNak=`.
+2. The overlay still overrides `lenovo-legion` and the kernel module with that
+   source; the `postPatch` file layout (`legion_linux/legion.py`,
+   `legion_gui.desktop`) is unchanged upstream, so no other overlay edits were
+   needed.
+3. Verified offline, without touching the live EC device:
+   - `nix eval` of `nixosConfigurations.nixos.config.system.build.toplevel`
+     succeeds.
+   - `lenovo-legion` builds (0.0.22-unstable-2026-08-21) and ships the
+     `share/legion_linux` curve YAML files.
+   - `lenovo-legion-module` builds against Kernel 7.2.0 and its `.ko` exports
+     only WMI GUID aliases — no `acpi*:PNP0C09:*` alias — confirming the
+     synthetic-platform-device layout of PRs #423/#434.
+4. Remaining: build a new NixOS generation, reboot into it, and run the
+   read-only checks below before exercising any write command from the
+   frontend or `legion_cli`.
 
 ## Reboot verification
 
@@ -121,4 +135,8 @@ Read-only success criteria:
 Only after these checks pass should privileged preset or curve writes be tested.
 If the module probes but M1CN data is still missing, capture the complete Legion
 kernel log, `sensors`, the synthetic sysfs tree, and the readable debugfs fan
-curve before changing model flags or ACPI paths.
+curve before changing model flags or ACPI paths. In particular, if the fan curve
+is unreadable because upstream M1CN uses `ACCESS_METHOD_WMI3`, re-apply the
+fork's one-line switch to `ACCESS_METHOD_EC` for `access_method_fancurve`
+(previously carried on the `read_file_fix` branch) as a patch on top of the
+pinned upstream revision.
