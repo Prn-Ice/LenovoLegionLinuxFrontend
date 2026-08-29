@@ -224,7 +224,9 @@ class _LightingPageState extends ConsumerState<LightingPage> {
               onDelete: (name) => rgbBloc.add(RgbProfileDeleted(name)),
             ),
           ] else
-            const _UnavailableCard(),
+            _UnavailableCard(
+              nativeAvailabilityError: rgb.nativeAvailabilityError,
+            ),
           const SizedBox(height: 16),
           _BacklightSection(state: lighting, bloc: lightingBloc),
         ],
@@ -982,8 +984,19 @@ class _BrightnessCardState extends State<_BrightnessCard> {
   }
 }
 
+String rgbUnavailableMessage({String? nativeAvailabilityError}) {
+  if (nativeAvailabilityError != null) {
+    return 'Native Spectrum RGB is unavailable: $nativeAvailabilityError. '
+        'The backlight toggles below still work.';
+  }
+  return 'Start OpenRGB (with its udev rules) to control the keyboard RGB. '
+      'The backlight toggles below still work.';
+}
+
 class _UnavailableCard extends StatelessWidget {
-  const _UnavailableCard();
+  const _UnavailableCard({this.nativeAvailabilityError});
+
+  final String? nativeAvailabilityError;
 
   @override
   Widget build(BuildContext context) {
@@ -1013,8 +1026,9 @@ class _UnavailableCard extends StatelessWidget {
                 Text('Per-key RGB unavailable', style: textTheme.titleSmall),
                 const SizedBox(height: 2),
                 Text(
-                  'Start OpenRGB (with its udev rules) to control the keyboard '
-                  'RGB. The backlight toggles below still work.',
+                  rgbUnavailableMessage(
+                    nativeAvailabilityError: nativeAvailabilityError,
+                  ),
                   style: textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.7),
                   ),

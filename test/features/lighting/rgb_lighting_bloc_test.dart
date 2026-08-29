@@ -23,9 +23,10 @@ const _kbd = RgbLightingDevice(
 );
 
 class _FakeRepo extends RgbLightingRepository {
-  _FakeRepo({this.device = _kbd}) : super();
+  _FakeRepo({this.device = _kbd, this.loadError}) : super();
 
   final RgbLightingDevice? device;
+  final Object? loadError;
 
   String? lastMode;
   Color? lastModeColor;
@@ -33,7 +34,10 @@ class _FakeRepo extends RgbLightingRepository {
   int? lastBrightness;
 
   @override
-  Future<RgbLightingDevice?> loadKeyboard() async => device;
+  Future<RgbLightingDevice?> loadKeyboard() async {
+    if (loadError case final error?) throw error;
+    return device;
+  }
 
   @override
   Future<void> applyMode(
@@ -108,6 +112,11 @@ class _RecordingHid extends SpectrumHidService {
   bool setBrightness(int brightness) => true;
 }
 
+class _FailingHid extends SpectrumHidService {
+  @override
+  String? findHidrawPath() => throw StateError('hidraw probe failed');
+}
+
 /// act() that loads the device, then runs [more].
 Future<void> _startThen(RgbLightingBloc bloc, void Function() more) async {
   bloc.add(const RgbLightingStarted());
@@ -136,6 +145,62 @@ void main() {
       build: () => RgbLightingBloc(repository: _FakeRepo(device: null)),
       act: (b) => b.add(const RgbLightingStarted()),
       verify: (b) => expect(b.state.available, isFalse),
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Started keeps the native keyboard when OpenRGB is absent',
+      build: () => RgbLightingBloc(
+        repository: _FakeRepo(device: null),
+        nativeRepository: SpectrumRgbRepository(service: _RecordingHid()),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.available, isTrue);
+        expect(b.state.nativeAvailable, isTrue);
+        expect(b.state.device?.name, 'Legion Keyboard');
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Started keeps the native keyboard when the OpenRGB probe fails',
+      build: () => RgbLightingBloc(
+        repository: _FakeRepo(loadError: StateError('OpenRGB probe failed')),
+        nativeRepository: SpectrumRgbRepository(service: _RecordingHid()),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.available, isTrue);
+        expect(b.state.nativeAvailable, isTrue);
+        expect(b.state.errorMessage, isNull);
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Started surfaces OpenRGB errors when native Spectrum is unavailable',
+      build: () => RgbLightingBloc(
+        repository: _FakeRepo(loadError: StateError('OpenRGB probe failed')),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.available, isFalse);
+        expect(b.state.errorMessage, contains('OpenRGB probe failed'));
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
+      'Started records native probe failures instead of blaming OpenRGB',
+      build: () => RgbLightingBloc(
+        repository: _FakeRepo(device: null),
+        nativeRepository: SpectrumRgbRepository(service: _FailingHid()),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.available, isFalse);
+        expect(
+          b.state.nativeAvailabilityError,
+          contains('hidraw probe failed'),
+        );
+      },
     );
 
     blocTest<RgbLightingBloc, RgbLightingState>(

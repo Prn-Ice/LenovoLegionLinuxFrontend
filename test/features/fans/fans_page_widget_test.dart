@@ -27,8 +27,9 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Fan curve'), findsOneWidget);
-    expect(find.text('Apply Preset'), findsOneWidget);
-    expect(find.text('Live fan telemetry'), findsOneWidget);
+    expect(find.text('Silent'), findsOneWidget);
+    expect(find.text('Aggressive'), findsOneWidget);
+    expect(find.text('Current CPU fan'), findsOneWidget);
   });
 
   testWidgets('full page has no overflow at wide width', (tester) async {
@@ -54,36 +55,37 @@ void main() {
         sensors: LiveSensorSnapshot.initial(),
       );
 
-      expect(find.text('Max Fan Speed unavailable'), findsOneWidget);
-      expect(
-        find.textContaining('Unsupported on this device.'),
-        findsNWidgets(2),
-      );
-      expect(find.text('Fan speed unavailable'), findsNWidgets(2));
-      expect(find.text('Temperature unavailable'), findsNWidgets(2));
-      expect(find.text('Lock Fan Controller'), findsOneWidget);
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(find.text('—'), findsOneWidget);
+      expect(find.text('Temperature unavailable'), findsOneWidget);
     },
   );
+
+  testWidgets('unknown power source does not present presets as AC-only', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _fansSnapshot(onPowerSupply: null),
+    );
+
+    expect(
+      find.text('Balanced profile | Power source unavailable'),
+      findsOneWidget,
+    );
+    expect(find.text('Silent (AC)'), findsOneWidget);
+    expect(find.text('Silent'), findsNothing);
+  });
 
   testWidgets('preset selection survives canceled privilege confirmation', (
     tester,
   ) async {
     final harness = await _pumpPage(tester, width: 800);
 
-    await tester.tap(find.text('Apply Preset'));
+    await tester.tap(find.text('Aggressive'));
     await tester.pumpAndSettle();
-    expect(find.text('Choose fan preset'), findsOneWidget);
-    expect(find.text('Quiet'), findsWidgets);
-    expect(
-      find.text('AC power | Recommended for current context'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Performance'));
-    await tester.pump();
-    await tester.tap(find.text('Apply preset'));
-    await tester.pumpAndSettle();
-    expect(find.text('Apply Performance preset'), findsOneWidget);
+    expect(find.text('Apply Aggressive preset'), findsOneWidget);
 
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
@@ -92,36 +94,42 @@ void main() {
     verifyNever(() => harness.fansRepository.applyPreset(any()));
   });
 
-  testWidgets('canceling the preset chooser preserves the prior selection', (
+  testWidgets('preset chip applies the matching context preset', (
     tester,
   ) async {
     final harness = await _pumpPage(tester, width: 800);
 
-    await tester.tap(find.text('Apply Preset'));
+    await tester.tap(find.text('Balanced'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Performance'));
-    await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.tap(find.text('Apply preset'));
     await tester.pumpAndSettle();
 
-    expect(harness.fansBloc.state.selectedPreset, 'quiet-ac');
+    verify(() => harness.fansRepository.applyPreset('balanced-ac')).called(1);
   });
 
-  testWidgets('dirty curve uses the Custom label and accent', (tester) async {
+  testWidgets('fan workspace consistently uses the Custom accent', (
+    tester,
+  ) async {
     await _pumpPage(tester, width: 800);
 
-    var editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    expect(editor.profileLabel, 'Quiet');
-
-    final slider = tester.widget<Slider>(
-      find.byKey(const ValueKey('fan-temperature-slider')),
-    );
-    slider.onChanged!(70);
-    await tester.pumpAndSettle();
-
-    editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    expect(editor.profileLabel, 'Custom');
+    final editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
     expect(editor.accent, LegionAccent.custom.color);
+  });
+
+  testWidgets('missing controller keeps a useful curve workspace', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 1100,
+      snapshot: _fansSnapshot(curveAvailable: false),
+    );
+
+    expect(find.text('Curve controls unavailable'), findsOneWidget);
+    expect(find.text('64°C'), findsWidgets);
+    expect(find.text('2180'), findsOneWidget);
+    expect(find.text('Silent'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 
@@ -142,6 +150,7 @@ Future<_PageHarness> _pumpPage(
   when(
     fansRepository.loadSnapshot,
   ).thenAnswer((_) async => snapshot ?? _fansSnapshot());
+  when(() => fansRepository.applyPreset(any())).thenAnswer((_) async {});
   when(
     sensorRepository.loadSnapshot,
   ).thenAnswer((_) async => sensors ?? _sensorSnapshot());
@@ -185,32 +194,41 @@ FansSnapshot _fansSnapshot({
   bool? maximumFanSpeedEnabled = false,
   bool? miniFanCurveEnabled = true,
   bool? lockFanControllerEnabled = false,
+  bool curveAvailable = true,
+  bool? onPowerSupply = true,
 }) => FansSnapshot(
   platformProfile: 'balanced',
-  onPowerSupply: true,
+  onPowerSupply: onPowerSupply,
   recommendedPreset: 'quiet-ac',
-  availablePresets: const ['quiet-ac', 'performance-ac'],
+  availablePresets: const [
+    'quiet-ac',
+    'balanced-ac',
+    'performance-ac',
+    'balanced-performance-ac',
+  ],
   miniFanCurveEnabled: miniFanCurveEnabled,
   lockFanControllerEnabled: lockFanControllerEnabled,
   maximumFanSpeedEnabled: maximumFanSpeedEnabled,
-  fanCurve: FanCurve(
-    name: 'page-test',
-    points: List.generate(
-      10,
-      (index) => FanCurvePoint(
-        fan1Rpm: 800 + index * 300,
-        fan2Rpm: 900 + index * 300,
-        cpuLowerTemp: 20 + index * 7,
-        cpuUpperTemp: 23 + index * 7,
-        gpuLowerTemp: 22 + index * 7,
-        gpuUpperTemp: 26 + index * 7,
-        icLowerTemp: 24 + index * 6,
-        icUpperTemp: 27 + index * 6,
-        accel: 5,
-        decel: 7,
-      ),
-    ),
-  ),
+  fanCurve: curveAvailable
+      ? FanCurve(
+          name: 'page-test',
+          points: List.generate(
+            10,
+            (index) => FanCurvePoint(
+              fan1Rpm: 800 + index * 300,
+              fan2Rpm: 900 + index * 300,
+              cpuLowerTemp: 20 + index * 7,
+              cpuUpperTemp: 23 + index * 7,
+              gpuLowerTemp: 22 + index * 7,
+              gpuUpperTemp: 26 + index * 7,
+              icLowerTemp: 24 + index * 6,
+              icUpperTemp: 27 + index * 6,
+              accel: 5,
+              decel: 7,
+            ),
+          ),
+        )
+      : null,
 );
 
 LiveSensorSnapshot _sensorSnapshot() => const LiveSensorSnapshot(

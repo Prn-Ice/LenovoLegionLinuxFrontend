@@ -116,17 +116,28 @@ class AppStatusBanner extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isError = tone == AppStatusTone.error;
 
-    return YaruBanner.tile(
+    final foreground = isError
+        ? scheme.onErrorContainer
+        : scheme.onPrimaryContainer;
+
+    return Card(
+      margin: EdgeInsets.zero,
       color: isError ? scheme.errorContainer : scheme.primaryContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      icon: Icon(
-        isError ? Icons.error_outline : Icons.info_outline,
-        color: isError ? scheme.onErrorContainer : scheme.onPrimaryContainer,
-      ),
-      title: Text(
-        message,
-        style: TextStyle(
-          color: isError ? scheme.onErrorContainer : scheme.onPrimaryContainer,
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.info_outline,
+              color: foreground,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(message, style: TextStyle(color: foreground)),
+            ),
+          ],
         ),
       ),
     );

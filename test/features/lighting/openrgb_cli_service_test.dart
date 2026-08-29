@@ -52,4 +52,14 @@ void main() {
       ]);
     });
   });
+
+  test(
+    'missing OpenRGB is treated as no devices for native fallback',
+    () async {
+      final devices = await const OpenRgbCliService(
+        executable: 'openrgb-executable-that-does-not-exist',
+      ).listDevices();
+      expect(devices, isEmpty);
+    },
+  );
 }

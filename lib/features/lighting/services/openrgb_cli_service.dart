@@ -45,7 +45,13 @@ class OpenRgbCliService {
 
   /// Lists RGB devices the OpenRGB server/host exposes.
   Future<List<RgbLightingDevice>> listDevices() async {
-    final result = await Process.run(executable, ['--list-devices']);
+    final ProcessResult result;
+    try {
+      result = await Process.run(executable, ['--list-devices']);
+    } on ProcessException {
+      // OpenRGB is optional: the native Spectrum backend may still be usable.
+      return const [];
+    }
     if (result.exitCode != 0) return const [];
     return parseOpenRgbDevices(result.stdout as String);
   }

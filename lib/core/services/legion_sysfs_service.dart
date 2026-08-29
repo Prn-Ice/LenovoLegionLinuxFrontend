@@ -7,6 +7,17 @@ import '../../features/dashboard/models/system_status.dart';
 class LegionSysfsService {
   static const String _hwmonBasePath = '/sys/class/hwmon';
 
+  /// The roots are injectable to make sysfs discovery testable.  In normal
+  /// use they retain their kernel-provided locations.
+  final String _hwmonRoot;
+  final String _fanHwmonRoot;
+
+  LegionSysfsService({
+    String hwmonRoot = _hwmonBasePath,
+    String fanHwmonRoot = _fanHwmonBasePath,
+  }) : _hwmonRoot = hwmonRoot,
+       _fanHwmonRoot = fanHwmonRoot;
+
   /// Convert hwmon millidegrees Celsius to degrees Celsius.
   static double milliDegreesToC(int milliDegrees) => milliDegrees / 1000.0;
 
@@ -276,14 +287,12 @@ class LegionSysfsService {
 
   /// Current CPU fan speed in RPM. Returns null if unavailable.
   Future<int?> readFan1Rpm() async {
-    final p = await _findFanHwmonDir();
-    return p == null ? null : readIntFile('${p}fan1_input');
+    return _readFanRpm(1);
   }
 
   /// Current GPU fan speed in RPM. Returns null if unavailable.
   Future<int?> readFan2Rpm() async {
-    final p = await _findFanHwmonDir();
-    return p == null ? null : readIntFile('${p}fan2_input');
+    return _readFanRpm(2);
   }
 
   /// CPU package temperature in °C. Returns null if unavailable.
@@ -530,7 +539,7 @@ class LegionSysfsService {
     String? label,
     int fallbackIndex = 1,
   }) async {
-    final dir = Directory(_hwmonBasePath);
+    final dir = Directory(_hwmonRoot);
     if (!await dir.exists()) return null;
     try {
       await for (final entity in dir.list(followLinks: true)) {
@@ -556,13 +565,15 @@ class LegionSysfsService {
   }
 
   Future<String?> _findFanHwmonDir() async {
-    final hwmonDir = Directory(_fanHwmonBasePath);
+    final hwmonDir = Directory(_fanHwmonRoot);
     if (!await hwmonDir.exists()) {
       return null;
     }
 
     try {
-      await for (final entity in hwmonDir.list(followLinks: false)) {
+      // The legion driver's hwmon entries are commonly symlinks into
+      // /sys/class/hwmon. Follow them instead of discarding them as Links.
+      await for (final entity in hwmonDir.list(followLinks: true)) {
         if (entity is! Directory) {
           continue;
         }
@@ -576,6 +587,30 @@ class LegionSysfsService {
       return null;
     }
 
+    return null;
+  }
+
+  Future<int?> _readFanRpm(int fanNumber) async {
+    // Keep the legion controller as the preferred source: it is also the
+    // source used for curve control. Some kernels expose live RPMs only from
+    // a separate hwmon provider (for example yogafan), however.
+    final controller = await _findFanHwmonDir();
+    if (controller != null) {
+      final rpm = await readIntFile('${controller}fan${fanNumber}_input');
+      if (rpm != null) return rpm;
+    }
+
+    final root = Directory(_hwmonRoot);
+    if (!await root.exists()) return null;
+    try {
+      await for (final entity in root.list(followLinks: true)) {
+        if (entity is! Directory) continue;
+        final input = File('${entity.path}/fan${fanNumber}_input');
+        if (!await input.exists()) continue;
+        final rpm = await readIntFile(input.path);
+        if (rpm != null) return rpm;
+      }
+    } catch (_) {}
     return null;
   }
 

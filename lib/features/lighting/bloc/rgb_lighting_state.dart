@@ -19,6 +19,7 @@ class RgbLightingState extends Equatable {
     this.isApplying = false,
     this.errorMessage,
     this.nativeAvailable = false,
+    this.nativeAvailabilityError,
     this.directColors = const [],
     this.effects = const [],
     this.profileNames = const [],
@@ -52,6 +53,10 @@ class RgbLightingState extends Equatable {
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
   final bool nativeAvailable;
 
+  /// A probe failure is distinct from a missing native device. This lets the
+  /// UI avoid suggesting OpenRGB when the native backend needs attention.
+  final String? nativeAvailabilityError;
+
   /// The per-key Direct buffer saved when switching to a non-Direct mode, so
   /// returning to Direct restores the painting instead of a flat fill.
   final List<Color> directColors;
@@ -73,6 +78,7 @@ class RgbLightingState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     bool? nativeAvailable,
+    Object? nativeAvailabilityError = _unset,
     List<Color>? directColors,
     List<SpectrumRegionEffect>? effects,
     List<String>? profileNames,
@@ -92,6 +98,9 @@ class RgbLightingState extends Equatable {
           ? this.errorMessage
           : errorMessage as String?,
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
+      nativeAvailabilityError: nativeAvailabilityError == _unset
+          ? this.nativeAvailabilityError
+          : nativeAvailabilityError as String?,
       directColors: directColors ?? this.directColors,
       effects: effects ?? this.effects,
       profileNames: profileNames ?? this.profileNames,
@@ -110,6 +119,7 @@ class RgbLightingState extends Equatable {
     isApplying,
     errorMessage,
     nativeAvailable,
+    nativeAvailabilityError,
     directColors,
     effects,
     profileNames,

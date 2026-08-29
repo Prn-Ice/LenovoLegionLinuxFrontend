@@ -30,7 +30,8 @@ void main() {
     await _pumpEditor(tester, width: 320, dirty: true);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('CPU fan'), findsOneWidget);
+    expect(find.text('Current CPU fan'), findsOneWidget);
+    await _expandPreciseControls(tester);
     expect(find.byKey(const ValueKey('fan-point-selector')), findsOneWidget);
   });
 
@@ -41,24 +42,24 @@ void main() {
     expect(find.byKey(const ValueKey('fan-curve-chart-plot')), findsOneWidget);
   });
 
-  testWidgets('switches channels and preserves unrelated point fields', (
-    tester,
-  ) async {
+  testWidgets('GPU edits preserve unrelated point fields', (tester) async {
     FanCurvePoint? changedPoint;
-    final original = _curve().points.first;
+    final original = _curve().points[8];
     await _pumpEditor(
       tester,
       width: 800,
+      channel: FanChannel.gpu,
       onPointChanged: (_, point) => changedPoint = point,
     );
 
-    expect(find.text('20°C'), findsOneWidget);
-    expect(find.textContaining('500 RPM'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(ChoiceChip, 'GPU fan'));
+    await _expandPreciseControls(tester);
+    final selector = tester.widget<DropdownButton<int>>(
+      find.byKey(const ValueKey('fan-point-selector')),
+    );
+    selector.onChanged!(8);
     await tester.pump();
-    expect(find.text('25°C'), findsOneWidget);
-    expect(find.textContaining('800 RPM'), findsOneWidget);
+    expect(find.text('81°C'), findsWidgets);
+    expect(find.textContaining('4000 RPM'), findsOneWidget);
 
     final temperatureSlider = tester.widget<Slider>(
       find.byKey(const ValueKey('fan-temperature-slider')),
@@ -93,6 +94,7 @@ void main() {
       width: 800,
       onPointChanged: (_, point) => changedPoint = point,
     );
+    await _expandPreciseControls(tester);
 
     final selector = tester.widget<DropdownButton<int>>(
       find.byKey(const ValueKey('fan-point-selector')),
@@ -138,7 +140,33 @@ void main() {
 
     expect(changedIndex, 8);
     expect(changedPoint!.cpuUpperTemp, closeTo(76, 1));
-    expect(changedPoint!.fan1Rpm, closeTo(3750, 1));
+    expect(changedPoint!.fan1Rpm, 3650);
+  });
+
+  testWidgets('edits stay within hysteresis and neighboring curve points', (
+    tester,
+  ) async {
+    FanCurvePoint? changedPoint;
+    await _pumpEditor(
+      tester,
+      width: 800,
+      onPointChanged: (_, point) => changedPoint = point,
+    );
+    await _expandPreciseControls(tester);
+
+    final temperatureSlider = tester.widget<Slider>(
+      find.byKey(const ValueKey('fan-temperature-slider')),
+    );
+    temperatureSlider.onChanged!(0);
+    await tester.pump();
+    expect(changedPoint!.cpuUpperTemp, _curve().points.first.cpuLowerTemp);
+
+    final speedSlider = tester.widget<Slider>(
+      find.byKey(const ValueKey('fan-speed-slider')),
+    );
+    speedSlider.onChanged!(100);
+    await tester.pump();
+    expect(changedPoint!.fan1Rpm, _curve().points[1].fan1Rpm);
   });
 
   testWidgets('save is enabled only while dirty and not applying', (
@@ -154,7 +182,7 @@ void main() {
     );
 
     await _pumpEditor(tester, width: 800, dirty: true, onSave: () => saves++);
-    expect(find.text('Unsaved changes'), findsOneWidget);
+    expect(find.textContaining('Unsaved changes'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('fan-curve-save')));
     expect(saves, 1);
 
@@ -165,6 +193,7 @@ void main() {
       isApplying: true,
       onSave: () => saves++,
     );
+    await _expandPreciseControls(tester);
     expect(
       tester
           .widget<FilledButton>(find.byKey(const ValueKey('fan-curve-save')))
@@ -185,6 +214,7 @@ Future<void> _pumpEditor(
   required double width,
   bool dirty = false,
   bool isApplying = false,
+  FanChannel channel = FanChannel.cpu,
   void Function(int index, FanCurvePoint point)? onPointChanged,
   VoidCallback? onSave,
 }) async {
@@ -205,6 +235,7 @@ Future<void> _pumpEditor(
               curve: _curve(),
               dirty: dirty,
               isApplying: isApplying,
+              channel: channel,
               onPointChanged: onPointChanged,
               onSave: onSave,
             ),
@@ -221,6 +252,7 @@ class _EditorHarness extends StatefulWidget {
     required this.curve,
     required this.dirty,
     required this.isApplying,
+    required this.channel,
     this.onPointChanged,
     this.onSave,
   });
@@ -228,6 +260,7 @@ class _EditorHarness extends StatefulWidget {
   final FanCurve curve;
   final bool dirty;
   final bool isApplying;
+  final FanChannel channel;
   final void Function(int index, FanCurvePoint point)? onPointChanged;
   final VoidCallback? onSave;
 
@@ -237,20 +270,20 @@ class _EditorHarness extends StatefulWidget {
 
 class _EditorHarnessState extends State<_EditorHarness> {
   late FanCurve _curve = widget.curve;
-  FanChannel _channel = FanChannel.cpu;
 
   @override
   Widget build(BuildContext context) {
     return FanCurveEditor(
       curve: _curve,
-      channel: _channel,
-      profileLabel: 'Balanced',
-      currentTemperature: _channel == FanChannel.cpu ? 64 : 58,
+      channel: widget.channel,
+      currentTemperature: widget.channel == FanChannel.cpu ? 64 : 58,
+      currentRpm: widget.channel == FanChannel.cpu ? 2180 : 1940,
       accent: const Color(0xFF8056D6),
       enabled: true,
       dirty: widget.dirty,
       isApplying: widget.isApplying,
-      onChannelChanged: (channel) => setState(() => _channel = channel),
+      miniFanCurveEnabled: true,
+      onMiniFanCurveChanged: (_) {},
       onPointChanged: (index, point) {
         setState(() => _curve = _curve.copyWithPoint(index, point));
         widget.onPointChanged?.call(index, point);
@@ -258,4 +291,10 @@ class _EditorHarnessState extends State<_EditorHarness> {
       onSave: widget.onSave,
     );
   }
+}
+
+Future<void> _expandPreciseControls(WidgetTester tester) async {
+  await tester.tap(find.text('Precise point controls'));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
 }

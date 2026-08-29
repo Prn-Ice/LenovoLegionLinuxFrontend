@@ -4,12 +4,9 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
-import '../../../core/widgets/metric_gauge.dart';
-import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
-import '../../sensors/models/live_sensor_snapshot.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/fans_bloc.dart';
 import '../bloc/fans_event.dart';
@@ -42,16 +39,13 @@ class _FansPageState extends ConsumerState<FansPage> {
     final bloc = ref.read(fansBlocProvider.bloc);
     final profile = _profileLabel(state.platformProfile);
     final selectedPreset = state.selectedPreset ?? state.recommendedPreset;
-    final curveProfile = state.fanCurveDirty
-        ? LegionAccent.custom.label
-        : selectedPreset == null
-        ? profile
-        : _presetName(selectedPreset);
-    final accent = state.fanCurveDirty
-        ? LegionAccent.custom.color
-        : _presetAccent(selectedPreset) ??
-              LegionAccent.fromPowerModeValue(state.platformProfile)?.color ??
-              LegionAccent.custom.color;
+    final accent = LegionAccent.custom.color;
+    final currentTemperature = _channel == FanChannel.cpu
+        ? sensors.cpuTempC
+        : sensors.gpuTempC;
+    final currentRpm = _channel == FanChannel.cpu
+        ? sensors.fan1Rpm
+        : sensors.fan2Rpm ?? sensors.gpuFanRpm;
 
     if (state.isLoading && !state.hasLoaded) {
       return const Center(child: YaruCircularProgressIndicator());
@@ -69,66 +63,77 @@ class _FansPageState extends ConsumerState<FansPage> {
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
-        _FanActions(
-          maximumFanSpeedEnabled: state.maximumFanSpeedEnabled,
+        _FanWorkspaceToolbar(
+          channel: _channel,
+          availablePresets: state.availablePresets,
+          selectedPreset: selectedPreset,
+          recommendedPreset: state.recommendedPreset,
+          onPowerSupply: state.onPowerSupply,
           isApplying: state.isApplying,
-          hasPresets: state.availablePresets.isNotEmpty,
-          onMaximumFanSpeedPressed: () => _setMaximumFanSpeed(
-            context,
-            bloc,
-            !(state.maximumFanSpeedEnabled ?? false),
+          onChannelChanged: (channel) => setState(() => _channel = channel),
+          onPresetSelected: (preset) => _applyPreset(context, preset, bloc),
+        ),
+        const SizedBox(height: 16),
+        if (state.fanCurve == null)
+          FanCurveUnavailablePanel(
+            channel: _channel,
+            currentTemperature: currentTemperature,
+            currentRpm: currentRpm,
+            accent: accent,
+            miniFanCurveEnabled: state.miniFanCurveEnabled,
+            onMiniFanCurveChanged:
+                state.miniFanCurveEnabled != null && !state.isApplying
+                ? (enabled) => _setMiniFanCurve(context, bloc, enabled)
+                : null,
+          )
+        else
+          FanCurveEditor(
+            curve: state.fanCurve!,
+            channel: _channel,
+            currentTemperature: currentTemperature,
+            currentRpm: currentRpm,
+            accent: accent,
+            enabled: !state.isApplying,
+            dirty: state.fanCurveDirty,
+            isApplying: state.isApplying,
+            miniFanCurveEnabled: state.miniFanCurveEnabled,
+            onMiniFanCurveChanged:
+                state.miniFanCurveEnabled != null && !state.isApplying
+                ? (enabled) => _setMiniFanCurve(context, bloc, enabled)
+                : null,
+            onPointChanged: (index, point) =>
+                bloc.add(FanCurvePointUpdated(index: index, point: point)),
+            onSave: state.fanCurveDirty && !state.isApplying
+                ? () => _saveCurve(context, bloc)
+                : null,
           ),
-          onApplyPresetPressed: () => _showPresetDialog(context, state, bloc),
-        ),
         const SizedBox(height: 16),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final editor = state.fanCurve == null
-                ? const _CurveUnavailable()
-                : FanCurveEditor(
-                    curve: state.fanCurve!,
-                    channel: _channel,
-                    profileLabel: curveProfile,
-                    currentTemperature: _channel == FanChannel.cpu
-                        ? sensors.cpuTempC
-                        : sensors.gpuTempC,
-                    accent: accent,
-                    enabled: !state.isApplying,
-                    dirty: state.fanCurveDirty,
-                    isApplying: state.isApplying,
-                    onChannelChanged: (channel) {
-                      setState(() => _channel = channel);
-                    },
-                    onPointChanged: (index, point) => bloc.add(
-                      FanCurvePointUpdated(index: index, point: point),
-                    ),
-                    onSave: state.fanCurveDirty && !state.isApplying
-                        ? () => _saveCurve(context, bloc)
-                        : null,
-                  );
-            final telemetry = _FanTelemetry(snapshot: sensors, accent: accent);
-
-            if (constraints.maxWidth < 900) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [editor, const SizedBox(height: 16), telemetry],
-              );
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: editor),
-                const SizedBox(width: 16),
-                SizedBox(width: 260, child: telemetry),
-              ],
-            );
-          },
+        _ControllerSafeguards(
+          state: state,
+          onMaximumFanSpeedChanged: (enabled) =>
+              _setMaximumFanSpeed(context, bloc, enabled),
+          onLockFanControllerChanged: (enabled) =>
+              _setLockFanController(context, bloc, enabled),
         ),
-        const SizedBox(height: 16),
-        _FanSafetyControls(state: state, bloc: bloc),
       ],
     );
+  }
+
+  Future<void> _applyPreset(
+    BuildContext context,
+    String preset,
+    FansBloc bloc,
+  ) async {
+    bloc.add(FansPresetSelectionChanged(preset));
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: 'Apply ${_presetDisplayName(preset)} preset',
+      message:
+          'Applying the ${_presetDisplayName(preset)} preset for ${_presetContext(preset).toLowerCase()} requires privileged access.',
+      confirmLabel: 'Apply preset',
+    );
+    if (!context.mounted || !confirmed) return;
+    bloc.add(const FansApplySelectedPresetRequested());
   }
 
   Future<void> _setMaximumFanSpeed(
@@ -158,435 +163,243 @@ class _FansPageState extends ConsumerState<FansPage> {
     if (!context.mounted || !confirmed) return;
     bloc.add(const FanCurveSaveRequested());
   }
-}
 
-class _FanActions extends StatelessWidget {
-  const _FanActions({
-    required this.maximumFanSpeedEnabled,
-    required this.isApplying,
-    required this.hasPresets,
-    required this.onMaximumFanSpeedPressed,
-    required this.onApplyPresetPressed,
-  });
-
-  final bool? maximumFanSpeedEnabled;
-  final bool isApplying;
-  final bool hasPresets;
-  final VoidCallback onMaximumFanSpeedPressed;
-  final VoidCallback onApplyPresetPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final maximumSupported = maximumFanSpeedEnabled != null;
-    final maximumEnabled = maximumFanSpeedEnabled == true;
-    final maximumLabel = !maximumSupported
-        ? 'Max Fan Speed unavailable'
-        : maximumEnabled
-        ? 'Max Fan: On'
-        : 'Max Fan Speed';
-    final maximumAction = maximumEnabled
-        ? FilledButton.icon(
-            key: const ValueKey('maximum-fan-speed'),
-            onPressed: isApplying ? null : onMaximumFanSpeedPressed,
-            icon: const Icon(Icons.air),
-            label: Text(maximumLabel),
-          )
-        : OutlinedButton.icon(
-            key: const ValueKey('maximum-fan-speed'),
-            onPressed: !maximumSupported || isApplying
-                ? null
-                : onMaximumFanSpeedPressed,
-            icon: const Icon(Icons.air),
-            label: Text(maximumLabel),
-          );
-    final presetAction = FilledButton.icon(
-      key: const ValueKey('apply-preset'),
-      onPressed: !hasPresets || isApplying ? null : onApplyPresetPressed,
-      icon: const Icon(Icons.tune),
-      label: const Text('Apply Preset'),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: 48, child: maximumAction),
-              const SizedBox(height: 10),
-              SizedBox(height: 48, child: presetAction),
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: SizedBox(height: 48, child: maximumAction)),
-            const SizedBox(width: 12),
-            Expanded(child: SizedBox(height: 48, child: presetAction)),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _FanTelemetry extends StatelessWidget {
-  const _FanTelemetry({required this.snapshot, required this.accent});
-
-  final LiveSensorSnapshot snapshot;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return SurfaceCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.sensors, size: 20, color: accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Live fan telemetry',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _TelemetryChannel(
-            label: 'CPU fan',
-            rpm: snapshot.fan1Rpm,
-            temperature: snapshot.cpuTempC,
-            accent: accent,
-          ),
-          const Divider(height: 20),
-          _TelemetryChannel(
-            label: 'GPU fan',
-            rpm: snapshot.fan2Rpm,
-            temperature: snapshot.gpuTempC,
-            accent: accent,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TelemetryChannel extends StatelessWidget {
-  const _TelemetryChannel({
-    required this.label,
-    required this.rpm,
-    required this.temperature,
-    required this.accent,
-  });
-
-  final String label;
-  final int? rpm;
-  final double? temperature;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        MetricGauge(
-          value: rpm?.toDouble(),
-          min: 0,
-          max: 5000,
-          accent: accent,
-          size: 88,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 3),
-              Text(
-                rpm == null ? 'Fan speed unavailable' : '$rpm RPM',
-                style: monoMetaStyle(scheme),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                temperature == null
-                    ? 'Temperature unavailable'
-                    : '${temperature!.round()}°C',
-                style: monoBarStyle(scheme.onSurface),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CurveUnavailable extends StatelessWidget {
-  const _CurveUnavailable();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SurfaceCard(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Column(
-          children: [
-            Icon(Icons.multiline_chart, size: 36),
-            SizedBox(height: 12),
-            Text('Fan curve unavailable'),
-            SizedBox(height: 4),
-            Text(
-              'The hwmon fan-curve interface was not detected on this device.',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FanSafetyControls extends StatelessWidget {
-  const _FanSafetyControls({required this.state, required this.bloc});
-
-  final FansState state;
-  final FansBloc bloc;
-
-  @override
-  Widget build(BuildContext context) {
-    return SurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Controller safeguards',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'These controller-level options require privileged access. Unsupported controls remain unavailable.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          if (state.isApplying)
-            const _FanPrivilegeNotice(
-              message:
-                  'A fan-controller change is pending. Controls are temporarily locked.',
-            )
-          else
-            const _FanPrivilegeNotice(message: 'Admin privileges required'),
-          const SizedBox(height: 8),
-          AppSwitchTile(
-            value: state.miniFanCurveEnabled ?? false,
-            onChanged: state.miniFanCurveEnabled != null && !state.isApplying
-                ? (enabled) => _confirmToggle(
-                    context,
-                    title: 'Set Mini Fan Curve',
-                    message:
-                        'This changes the embedded controller fan behavior and requires privileged access.',
-                    apply: () => bloc.add(MiniFanCurveSetRequested(enabled)),
-                  )
-                : null,
-            title: 'Mini Fan Curve',
-            subtitle: _capabilityDescription(
-              state.miniFanCurveEnabled,
-              'Enables the embedded controller mini fan curve during cool operation.',
-              state.isApplying,
-            ),
-          ),
-          AppSwitchTile(
-            value: state.lockFanControllerEnabled ?? false,
-            onChanged:
-                state.lockFanControllerEnabled != null && !state.isApplying
-                ? (enabled) => _confirmToggle(
-                    context,
-                    title: 'Set Lock Fan Controller',
-                    message:
-                        'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
-                    apply: () =>
-                        bloc.add(LockFanControllerSetRequested(enabled)),
-                  )
-                : null,
-            title: 'Lock Fan Controller',
-            subtitle: _capabilityDescription(
-              state.lockFanControllerEnabled,
-              'Locks the embedded controller fan-control state; disable it before another tool takes control.',
-              state.isApplying,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _confirmToggle(
-    BuildContext context, {
-    required String title,
-    required String message,
-    required VoidCallback apply,
-  }) async {
+  Future<void> _setMiniFanCurve(
+    BuildContext context,
+    FansBloc bloc,
+    bool enabled,
+  ) async {
     final confirmed = await confirmPrivilegedAction(
       context,
-      title: title,
-      message: message,
+      title: 'Set mini fan curve',
+      message:
+          'This changes the embedded controller fan behavior and requires privileged access.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
-    apply();
+    bloc.add(MiniFanCurveSetRequested(enabled));
+  }
+
+  Future<void> _setLockFanController(
+    BuildContext context,
+    FansBloc bloc,
+    bool enabled,
+  ) async {
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: 'Set lock fan controller',
+      message:
+          'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
+      confirmLabel: 'Apply',
+    );
+    if (!context.mounted || !confirmed) return;
+    bloc.add(LockFanControllerSetRequested(enabled));
   }
 }
 
-class _FanPrivilegeNotice extends StatelessWidget {
-  const _FanPrivilegeNotice({required this.message});
+class _FanWorkspaceToolbar extends StatelessWidget {
+  const _FanWorkspaceToolbar({
+    required this.channel,
+    required this.availablePresets,
+    required this.selectedPreset,
+    required this.recommendedPreset,
+    required this.onPowerSupply,
+    required this.isApplying,
+    required this.onChannelChanged,
+    required this.onPresetSelected,
+  });
 
-  final String message;
+  final FanChannel channel;
+  final List<String> availablePresets;
+  final String? selectedPreset;
+  final String? recommendedPreset;
+  final bool? onPowerSupply;
+  final bool isApplying;
+  final ValueChanged<FanChannel> onChannelChanged;
+  final ValueChanged<String> onPresetSelected;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
+    final suffix = switch (onPowerSupply) {
+      true => '-ac',
+      false => '-battery',
+      null => null,
+    };
+    final contextualPresets = suffix == null
+        ? availablePresets
+        : availablePresets
+              .where((preset) => preset.endsWith(suffix))
+              .toList(growable: false);
+    final visiblePresets = contextualPresets.isEmpty
+        ? availablePresets
+        : contextualPresets;
+
+    return Theme(
+      data: Theme.of(context).copyWith(
+        colorScheme: Theme.of(
+          context,
+        ).colorScheme.copyWith(primary: LegionAccent.custom.color),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.admin_panel_settings_outlined,
-            size: 16,
-            color: scheme.onSecondaryContainer,
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: scheme.onSecondaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final channelPicker = SizedBox(
+            width: constraints.maxWidth < 420 ? constraints.maxWidth : 270,
+            child: YaruChoiceChipBar(
+              selectedFirst: false,
+              style: YaruChoiceChipBarStyle.wrap,
+              spacing: 6,
+              clearOnSelect: false,
+              labels: [
+                for (final candidate in FanChannel.values)
+                  Text(candidate.label),
+              ],
+              isSelected: [
+                for (final candidate in FanChannel.values) candidate == channel,
+              ],
+              onSelected: isApplying
+                  ? null
+                  : (index) => onChannelChanged(FanChannel.values[index]),
             ),
-          ),
-        ],
+          );
+          final presetPicker = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final preset in visiblePresets)
+                ChoiceChip(
+                  key: ValueKey('fan-preset-$preset'),
+                  selected: preset == selectedPreset,
+                  onSelected: isApplying
+                      ? null
+                      : (_) => onPresetSelected(preset),
+                  avatar: preset == recommendedPreset
+                      ? const Icon(YaruIcons.star_filled, size: 15)
+                      : null,
+                  label: Text(
+                    suffix == null
+                        ? '${_presetDisplayName(preset)} (${_presetContextLabel(preset)})'
+                        : _presetDisplayName(preset),
+                  ),
+                ),
+            ],
+          );
+
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                channelPicker,
+                const SizedBox(height: 12),
+                presetPicker,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              channelPicker,
+              const SizedBox(width: 20),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: presetPicker,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-Future<void> _showPresetDialog(
-  BuildContext context,
-  FansState state,
-  FansBloc bloc,
-) async {
-  var selectedPreset = state.selectedPreset;
-  final preset = await showDialog<String>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setDialogState) => AlertDialog(
-        title: const YaruDialogTitleBar(title: Text('Choose fan preset')),
-        titlePadding: EdgeInsets.zero,
-        content: SizedBox(
-          width: 440,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Select a profile and power context. The preset is not written until you choose Apply preset.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                RadioGroup<String>(
-                  groupValue: selectedPreset,
-                  onChanged: (candidate) {
-                    if (candidate == null) return;
-                    setDialogState(() => selectedPreset = candidate);
-                  },
-                  child: Column(
-                    children: [
-                      for (final candidate in state.availablePresets)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: _PresetOption(
-                            preset: candidate,
-                            recommended: candidate == state.recommendedPreset,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: selectedPreset == null
-                ? null
-                : () => Navigator.of(dialogContext).pop(selectedPreset),
-            child: const Text('Apply preset'),
-          ),
-        ],
-      ),
-    ),
-  );
+class _ControllerSafeguards extends StatelessWidget {
+  const _ControllerSafeguards({
+    required this.state,
+    required this.onMaximumFanSpeedChanged,
+    required this.onLockFanControllerChanged,
+  });
 
-  if (!context.mounted || preset == null) return;
-  bloc.add(FansPresetSelectionChanged(preset));
-  final confirmed = await confirmPrivilegedAction(
-    context,
-    title: 'Apply ${_presetName(preset)} preset',
-    message:
-        'Applying the ${_presetName(preset)} preset for ${_presetContext(preset).toLowerCase()} requires privileged access.',
-    confirmLabel: 'Apply preset',
-  );
-  if (!context.mounted || !confirmed) return;
-  bloc.add(const FansApplySelectedPresetRequested());
-}
-
-class _PresetOption extends StatelessWidget {
-  const _PresetOption({required this.preset, required this.recommended});
-
-  final String preset;
-  final bool recommended;
+  final FansState state;
+  final ValueChanged<bool> onMaximumFanSpeedChanged;
+  final ValueChanged<bool> onLockFanControllerChanged;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: recommended
-          ? scheme.primary.withValues(alpha: 0.09)
-          : Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(
-          color: recommended
-              ? scheme.primary.withValues(alpha: 0.5)
-              : scheme.onSurface.withValues(alpha: 0.08),
+    return SurfaceCard(
+      padding: EdgeInsets.zero,
+      child: YaruExpandable(
+        isExpanded: false,
+        expandButtonPosition: YaruExpandableButtonPosition.end,
+        header: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              const Icon(Icons.shield_outlined, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Controller safeguards',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      'Maximum speed and controller ownership',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              if (state.isApplying)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: YaruCircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (MediaQuery.sizeOf(context).width >= 500)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: PrivilegedActionNotice(),
+                ),
+            ],
+          ),
         ),
-      ),
-      child: RadioListTile<String>(
-        value: preset,
-        title: Text(_presetName(preset)),
-        subtitle: Text(
-          recommended
-              ? '${_presetContext(preset)} | Recommended for current context'
-              : _presetContext(preset),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(
+            children: [
+              const Divider(height: 1),
+              AppSwitchTile(
+                key: const ValueKey('maximum-fan-speed'),
+                value: state.maximumFanSpeedEnabled ?? false,
+                onChanged:
+                    state.maximumFanSpeedEnabled != null && !state.isApplying
+                    ? onMaximumFanSpeedChanged
+                    : null,
+                title: 'Maximum fan speed',
+                subtitle: _capabilityDescription(
+                  state.maximumFanSpeedEnabled,
+                  'Overrides the normal curve for maximum cooling.',
+                  state.isApplying,
+                ),
+              ),
+              AppSwitchTile(
+                value: state.lockFanControllerEnabled ?? false,
+                onChanged:
+                    state.lockFanControllerEnabled != null && !state.isApplying
+                    ? onLockFanControllerChanged
+                    : null,
+                title: 'Lock fan controller',
+                subtitle: _capabilityDescription(
+                  state.lockFanControllerEnabled,
+                  'Prevents another tool from taking controller ownership.',
+                  state.isApplying,
+                ),
+              ),
+            ],
+          ),
         ),
-        secondary: recommended
-            ? Icon(YaruIcons.star_filled, color: scheme.primary)
-            : null,
       ),
     );
   }
@@ -605,12 +418,19 @@ String _powerLabel(bool? onPowerSupply) {
   return onPowerSupply ? 'AC power' : 'Battery power';
 }
 
-String _presetName(String preset) {
+String _presetDisplayName(String preset) {
   final parts = preset.split('-');
   if (parts.isNotEmpty && (parts.last == 'ac' || parts.last == 'battery')) {
     parts.removeLast();
   }
-  if (parts.join('-') == 'balanced-performance') return 'Custom';
+  switch (parts.join('-')) {
+    case 'quiet':
+      return 'Silent';
+    case 'performance':
+      return 'Aggressive';
+    case 'balanced-performance':
+      return 'Custom';
+  }
   return parts
       .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
       .join(' ');
@@ -622,12 +442,10 @@ String _presetContext(String preset) {
   return 'All power contexts';
 }
 
-Color? _presetAccent(String? preset) {
-  if (preset == null || preset.isEmpty) return null;
-  final mode = preset
-      .replaceFirst(RegExp(r'-(ac|battery)$'), '')
-      .replaceFirst('balanced-performance', 'custom');
-  return LegionAccent.fromPowerModeValue(mode)?.color;
+String _presetContextLabel(String preset) {
+  if (preset.endsWith('-ac')) return 'AC';
+  if (preset.endsWith('-battery')) return 'battery';
+  return 'all power';
 }
 
 String _capabilityDescription(bool? value, String description, bool applying) {

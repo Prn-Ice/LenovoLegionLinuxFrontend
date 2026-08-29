@@ -68,10 +68,23 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     Emitter<RgbLightingState> emit,
   ) async {
     emit(state.copyWith(isLoading: true, errorMessage: null));
+    String? nativeError;
     try {
-      final nativeOk = _native?.isAvailable ?? false;
-      final device =
-          await _repository.loadKeyboard() ?? _syntheticNativeDevice(nativeOk);
+      var nativeOk = false;
+      try {
+        nativeOk = _native?.isAvailable ?? false;
+      } catch (error) {
+        nativeError = '$error';
+      }
+      RgbLightingDevice? device;
+      try {
+        device = await _repository.loadKeyboard();
+      } catch (_) {
+        // OpenRGB is optional, and a failed probe must not hide a usable
+        // native Spectrum keyboard.
+        if (!nativeOk) rethrow;
+      }
+      device ??= _syntheticNativeDevice(nativeOk);
       if (device == null) {
         emit(
           state.copyWith(
@@ -79,6 +92,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
             device: null,
             isLoading: false,
             nativeAvailable: false,
+            nativeAvailabilityError: nativeError,
           ),
         );
         return;
@@ -103,6 +117,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           profileNames: _store?.profileNames() ?? const [],
           isLoading: false,
           nativeAvailable: nativeOk,
+          nativeAvailabilityError: nativeError,
         ),
       );
       // Persist & re-apply: push the remembered painting back to the keyboard.
@@ -124,6 +139,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           available: false,
           isLoading: false,
           errorMessage: '$error',
+          nativeAvailabilityError: nativeError,
         ),
       );
     }

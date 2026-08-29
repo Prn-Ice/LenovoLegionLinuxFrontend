@@ -28,7 +28,7 @@ status. That epic predates this handoff.
 - The session began by reviewing this plan against the generated design source,
   then implemented the foundation, Dashboard, shell, Lighting, and native
   Spectrum support.
-- Current branch: `feat/spectrum-native`.
+- Current branch: `main`; the Spectrum and Fans work has been merged and pushed.
 - The recovered hardware checkpoint began at `568bc5b` (`feat(lighting):
   white-balance the native path so white reads neutral`). Lighting validation
   has since completed as recorded below and in `lllf-cqn.1`.
@@ -43,8 +43,8 @@ status. That epic predates this handoff.
 | Phase 0 — Repository hygiene | Complete | Orphaned combined modules deleted; `PrivilegedRepository` extracted. |
 | Phase 1 — Shared visual foundation | Mostly complete | Accent tokens, Legion mark, metric widgets, responsive grid, Dashboard application, and shell polish landed. Target navigation migration is intentionally incomplete while controls still need new homes. |
 | Phase 2 — Dashboard | Substantially complete | Mode hero, telemetry gauges, quick controls, product information, responsive cards, typography, and power-mode accent behavior landed. |
-| Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. |
-| Phase 4 — Fans | Complete | Curve-first CPU/GPU editor, live temperature/RPM telemetry, prominent preset/max-fan actions, privileged safeguards, Custom dirty state, and compact/wide light/dark coverage landed. All 45 Fans tests and the full 380-test suite pass. |
+| Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. Native Spectrum remains available when OpenRGB is missing or its probe fails. |
+| Phase 4 — Fans | Complete | Curve-first CPU/GPU editor, direct context-aware presets, live temperature/RPM telemetry, privileged safeguards, bounded Custom edits, truthful unavailable states, and compact/wide light/dark coverage landed. Controller hwmon symlinks and separate live-RPM providers are discovered correctly. All focused Fans tests and the full suite pass. |
 | Phase 5 — Power | Not yet given the new handoff pass | Existing controls predate this handoff. |
 | Phase 6a — Battery & dGPU | Not yet given the new handoff pass | Existing pages predate this handoff; Always-on USB has not been migrated. |
 | Phase 6b — Automation, Settings & About | Not yet given the new handoff pass | Existing pages predate this handoff; Diagnostics/Devices/Display absorption remains. |
@@ -73,7 +73,6 @@ The retained `tool/_step.dart` diagnostic produced these verified results:
   mapping, calibration, single-key, and configurable-duration animation steps.
 - The shared device model is now `RgbLightingDevice`; OpenRGB naming remains
   only on the parser and CLI adapter where it accurately describes the backend.
-- `pubspec.lock` contains incidental transitive test-package updates.
 - `docs/Legion Yaru Redesign.dc.html` is the generated visual source and
   `docs/support.js` is generated runtime support. Do not hand-edit either.
 
