@@ -35,7 +35,7 @@ class PowerRepository extends PrivilegedRepository {
   static const List<PowerLimitSpec> allPowerLimits = [
     PowerLimitSpec(
       id: 'cpu_longterm',
-      label: 'CPU Long Term Power Limit',
+      label: 'CPU sustained (PL1)',
       featureName:
           'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
       sysfsAttribute: 'cpu_longterm_powerlimit',
@@ -44,7 +44,7 @@ class PowerRepository extends PrivilegedRepository {
     ),
     PowerLimitSpec(
       id: 'cpu_shortterm',
-      label: 'CPU Short Term Power Limit',
+      label: 'CPU boost (PL2)',
       featureName:
           'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsAttribute: 'cpu_shortterm_powerlimit',
@@ -89,7 +89,7 @@ class PowerRepository extends PrivilegedRepository {
     ),
     PowerLimitSpec(
       id: 'gpu_ctgp',
-      label: 'GPU cTGP Power Limit',
+      label: 'GPU total power (cTGP)',
       featureName:
           'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
       sysfsAttribute: 'gpu_ctgp_powerlimit',
@@ -110,6 +110,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'GPU Boost Clock',
       featureName: 'GPUBoostClock', // legion_linux/legion.py:GPUBoostClock
       sysfsAttribute: 'gpu_boost_clock',
+      unit: 'MHz',
       min: 0,
       max: 10000,
     ),
@@ -119,6 +120,7 @@ class PowerRepository extends PrivilegedRepository {
       featureName:
           'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
       sysfsAttribute: 'gpu_temperature_limit',
+      unit: '°C',
       min: 0,
       max: 120,
     ),

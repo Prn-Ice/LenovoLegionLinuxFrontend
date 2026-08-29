@@ -17,6 +17,50 @@ String humanizeMode(String? mode) {
       .join(' ');
 }
 
+String modeLabel(String? mode) {
+  final value = mode?.trim();
+  if (value == 'max-power') return 'Extreme';
+  return LegionAccent.fromPowerModeValue(value)?.label ?? humanizeMode(value);
+}
+
+String modeSummary(String? mode) {
+  switch (mode?.trim()) {
+    case 'quiet':
+    case 'low-power':
+      return 'Silent and cool';
+    case 'balanced':
+      return 'Smart middle';
+    case 'performance':
+      return 'Full power';
+    case 'max-power':
+      return 'Maximum power';
+    case 'balanced-performance':
+    case 'custom':
+      return 'Your tune';
+    default:
+      return 'System profile';
+  }
+}
+
+String modeDescription(String? mode) {
+  switch (mode?.trim()) {
+    case 'quiet':
+    case 'low-power':
+      return 'Keeps heat, noise, and power use low.';
+    case 'balanced':
+      return 'Quick when you need it, calm when you do not.';
+    case 'performance':
+      return 'Uses more power and cooling for sustained speed.';
+    case 'max-power':
+      return 'Allows the highest performance exposed by the controller.';
+    case 'balanced-performance':
+    case 'custom':
+      return 'Uses your controller-provided power and thermal limits.';
+    default:
+      return 'The active platform power profile.';
+  }
+}
+
 /// Dashboard mode hero: a row of selectable power-mode cards (a colored dot +
 /// the mode name, with an accent border when active) above an accent-tinted
 /// banner naming the current mode. The accent follows the selected mode.
@@ -58,17 +102,31 @@ class ModeHero extends StatelessWidget {
         if (availableModes.isEmpty)
           const Text('No writable power modes available.')
         else
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (var i = 0; i < availableModes.length; i++)
-                _ModeCard(
-                  mode: availableModes[i],
-                  selected: selected == availableModes[i],
-                  onTap: enabled ? () => onModeSelected!(i) : null,
-                ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final maxColumns = constraints.maxWidth >= 760
+                  ? 4
+                  : constraints.maxWidth >= 420
+                  ? 2
+                  : 1;
+              final columns = availableModes.length.clamp(1, maxColumns);
+              final cardWidth =
+                  (constraints.maxWidth - (columns - 1) * 12) / columns;
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (var i = 0; i < availableModes.length; i++)
+                    _ModeCard(
+                      width: cardWidth,
+                      mode: availableModes[i],
+                      selected: selected == availableModes[i],
+                      onTap: enabled ? () => onModeSelected!(i) : null,
+                    ),
+                ],
+              );
+            },
           ),
         const SizedBox(height: 12),
         DecoratedBox(
@@ -86,21 +144,32 @@ class ModeHero extends StatelessWidget {
               children: [
                 LegionMark(color: accent, size: 24),
                 const SizedBox(width: 12),
-                Text(
-                  humanizeMode(selected),
-                  style: textTheme.titleSmall?.copyWith(color: accent),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        modeLabel(selected),
+                        style: textTheme.titleSmall?.copyWith(color: accent),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        modeDescription(selected),
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (facts != null) ...[
                   const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      facts!,
-                      overflow: TextOverflow.ellipsis,
-                      style: monoFactStyle(scheme),
-                    ),
+                  Text(
+                    facts!,
+                    overflow: TextOverflow.ellipsis,
+                    style: monoFactStyle(scheme),
                   ),
-                ] else
-                  const Spacer(),
+                ],
               ],
             ),
           ),
@@ -114,11 +183,13 @@ class ModeHero extends StatelessWidget {
 /// name, with the accent selection border when active.
 class _ModeCard extends StatelessWidget {
   const _ModeCard({
+    required this.width,
     required this.mode,
     required this.selected,
     required this.onTap,
   });
 
+  final double width;
   final String mode;
   final bool selected;
   final VoidCallback? onTap;
@@ -130,7 +201,7 @@ class _ModeCard extends StatelessWidget {
         LegionAccent.fromPowerModeValue(mode)?.color ?? scheme.primary;
 
     return SizedBox(
-      width: 178,
+      width: width,
       child: SurfaceCard(
         color: selected
             ? Color.alphaBlend(
@@ -147,22 +218,35 @@ class _ModeCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(kYaruContainerRadius),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: dotColor,
-                      shape: BoxShape.circle,
-                    ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 11,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: dotColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Text(
+                          modeLabel(mode),
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      humanizeMode(mode),
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                  const SizedBox(height: 6),
+                  Text(
+                    modeSummary(mode),
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: 0.56),
                     ),
                   ),
                 ],

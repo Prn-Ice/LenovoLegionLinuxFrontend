@@ -45,7 +45,7 @@ status. That epic predates this handoff.
 | Phase 2 — Dashboard | Substantially complete | Mode hero, telemetry gauges, quick controls, product information, responsive cards, typography, and power-mode accent behavior landed. |
 | Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. Native Spectrum remains available when OpenRGB is missing or its probe fails. |
 | Phase 4 — Fans | UI complete; hardware deployment tracked | Curve-first CPU/GPU editor, semantic presets, live telemetry, privileged safeguards, bounded Custom edits, truthful unavailable states, and compact/wide light/dark coverage landed. The frontend discovers both legacy and Kernel 7 Legion platform roots. The dev machine still needs its stale backend pin replaced; see `docs/architecture/fan-controller-kernel-7-handoff.md`. |
-| Phase 5 — Power | Not yet given the new handoff pass | Existing controls predate this handoff. |
+| Phase 5 — Power | Complete | Responsive semantic mode cards, mode-aware accents, primary limit sliders, advanced limits, capability-gated overclock controls, adjacent warnings, and title-bar refresh landed with compact/wide light/dark coverage. |
 | Phase 6a — Battery & dGPU | Not yet given the new handoff pass | Existing pages predate this handoff; Always-on USB has not been migrated. |
 | Phase 6b — Automation, Settings & About | Not yet given the new handoff pass | Existing pages predate this handoff; Diagnostics/Devices/Display absorption remains. |
 | Phase 7 — Platform surfaces | Not started | OSD, tray, and notification integration remain. |
@@ -78,10 +78,9 @@ The retained `tool/_step.dart` diagnostic produced these verified results:
 
 ### Resume Order
 
-1. Start Phase 5 — Power using the design handoff as the visual source of truth.
-2. Continue with Battery/dGPU and Automation/Settings as encoded in
+1. Continue with Battery/dGPU and Automation/Settings as encoded in
    the Beads dependency graph.
-3. Migrate omitted controls before removing Devices, Display, or Diagnostics
+2. Migrate omitted controls before removing Devices, Display, or Diagnostics
    from top-level navigation.
 
 ### Beads Tracking
@@ -627,6 +626,16 @@ Make power mode and custom tuning reflect the handoff’s interactive "Power & C
 - Common mode switching is visually simple.
 - Advanced controls are discoverable but not noisy.
 - Existing power repository and bloc behavior stays unchanged.
+
+### Implementation Status (2026-08-29)
+
+Complete. The page now uses responsive semantic mode cards and active-mode
+descriptions, surfaces common controller limits as sliders, keeps remaining
+limits in an advanced disclosure, and only shows overclock controls when the
+backend reports support. Privileged changes retain confirmation dialogs and
+warnings remain adjacent to advanced tuning. Kernel 7 profile aliases and
+controller-specific units are presented with user-facing labels. The full test
+suite, analyzer, UI detector, and Linux release build pass.
 
 ---
 

@@ -17,6 +17,8 @@ import '../../diagnostics/view/diagnostics_page.dart';
 import '../../display/view/display_page.dart';
 import '../../fans/view/fans_page.dart';
 import '../../lighting/view/lighting_page.dart';
+import '../../power/bloc/power_event.dart';
+import '../../power/providers/power_provider.dart';
 import '../../power/view/power_page.dart';
 import '../../settings/view/settings_page.dart';
 import '../bloc/navigation_event.dart';
@@ -64,16 +66,24 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         .add(NavigationSectionSelected(section));
   }
 
-  /// Title-bar actions for the active section (currently a Dashboard refresh).
+  /// Refresh actions live in the title bar rather than page content.
   List<Widget> _titleBarActions(AppSection section) {
-    if (section != AppSection.dashboard) return const [];
+    final VoidCallback? onRefresh = switch (section) {
+      AppSection.dashboard =>
+        () => ref
+            .read(dashboardBlocProvider.bloc)
+            .add(const DashboardRefreshRequested()),
+      AppSection.power =>
+        () =>
+            ref.read(powerBlocProvider.bloc).add(const PowerRefreshRequested()),
+      _ => null,
+    };
+    if (onRefresh == null) return const [];
     return [
       IconButton(
         icon: const Icon(YaruIcons.refresh, size: 18),
         tooltip: 'Refresh',
-        onPressed: () => ref
-            .read(dashboardBlocProvider.bloc)
-            .add(const DashboardRefreshRequested()),
+        onPressed: onRefresh,
       ),
     ];
   }

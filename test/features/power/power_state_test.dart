@@ -21,6 +21,12 @@ void main() {
       expect(const PowerMode('balanced-performance').label, equals('Custom'));
     });
 
+    test('maps Kernel 7 profile names to product labels', () {
+      expect(const PowerMode('low-power').label, equals('Quiet'));
+      expect(const PowerMode('custom').label, equals('Custom'));
+      expect(const PowerMode('max-power').label, equals('Extreme'));
+    });
+
     test('label returns raw value for unknown modes', () {
       expect(const PowerMode('ultra').label, equals('ultra'));
     });
@@ -91,9 +97,9 @@ void main() {
     });
 
     test('copyWith(errorMessage: null) clears it', () {
-      final s = PowerState.initial().copyWith(errorMessage: 'err').copyWith(
-        errorMessage: null,
-      );
+      final s = PowerState.initial()
+          .copyWith(errorMessage: 'err')
+          .copyWith(errorMessage: null);
       expect(s.errorMessage, isNull);
     });
   });

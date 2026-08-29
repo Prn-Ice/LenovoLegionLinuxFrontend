@@ -31,7 +31,9 @@ void main() {
     expect(find.textContaining('Performance'), findsWidgets);
   });
 
-  testWidgets('humanizes hyphenated mode names', (tester) async {
+  testWidgets('maps kernel profile names to user-facing mode semantics', (
+    tester,
+  ) async {
     await _pump(
       tester,
       ModeHero(
@@ -43,7 +45,8 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('Low Power'), findsWidgets);
+    expect(find.textContaining('Quiet'), findsWidgets);
+    expect(find.text('Silent and cool'), findsOneWidget);
   });
 
   testWidgets('shows a message when there are no writable modes', (
