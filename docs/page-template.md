@@ -109,6 +109,15 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   [`LegionAccent.fromPowerModeValue`](../lib/core/theme/legion_accent.dart)
   (quiet=teal, balanced=green, performance=orange, custom=violet). Thread the
   resolved `Color accent` into cards.
+- Accent colours describe real state, not page identity. In particular, Custom
+  violet belongs to an explicitly custom or dirty value; do not tint a whole
+  settings page violet merely because it contains advanced controls.
+- Keep one authoritative accent source per surface. Avoid a page-level hardcode
+  combined with component-specific overrides that can disagree.
+- A nested `ColorScheme.copyWith(primary: …)` does not rebuild Yaru's generated
+  component subthemes. When a chip or another generated component needs a
+  semantic state colour, set that component's selected properties directly and
+  leave its inactive appearance to the Yaru theme.
 
 ## Icons
 
@@ -117,7 +126,28 @@ rail already does (via each section's `yaruIcon`); dashboard content uses
 `YaruIcons.chip` (device), `thunderbolt` (power/charge), `health` (battery
 health), `keyboard` (Fn), `touchpad`, `refresh`. `import 'package:yaru/yaru.dart'`.
 
-## 6. Privileged actions
+## 6. Capability and state truth
+
+- Discover backend capabilities before designing or enabling controls. Test the
+  actual combinations the backend can return, including partial and entirely
+  absent support, rather than relying only on fully populated mocks.
+- Never invent hardware values or draw a plausible curve when the driver did
+  not provide one. Preserve nullable states through the repository, bloc, and
+  widget layers.
+- Recommendation, explicit selection, successful application, and confirmed
+  hardware-active state are different concepts. Name and render only the state
+  the backend can prove; a recommendation must not silently become selected,
+  and a successful command must not be presented as persistent hardware state
+  without a readback API.
+- Hide unsupported secondary controls. For the primary unavailable feature,
+  show a compact explanation alongside any truthful telemetry that remains;
+  do not leave a large disabled mock interface in place.
+- The shell owns the page name and refresh action. Do not duplicate either in
+  page content unless the content has a separate, meaningful section identity.
+- Prefer native Yaru controls and their established interaction states before
+  building custom equivalents.
+
+## 7. Privileged actions
 
 Toggles/buttons that change hardware go through a confirm + guard pattern (see
 `_buildQuickControls` in
@@ -137,7 +167,7 @@ onChanged: guard(
 commands extend
 [`PrivilegedRepository`](../lib/core/data/privileged_repository.dart).
 
-## 7. Shell & platform
+## 8. Shell & platform
 
 - Window is a rounded GNOME/Handy window via **handy_window**
   ([linux/runner/my_application.cc](../linux/runner/my_application.cc) registers
@@ -145,7 +175,7 @@ commands extend
 - Section title bar: left-aligned (`centerTitle: false`), section-specific
   actions via `_titleBarActions`.
 
-## 8. Tooling & process
+## 9. Tooling & process
 
 - **Flutter is not on PATH** — run via the nix flake:
   `nix develop /home/prnice/Projects/personal/nix_flakes/flutter_flake --command bash -c "cd <repo> && flutter test"`.
@@ -156,8 +186,11 @@ commands extend
 - Verify each change: `flutter analyze` clean + `flutter test` green before
   committing.
 
-## 9. Known data gaps (dev machine)
+## 10. Known data gaps (dev machine)
 
-Not app bugs — missing kernel data on this host: fans + power-limit facts are
-absent (`legion_laptop` loaded but not platform-bound), CPU temp falls back to
-`acpitz` (no k10temp). amdgpu telemetry works. Guard for null and render `—`.
+Fans and power-limit facts are absent because the active NixOS configuration
+pins a pre-Kernel-7 `legion_laptop`; this is a known deployment problem rather
+than a reason to fabricate UI data. See
+[the Kernel 7 fan-controller handoff](architecture/fan-controller-kernel-7-handoff.md).
+CPU temp falls back to `acpitz` (no k10temp), while amdgpu telemetry works.
+Guard for null and render `—`.

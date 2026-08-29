@@ -50,4 +50,37 @@ void main() {
       expect(await service.readFan2Rpm(), 4100);
     },
   );
+
+  test('discovers the Kernel 7 synthetic platform root', () async {
+    final virtualRoot = Directory('${root.path}/platform/legion');
+    final legacyRoot = Directory('${root.path}/platform/PNP0C09:00');
+    final controller = Directory('${virtualRoot.path}/hwmon/hwmon0');
+    await controller.create(recursive: true);
+    await File('${controller.path}/fan1_input').writeAsString('3600\n');
+
+    final service = LegionSysfsService(
+      hwmonRoot: hwmonRoot.path,
+      legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
+    );
+
+    expect(await service.readFan1Rpm(), 3600);
+  });
+
+  test('falls back to the legacy platform root for feature reads', () async {
+    final virtualRoot = Directory('${root.path}/platform/legion');
+    final legacyRoot = Directory('${root.path}/platform/PNP0C09:00');
+    await legacyRoot.create(recursive: true);
+    await File('${legacyRoot.path}/gsync').writeAsString('1\n');
+    await File(
+      '${legacyRoot.path}/cpu_longterm_powerlimit',
+    ).writeAsString('54\n');
+
+    final service = LegionSysfsService(
+      hwmonRoot: hwmonRoot.path,
+      legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
+    );
+
+    expect(await service.readHybridMode(), isTrue);
+    expect(await service.readLegionIntFile('cpu_longterm_powerlimit'), 54);
+  });
 }

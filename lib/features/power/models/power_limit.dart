@@ -5,7 +5,7 @@ class PowerLimitSpec extends Equatable {
     required this.id,
     required this.label,
     required this.featureName,
-    required this.sysfsPath,
+    required this.sysfsAttribute,
     required this.min,
     required this.max,
   });
@@ -13,12 +13,12 @@ class PowerLimitSpec extends Equatable {
   final String id;
   final String label;
   final String featureName;
-  final String sysfsPath;
+  final String sysfsAttribute;
   final int min;
   final int max;
 
   @override
-  List<Object?> get props => [id, label, featureName, sysfsPath, min, max];
+  List<Object?> get props => [id, label, featureName, sysfsAttribute, min, max];
 }
 
 class PowerLimitReading extends Equatable {

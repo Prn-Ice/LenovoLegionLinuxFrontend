@@ -111,13 +111,74 @@ void main() {
     verify(() => harness.fansRepository.applyPreset('balanced-ac')).called(1);
   });
 
-  testWidgets('fan workspace consistently uses the Custom accent', (
+  testWidgets('fan workspace follows profile until the curve is edited', (
+    tester,
+  ) async {
+    final harness = await _pumpPage(tester, width: 800);
+
+    var editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
+    expect(editor.accent, LegionAccent.balanced.color);
+
+    final curve = harness.fansBloc.state.fanCurve!;
+    harness.fansBloc.add(
+      FanCurvePointUpdated(
+        index: 0,
+        point: curve.points.first.copyWith(fan1Rpm: 900),
+      ),
+    );
+    await tester.pump();
+
+    editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
+    expect(editor.accent, LegionAccent.custom.color);
+  });
+
+  testWidgets('recommended preset is distinct from explicit selection', (
     tester,
   ) async {
     await _pumpPage(tester, width: 800);
 
-    final editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    expect(editor.accent, LegionAccent.custom.color);
+    final silent = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('fan-preset-quiet-ac')),
+    );
+    expect(silent.selected, isFalse);
+    expect(silent.avatar, isNotNull);
+    expect(silent.checkmarkColor, LegionAccent.quiet.color);
+    expect(
+      tester
+          .widget<ChoiceChip>(
+            find.byKey(const ValueKey('fan-preset-performance-ac')),
+          )
+          .checkmarkColor,
+      LegionAccent.performance.color,
+    );
+
+    await tester.tap(find.text('Balanced'));
+    await tester.pump();
+
+    final balanced = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('fan-preset-balanced-ac')),
+    );
+    expect(balanced.selected, isTrue);
+    expect(
+      balanced.selectedColor,
+      Color.alphaBlend(
+        LegionAccent.balanced.color.withValues(alpha: 0.2),
+        Theme.of(tester.element(find.byType(FansPage))).colorScheme.surface,
+      ),
+    );
+  });
+
+  testWidgets('custom preset uses the Custom semantic accent', (tester) async {
+    await _pumpPage(tester, width: 800);
+
+    await tester.tap(find.text('Custom'));
+    await tester.pump();
+
+    final custom = tester.widget<ChoiceChip>(
+      find.byKey(const ValueKey('fan-preset-balanced-performance-ac')),
+    );
+    expect(custom.selected, isTrue);
+    expect(custom.checkmarkColor, LegionAccent.custom.color);
   });
 
   testWidgets('Yaru channel toggle switches the live fan context', (

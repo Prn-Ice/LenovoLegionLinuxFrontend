@@ -36,8 +36,10 @@ class _FansPageState extends ConsumerState<FansPage> {
     final state = ref.watch(fansBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(fansBlocProvider.bloc);
-    final selectedPreset = state.selectedPreset ?? state.recommendedPreset;
-    final accent = LegionAccent.custom.color;
+    final accent = state.fanCurveDirty
+        ? LegionAccent.custom.color
+        : LegionAccent.fromPowerModeValue(state.platformProfile)?.color ??
+              Theme.of(context).colorScheme.primary;
     final hasFanControls =
         state.miniFanCurveEnabled != null ||
         state.maximumFanSpeedEnabled != null ||
@@ -60,7 +62,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         _FanWorkspaceToolbar(
           channel: _channel,
           availablePresets: state.availablePresets,
-          selectedPreset: selectedPreset,
+          selectedPreset: state.selectedPreset,
           recommendedPreset: state.recommendedPreset,
           onPowerSupply: state.onPowerSupply,
           isApplying: state.isApplying,
@@ -222,80 +224,115 @@ class _FanWorkspaceToolbar extends StatelessWidget {
         ? availablePresets
         : contextualPresets;
 
-    return Theme(
-      data: Theme.of(context).copyWith(
-        colorScheme: Theme.of(
-          context,
-        ).colorScheme.copyWith(primary: LegionAccent.custom.color),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final channelPicker = SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ToggleButtons(
-              key: const ValueKey('fan-channel-toggle'),
-              isSelected: [
-                for (final candidate in FanChannel.values) candidate == channel,
-              ],
-              onPressed: isApplying
-                  ? null
-                  : (index) => onChannelChanged(FanChannel.values[index]),
-              children: [
-                for (final candidate in FanChannel.values)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 22),
-                    child: Text(candidate.label),
-                  ),
-              ],
-            ),
-          );
-          final presetPicker = Wrap(
-            spacing: 8,
-            runSpacing: 8,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final channelPicker = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ToggleButtons(
+            key: const ValueKey('fan-channel-toggle'),
+            isSelected: [
+              for (final candidate in FanChannel.values) candidate == channel,
+            ],
+            onPressed: isApplying
+                ? null
+                : (index) => onChannelChanged(FanChannel.values[index]),
             children: [
-              for (final preset in visiblePresets)
-                ChoiceChip(
-                  key: ValueKey('fan-preset-$preset'),
-                  selected: preset == selectedPreset,
-                  onSelected: isApplying
-                      ? null
-                      : (_) => onPresetSelected(preset),
-                  avatar: preset == recommendedPreset
-                      ? const Icon(YaruIcons.star_filled, size: 15)
-                      : null,
-                  label: Text(
-                    suffix == null
-                        ? '${_presetDisplayName(preset)} (${_presetContextLabel(preset)})'
-                        : _presetDisplayName(preset),
-                  ),
+              for (final candidate in FanChannel.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  child: Text(candidate.label),
                 ),
             ],
-          );
-
-          if (constraints.maxWidth < 760) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                channelPicker,
-                const SizedBox(height: 12),
-                presetPicker,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              channelPicker,
-              const SizedBox(width: 20),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: presetPicker,
-                ),
+          ),
+        );
+        final presetPicker = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final preset in visiblePresets)
+              _PresetChip(
+                preset: preset,
+                selected: preset == selectedPreset,
+                recommended: preset == recommendedPreset,
+                showContext: suffix == null,
+                enabled: !isApplying,
+                onSelected: onPresetSelected,
               ),
-            ],
+          ],
+        );
+
+        if (constraints.maxWidth < 760) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [channelPicker, const SizedBox(height: 12), presetPicker],
           );
-        },
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            channelPicker,
+            const SizedBox(width: 20),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: presetPicker,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({
+    required this.preset,
+    required this.selected,
+    required this.recommended,
+    required this.showContext,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  final String preset;
+  final bool selected;
+  final bool recommended;
+  final bool showContext;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accent = _presetAccent(preset);
+
+    return ChoiceChip(
+      key: ValueKey('fan-preset-$preset'),
+      selected: selected,
+      selectedColor: Color.alphaBlend(
+        accent.withValues(alpha: 0.2),
+        scheme.surface,
+      ),
+      side: selected ? BorderSide(color: accent.withValues(alpha: 0.55)) : null,
+      checkmarkColor: accent,
+      labelStyle: selected
+          ? Theme.of(
+              context,
+            ).textTheme.labelLarge?.copyWith(color: scheme.onSurface)
+          : null,
+      onSelected: enabled ? (_) => onSelected(preset) : null,
+      avatar: recommended
+          ? Icon(
+              YaruIcons.star_filled,
+              size: 15,
+              color: selected ? accent : scheme.onSurfaceVariant,
+            )
+          : null,
+      label: Text(
+        showContext
+            ? '${_presetDisplayName(preset)} (${_presetContextLabel(preset)})'
+            : _presetDisplayName(preset),
       ),
     );
   }
@@ -388,4 +425,14 @@ String _presetContextLabel(String preset) {
   if (preset.endsWith('-ac')) return 'AC';
   if (preset.endsWith('-battery')) return 'battery';
   return 'all power';
+}
+
+Color _presetAccent(String preset) {
+  final profile = preset.endsWith('-battery')
+      ? preset.substring(0, preset.length - '-battery'.length)
+      : preset.endsWith('-ac')
+      ? preset.substring(0, preset.length - '-ac'.length)
+      : preset;
+  return LegionAccent.fromPowerModeValue(profile)?.color ??
+      LegionAccent.custom.color;
 }

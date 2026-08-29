@@ -4,6 +4,8 @@ import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
 import 'package:legion_frontend/features/fans/models/fan_curve.dart';
+import 'package:legion_frontend/features/fans/models/fans_snapshot.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../helpers/fake_fans_repository.dart';
 
@@ -27,6 +29,36 @@ FanCurve _tenPointCurve() => FanCurve(
 );
 
 void main() {
+  test(
+    'loading a recommendation does not claim an explicit selection',
+    () async {
+      final repo = FakeFansRepository();
+      when(repo.loadSnapshot).thenAnswer(
+        (_) async => const FansSnapshot(
+          platformProfile: 'quiet',
+          onPowerSupply: true,
+          recommendedPreset: 'quiet-ac',
+          availablePresets: ['quiet-ac', 'balanced-ac'],
+          miniFanCurveEnabled: null,
+          lockFanControllerEnabled: null,
+          maximumFanSpeedEnabled: null,
+          fanCurve: null,
+        ),
+      );
+      final bloc = FansBloc(
+        repository: repo,
+        pollInterval: const Duration(days: 1),
+      );
+      addTearDown(bloc.close);
+
+      final loaded = bloc.stream.firstWhere((state) => !state.isLoading);
+      bloc.add(const FansStarted());
+
+      expect((await loaded).recommendedPreset, 'quiet-ac');
+      expect(bloc.state.selectedPreset, isNull);
+    },
+  );
+
   group('FansBloc.FansPresetSelectionChanged', () {
     late FakeFansRepository repo;
 

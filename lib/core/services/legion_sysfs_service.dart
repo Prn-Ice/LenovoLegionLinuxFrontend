@@ -6,17 +6,26 @@ import '../../features/dashboard/models/system_status.dart';
 
 class LegionSysfsService {
   static const String _hwmonBasePath = '/sys/class/hwmon';
+  static const List<String> _defaultLegionPlatformRoots = [
+    '/sys/module/legion_laptop/drivers/platform:legion/legion',
+    '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00',
+  ];
 
   /// The roots are injectable to make sysfs discovery testable.  In normal
   /// use they retain their kernel-provided locations.
   final String _hwmonRoot;
-  final String _fanHwmonRoot;
+  final List<String> _legionPlatformRoots;
+  final List<String> _fanHwmonRoots;
 
   LegionSysfsService({
     String hwmonRoot = _hwmonBasePath,
-    String fanHwmonRoot = _fanHwmonBasePath,
+    List<String> legionPlatformRoots = _defaultLegionPlatformRoots,
+    String? fanHwmonRoot,
   }) : _hwmonRoot = hwmonRoot,
-       _fanHwmonRoot = fanHwmonRoot;
+       _legionPlatformRoots = legionPlatformRoots,
+       _fanHwmonRoots = fanHwmonRoot == null
+           ? [for (final root in legionPlatformRoots) '$root/hwmon']
+           : [fanHwmonRoot];
 
   /// Convert hwmon millidegrees Celsius to degrees Celsius.
   static double milliDegreesToC(int milliDegrees) => milliDegrees / 1000.0;
@@ -25,23 +34,12 @@ class LegionSysfsService {
       '/sys/firmware/acpi/platform_profile';
   static const String _platformProfileChoicesPath =
       '/sys/firmware/acpi/platform_profile_choices';
-  static const String _hybridModePath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gsync';
-  static const String _overdrivePath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/overdrive';
-
   static const String _batteryConservationPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode';
-  static const String _rapidChargingPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/rapidcharge';
   static const String _alwaysOnUsbChargingPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/usb_charging';
   static const String _touchpadIdeapadPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/touchpad';
-  static const String _touchpadLegionPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/touchpad';
-  static const String _winKeyPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/winkey';
   static const String _cameraPowerPath =
       '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/camera_power';
   static const String _fnLockPath =
@@ -61,17 +59,6 @@ class LegionSysfsService {
 
   final Map<String, String?> _powerSupplyDirCache = {};
   static const String _dmiPath = '/sys/class/dmi/id';
-
-  static const String _lockFanControllerPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/lockfancontroller';
-  static const String _maximumFanSpeedPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/fan_fullspeed';
-  static const String _fanHwmonBasePath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/hwmon';
-  static const String _cpuOverclockPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_oc';
-  static const String _gpuOverclockPath =
-      '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_oc';
 
   Future<SystemStatus> readSystemStatus() async {
     try {
@@ -114,11 +101,11 @@ class LegionSysfsService {
   }
 
   Future<bool?> readHybridMode() async {
-    return _readBoolFile(_hybridModePath);
+    return _readLegionBoolFile('gsync');
   }
 
   Future<bool?> readOverdriveMode() async {
-    return _readBoolFile(_overdrivePath);
+    return _readLegionBoolFile('overdrive');
   }
 
   Future<bool?> readBatteryConservationMode() async {
@@ -126,7 +113,7 @@ class LegionSysfsService {
   }
 
   Future<bool?> readRapidChargingMode() async {
-    return _readBoolFile(_rapidChargingPath);
+    return _readLegionBoolFile('rapidcharge');
   }
 
   Future<bool?> readAlwaysOnUsbChargingMode() async {
@@ -134,11 +121,14 @@ class LegionSysfsService {
   }
 
   Future<bool?> readTouchpadMode() async {
-    return _readBoolFromPaths([_touchpadIdeapadPath, _touchpadLegionPath]);
+    return _readBoolFromPaths([
+      _touchpadIdeapadPath,
+      ..._legionPaths('touchpad'),
+    ]);
   }
 
   Future<bool?> readWinKeyMode() async {
-    return _readBoolFile(_winKeyPath);
+    return _readLegionBoolFile('winkey');
   }
 
   Future<bool?> readCameraPowerMode() async {
@@ -206,11 +196,11 @@ class LegionSysfsService {
   }
 
   Future<bool?> readLockFanControllerMode() async {
-    return _readBoolFile(_lockFanControllerPath);
+    return _readLegionBoolFile('lockfancontroller');
   }
 
   Future<bool?> readMaximumFanSpeedMode() async {
-    return _readBoolFile(_maximumFanSpeedPath);
+    return _readLegionBoolFile('fan_fullspeed');
   }
 
   Future<bool?> readMiniFanCurveMode() async {
@@ -278,11 +268,11 @@ class LegionSysfsService {
   }
 
   Future<bool?> readCpuOverclockMode() async {
-    return _readBoolFile(_cpuOverclockPath);
+    return _readLegionBoolFile('cpu_oc');
   }
 
   Future<bool?> readGpuOverclockMode() async {
-    return _readBoolFile(_gpuOverclockPath);
+    return _readLegionBoolFile('gpu_oc');
   }
 
   /// Current CPU fan speed in RPM. Returns null if unavailable.
@@ -565,28 +555,45 @@ class LegionSysfsService {
   }
 
   Future<String?> _findFanHwmonDir() async {
-    final hwmonDir = Directory(_fanHwmonRoot);
-    if (!await hwmonDir.exists()) {
-      return null;
-    }
-
-    try {
-      // The legion driver's hwmon entries are commonly symlinks into
-      // /sys/class/hwmon. Follow them instead of discarding them as Links.
-      await for (final entity in hwmonDir.list(followLinks: true)) {
-        if (entity is! Directory) {
-          continue;
-        }
-
-        final name = entity.path.split('/').last;
-        if (name.startsWith('hwmon')) {
-          return '${entity.path}/';
-        }
+    for (final root in _fanHwmonRoots) {
+      final hwmonDir = Directory(root);
+      if (!await hwmonDir.exists()) {
+        continue;
       }
-    } catch (_) {
-      return null;
+
+      try {
+        // The legion driver's hwmon entries are commonly symlinks into
+        // /sys/class/hwmon. Follow them instead of discarding them as Links.
+        await for (final entity in hwmonDir.list(followLinks: true)) {
+          if (entity is! Directory) {
+            continue;
+          }
+
+          final name = entity.path.split('/').last;
+          if (name.startsWith('hwmon')) {
+            return '${entity.path}/';
+          }
+        }
+      } catch (_) {
+        continue;
+      }
     }
 
+    return null;
+  }
+
+  List<String> _legionPaths(String attribute) => [
+    for (final root in _legionPlatformRoots) '$root/$attribute',
+  ];
+
+  Future<bool?> _readLegionBoolFile(String attribute) =>
+      _readBoolFromPaths(_legionPaths(attribute));
+
+  Future<int?> readLegionIntFile(String attribute) async {
+    for (final path in _legionPaths(attribute)) {
+      final value = await readIntFile(path);
+      if (value != null) return value;
+    }
     return null;
   }
 

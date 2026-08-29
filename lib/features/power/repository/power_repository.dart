@@ -38,8 +38,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU Long Term Power Limit',
       featureName:
           'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_longterm_powerlimit',
+      sysfsAttribute: 'cpu_longterm_powerlimit',
       min: 5,
       max: 200,
     ),
@@ -48,8 +47,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU Short Term Power Limit',
       featureName:
           'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_shortterm_powerlimit',
+      sysfsAttribute: 'cpu_shortterm_powerlimit',
       min: 5,
       max: 200,
     ),
@@ -58,8 +56,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU Peak Power Limit',
       featureName:
           'CPUPeakPowerLimit', // legion_linux/legion.py:CPUPeakPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_peak_powerlimit',
+      sysfsAttribute: 'cpu_peak_powerlimit',
       min: 0,
       max: 200,
     ),
@@ -68,8 +65,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU Cross Loading Power Limit',
       featureName:
           'CPUCrossLoadingPowerLimit', // legion_linux/legion.py:CPUCrossLoadingPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_cross_loading_powerlimit',
+      sysfsAttribute: 'cpu_cross_loading_powerlimit',
       min: 0,
       max: 100,
     ),
@@ -78,8 +74,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU APU SPPT Power Limit',
       featureName:
           'CPUAPUSPPTPowerLimit', // legion_linux/legion.py:CPUAPUSPPTPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_apu_sppt_powerlimit',
+      sysfsAttribute: 'cpu_apu_sppt_powerlimit',
       min: 0,
       max: 100,
     ),
@@ -88,8 +83,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'CPU Default Power Limit',
       featureName:
           'CPUDefaultPowerLimit', // legion_linux/legion.py:CPUDefaultPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/cpu_default_powerlimit',
+      sysfsAttribute: 'cpu_default_powerlimit',
       min: 0,
       max: 100,
     ),
@@ -98,8 +92,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'GPU cTGP Power Limit',
       featureName:
           'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ctgp_powerlimit',
+      sysfsAttribute: 'gpu_ctgp_powerlimit',
       min: 0,
       max: 200,
     ),
@@ -108,8 +101,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'GPU PPAB Power Limit',
       featureName:
           'GPUPPABPowerLimit', // legion_linux/legion.py:GPUPPABPowerLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_ppab_powerlimit',
+      sysfsAttribute: 'gpu_ppab_powerlimit',
       min: 0,
       max: 200,
     ),
@@ -117,8 +109,7 @@ class PowerRepository extends PrivilegedRepository {
       id: 'gpu_boost_clock',
       label: 'GPU Boost Clock',
       featureName: 'GPUBoostClock', // legion_linux/legion.py:GPUBoostClock
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_boost_clock',
+      sysfsAttribute: 'gpu_boost_clock',
       min: 0,
       max: 10000,
     ),
@@ -127,8 +118,7 @@ class PowerRepository extends PrivilegedRepository {
       label: 'GPU Temperature Limit',
       featureName:
           'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
-      sysfsPath:
-          '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00/gpu_temperature_limit',
+      sysfsAttribute: 'gpu_temperature_limit',
       min: 0,
       max: 120,
     ),
@@ -163,7 +153,7 @@ class PowerRepository extends PrivilegedRepository {
 
     final powerLimits = <PowerLimitReading>[];
     for (final spec in allPowerLimits) {
-      final value = await _sysfsService.readIntFile(spec.sysfsPath);
+      final value = await _sysfsService.readLegionIntFile(spec.sysfsAttribute);
       if (value != null) {
         powerLimits.add(PowerLimitReading(spec: spec, value: value));
       }

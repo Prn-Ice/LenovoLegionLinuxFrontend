@@ -222,7 +222,6 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
       final selectedPreset = _resolveSelectedPreset(
         currentSelected: state.selectedPreset,
-        recommendedPreset: snapshot.recommendedPreset,
         availablePresets: snapshot.availablePresets,
       );
 
@@ -255,19 +254,13 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
   String? _resolveSelectedPreset({
     required String? currentSelected,
-    required String? recommendedPreset,
     required List<String> availablePresets,
   }) {
     if (currentSelected != null && availablePresets.contains(currentSelected)) {
       return currentSelected;
     }
 
-    if (recommendedPreset != null &&
-        availablePresets.contains(recommendedPreset)) {
-      return recommendedPreset;
-    }
-
-    return availablePresets.isEmpty ? null : availablePresets.first;
+    return null;
   }
 
   @override
