@@ -282,8 +282,6 @@ class _EditorHarnessState extends State<_EditorHarness> {
       enabled: true,
       dirty: widget.dirty,
       isApplying: widget.isApplying,
-      miniFanCurveEnabled: true,
-      onMiniFanCurveChanged: (_) {},
       onPointChanged: (index, point) {
         setState(() => _curve = _curve.copyWithPoint(index, point));
         widget.onPointChanged?.call(index, point);

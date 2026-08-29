@@ -26,8 +26,6 @@ class FanCurveEditor extends StatefulWidget {
     required this.enabled,
     required this.dirty,
     required this.isApplying,
-    required this.miniFanCurveEnabled,
-    required this.onMiniFanCurveChanged,
     required this.onPointChanged,
     required this.onSave,
   });
@@ -40,8 +38,6 @@ class FanCurveEditor extends StatefulWidget {
   final bool enabled;
   final bool dirty;
   final bool isApplying;
-  final bool? miniFanCurveEnabled;
-  final ValueChanged<bool>? onMiniFanCurveChanged;
   final void Function(int index, FanCurvePoint point) onPointChanged;
   final VoidCallback? onSave;
 
@@ -56,22 +52,18 @@ class FanCurveUnavailablePanel extends StatelessWidget {
     required this.currentTemperature,
     required this.currentRpm,
     required this.accent,
-    required this.miniFanCurveEnabled,
-    required this.onMiniFanCurveChanged,
   });
 
   final FanChannel channel;
   final double? currentTemperature;
   final int? currentRpm;
   final Color accent;
-  final bool? miniFanCurveEnabled;
-  final ValueChanged<bool>? onMiniFanCurveChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final cards = [
+    final metrics = [
       _FanSummaryCard(
         title: 'Current ${channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan',
         value: currentRpm == null ? '—' : '$currentRpm',
@@ -88,20 +80,6 @@ class FanCurveUnavailablePanel extends StatelessWidget {
         subtitle: channel == FanChannel.cpu ? 'CPU package' : 'GPU sensor',
         accent: accent,
       ),
-      _FanSummaryCard(
-        title: 'Mini fan curve',
-        value: miniFanCurveEnabled == null
-            ? 'Unavailable'
-            : miniFanCurveEnabled!
-            ? 'Enabled'
-            : 'Disabled',
-        subtitle: 'Requires the Legion controller interface',
-        trailing: Switch(
-          key: const ValueKey('mini-fan-curve'),
-          value: miniFanCurveEnabled ?? false,
-          onChanged: onMiniFanCurveChanged,
-        ),
-      ),
     ];
 
     return Theme(
@@ -110,10 +88,38 @@ class FanCurveUnavailablePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SurfaceCard(
-            padding: const EdgeInsets.all(18),
-            child: _UnavailableCurveChart(
-              currentTemperature: currentTemperature,
-              accent: accent,
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(YaruIcons.information, color: accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Custom curve editing is not available',
+                        style: theme.textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'The active driver does not expose fan-curve controls. Live readings remain available.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -122,9 +128,9 @@ class FanCurveUnavailablePanel extends StatelessWidget {
               if (constraints.maxWidth < 720) {
                 return Column(
                   children: [
-                    for (var i = 0; i < cards.length; i++) ...[
-                      cards[i],
-                      if (i != cards.length - 1) const SizedBox(height: 10),
+                    for (var i = 0; i < metrics.length; i++) ...[
+                      metrics[i],
+                      if (i != metrics.length - 1) const SizedBox(height: 10),
                     ],
                   ],
                 );
@@ -132,9 +138,9 @@ class FanCurveUnavailablePanel extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (var i = 0; i < cards.length; i++) ...[
-                    Expanded(child: cards[i]),
-                    if (i != cards.length - 1) const SizedBox(width: 12),
+                  for (var i = 0; i < metrics.length; i++) ...[
+                    Expanded(child: metrics[i]),
+                    if (i != metrics.length - 1) const SizedBox(width: 12),
                   ],
                 ],
               );
@@ -557,20 +563,6 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
         subtitle: 'Ramp ${point.accel}/${point.decel}',
         accent: widget.accent,
       ),
-      _FanSummaryCard(
-        title: 'Mini fan curve',
-        value: widget.miniFanCurveEnabled == null
-            ? 'Unavailable'
-            : widget.miniFanCurveEnabled!
-            ? 'Enabled'
-            : 'Disabled',
-        subtitle: 'Reduces fan cycling at low temperatures',
-        trailing: Switch(
-          key: const ValueKey('mini-fan-curve'),
-          value: widget.miniFanCurveEnabled ?? false,
-          onChanged: widget.onMiniFanCurveChanged,
-        ),
-      ),
     ];
 
     return LayoutBuilder(
@@ -715,7 +707,6 @@ class _FanSummaryCard extends StatelessWidget {
     required this.subtitle,
     this.unit,
     this.accent,
-    this.trailing,
   });
 
   final String title;
@@ -723,7 +714,6 @@ class _FanSummaryCard extends StatelessWidget {
   final String subtitle;
   final String? unit;
   final Color? accent;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -758,160 +748,6 @@ class _FanSummaryCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
               ],
-            ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 8), trailing!],
-        ],
-      ),
-    );
-  }
-}
-
-class _UnavailableCurveChart extends StatelessWidget {
-  const _UnavailableCurveChart({
-    required this.currentTemperature,
-    required this.accent,
-  });
-
-  final double? currentTemperature;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final marker = currentTemperature?.clamp(0, 100).toDouble();
-    const plotLeft = 42.0;
-    const plotRight = 14.0;
-    const plotTop = 30.0;
-    const plotBottom = 42.0;
-    return Container(
-      height: 326,
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: scheme.onSurface.withValues(alpha: 0.08)),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 10,
-            top: 8,
-            child: Text(
-              'Fan speed %',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          const Positioned(
-            left: 4,
-            top: plotTop,
-            bottom: plotBottom,
-            width: 32,
-            child: _YAxisLabels(),
-          ),
-          Positioned(
-            left: plotLeft,
-            right: plotRight,
-            top: plotTop,
-            bottom: plotBottom,
-            child: LineChart(
-              LineChartData(
-                minX: 0,
-                maxX: 100,
-                minY: 0,
-                maxY: 100,
-                titlesData: const FlTitlesData(show: false),
-                lineTouchData: const LineTouchData(enabled: false),
-                lineBarsData: const [],
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border(
-                    left: BorderSide(
-                      color: scheme.onSurface.withValues(alpha: 0.18),
-                    ),
-                    bottom: BorderSide(
-                      color: scheme.onSurface.withValues(alpha: 0.18),
-                    ),
-                  ),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  horizontalInterval: 25,
-                  verticalInterval: 20,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: scheme.onSurface.withValues(alpha: 0.08)),
-                  getDrawingVerticalLine: (_) =>
-                      FlLine(color: scheme.onSurface.withValues(alpha: 0.06)),
-                ),
-                extraLinesData: marker == null
-                    ? const ExtraLinesData()
-                    : ExtraLinesData(
-                        verticalLines: [
-                          VerticalLine(
-                            x: marker,
-                            color: const Color(0xFFEC5F2A),
-                            strokeWidth: 1.5,
-                            dashArray: const [5, 4],
-                            label: VerticalLineLabel(
-                              show: true,
-                              alignment: Alignment.topRight,
-                              style: const TextStyle(
-                                color: Color(0xFFEC5F2A),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                              labelResolver: (_) => '${marker.round()}°C',
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-              duration: Duration.zero,
-            ),
-          ),
-          const Positioned(
-            left: plotLeft,
-            right: plotRight,
-            bottom: 19,
-            child: _XAxisLabels(),
-          ),
-          Positioned(
-            right: plotRight,
-            bottom: 3,
-            child: Text(
-              'Temperature ->',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 330),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHigh.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: accent.withValues(alpha: 0.35)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.info_outline, size: 18, color: accent),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Curve controls unavailable',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Live temperature remains visible. Editing needs the Legion fan-controller hwmon interface.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
             ),
           ),
         ],

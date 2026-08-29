@@ -5,7 +5,6 @@ import 'package:yaru/yaru.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
-import '../../../core/widgets/surface_card.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/fans_bloc.dart';
@@ -37,9 +36,12 @@ class _FansPageState extends ConsumerState<FansPage> {
     final state = ref.watch(fansBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(fansBlocProvider.bloc);
-    final profile = _profileLabel(state.platformProfile);
     final selectedPreset = state.selectedPreset ?? state.recommendedPreset;
     final accent = LegionAccent.custom.color;
+    final hasFanControls =
+        state.miniFanCurveEnabled != null ||
+        state.maximumFanSpeedEnabled != null ||
+        state.lockFanControllerEnabled != null;
     final currentTemperature = _channel == FanChannel.cpu
         ? sensors.cpuTempC
         : sensors.gpuTempC;
@@ -52,14 +54,6 @@ class _FansPageState extends ConsumerState<FansPage> {
     }
 
     return AppPageBody(
-      title: 'Fan curve',
-      subtitle: Text('$profile profile | ${_powerLabel(state.onPowerSupply)}'),
-      headerAction: AppRefreshButton(
-        isBusy: state.isLoading,
-        onPressed: state.isApplying
-            ? null
-            : () => bloc.add(const FansRefreshRequested()),
-      ),
       errorMessage: state.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
@@ -80,11 +74,6 @@ class _FansPageState extends ConsumerState<FansPage> {
             currentTemperature: currentTemperature,
             currentRpm: currentRpm,
             accent: accent,
-            miniFanCurveEnabled: state.miniFanCurveEnabled,
-            onMiniFanCurveChanged:
-                state.miniFanCurveEnabled != null && !state.isApplying
-                ? (enabled) => _setMiniFanCurve(context, bloc, enabled)
-                : null,
           )
         else
           FanCurveEditor(
@@ -96,25 +85,24 @@ class _FansPageState extends ConsumerState<FansPage> {
             enabled: !state.isApplying,
             dirty: state.fanCurveDirty,
             isApplying: state.isApplying,
-            miniFanCurveEnabled: state.miniFanCurveEnabled,
-            onMiniFanCurveChanged:
-                state.miniFanCurveEnabled != null && !state.isApplying
-                ? (enabled) => _setMiniFanCurve(context, bloc, enabled)
-                : null,
             onPointChanged: (index, point) =>
                 bloc.add(FanCurvePointUpdated(index: index, point: point)),
             onSave: state.fanCurveDirty && !state.isApplying
                 ? () => _saveCurve(context, bloc)
                 : null,
           ),
-        const SizedBox(height: 16),
-        _ControllerSafeguards(
-          state: state,
-          onMaximumFanSpeedChanged: (enabled) =>
-              _setMaximumFanSpeed(context, bloc, enabled),
-          onLockFanControllerChanged: (enabled) =>
-              _setLockFanController(context, bloc, enabled),
-        ),
+        if (hasFanControls) ...[
+          const SizedBox(height: 16),
+          _FanControls(
+            state: state,
+            onMiniFanCurveChanged: (enabled) =>
+                _setMiniFanCurve(context, bloc, enabled),
+            onMaximumFanSpeedChanged: (enabled) =>
+                _setMaximumFanSpeed(context, bloc, enabled),
+            onLockFanControllerChanged: (enabled) =>
+                _setLockFanController(context, bloc, enabled),
+          ),
+        ],
       ],
     );
   }
@@ -242,23 +230,23 @@ class _FanWorkspaceToolbar extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final channelPicker = SizedBox(
-            width: constraints.maxWidth < 420 ? constraints.maxWidth : 270,
-            child: YaruChoiceChipBar(
-              selectedFirst: false,
-              style: YaruChoiceChipBarStyle.wrap,
-              spacing: 6,
-              clearOnSelect: false,
-              labels: [
-                for (final candidate in FanChannel.values)
-                  Text(candidate.label),
-              ],
+          final channelPicker = SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ToggleButtons(
+              key: const ValueKey('fan-channel-toggle'),
               isSelected: [
                 for (final candidate in FanChannel.values) candidate == channel,
               ],
-              onSelected: isApplying
+              onPressed: isApplying
                   ? null
                   : (index) => onChannelChanged(FanChannel.values[index]),
+              children: [
+                for (final candidate in FanChannel.values)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    child: Text(candidate.label),
+                  ),
+              ],
             ),
           );
           final presetPicker = Wrap(
@@ -313,109 +301,63 @@ class _FanWorkspaceToolbar extends StatelessWidget {
   }
 }
 
-class _ControllerSafeguards extends StatelessWidget {
-  const _ControllerSafeguards({
+class _FanControls extends StatelessWidget {
+  const _FanControls({
     required this.state,
+    required this.onMiniFanCurveChanged,
     required this.onMaximumFanSpeedChanged,
     required this.onLockFanControllerChanged,
   });
 
   final FansState state;
+  final ValueChanged<bool> onMiniFanCurveChanged;
   final ValueChanged<bool> onMaximumFanSpeedChanged;
   final ValueChanged<bool> onLockFanControllerChanged;
 
   @override
   Widget build(BuildContext context) {
-    return SurfaceCard(
-      padding: EdgeInsets.zero,
-      child: YaruExpandable(
-        isExpanded: false,
-        expandButtonPosition: YaruExpandableButtonPosition.end,
-        header: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              const Icon(Icons.shield_outlined, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Controller safeguards',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    Text(
-                      'Maximum speed and controller ownership',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              if (state.isApplying)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: YaruCircularProgressIndicator(strokeWidth: 2),
-                )
-              else if (MediaQuery.sizeOf(context).width >= 500)
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: PrivilegedActionNotice(),
-                ),
-            ],
-          ),
+    final controls = <Widget>[
+      if (state.miniFanCurveEnabled case final value?)
+        AppSwitchTile(
+          key: const ValueKey('mini-fan-curve'),
+          value: value,
+          onChanged: state.isApplying ? null : onMiniFanCurveChanged,
+          title: 'Reduce fan cycling',
+          subtitle: state.isApplying
+              ? 'Applying change...'
+              : "Use the controller's low-temperature fan behavior.",
         ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Column(
-            children: [
-              const Divider(height: 1),
-              AppSwitchTile(
-                key: const ValueKey('maximum-fan-speed'),
-                value: state.maximumFanSpeedEnabled ?? false,
-                onChanged:
-                    state.maximumFanSpeedEnabled != null && !state.isApplying
-                    ? onMaximumFanSpeedChanged
-                    : null,
-                title: 'Maximum fan speed',
-                subtitle: _capabilityDescription(
-                  state.maximumFanSpeedEnabled,
-                  'Overrides the normal curve for maximum cooling.',
-                  state.isApplying,
-                ),
-              ),
-              AppSwitchTile(
-                value: state.lockFanControllerEnabled ?? false,
-                onChanged:
-                    state.lockFanControllerEnabled != null && !state.isApplying
-                    ? onLockFanControllerChanged
-                    : null,
-                title: 'Lock fan controller',
-                subtitle: _capabilityDescription(
-                  state.lockFanControllerEnabled,
-                  'Prevents another tool from taking controller ownership.',
-                  state.isApplying,
-                ),
-              ),
-            ],
-          ),
+      if (state.maximumFanSpeedEnabled case final value?)
+        AppSwitchTile(
+          key: const ValueKey('maximum-fan-speed'),
+          value: value,
+          onChanged: state.isApplying ? null : onMaximumFanSpeedChanged,
+          title: 'Maximum fan speed',
+          subtitle: state.isApplying
+              ? 'Applying change...'
+              : 'Run both fans at full speed until disabled.',
         ),
-      ),
+      if (state.lockFanControllerEnabled case final value?)
+        AppSwitchTile(
+          value: value,
+          onChanged: state.isApplying ? null : onLockFanControllerChanged,
+          title: 'Exclusive fan control',
+          subtitle: state.isApplying
+              ? 'Applying change...'
+              : 'Prevent other tools from changing fan settings.',
+        ),
+    ];
+
+    return AppSectionCard(
+      title: 'Fan controls',
+      children: [
+        for (var i = 0; i < controls.length; i++) ...[
+          controls[i],
+          if (i != controls.length - 1) const Divider(height: 1),
+        ],
+      ],
     );
   }
-}
-
-String _profileLabel(String? profile) {
-  if (profile == null || profile.trim().isEmpty) return 'Unknown';
-  return profile
-      .split('-')
-      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-      .join(' ');
-}
-
-String _powerLabel(bool? onPowerSupply) {
-  if (onPowerSupply == null) return 'Power source unavailable';
-  return onPowerSupply ? 'AC power' : 'Battery power';
 }
 
 String _presetDisplayName(String preset) {
@@ -446,10 +388,4 @@ String _presetContextLabel(String preset) {
   if (preset.endsWith('-ac')) return 'AC';
   if (preset.endsWith('-battery')) return 'battery';
   return 'all power';
-}
-
-String _capabilityDescription(bool? value, String description, bool applying) {
-  if (value == null) return 'Unsupported on this device. $description';
-  if (applying) return 'Change pending. $description';
-  return '${value ? 'Enabled' : 'Disabled'}. $description';
 }

@@ -26,7 +26,10 @@ void main() {
     await _pumpPage(tester, width: 320);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Fan curve'), findsOneWidget);
+    expect(find.byKey(const ValueKey('fan-channel-toggle')), findsOneWidget);
+    expect(find.text('Fan curve'), findsNothing);
+    expect(find.text('Refresh'), findsNothing);
+    expect(find.textContaining('profile'), findsNothing);
     expect(find.text('Silent'), findsOneWidget);
     expect(find.text('Aggressive'), findsOneWidget);
     expect(find.text('Current CPU fan'), findsOneWidget);
@@ -36,9 +39,12 @@ void main() {
     await _pumpPage(tester, width: 1100, dark: true);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Balanced profile | AC power'), findsOneWidget);
-    expect(find.text('CPU fan'), findsWidgets);
-    expect(find.text('GPU fan'), findsWidgets);
+    final toggle = tester.widget<ToggleButtons>(
+      find.byKey(const ValueKey('fan-channel-toggle')),
+    );
+    expect(toggle.isSelected, [true, false]);
+    expect(find.text('CPU fan'), findsOneWidget);
+    expect(find.text('GPU fan'), findsOneWidget);
   });
 
   testWidgets(
@@ -55,9 +61,10 @@ void main() {
         sensors: LiveSensorSnapshot.initial(),
       );
 
-      expect(find.text('Unavailable'), findsOneWidget);
+      expect(find.text('Unavailable'), findsNothing);
       expect(find.text('—'), findsOneWidget);
       expect(find.text('Temperature unavailable'), findsOneWidget);
+      expect(find.text('Fan controls'), findsNothing);
     },
   );
 
@@ -70,10 +77,7 @@ void main() {
       snapshot: _fansSnapshot(onPowerSupply: null),
     );
 
-    expect(
-      find.text('Balanced profile | Power source unavailable'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Power source unavailable'), findsNothing);
     expect(find.text('Silent (AC)'), findsOneWidget);
     expect(find.text('Silent'), findsNothing);
   });
@@ -116,6 +120,21 @@ void main() {
     expect(editor.accent, LegionAccent.custom.color);
   });
 
+  testWidgets('Yaru channel toggle switches the live fan context', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 800);
+
+    await tester.tap(find.text('GPU fan'));
+    await tester.pump();
+
+    final toggle = tester.widget<ToggleButtons>(
+      find.byKey(const ValueKey('fan-channel-toggle')),
+    );
+    expect(toggle.isSelected, [false, true]);
+    expect(find.text('Current GPU fan'), findsOneWidget);
+  });
+
   testWidgets('missing controller keeps a useful curve workspace', (
     tester,
   ) async {
@@ -125,11 +144,25 @@ void main() {
       snapshot: _fansSnapshot(curveAvailable: false),
     );
 
-    expect(find.text('Curve controls unavailable'), findsOneWidget);
+    expect(find.text('Custom curve editing is not available'), findsOneWidget);
+    expect(find.byKey(const ValueKey('fan-curve-chart-plot')), findsNothing);
     expect(find.text('64°C'), findsWidgets);
     expect(find.text('2180'), findsOneWidget);
     expect(find.text('Silent'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('supported hardware controls use a plain Yaru settings section', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 800);
+
+    expect(find.text('Fan controls'), findsOneWidget);
+    expect(find.text('Reduce fan cycling'), findsOneWidget);
+    expect(find.text('Maximum fan speed'), findsOneWidget);
+    expect(find.text('Exclusive fan control'), findsOneWidget);
+    expect(find.text('Controller safeguards'), findsNothing);
+    expect(find.text('Admin privileges required'), findsNothing);
   });
 }
 
