@@ -37,9 +37,9 @@ dependencies:
   riverbloc: ^3.0.0
   equatable: ^2.0.8
   flutter_riverpod: ^3.2.1
-  yaru: ^9.0.1
+  yaru: ^10.2.0
   handy_window: ^0.4.2
-  file_picker: ^8.0.7
+  file_picker: ^12.1.2
   hive_ce: ^2.19.3
   hive_ce_flutter: ^2.3.4
   fl_chart: ^1.1.1

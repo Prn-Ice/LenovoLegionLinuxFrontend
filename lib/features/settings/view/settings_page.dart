@@ -133,7 +133,7 @@ class SettingsPage extends ConsumerWidget {
               'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
           children: [
             if (bootLogoState.status == null)
-              const YaruTile(
+              const YaruListTile(
                 title: Text('Boot logo status unavailable'),
                 subtitle: Text(
                   'This feature requires a supported Lenovo Legion model and readable EFI variables.',
@@ -184,12 +184,12 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Future<void> _pickFile(BootLogoBloc bloc) async {
-    final result = await FilePicker.platform.pickFiles(
+    final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'bmp'],
       dialogTitle: 'Select Boot Logo Image',
     );
-    final path = result?.files.single.path;
+    final path = files.firstOrNull?.path;
     if (path != null) {
       bloc.add(BootLogoFileSelected(path));
     }

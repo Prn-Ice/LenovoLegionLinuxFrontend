@@ -37,7 +37,7 @@ class AutomationPage extends ConsumerWidget {
                   ? 'Running every ${state.config.pollIntervalSeconds}s'
                   : 'Stopped',
             ),
-            YaruTile(
+            YaruListTile(
               title: const Text('Poll interval (seconds)'),
               subtitle: Slider(
                 value: state.config.pollIntervalSeconds.toDouble(),

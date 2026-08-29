@@ -146,7 +146,7 @@ class PowerPage extends ConsumerWidget {
                       ),
                     ),
                   ...state.powerLimits.map(
-                    (reading) => YaruTile(
+                    (reading) => YaruListTile(
                       title: Text(reading.spec.label),
                       subtitle: Text(
                         'Current: ${reading.value} | Range: ${reading.spec.min}–${reading.spec.max}',

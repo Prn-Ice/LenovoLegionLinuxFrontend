@@ -513,7 +513,7 @@ class _StatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(context, status);
-    return YaruTile(
+    return YaruListTile(
       leading: Icon(_statusIcon(status), color: color, size: 20),
       title: Text(label),
       subtitle: details == null ? null : Text(details!),
@@ -556,7 +556,7 @@ class _CommandHistoryTile extends StatelessWidget {
     final timeLabel =
         '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}:${ts.second.toString().padLeft(2, '0')}';
 
-    return YaruTile(
+    return YaruListTile(
       leading: Icon(
         record.succeeded ? Icons.check_circle_outline : Icons.error_outline,
         color: color,

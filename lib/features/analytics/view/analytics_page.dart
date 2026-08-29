@@ -128,7 +128,7 @@ class _SensorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return YaruTile(
+    return YaruListTile(
       leading: Icon(icon),
       title: Text(label),
       trailing: Text(

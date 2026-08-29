@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 /// A single RGB device as reported by `openrgb --list-devices`.
+/// FIXME: This has nothing to do with openrgb
 class OpenRgbDevice extends Equatable {
   const OpenRgbDevice({
     required this.index,
