@@ -44,7 +44,7 @@ status. That epic predates this handoff.
 | Phase 1 — Shared visual foundation | Mostly complete | Accent tokens, Legion mark, metric widgets, responsive grid, Dashboard application, and shell polish landed. Target navigation migration is intentionally incomplete while controls still need new homes. |
 | Phase 2 — Dashboard | Substantially complete | Mode hero, telemetry gauges, quick controls, product information, responsive cards, typography, and power-mode accent behavior landed. |
 | Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. |
-| Phase 4 — Fans | Not yet given the new handoff pass | The older fan page exists, but it has not been matched to this design source. This is the next major design phase. |
+| Phase 4 — Fans | Complete | Curve-first CPU/GPU editor, live temperature/RPM telemetry, prominent preset/max-fan actions, privileged safeguards, Custom dirty state, and compact/wide light/dark coverage landed. All 45 Fans tests and the full 380-test suite pass. |
 | Phase 5 — Power | Not yet given the new handoff pass | Existing controls predate this handoff. |
 | Phase 6a — Battery & dGPU | Not yet given the new handoff pass | Existing pages predate this handoff; Always-on USB has not been migrated. |
 | Phase 6b — Automation, Settings & About | Not yet given the new handoff pass | Existing pages predate this handoff; Diagnostics/Devices/Display absorption remains. |
@@ -79,9 +79,8 @@ The retained `tool/_step.dart` diagnostic produced these verified results:
 
 ### Resume Order
 
-1. Start Phase 4 — Fans using the design handoff, not the older fan page as the
-   visual source of truth.
-2. Continue with Power, then Battery/dGPU and Automation/Settings as encoded in
+1. Start Phase 5 — Power using the design handoff as the visual source of truth.
+2. Continue with Battery/dGPU and Automation/Settings as encoded in
    the Beads dependency graph.
 3. Migrate omitted controls before removing Devices, Display, or Diagnostics
    from top-level navigation.

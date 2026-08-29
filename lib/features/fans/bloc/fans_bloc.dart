@@ -135,7 +135,9 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit,
   ) {
     final current = state.fanCurve;
-    if (current == null || event.index < 0 || event.index >= 10) {
+    if (current == null ||
+        event.index < 0 ||
+        event.index >= current.points.length) {
       return;
     }
 
