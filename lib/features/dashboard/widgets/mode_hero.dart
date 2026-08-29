@@ -83,33 +83,17 @@ class ModeHero extends StatelessWidget {
         if (availableModes.isEmpty)
           const Text('No writable power modes available.')
         else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final maxColumns = constraints.maxWidth >= 960
-                  ? 5
-                  : constraints.maxWidth >= 760
-                  ? 4
-                  : constraints.maxWidth >= 420
-                  ? 2
-                  : 1;
-              final columns = availableModes.length.clamp(1, maxColumns);
-              final cardWidth =
-                  (constraints.maxWidth - (columns - 1) * 12) / columns;
-
-              return Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (var i = 0; i < availableModes.length; i++)
-                    _ModeCard(
-                      width: cardWidth,
-                      mode: availableModes[i],
-                      selected: selected == availableModes[i],
-                      onTap: enabled ? () => onModeSelected!(i) : null,
-                    ),
-                ],
-              );
-            },
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (var i = 0; i < availableModes.length; i++)
+                _ModeCard(
+                  mode: availableModes[i],
+                  selected: selected == availableModes[i],
+                  onTap: enabled ? () => onModeSelected!(i) : null,
+                ),
+            ],
           ),
         const SizedBox(height: 12),
         DecoratedBox(
@@ -166,13 +150,11 @@ class ModeHero extends StatelessWidget {
 /// name, with the accent selection border when active.
 class _ModeCard extends StatelessWidget {
   const _ModeCard({
-    required this.width,
     required this.mode,
     required this.selected,
     required this.onTap,
   });
 
-  final double width;
   final String mode;
   final bool selected;
   final VoidCallback? onTap;
@@ -183,44 +165,39 @@ class _ModeCard extends StatelessWidget {
     final dotColor =
         LegionAccent.fromPowerModeValue(mode)?.color ?? scheme.primary;
 
-    return SizedBox(
-      width: width,
-      child: SurfaceCard(
-        color: selected
-            ? Color.alphaBlend(
-                dotColor.withValues(alpha: 0.13),
-                scheme.surfaceContainerHigh,
-              )
-            : null,
-        border: selected ? Border.all(color: dotColor, width: 2) : null,
-        padding: EdgeInsets.zero,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(kYaruContainerRadius),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              child: Row(
-                children: [
-                  Container(
-                    width: 11,
-                    height: 11,
-                    decoration: BoxDecoration(
-                      color: dotColor,
-                      shape: BoxShape.circle,
-                    ),
+    return SurfaceCard(
+      color: selected
+          ? Color.alphaBlend(
+              dotColor.withValues(alpha: 0.13),
+              scheme.surfaceContainerHigh,
+            )
+          : null,
+      border: selected ? Border.all(color: dotColor, width: 2) : null,
+      padding: EdgeInsets.zero,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(kYaruContainerRadius),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      modeLabel(mode),
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 11),
+                Text(
+                  modeLabel(mode),
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ],
             ),
           ),
         ),

@@ -56,6 +56,18 @@ void main() {
       tester.getTopLeft(find.text('Quiet')).dy,
       tester.getTopLeft(find.text('Custom')).dy,
     );
+    final quietControl = find.ancestor(
+      of: find.text('Quiet'),
+      matching: find.byType(InkWell),
+    );
+    final performanceControl = find.ancestor(
+      of: find.text('Performance'),
+      matching: find.byType(InkWell),
+    );
+    expect(
+      tester.getSize(quietControl.first).width,
+      lessThan(tester.getSize(performanceControl.first).width),
+    );
     expect(
       find.text('Quick when you need it, calm when you do not.'),
       findsOneWidget,
