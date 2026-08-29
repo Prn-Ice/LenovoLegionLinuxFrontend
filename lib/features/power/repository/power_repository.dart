@@ -137,6 +137,7 @@ class PowerRepository extends PrivilegedRepository {
     final gpuOverclock = await _sysfsService.readGpuOverclockMode();
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
     final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
+    final cpuPolicy = await _sysfsService.readCpuPolicySnapshot();
 
     final hardwareProfiles = choicesRaw.isEmpty
         ? daemonSnapshot == null
@@ -183,6 +184,7 @@ class PowerRepository extends PrivilegedRepository {
       gpuOverclockEnabled: gpuOverclock,
       onPowerSupply: onPowerSupply,
       daemonSnapshot: daemonSnapshot,
+      cpuPolicy: cpuPolicy,
     );
   }
 

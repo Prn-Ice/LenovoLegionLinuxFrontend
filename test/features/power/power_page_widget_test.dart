@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/cpu_policy_snapshot.dart';
 import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
 import 'package:legion_frontend/core/models/power_profiles_daemon_snapshot.dart';
@@ -104,10 +105,6 @@ void main() {
 
     await tester.tap(find.text('Performance'));
     await tester.pumpAndSettle();
-    expect(find.text('Set Performance mode'), findsOneWidget);
-
-    await tester.tap(find.text('Set mode'));
-    await tester.pumpAndSettle();
 
     verify(
       () => harness.repository.setPowerMode(const PowerMode('performance')),
@@ -131,10 +128,6 @@ void main() {
     expect(find.text('Unsaved limit changes'), findsOneWidget);
 
     await tester.tap(find.text('Apply changes').first);
-    await tester.pumpAndSettle();
-    expect(find.text('Apply custom power limits'), findsOneWidget);
-
-    await tester.tap(find.text('Apply changes').last);
     await tester.pumpAndSettle();
 
     final captured =
@@ -174,19 +167,28 @@ void main() {
     expect(tester.widget<Slider>(find.byType(Slider).first).onChanged, isNull);
   });
 
-  testWidgets('shows PPD drivers and power-source state', (tester) async {
+  testWidgets('shows effective CPU policy without redundant status copy', (
+    tester,
+  ) async {
     await _pumpPage(
       tester,
       width: 800,
-      snapshot: _snapshot(daemonSnapshot: _daemonSnapshot),
+      snapshot: _snapshot(
+        daemonSnapshot: _daemonSnapshot,
+        cpuPolicy: _cpuPolicy,
+      ),
     );
 
-    expect(find.text('Power Profiles Daemon active'), findsOneWidget);
-    expect(
-      find.textContaining('amd_pstate + platform_profile'),
-      findsOneWidget,
-    );
-    expect(find.text('On AC power'), findsOneWidget);
+    expect(find.text('CPU policy details'), findsOneWidget);
+    expect(find.text('System power management active'), findsNothing);
+    expect(find.text('On AC power'), findsNothing);
+
+    expect(find.text('PPD 0.30'), findsOneWidget);
+    expect(find.text('amd-pstate-epp (active)'), findsOneWidget);
+    expect(find.text('platform_profile'), findsOneWidget);
+    expect(find.text('powersave'), findsOneWidget);
+    expect(find.text('balance_performance'), findsOneWidget);
+    expect(find.text('420-3800 MHz'), findsOneWidget);
   });
 
   testWidgets('supported overclock toggle keeps its adjacent warning', (
@@ -261,6 +263,7 @@ PowerSnapshot _snapshot({
   PowerMode currentMode = const PowerMode('balanced'),
   bool? onPowerSupply = true,
   PowerProfilesDaemonSnapshot? daemonSnapshot,
+  CpuPolicySnapshot? cpuPolicy,
 }) {
   PowerLimitReading reading(String id, int value) => PowerLimitReading(
     spec: PowerRepository.allPowerLimits.firstWhere((spec) => spec.id == id),
@@ -285,6 +288,7 @@ PowerSnapshot _snapshot({
     gpuOverclockEnabled: null,
     onPowerSupply: onPowerSupply,
     daemonSnapshot: daemonSnapshot,
+    cpuPolicy: cpuPolicy,
   );
 }
 
@@ -300,6 +304,16 @@ const _daemonSnapshot = PowerProfilesDaemonSnapshot(
   batteryAware: true,
   version: '0.30',
   performanceDegraded: '',
+);
+
+const _cpuPolicy = CpuPolicySnapshot(
+  driver: 'amd-pstate-epp',
+  pstateStatus: 'active',
+  governor: 'powersave',
+  energyPerformancePreference: 'balance_performance',
+  boostEnabled: true,
+  minimumFrequencyKhz: 420000,
+  maximumFrequencyKhz: 3800000,
 );
 
 class _PowerHarness {

@@ -30,6 +30,17 @@ void main() {
     // 'Performance' appears in both the chip and the banner.
     expect(find.textContaining('Performance'), findsWidgets);
     expect(find.byType(ChoiceChip), findsNWidgets(3));
+
+    final selectedChip = find.ancestor(
+      of: find.text('Performance').first,
+      matching: find.byType(ChoiceChip),
+    );
+    final chipContext = tester.element(selectedChip);
+    final scheme = Theme.of(chipContext).colorScheme;
+    expect(
+      ChipTheme.of(chipContext).selectedColor,
+      Color.alphaBlend(accent.withValues(alpha: 0.2), scheme.surface),
+    );
   });
 
   testWidgets('maps kernel profile names to user-facing mode semantics', (

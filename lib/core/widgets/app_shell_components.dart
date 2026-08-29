@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
@@ -66,13 +68,11 @@ class AppPageBody extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
-                if (errorMessage != null || noticeMessage != null) ...[
-                  AppStatusMessages(
-                    errorMessage: errorMessage,
-                    noticeMessage: noticeMessage,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                AppStatusMessages(
+                  errorMessage: errorMessage,
+                  noticeMessage: noticeMessage,
+                  bottomSpacing: 12,
+                ),
                 ...children,
               ],
             ),
@@ -83,33 +83,104 @@ class AppPageBody extends StatelessWidget {
   }
 }
 
-class AppStatusMessages extends StatelessWidget {
-  const AppStatusMessages({super.key, this.errorMessage, this.noticeMessage});
+class AppStatusMessages extends StatefulWidget {
+  const AppStatusMessages({
+    super.key,
+    this.errorMessage,
+    this.noticeMessage,
+    this.bottomSpacing = 0,
+  });
 
   final String? errorMessage;
   final String? noticeMessage;
+  final double bottomSpacing;
+
+  @override
+  State<AppStatusMessages> createState() => _AppStatusMessagesState();
+}
+
+class _AppStatusMessagesState extends State<AppStatusMessages> {
+  static const _noticeDuration = Duration(seconds: 4);
+
+  Timer? _noticeTimer;
+  String? _visibleError;
+  String? _visibleNotice;
+
+  @override
+  void initState() {
+    super.initState();
+    _visibleError = widget.errorMessage;
+    _visibleNotice = widget.noticeMessage;
+    _scheduleNoticeDismissal();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppStatusMessages oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.errorMessage != widget.errorMessage) {
+      _visibleError = widget.errorMessage;
+    }
+    if (oldWidget.noticeMessage != widget.noticeMessage) {
+      _visibleNotice = widget.noticeMessage;
+      _scheduleNoticeDismissal();
+    }
+  }
+
+  void _scheduleNoticeDismissal() {
+    _noticeTimer?.cancel();
+    if (_visibleNotice == null) return;
+    _noticeTimer = Timer(_noticeDuration, () {
+      if (mounted) setState(() => _visibleNotice = null);
+    });
+  }
+
+  @override
+  void dispose() {
+    _noticeTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (errorMessage != null)
-          AppStatusBanner(message: errorMessage!, tone: AppStatusTone.error),
-        if (errorMessage != null && noticeMessage != null)
+        if (_visibleError != null)
+          AppStatusBanner(
+            message: _visibleError!,
+            tone: AppStatusTone.error,
+            onDismiss: () => setState(() => _visibleError = null),
+          ),
+        if (_visibleError != null && _visibleNotice != null)
           const SizedBox(height: 8),
-        if (noticeMessage != null)
-          AppStatusBanner(message: noticeMessage!, tone: AppStatusTone.notice),
+        if (_visibleNotice != null)
+          AppStatusBanner(
+            message: _visibleNotice!,
+            tone: AppStatusTone.notice,
+            onDismiss: () {
+              _noticeTimer?.cancel();
+              setState(() => _visibleNotice = null);
+            },
+          ),
+        if ((_visibleError != null || _visibleNotice != null) &&
+            widget.bottomSpacing > 0)
+          SizedBox(height: widget.bottomSpacing),
       ],
     );
   }
 }
 
 class AppStatusBanner extends StatelessWidget {
-  const AppStatusBanner({super.key, required this.message, required this.tone});
+  const AppStatusBanner({
+    super.key,
+    required this.message,
+    required this.tone,
+    this.onDismiss,
+  });
 
   final String message;
   final AppStatusTone tone;
+  final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -120,24 +191,37 @@ class AppStatusBanner extends StatelessWidget {
         ? scheme.onErrorContainer
         : scheme.onPrimaryContainer;
 
-    return Card(
-      margin: EdgeInsets.zero,
-      color: isError ? scheme.errorContainer : scheme.primaryContainer,
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              isError ? Icons.error_outline : Icons.info_outline,
-              color: foreground,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(message, style: TextStyle(color: foreground)),
-            ),
-          ],
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Card(
+        margin: EdgeInsets.zero,
+        color: isError ? scheme.errorContainer : scheme.primaryContainer,
+        elevation: 1,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                isError ? Icons.error_outline : Icons.info_outline,
+                color: foreground,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(message, style: TextStyle(color: foreground)),
+              ),
+              if (onDismiss != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Dismiss',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDismiss,
+                  icon: Icon(Icons.close, size: 18, color: foreground),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/cpu_policy_snapshot.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import '../../../core/widgets/app_shell_components.dart';
@@ -48,13 +49,13 @@ class _PowerPageState extends ConsumerState<PowerPage> {
           selectedMode: state.currentMode?.value,
           isApplying: state.isApplying,
           onModeSelected: (index) =>
-              _selectMode(context, bloc, state, state.availableModes[index]),
+              _selectMode(bloc, state, state.availableModes[index]),
         ),
         const SizedBox(height: 12),
-        _PowerProfileStatus(
+        _CpuPolicyDetailsCard(
           daemon: state.daemonSnapshot,
-          onPowerSupply: state.onPowerSupply,
-          accent: accent,
+          cpuPolicy: state.cpuPolicy,
+          currentMode: state.currentMode,
         ),
         const SizedBox(height: 16),
         _PowerLimitsCard(
@@ -66,8 +67,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
               state.onPowerSupply == true,
           blockReason: _limitBlockReason(state),
           onValueRequested: (reading) => _promptLimit(context, reading),
-          onApplyRequested: (readings) =>
-              _applyPowerLimits(context, bloc, readings),
+          onApplyRequested: (readings) => _applyPowerLimits(bloc, readings),
         ),
         if (state.cpuOverclockEnabled != null ||
             state.gpuOverclockEnabled != null) ...[
@@ -83,21 +83,8 @@ class _PowerPageState extends ConsumerState<PowerPage> {
     );
   }
 
-  Future<void> _selectMode(
-    BuildContext context,
-    PowerBloc bloc,
-    PowerState state,
-    PowerMode selected,
-  ) async {
+  void _selectMode(PowerBloc bloc, PowerState state, PowerMode selected) {
     if (selected == state.currentMode || state.isApplying) return;
-    final confirmed = await confirmPrivilegedAction(
-      context,
-      title: 'Set ${selected.label} mode',
-      message:
-          '${selected.description}. Changing the platform power profile requires privileged access.',
-      confirmLabel: 'Set mode',
-    );
-    if (!context.mounted || !confirmed) return;
     bloc.add(PowerModeSetRequested(selected));
   }
 
@@ -226,115 +213,164 @@ class _PowerPageState extends ConsumerState<PowerPage> {
   }
 
   Future<bool> _applyPowerLimits(
-    BuildContext context,
     PowerBloc bloc,
     List<PowerLimitReading> readings,
   ) async {
     if (readings.isEmpty) return false;
-    final confirmed = await confirmPrivilegedAction(
-      context,
-      title: 'Apply custom power limits',
-      message:
-          'Apply ${readings.length} staged ${readings.length == 1 ? 'limit' : 'limits'} to the controller. Custom mode and AC power must remain active.',
-      confirmLabel: 'Apply changes',
-    );
-    if (!context.mounted || !confirmed) return false;
     bloc.add(PowerLimitsApplyRequested(readings));
     return true;
   }
 }
 
-class _PowerProfileStatus extends StatelessWidget {
-  const _PowerProfileStatus({
+class _CpuPolicyDetailsCard extends StatelessWidget {
+  const _CpuPolicyDetailsCard({
     required this.daemon,
-    required this.onPowerSupply,
-    required this.accent,
+    required this.cpuPolicy,
+    required this.currentMode,
   });
 
   final PowerProfilesDaemonSnapshot? daemon;
-  final bool? onPowerSupply;
-  final Color accent;
+  final CpuPolicySnapshot? cpuPolicy;
+  final PowerMode? currentMode;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final daemonSnapshot = daemon;
-    final available = daemonSnapshot != null;
-    final drivers = available
-        ? <String>{
-            ...daemonSnapshot.cpuDrivers,
-            ...daemonSnapshot.platformDrivers,
-          }.join(' + ')
-        : '';
+    final facts = _facts();
 
     return SurfaceCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final powerLabel = onPowerSupply == null
-              ? 'Power unknown'
-              : onPowerSupply!
-              ? 'On AC power'
-              : 'On battery';
-          final details = Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  available
-                      ? 'Power Profiles Daemon active'
-                      : 'Direct platform control',
-                  style: textTheme.titleSmall,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  available
-                      ? 'Standard modes synchronize CPU policy and firmware${drivers.isEmpty ? '' : ' through $drivers'}.'
-                      : 'The daemon is unavailable; standard modes cannot coordinate amd-pstate automatically.',
+      key: const ValueKey('cpu-policy-details-card'),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('CPU policy details', style: textTheme.titleMedium),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (facts.isEmpty) {
+                return Text(
+                  'CPU policy details are unavailable.',
                   style: textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.7),
                   ),
-                ),
-              ],
-            ),
-          );
-          final icon = Icon(
-            available ? YaruIcons.ok : YaruIcons.warning,
-            size: 18,
-            color: available ? accent : scheme.error,
-          );
-          final power = Text(
-            powerLabel,
-            style: textTheme.labelMedium?.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.68),
-            ),
-          );
+                );
+              }
+              final width = constraints.maxWidth < 520
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 16) / 2;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  for (final fact in facts)
+                    SizedBox(
+                      width: width,
+                      child: _PowerPolicyFact(
+                        label: fact.label,
+                        value: fact.value,
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: 10),
-              if (constraints.maxWidth < 360)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(children: [details]),
-                      const SizedBox(height: 8),
-                      power,
-                    ],
-                  ),
-                )
-              else ...[
-                details,
-                const SizedBox(width: 12),
-                power,
-              ],
-            ],
-          );
-        },
+  List<({String label, String value})> _facts() {
+    final facts = <({String label, String value})>[];
+    final daemonSnapshot = daemon;
+    final policy = cpuPolicy;
+    final cpuDrivers = daemonSnapshot?.cpuDrivers ?? const <String>[];
+    final platformDrivers = daemonSnapshot?.platformDrivers ?? const <String>[];
+
+    if (daemonSnapshot != null) {
+      facts.add((
+        label: 'Service',
+        value: daemonSnapshot.version == null
+            ? 'Power Profiles Daemon'
+            : 'PPD ${daemonSnapshot.version}',
+      ));
+      facts.add((
+        label: 'CPU profile',
+        value: humanizeMode(daemonSnapshot.activeProfile),
+      ));
+    }
+    if (policy?.driver case final driver?) {
+      final status = policy?.pstateStatus;
+      facts.add((
+        label: 'CPU driver',
+        value: status == null ? driver : '$driver ($status)',
+      ));
+    } else if (cpuDrivers.isNotEmpty) {
+      facts.add((label: 'CPU driver', value: cpuDrivers.join(', ')));
+    }
+    if (platformDrivers.isNotEmpty) {
+      facts.add((label: 'Firmware driver', value: platformDrivers.join(', ')));
+    }
+    if (policy?.governor case final governor?) {
+      facts.add((label: 'Governor', value: governor));
+    }
+    if (policy?.energyPerformancePreference case final preference?) {
+      facts.add((label: 'Energy preference', value: preference));
+    }
+    if (policy?.boostEnabled case final boost?) {
+      facts.add((label: 'Boost', value: boost ? 'Enabled' : 'Disabled'));
+    }
+    final minimum = policy?.minimumFrequencyKhz;
+    final maximum = policy?.maximumFrequencyKhz;
+    if (minimum != null && maximum != null) {
+      facts.add((
+        label: 'Frequency policy',
+        value: '${(minimum / 1000).round()}-${(maximum / 1000).round()} MHz',
+      ));
+    }
+    if (currentMode case final mode?) {
+      facts.add((label: 'Firmware profile', value: modeLabel(mode.value)));
+    }
+    if (daemonSnapshot?.batteryAware case final batteryAware?) {
+      facts.add((
+        label: 'Battery aware',
+        value: batteryAware ? 'Enabled' : 'Disabled',
+      ));
+    }
+    if (daemonSnapshot?.performanceDegraded?.trim() case final reason?
+        when reason.isNotEmpty) {
+      facts.add((label: 'Performance limited', value: reason));
+    }
+    return facts;
+  }
+}
+
+class _PowerPolicyFact extends StatelessWidget {
+  const _PowerPolicyFact({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Semantics(
+      label: '$label: $value',
+      excludeSemantics: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: textTheme.bodySmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.62),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: monoFactStyle(scheme)),
+        ],
       ),
     );
   }
@@ -449,6 +485,13 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
               ],
             ),
           ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'Higher limits can increase heat, fan noise, and power use. Changes are applied to the Lenovo controller.',
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
             if (widget.blockReason case final reason?) ...[
               const SizedBox(height: 12),
               Row(

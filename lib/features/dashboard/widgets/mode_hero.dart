@@ -82,20 +82,28 @@ class ModeHero extends StatelessWidget {
         if (availableModes.isEmpty)
           const Text('No writable power modes available.')
         else
-          YaruChoiceChipBar(
-            style: YaruChoiceChipBarStyle.wrap,
-            spacing: 12,
-            wrapRunSpacing: 12,
-            selectedFirst: false,
-            showCheckMarks: false,
-            clearOnSelect: false,
-            chipHeight: 44,
-            labels: [
-              for (var i = 0; i < availableModes.length; i++)
-                _ModeChipLabel(mode: availableModes[i]),
-            ],
-            isSelected: [for (final mode in availableModes) selected == mode],
-            onSelected: enabled ? onModeSelected : null,
+          ChipTheme(
+            data: ChipTheme.of(context).copyWith(
+              selectedColor: Color.alphaBlend(
+                accent.withValues(alpha: 0.2),
+                scheme.surface,
+              ),
+            ),
+            child: YaruChoiceChipBar(
+              style: YaruChoiceChipBarStyle.wrap,
+              spacing: 12,
+              wrapRunSpacing: 12,
+              selectedFirst: false,
+              showCheckMarks: false,
+              clearOnSelect: false,
+              chipHeight: 44,
+              labels: [
+                for (var i = 0; i < availableModes.length; i++)
+                  _ModeChipLabel(mode: availableModes[i]),
+              ],
+              isSelected: [for (final mode in availableModes) selected == mode],
+              onSelected: enabled ? onModeSelected : null,
+            ),
           ),
         const SizedBox(height: 12),
         DecoratedBox(

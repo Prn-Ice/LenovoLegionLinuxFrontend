@@ -210,6 +210,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           gpuOverclockEnabled: snapshot.gpuOverclockEnabled,
           onPowerSupply: snapshot.onPowerSupply,
           daemonSnapshot: snapshot.daemonSnapshot,
+          cpuPolicy: snapshot.cpuPolicy,
           isLoading: false,
           errorMessage: null,
         ),

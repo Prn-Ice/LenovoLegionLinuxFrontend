@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../../features/fans/models/fan_curve.dart';
 import '../../features/dashboard/models/system_status.dart';
+import '../models/cpu_policy_snapshot.dart';
 
 class LegionSysfsService {
   static const String _hwmonBasePath = '/sys/class/hwmon';
@@ -16,16 +17,25 @@ class LegionSysfsService {
   final String _hwmonRoot;
   final List<String> _legionPlatformRoots;
   final List<String> _fanHwmonRoots;
+  final String _cpuPolicyRoot;
+  final String _amdPstateRoot;
+  final String _cpuFreqRoot;
 
   LegionSysfsService({
     String hwmonRoot = _hwmonBasePath,
     List<String> legionPlatformRoots = _defaultLegionPlatformRoots,
     String? fanHwmonRoot,
+    String cpuPolicyRoot = '/sys/devices/system/cpu/cpufreq/policy0',
+    String amdPstateRoot = '/sys/devices/system/cpu/amd_pstate',
+    String cpuFreqRoot = '/sys/devices/system/cpu/cpufreq',
   }) : _hwmonRoot = hwmonRoot,
        _legionPlatformRoots = legionPlatformRoots,
        _fanHwmonRoots = fanHwmonRoot == null
            ? [for (final root in legionPlatformRoots) '$root/hwmon']
-           : [fanHwmonRoot];
+           : [fanHwmonRoot],
+       _cpuPolicyRoot = cpuPolicyRoot,
+       _amdPstateRoot = amdPstateRoot,
+       _cpuFreqRoot = cpuFreqRoot;
 
   /// Convert hwmon millidegrees Celsius to degrees Celsius.
   static double milliDegreesToC(int milliDegrees) => milliDegrees / 1000.0;
@@ -354,6 +364,37 @@ class LegionSysfsService {
 
   // ── CPU clock ─────────────────────────────────────────────────────────────
 
+  /// Effective policy for the first CPU frequency domain. PPD applies the same
+  /// policy across every domain, so policy0 is sufficient for display.
+  Future<CpuPolicySnapshot?> readCpuPolicySnapshot() async {
+    final driver = await _readTrimmedFile('$_cpuPolicyRoot/scaling_driver');
+    final pstateStatus = await _readTrimmedFile('$_amdPstateRoot/status');
+    final governor = await _readTrimmedFile('$_cpuPolicyRoot/scaling_governor');
+    final energyPreference = await _readTrimmedFile(
+      '$_cpuPolicyRoot/energy_performance_preference',
+    );
+    final policyBoost = await _readOptionalBoolFile('$_cpuPolicyRoot/boost');
+    final globalBoost =
+        policyBoost ?? await _readOptionalBoolFile('$_cpuFreqRoot/boost');
+    final minimumFrequency = await readIntFile(
+      '$_cpuPolicyRoot/scaling_min_freq',
+    );
+    final maximumFrequency = await readIntFile(
+      '$_cpuPolicyRoot/scaling_max_freq',
+    );
+
+    final snapshot = CpuPolicySnapshot(
+      driver: driver,
+      pstateStatus: pstateStatus,
+      governor: governor,
+      energyPerformancePreference: energyPreference,
+      boostEnabled: globalBoost,
+      minimumFrequencyKhz: minimumFrequency,
+      maximumFrequencyKhz: maximumFrequency,
+    );
+    return snapshot.hasData ? snapshot : null;
+  }
+
   /// Average clock speed across all online CPUs in GHz.
   Future<double?> readAverageCpuClockGhz() async {
     try {
@@ -674,6 +715,14 @@ class LegionSysfsService {
     }
 
     throw FormatException('Unexpected bool value "$raw" at $path');
+  }
+
+  Future<bool?> _readOptionalBoolFile(String path) async {
+    try {
+      return await _readBoolFile(path);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<bool?> _readEnabledFromBrightnessFile(String path) async {
