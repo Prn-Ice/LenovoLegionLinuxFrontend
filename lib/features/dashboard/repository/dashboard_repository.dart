@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
+import '../../../core/services/power_profile_service.dart';
 import '../models/dashboard_snapshot.dart';
 import '../models/device_identity_snapshot.dart';
 
@@ -15,14 +16,17 @@ class DashboardRepositoryException implements Exception {
 class DashboardRepository extends PrivilegedRepository {
   const DashboardRepository({
     required LegionSysfsService sysfsService,
+    required PowerProfileService powerProfileService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  }) : _sysfsService = sysfsService,
+       _powerProfileService = powerProfileService;
 
   @override
   Exception wrapBridgeError(String message) =>
       DashboardRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
+  final PowerProfileService _powerProfileService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -40,9 +44,18 @@ class DashboardRepository extends PrivilegedRepository {
         .readBatteryConservationMode();
     final rapidChargingMode = await _sysfsService.readRapidChargingMode();
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
+    final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
 
+    final hardwareProfiles = choicesRaw.isEmpty
+        ? daemonSnapshot == null
+              ? _fallbackModeValues
+              : const <String>[]
+        : choicesRaw;
     final values = <String>[];
-    final source = choicesRaw.isEmpty ? _fallbackModeValues : choicesRaw;
+    final source = _powerProfileService.availableProfiles(
+      hardwareProfiles: hardwareProfiles,
+      daemon: daemonSnapshot,
+    );
     for (final raw in source) {
       final value = raw.trim();
       if (value.isNotEmpty && !values.contains(value)) {
@@ -97,6 +110,13 @@ class DashboardRepository extends PrivilegedRepository {
   }
 
   Future<void> setPowerMode(String mode) async {
+    await _powerProfileService.setProfile(
+      mode,
+      writePlatformProfile: _setPlatformProfile,
+    );
+  }
+
+  Future<void> _setPlatformProfile(String mode) async {
     await runPrivilegedCommand(
       [
         'set-feature',

@@ -9,9 +9,11 @@ import '../repository/dashboard_repository.dart';
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
   final bridgeService = ref.watch(legionBridgeServiceProvider);
+  final powerProfileService = ref.watch(powerProfileServiceProvider);
   return DashboardRepository(
     sysfsService: sysfsService,
     bridgeService: bridgeService,
+    powerProfileService: powerProfileService,
   );
 });
 

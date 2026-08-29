@@ -41,6 +41,15 @@ final class PowerLimitSetRequested extends PowerEvent {
   List<Object?> get props => [limit, value];
 }
 
+final class PowerLimitsApplyRequested extends PowerEvent {
+  const PowerLimitsApplyRequested(this.readings);
+
+  final List<PowerLimitReading> readings;
+
+  @override
+  List<Object?> get props => [readings];
+}
+
 final class CpuOverclockSetRequested extends PowerEvent {
   const CpuOverclockSetRequested(this.enabled);
 

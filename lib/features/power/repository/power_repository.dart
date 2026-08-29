@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
+import '../../../core/services/power_profile_service.dart';
 import '../models/power_limit.dart';
 import '../models/power_mode.dart';
 import '../models/power_snapshot.dart';
@@ -16,14 +17,17 @@ class PowerRepositoryException implements Exception {
 class PowerRepository extends PrivilegedRepository {
   const PowerRepository({
     required LegionSysfsService sysfsService,
+    required PowerProfileService powerProfileService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  }) : _sysfsService = sysfsService,
+       _powerProfileService = powerProfileService;
 
   @override
   Exception wrapBridgeError(String message) =>
       PowerRepositoryException(message);
 
   final LegionSysfsService _sysfsService;
+  final PowerProfileService _powerProfileService;
 
   static const List<String> _fallbackModeValues = [
     'quiet',
@@ -131,9 +135,19 @@ class PowerRepository extends PrivilegedRepository {
     final choicesRaw = await _sysfsService.readPlatformProfileChoices();
     final cpuOverclock = await _sysfsService.readCpuOverclockMode();
     final gpuOverclock = await _sysfsService.readGpuOverclockMode();
+    final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
+    final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
 
+    final hardwareProfiles = choicesRaw.isEmpty
+        ? daemonSnapshot == null
+              ? _fallbackModeValues
+              : const <String>[]
+        : choicesRaw;
+    final source = _powerProfileService.availableProfiles(
+      hardwareProfiles: hardwareProfiles,
+      daemon: daemonSnapshot,
+    );
     final values = <String>[];
-    final source = choicesRaw.isEmpty ? _fallbackModeValues : choicesRaw;
     for (final raw in source) {
       final value = PowerMode.fromRaw(raw).value;
       if (value.isNotEmpty && !values.contains(value)) {
@@ -167,18 +181,27 @@ class PowerRepository extends PrivilegedRepository {
       powerLimits: powerLimits,
       cpuOverclockEnabled: cpuOverclock,
       gpuOverclockEnabled: gpuOverclock,
+      onPowerSupply: onPowerSupply,
+      daemonSnapshot: daemonSnapshot,
     );
   }
 
   Future<void> setPowerMode(PowerMode mode) async {
+    await _powerProfileService.setProfile(
+      mode.value,
+      writePlatformProfile: _setPlatformProfile,
+    );
+  }
+
+  Future<void> _setPlatformProfile(String profile) async {
     await runPrivilegedCommand(
       [
         'set-feature',
         'PlatformProfileFeature',
-        mode.value,
+        profile,
       ], // legion_linux/legion.py:PlatformProfileFeature
       method: 'feature.set',
-      failurePrefix: 'Failed to set power mode to ${mode.label}',
+      failurePrefix: 'Failed to set platform power mode to "$profile"',
     );
   }
 
@@ -189,11 +212,88 @@ class PowerRepository extends PrivilegedRepository {
       );
     }
 
+    await _requireLimitWriteContext();
+
     await runPrivilegedCommand(
       ['set-feature', limit.featureName, '$value'],
       method: 'feature.set',
       failurePrefix: 'Failed to set ${limit.label}',
     );
+  }
+
+  Future<void> setPowerLimits(List<PowerLimitReading> readings) async {
+    for (final reading in readings) {
+      if (reading.value < reading.spec.min ||
+          reading.value > reading.spec.max) {
+        throw PowerRepositoryException(
+          '${reading.spec.label} must be between '
+          '${reading.spec.min} and ${reading.spec.max}.',
+        );
+      }
+    }
+    await _requireLimitWriteContext();
+
+    final originals = <String, int>{};
+    for (final reading in readings) {
+      final value = await _sysfsService.readLegionIntFile(
+        reading.spec.sysfsAttribute,
+      );
+      if (value == null) {
+        throw PowerRepositoryException(
+          'Could not verify the current ${reading.spec.label}. No limits were changed.',
+        );
+      }
+      originals[reading.spec.id] = value;
+    }
+
+    final applied = <PowerLimitReading>[];
+    try {
+      for (final reading in readings) {
+        await runPrivilegedCommand(
+          ['set-feature', reading.spec.featureName, '${reading.value}'],
+          method: 'feature.set',
+          failurePrefix: 'Failed to set ${reading.spec.label}',
+        );
+        applied.add(reading);
+      }
+    } catch (error) {
+      final rollbackFailures = <String>[];
+      for (final reading in applied.reversed) {
+        try {
+          await runPrivilegedCommand(
+            [
+              'set-feature',
+              reading.spec.featureName,
+              '${originals[reading.spec.id]}',
+            ],
+            method: 'feature.set',
+            failurePrefix: 'Failed to restore ${reading.spec.label}',
+          );
+        } catch (_) {
+          rollbackFailures.add(reading.spec.label);
+        }
+      }
+      if (rollbackFailures.isNotEmpty) {
+        throw PowerRepositoryException(
+          '$error Some values could not be restored: ${rollbackFailures.join(', ')}.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _requireLimitWriteContext() async {
+    final profile = await _sysfsService.readPlatformProfile();
+    if (profile == null || !PowerMode.fromRaw(profile).isCustom) {
+      throw const PowerRepositoryException(
+        'Power limits can only be changed in Custom mode.',
+      );
+    }
+    if (await _sysfsService.readOnPowerSupplyMode() != true) {
+      throw const PowerRepositoryException(
+        'Connect AC power before changing custom power limits.',
+      );
+    }
   }
 
   Future<void> setCpuOverclock(bool enabled) async {

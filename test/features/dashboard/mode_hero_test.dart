@@ -13,7 +13,7 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 void main() {
   const accent = Color(0xFFEC5F2A);
 
-  testWidgets('shows mode cards and the accent banner', (tester) async {
+  testWidgets('shows Yaru mode chips and the accent banner', (tester) async {
     await _pump(
       tester,
       ModeHero(
@@ -29,6 +29,7 @@ void main() {
     expect(find.text('Balanced'), findsOneWidget);
     // 'Performance' appears in both the chip and the banner.
     expect(find.textContaining('Performance'), findsWidgets);
+    expect(find.byType(ChoiceChip), findsNWidgets(3));
   });
 
   testWidgets('maps kernel profile names to user-facing mode semantics', (

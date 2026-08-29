@@ -55,6 +55,7 @@ class LegionAccent {
     switch (value) {
       case 'quiet':
       case 'low-power':
+      case 'power-saver':
         return quiet;
       case 'balanced':
         return balanced;

@@ -18,6 +18,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     on<PowerTicked>(_onTicked);
     on<PowerModeSetRequested>(_onModeSetRequested);
     on<PowerLimitSetRequested>(_onLimitSetRequested);
+    on<PowerLimitsApplyRequested>(_onLimitsApplyRequested);
     on<CpuOverclockSetRequested>(_onCpuOverclockSetRequested);
     on<GpuOverclockSetRequested>(_onGpuOverclockSetRequested);
   }
@@ -102,6 +103,31 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     }
   }
 
+  Future<void> _onLimitsApplyRequested(
+    PowerLimitsApplyRequested event,
+    Emitter<PowerState> emit,
+  ) async {
+    if (state.isApplying || event.readings.isEmpty) return;
+
+    emit(
+      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
+    );
+    try {
+      await _repository.setPowerLimits(event.readings);
+      await _reloadState(emit, showLoading: false);
+      emit(
+        state.copyWith(
+          isApplying: false,
+          noticeMessage:
+              '${event.readings.length} power ${event.readings.length == 1 ? 'limit' : 'limits'} applied.',
+        ),
+      );
+    } catch (error) {
+      await _reloadState(emit, showLoading: false);
+      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+    }
+  }
+
   Future<void> _onCpuOverclockSetRequested(
     CpuOverclockSetRequested event,
     Emitter<PowerState> emit,
@@ -182,6 +208,8 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           powerLimits: snapshot.powerLimits,
           cpuOverclockEnabled: snapshot.cpuOverclockEnabled,
           gpuOverclockEnabled: snapshot.gpuOverclockEnabled,
+          onPowerSupply: snapshot.onPowerSupply,
+          daemonSnapshot: snapshot.daemonSnapshot,
           isLoading: false,
           errorMessage: null,
         ),

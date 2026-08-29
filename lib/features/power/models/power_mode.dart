@@ -14,6 +14,7 @@ class PowerMode extends Equatable {
     switch (value) {
       case 'quiet':
       case 'low-power':
+      case 'power-saver':
         return 'Quiet';
       case 'balanced':
         return 'Balanced';
@@ -33,6 +34,7 @@ class PowerMode extends Equatable {
     switch (value) {
       case 'quiet':
       case 'low-power':
+      case 'power-saver':
         return 'Optimised for silence — fan speed minimised';
       case 'balanced':
         return 'Balanced performance and power consumption';
@@ -47,6 +49,10 @@ class PowerMode extends Equatable {
         return label;
     }
   }
+
+  bool get isCustom => value == 'custom' || value == 'balanced-performance';
+
+  bool get isVendorMode => isCustom || value == 'max-power';
 
   @override
   List<Object?> get props => [value];

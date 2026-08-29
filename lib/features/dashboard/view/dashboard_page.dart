@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
+import '../../../core/services/power_profile_service.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
@@ -65,11 +66,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ? null
               : (index) async {
                   final mode = snapshot.availablePowerModes[index];
+                  final standard =
+                      PowerProfileService.daemonProfileForPlatformValue(mode) !=
+                      null;
                   final confirmed = await confirmPrivilegedAction(
                     context,
                     title: 'Set power mode',
-                    message:
-                        'Changing power mode runs a privileged command and may prompt for authentication.',
+                    message: standard
+                        ? 'Power Profiles Daemon will synchronize the CPU policy and firmware profile. Authentication may be required.'
+                        : 'This Lenovo firmware mode uses the performance CPU policy and requires privileged access.',
                     confirmLabel: 'Set mode',
                   );
                   if (!context.mounted || !confirmed) {

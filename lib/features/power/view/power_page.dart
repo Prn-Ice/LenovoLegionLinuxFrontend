@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
+import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -15,11 +16,16 @@ import '../models/power_limit.dart';
 import '../models/power_mode.dart';
 import '../providers/power_provider.dart';
 
-class PowerPage extends ConsumerWidget {
+class PowerPage extends ConsumerStatefulWidget {
   const PowerPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PowerPage> createState() => _PowerPageState();
+}
+
+class _PowerPageState extends ConsumerState<PowerPage> {
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(powerBlocProvider);
     final bloc = ref.read(powerBlocProvider.bloc);
     final accent =
@@ -44,15 +50,24 @@ class PowerPage extends ConsumerWidget {
           onModeSelected: (index) =>
               _selectMode(context, bloc, state, state.availableModes[index]),
         ),
+        const SizedBox(height: 12),
+        _PowerProfileStatus(
+          daemon: state.daemonSnapshot,
+          onPowerSupply: state.onPowerSupply,
+          accent: accent,
+        ),
         const SizedBox(height: 16),
         _PowerLimitsCard(
           readings: state.powerLimits,
           accent: accent,
           isApplying: state.isApplying,
-          onSliderChanged: (reading, value) =>
-              _confirmAndSetLimit(context, bloc, reading, value),
-          onSetRequested: (reading) =>
-              _promptAndSetLimit(context, bloc, reading),
+          canEdit:
+              state.currentMode?.isCustom == true &&
+              state.onPowerSupply == true,
+          blockReason: _limitBlockReason(state),
+          onValueRequested: (reading) => _promptLimit(context, reading),
+          onApplyRequested: (readings) =>
+              _applyPowerLimits(context, bloc, readings),
         ),
         if (state.cpuOverclockEnabled != null ||
             state.gpuOverclockEnabled != null) ...[
@@ -118,9 +133,21 @@ class PowerPage extends ConsumerWidget {
     bloc.add(GpuOverclockSetRequested(enabled));
   }
 
-  Future<void> _promptAndSetLimit(
+  String? _limitBlockReason(PowerState state) {
+    if (state.currentMode?.isCustom != true) {
+      return 'Switch to Custom mode to edit controller power limits.';
+    }
+    if (state.onPowerSupply == false) {
+      return 'Connect AC power to edit custom power limits.';
+    }
+    if (state.onPowerSupply == null) {
+      return 'AC power status is unavailable, so limit changes are disabled.';
+    }
+    return null;
+  }
+
+  Future<int?> _promptLimit(
     BuildContext context,
-    PowerBloc bloc,
     PowerLimitReading reading,
   ) async {
     final controller = TextEditingController(text: '${reading.value}');
@@ -177,8 +204,7 @@ class PowerPage extends ConsumerWidget {
     );
     controller.dispose();
 
-    if (result == null || !context.mounted) return;
-    await _confirmAndSetLimit(context, bloc, reading, result);
+    return result;
   }
 
   void _submitLimitDialog(
@@ -199,51 +225,189 @@ class PowerPage extends ConsumerWidget {
     Navigator.of(context).pop(parsed);
   }
 
-  Future<bool> _confirmAndSetLimit(
+  Future<bool> _applyPowerLimits(
     BuildContext context,
     PowerBloc bloc,
-    PowerLimitReading reading,
-    int value,
+    List<PowerLimitReading> readings,
   ) async {
-    if (value == reading.value) return false;
+    if (readings.isEmpty) return false;
     final confirmed = await confirmPrivilegedAction(
       context,
-      title: 'Set ${reading.spec.label}',
+      title: 'Apply custom power limits',
       message:
-          'Change ${reading.spec.label} from ${reading.value} to $value ${reading.spec.unit}. This requires privileged access.',
-      confirmLabel: 'Apply limit',
+          'Apply ${readings.length} staged ${readings.length == 1 ? 'limit' : 'limits'} to the controller. Custom mode and AC power must remain active.',
+      confirmLabel: 'Apply changes',
     );
     if (!context.mounted || !confirmed) return false;
-    bloc.add(PowerLimitSetRequested(limit: reading.spec, value: value));
+    bloc.add(PowerLimitsApplyRequested(readings));
     return true;
   }
 }
 
-class _PowerLimitsCard extends StatelessWidget {
-  const _PowerLimitsCard({
-    required this.readings,
+class _PowerProfileStatus extends StatelessWidget {
+  const _PowerProfileStatus({
+    required this.daemon,
+    required this.onPowerSupply,
     required this.accent,
-    required this.isApplying,
-    required this.onSliderChanged,
-    required this.onSetRequested,
   });
 
-  static const _primaryIds = {'cpu_longterm', 'cpu_shortterm', 'gpu_ctgp'};
-
-  final List<PowerLimitReading> readings;
+  final PowerProfilesDaemonSnapshot? daemon;
+  final bool? onPowerSupply;
   final Color accent;
-  final bool isApplying;
-  final Future<bool> Function(PowerLimitReading, int) onSliderChanged;
-  final ValueChanged<PowerLimitReading> onSetRequested;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final primary = readings
+    final daemonSnapshot = daemon;
+    final available = daemonSnapshot != null;
+    final drivers = available
+        ? <String>{
+            ...daemonSnapshot.cpuDrivers,
+            ...daemonSnapshot.platformDrivers,
+          }.join(' + ')
+        : '';
+
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final powerLabel = onPowerSupply == null
+              ? 'Power unknown'
+              : onPowerSupply!
+              ? 'On AC power'
+              : 'On battery';
+          final details = Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  available
+                      ? 'Power Profiles Daemon active'
+                      : 'Direct platform control',
+                  style: textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  available
+                      ? 'Standard modes synchronize CPU policy and firmware${drivers.isEmpty ? '' : ' through $drivers'}.'
+                      : 'The daemon is unavailable; standard modes cannot coordinate amd-pstate automatically.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          );
+          final icon = Icon(
+            available ? YaruIcons.ok : YaruIcons.warning,
+            size: 18,
+            color: available ? accent : scheme.error,
+          );
+          final power = Text(
+            powerLabel,
+            style: textTheme.labelMedium?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.68),
+            ),
+          );
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              icon,
+              const SizedBox(width: 10),
+              if (constraints.maxWidth < 360)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [details]),
+                      const SizedBox(height: 8),
+                      power,
+                    ],
+                  ),
+                )
+              else ...[
+                details,
+                const SizedBox(width: 12),
+                power,
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PowerLimitsCard extends StatefulWidget {
+  const _PowerLimitsCard({
+    required this.readings,
+    required this.accent,
+    required this.isApplying,
+    required this.canEdit,
+    required this.blockReason,
+    required this.onValueRequested,
+    required this.onApplyRequested,
+  });
+
+  final List<PowerLimitReading> readings;
+  final Color accent;
+  final bool isApplying;
+  final bool canEdit;
+  final String? blockReason;
+  final Future<int?> Function(PowerLimitReading) onValueRequested;
+  final Future<bool> Function(List<PowerLimitReading>) onApplyRequested;
+
+  @override
+  State<_PowerLimitsCard> createState() => _PowerLimitsCardState();
+}
+
+class _PowerLimitsCardState extends State<_PowerLimitsCard> {
+  static const _primaryIds = {'cpu_longterm', 'cpu_shortterm', 'gpu_ctgp'};
+
+  final Map<String, int> _drafts = {};
+
+  bool get _dirty => _drafts.isNotEmpty;
+
+  @override
+  void didUpdateWidget(covariant _PowerLimitsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final current = {
+      for (final reading in widget.readings) reading.spec.id: reading.value,
+    };
+    _drafts.removeWhere(
+      (id, value) => !current.containsKey(id) || current[id] == value,
+    );
+  }
+
+  int _valueFor(PowerLimitReading reading) =>
+      _drafts[reading.spec.id] ?? reading.value;
+
+  void _stage(PowerLimitReading reading, int value) {
+    setState(() {
+      if (value == reading.value) {
+        _drafts.remove(reading.spec.id);
+      } else {
+        _drafts[reading.spec.id] = value;
+      }
+    });
+  }
+
+  List<PowerLimitReading> _stagedReadings() => [
+    for (final reading in widget.readings)
+      if (_drafts[reading.spec.id] case final value?)
+        PowerLimitReading(spec: reading.spec, value: value),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final primary = widget.readings
         .where((reading) => _primaryIds.contains(reading.spec.id))
         .toList(growable: false);
-    final additional = readings
+    final additional = widget.readings
         .where((reading) => !_primaryIds.contains(reading.spec.id))
         .toList(growable: false);
 
@@ -258,21 +422,21 @@ class _PowerLimitsCard extends StatelessWidget {
               Expanded(
                 child: Text('Power limits', style: textTheme.titleMedium),
               ),
-              if (readings.isNotEmpty)
+              if (widget.readings.isNotEmpty)
                 Text(
-                  '${readings.length} available',
+                  'Custom mode only',
                   style: textTheme.bodySmall?.copyWith(
                     color: scheme.onSurface.withValues(alpha: 0.56),
                   ),
                 ),
             ],
           ),
-          if (readings.isEmpty) ...[
+          if (widget.readings.isEmpty) ...[
             const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(YaruIcons.information, size: 19, color: accent),
+                Icon(YaruIcons.information, size: 19, color: widget.accent),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -285,13 +449,34 @@ class _PowerLimitsCard extends StatelessWidget {
               ],
             ),
           ] else ...[
+            if (widget.blockReason case final reason?) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(YaruIcons.warning, size: 18, color: scheme.warning),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      reason,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurface.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             for (var i = 0; i < primary.length; i++) ...[
               const SizedBox(height: 18),
               _PowerLimitSlider(
-                reading: primary[i],
-                accent: accent,
-                isApplying: isApplying,
-                onChanged: (value) => onSliderChanged(primary[i], value),
+                reading: PowerLimitReading(
+                  spec: primary[i].spec,
+                  value: _valueFor(primary[i]),
+                ),
+                accent: widget.accent,
+                enabled: widget.canEdit && !widget.isApplying,
+                onChanged: (value) => _stage(primary[i], value),
               ),
             ],
             if (additional.isNotEmpty) ...[
@@ -313,14 +498,25 @@ class _PowerLimitsCard extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '${reading.value} ${reading.spec.unit}',
+                              '${_valueFor(reading)} ${reading.spec.unit}',
                               style: monoStatValueStyle,
                             ),
                             const SizedBox(width: 12),
                             OutlinedButton(
-                              onPressed: isApplying
+                              onPressed: !widget.canEdit || widget.isApplying
                                   ? null
-                                  : () => onSetRequested(reading),
+                                  : () async {
+                                      final value = await widget
+                                          .onValueRequested(
+                                            PowerLimitReading(
+                                              spec: reading.spec,
+                                              value: _valueFor(reading),
+                                            ),
+                                          );
+                                      if (value != null && mounted) {
+                                        _stage(reading, value);
+                                      }
+                                    },
                               child: const Text('Set'),
                             ),
                           ],
@@ -330,6 +526,44 @@ class _PowerLimitsCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 18),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                Text(
+                  _dirty ? 'Unsaved limit changes' : 'No staged changes',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurface.withValues(alpha: 0.68),
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _dirty && !widget.isApplying
+                          ? () => setState(_drafts.clear)
+                          : null,
+                      child: const Text('Revert'),
+                    ),
+                    FilledButton(
+                      onPressed: _dirty && widget.canEdit && !widget.isApplying
+                          ? () => widget.onApplyRequested(_stagedReadings())
+                          : null,
+                      child: widget.isApplying
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Apply changes'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -337,45 +571,24 @@ class _PowerLimitsCard extends StatelessWidget {
   }
 }
 
-class _PowerLimitSlider extends StatefulWidget {
+class _PowerLimitSlider extends StatelessWidget {
   const _PowerLimitSlider({
     required this.reading,
     required this.accent,
-    required this.isApplying,
+    required this.enabled,
     required this.onChanged,
   });
 
   final PowerLimitReading reading;
   final Color accent;
-  final bool isApplying;
-  final Future<bool> Function(int) onChanged;
-
-  @override
-  State<_PowerLimitSlider> createState() => _PowerLimitSliderState();
-}
-
-class _PowerLimitSliderState extends State<_PowerLimitSlider> {
-  late double _value;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = _clampedValue(widget.reading);
-  }
-
-  @override
-  void didUpdateWidget(covariant _PowerLimitSlider oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.reading.value != widget.reading.value ||
-        (oldWidget.isApplying && !widget.isApplying)) {
-      _value = _clampedValue(widget.reading);
-    }
-  }
+  final bool enabled;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final spec = widget.reading.spec;
+    final spec = reading.spec;
+    final value = reading.value.clamp(spec.min, spec.max).toDouble();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -383,34 +596,24 @@ class _PowerLimitSliderState extends State<_PowerLimitSlider> {
         Row(
           children: [
             Expanded(child: Text(spec.label)),
-            Text('${_value.round()} ${spec.unit}', style: monoStatValueStyle),
+            Text('${value.round()} ${spec.unit}', style: monoStatValueStyle),
           ],
         ),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
-            activeTrackColor: widget.accent,
-            thumbColor: widget.accent,
-            overlayColor: widget.accent.withValues(alpha: 0.12),
+            activeTrackColor: accent,
+            thumbColor: accent,
+            overlayColor: accent.withValues(alpha: 0.12),
             inactiveTrackColor: scheme.onSurface.withValues(alpha: 0.1),
           ),
           child: Slider(
             key: ValueKey('power-limit-slider-${spec.id}'),
-            value: _value,
+            value: value,
             min: spec.min.toDouble(),
             max: spec.max.toDouble(),
             divisions: spec.max - spec.min,
-            label: '${_value.round()} ${spec.unit}',
-            onChanged: widget.isApplying
-                ? null
-                : (value) => setState(() => _value = value),
-            onChangeEnd: widget.isApplying
-                ? null
-                : (value) async {
-                    final accepted = await widget.onChanged(value.round());
-                    if (!accepted && mounted) {
-                      setState(() => _value = _clampedValue(widget.reading));
-                    }
-                  },
+            label: '${value.round()} ${spec.unit}',
+            onChanged: enabled ? (value) => onChanged(value.round()) : null,
           ),
         ),
         Row(
@@ -423,9 +626,6 @@ class _PowerLimitSliderState extends State<_PowerLimitSlider> {
       ],
     );
   }
-
-  double _clampedValue(PowerLimitReading reading) =>
-      reading.value.clamp(reading.spec.min, reading.spec.max).toDouble();
 }
 
 class _OverclockingCard extends StatelessWidget {

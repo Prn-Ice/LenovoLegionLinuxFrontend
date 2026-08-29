@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import '../models/power_limit.dart';
 import '../models/power_mode.dart';
 
@@ -10,6 +11,8 @@ class PowerState extends Equatable {
     required this.powerLimits,
     required this.cpuOverclockEnabled,
     required this.gpuOverclockEnabled,
+    required this.onPowerSupply,
+    required this.daemonSnapshot,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -22,6 +25,8 @@ class PowerState extends Equatable {
     powerLimits: [],
     cpuOverclockEnabled: null,
     gpuOverclockEnabled: null,
+    onPowerSupply: null,
+    daemonSnapshot: null,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -35,6 +40,8 @@ class PowerState extends Equatable {
   final List<PowerLimitReading> powerLimits;
   final bool? cpuOverclockEnabled;
   final bool? gpuOverclockEnabled;
+  final bool? onPowerSupply;
+  final PowerProfilesDaemonSnapshot? daemonSnapshot;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -45,7 +52,9 @@ class PowerState extends Equatable {
       availableModes.isNotEmpty ||
       powerLimits.isNotEmpty ||
       cpuOverclockEnabled != null ||
-      gpuOverclockEnabled != null;
+      gpuOverclockEnabled != null ||
+      onPowerSupply != null ||
+      daemonSnapshot != null;
 
   PowerState copyWith({
     Object? currentMode = _unset,
@@ -53,6 +62,8 @@ class PowerState extends Equatable {
     List<PowerLimitReading>? powerLimits,
     Object? cpuOverclockEnabled = _unset,
     Object? gpuOverclockEnabled = _unset,
+    Object? onPowerSupply = _unset,
+    Object? daemonSnapshot = _unset,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -70,6 +81,12 @@ class PowerState extends Equatable {
       gpuOverclockEnabled: gpuOverclockEnabled == _unset
           ? this.gpuOverclockEnabled
           : gpuOverclockEnabled as bool?,
+      onPowerSupply: onPowerSupply == _unset
+          ? this.onPowerSupply
+          : onPowerSupply as bool?,
+      daemonSnapshot: daemonSnapshot == _unset
+          ? this.daemonSnapshot
+          : daemonSnapshot as PowerProfilesDaemonSnapshot?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -88,6 +105,8 @@ class PowerState extends Equatable {
     powerLimits,
     cpuOverclockEnabled,
     gpuOverclockEnabled,
+    onPowerSupply,
+    daemonSnapshot,
     isLoading,
     isApplying,
     errorMessage,

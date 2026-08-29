@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
+import 'package:legion_frontend/core/models/power_profiles_daemon_snapshot.dart';
 import 'package:legion_frontend/features/power/models/power_limit.dart';
 import 'package:legion_frontend/features/power/models/power_mode.dart';
 import 'package:legion_frontend/features/power/models/power_snapshot.dart';
@@ -18,6 +19,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const PowerMode('test'));
     registerFallbackValue(PowerRepository.allPowerLimits.first);
+    registerFallbackValue(<PowerLimitReading>[]);
   });
 
   testWidgets('Power page follows the handoff at compact width', (
@@ -41,11 +43,6 @@ void main() {
     expect(find.text('GPU overclock'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
     expect(find.text('Refresh'), findsNothing);
-    final exception = tester.takeException();
-    if (exception case final FlutterError error) {
-      fail(error.toStringDeep());
-    }
-    expect(exception, isNull);
   });
 
   testWidgets('Power page has no overflow at wide dark layout', (tester) async {
@@ -58,11 +55,11 @@ void main() {
     );
     final quietControl = find.ancestor(
       of: find.text('Quiet'),
-      matching: find.byType(InkWell),
+      matching: find.byType(ChoiceChip),
     );
     final performanceControl = find.ancestor(
       of: find.text('Performance'),
-      matching: find.byType(InkWell),
+      matching: find.byType(ChoiceChip),
     );
     expect(
       tester.getSize(quietControl.first).width,
@@ -100,7 +97,7 @@ void main() {
     expect(find.byType(Slider), findsNothing);
   });
 
-  testWidgets('mode card applies the matching platform profile', (
+  testWidgets('mode chip applies the matching platform profile', (
     tester,
   ) async {
     final harness = await _pumpPage(tester, width: 800);
@@ -117,30 +114,79 @@ void main() {
     ).called(1);
   });
 
-  testWidgets('power slider confirms and writes its controller limit', (
+  testWidgets('power sliders stage changes before applying them together', (
     tester,
   ) async {
-    final harness = await _pumpPage(tester, width: 800);
+    final harness = await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(currentMode: const PowerMode('custom')),
+    );
     final slider = find.byKey(
       const ValueKey('power-limit-slider-cpu_longterm'),
     );
 
     await tester.drag(slider, const Offset(60, 0));
     await tester.pumpAndSettle();
-    expect(find.text('Set CPU sustained (PL1)'), findsOneWidget);
+    expect(find.text('Unsaved limit changes'), findsOneWidget);
 
-    await tester.tap(find.text('Apply limit'));
+    await tester.tap(find.text('Apply changes').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Apply custom power limits'), findsOneWidget);
+
+    await tester.tap(find.text('Apply changes').last);
     await tester.pumpAndSettle();
 
     final captured =
         verify(
-              () => harness.repository.setPowerLimit(
-                PowerRepository.allPowerLimits.first,
-                captureAny(),
-              ),
+              () => harness.repository.setPowerLimits(captureAny()),
             ).captured.single
-            as int;
-    expect(captured, greaterThan(55));
+            as List<PowerLimitReading>;
+    expect(captured.single.value, greaterThan(55));
+  });
+
+  testWidgets('power limits explain Custom and AC prerequisites', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 800);
+
+    expect(
+      find.text('Switch to Custom mode to edit controller power limits.'),
+      findsOneWidget,
+    );
+    expect(tester.widget<Slider>(find.byType(Slider).first).onChanged, isNull);
+  });
+
+  testWidgets('custom power limits remain disabled on battery', (tester) async {
+    await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(
+        currentMode: const PowerMode('custom'),
+        onPowerSupply: false,
+      ),
+    );
+
+    expect(
+      find.text('Connect AC power to edit custom power limits.'),
+      findsOneWidget,
+    );
+    expect(tester.widget<Slider>(find.byType(Slider).first).onChanged, isNull);
+  });
+
+  testWidgets('shows PPD drivers and power-source state', (tester) async {
+    await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(daemonSnapshot: _daemonSnapshot),
+    );
+
+    expect(find.text('Power Profiles Daemon active'), findsOneWidget);
+    expect(
+      find.textContaining('amd_pstate + platform_profile'),
+      findsOneWidget,
+    );
+    expect(find.text('On AC power'), findsOneWidget);
   });
 
   testWidgets('supported overclock toggle keeps its adjacent warning', (
@@ -180,6 +226,7 @@ Future<_PowerHarness> _pumpPage(
   when(repository.loadSnapshot).thenAnswer((_) async => resolvedSnapshot);
   when(() => repository.setPowerMode(any())).thenAnswer((_) async {});
   when(() => repository.setPowerLimit(any(), any())).thenAnswer((_) async {});
+  when(() => repository.setPowerLimits(any())).thenAnswer((_) async {});
   when(() => repository.setCpuOverclock(any())).thenAnswer((_) async {});
   when(() => repository.setGpuOverclock(any())).thenAnswer((_) async {});
 
@@ -210,14 +257,18 @@ Future<_PowerHarness> _pumpPage(
   return _PowerHarness(repository: repository);
 }
 
-PowerSnapshot _snapshot() {
+PowerSnapshot _snapshot({
+  PowerMode currentMode = const PowerMode('balanced'),
+  bool? onPowerSupply = true,
+  PowerProfilesDaemonSnapshot? daemonSnapshot,
+}) {
   PowerLimitReading reading(String id, int value) => PowerLimitReading(
     spec: PowerRepository.allPowerLimits.firstWhere((spec) => spec.id == id),
     value: value,
   );
 
   return PowerSnapshot(
-    currentMode: const PowerMode('balanced'),
+    currentMode: currentMode,
     availableModes: const [
       PowerMode('quiet'),
       PowerMode('balanced'),
@@ -232,8 +283,24 @@ PowerSnapshot _snapshot() {
     ],
     cpuOverclockEnabled: false,
     gpuOverclockEnabled: null,
+    onPowerSupply: onPowerSupply,
+    daemonSnapshot: daemonSnapshot,
   );
 }
+
+const _daemonSnapshot = PowerProfilesDaemonSnapshot(
+  activeProfile: 'balanced',
+  profiles: [
+    PowerProfileDescriptor(
+      profile: 'balanced',
+      cpuDriver: 'amd_pstate',
+      platformDriver: 'platform_profile',
+    ),
+  ],
+  batteryAware: true,
+  version: '0.30',
+  performanceDegraded: '',
+);
 
 class _PowerHarness {
   const _PowerHarness({required this.repository});

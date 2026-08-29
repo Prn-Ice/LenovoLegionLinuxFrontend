@@ -25,6 +25,7 @@ void main() {
       expect(const PowerMode('low-power').label, equals('Quiet'));
       expect(const PowerMode('custom').label, equals('Custom'));
       expect(const PowerMode('max-power').label, equals('Extreme'));
+      expect(const PowerMode('power-saver').label, equals('Quiet'));
     });
 
     test('label returns raw value for unknown modes', () {
@@ -72,6 +73,11 @@ void main() {
 
     test('true when cpuOverclockEnabled is set', () {
       final s = PowerState.initial().copyWith(cpuOverclockEnabled: false);
+      expect(s.hasLoaded, isTrue);
+    });
+
+    test('true when the power source is known', () {
+      final s = PowerState.initial().copyWith(onPowerSupply: false);
       expect(s.hasLoaded, isTrue);
     });
   });

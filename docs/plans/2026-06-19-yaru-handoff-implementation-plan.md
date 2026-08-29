@@ -629,13 +629,20 @@ Make power mode and custom tuning reflect the handoff’s interactive "Power & C
 
 ### Implementation Status (2026-08-29)
 
-Complete. The page now uses responsive semantic mode cards and active-mode
+Complete. The page now uses responsive semantic mode controls and active-mode
 descriptions, surfaces common controller limits as sliders, keeps remaining
 limits in an advanced disclosure, and only shows overclock controls when the
 backend reports support. Privileged changes retain confirmation dialogs and
 warnings remain adjacent to advanced tuning. Kernel 7 profile aliases and
 controller-specific units are presented with user-facing labels. The full test
 suite, analyzer, UI detector, and Linux release build pass.
+
+Follow-up integration routes Quiet, Balanced, and Performance through Power
+Profiles Daemon so `amd_pstate` and `platform_profile` move together. Lenovo's
+Custom and Extreme firmware modes remain explicit and pair with PPD's
+performance CPU policy. Limit edits are staged behind Custom-mode and AC-power
+checks with Apply/Revert controls, and the shared selector now uses
+`YaruChoiceChipBar`.
 
 ---
 

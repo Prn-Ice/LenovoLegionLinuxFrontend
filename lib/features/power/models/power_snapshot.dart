@@ -1,3 +1,4 @@
+import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import 'power_limit.dart';
 import 'power_mode.dart';
 
@@ -8,6 +9,8 @@ class PowerSnapshot {
     required this.powerLimits,
     required this.cpuOverclockEnabled,
     required this.gpuOverclockEnabled,
+    this.onPowerSupply,
+    this.daemonSnapshot,
   });
 
   final PowerMode? currentMode;
@@ -15,4 +18,6 @@ class PowerSnapshot {
   final List<PowerLimitReading> powerLimits;
   final bool? cpuOverclockEnabled;
   final bool? gpuOverclockEnabled;
+  final bool? onPowerSupply;
+  final PowerProfilesDaemonSnapshot? daemonSnapshot;
 }

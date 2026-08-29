@@ -44,6 +44,7 @@ dependencies:
   hive_ce_flutter: ^2.3.4
   fl_chart: ^1.1.1
   ffi: ^2.2.0
+  dbus: ^0.7.15
 
 dev_dependencies:
   flutter_test:

@@ -4,7 +4,6 @@ import 'package:yaru/yaru.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_text.dart';
-import '../../../core/widgets/surface_card.dart';
 
 /// Title-cases a raw platform-profile value for display: `low-power` -> `Low
 /// Power`, `balanced` -> `Balanced`.
@@ -27,6 +26,7 @@ String modeDescription(String? mode) {
   switch (mode?.trim()) {
     case 'quiet':
     case 'low-power':
+    case 'power-saver':
       return 'Keeps heat, noise, and power use low.';
     case 'balanced':
       return 'Quick when you need it, calm when you do not.';
@@ -42,9 +42,8 @@ String modeDescription(String? mode) {
   }
 }
 
-/// Dashboard mode hero: a row of selectable power-mode cards (a colored dot +
-/// the mode name, with an accent border when active) above an accent-tinted
-/// banner naming the current mode. The accent follows the selected mode.
+/// Shared mode hero: Yaru-native selectable power-mode chips above an
+/// accent-tinted banner naming the current mode.
 class ModeHero extends StatelessWidget {
   const ModeHero({
     super.key,
@@ -83,17 +82,20 @@ class ModeHero extends StatelessWidget {
         if (availableModes.isEmpty)
           const Text('No writable power modes available.')
         else
-          Wrap(
+          YaruChoiceChipBar(
+            style: YaruChoiceChipBarStyle.wrap,
             spacing: 12,
-            runSpacing: 12,
-            children: [
+            wrapRunSpacing: 12,
+            selectedFirst: false,
+            showCheckMarks: false,
+            clearOnSelect: false,
+            chipHeight: 44,
+            labels: [
               for (var i = 0; i < availableModes.length; i++)
-                _ModeCard(
-                  mode: availableModes[i],
-                  selected: selected == availableModes[i],
-                  onTap: enabled ? () => onModeSelected!(i) : null,
-                ),
+                _ModeChipLabel(mode: availableModes[i]),
             ],
+            isSelected: [for (final mode in availableModes) selected == mode],
+            onSelected: enabled ? onModeSelected : null,
           ),
         const SizedBox(height: 12),
         DecoratedBox(
@@ -146,62 +148,29 @@ class ModeHero extends StatelessWidget {
   }
 }
 
-/// A single selectable mode card: a colored dot (the mode's accent) and its
-/// name, with the accent selection border when active.
-class _ModeCard extends StatelessWidget {
-  const _ModeCard({
-    required this.mode,
-    required this.selected,
-    required this.onTap,
-  });
+/// A compact chip label with the mode's accent and user-facing name.
+class _ModeChipLabel extends StatelessWidget {
+  const _ModeChipLabel({required this.mode});
 
   final String mode;
-  final bool selected;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final dotColor =
-        LegionAccent.fromPowerModeValue(mode)?.color ?? scheme.primary;
+        LegionAccent.fromPowerModeValue(mode)?.color ??
+        Theme.of(context).colorScheme.primary;
 
-    return SurfaceCard(
-      color: selected
-          ? Color.alphaBlend(
-              dotColor.withValues(alpha: 0.13),
-              scheme.surfaceContainerHigh,
-            )
-          : null,
-      border: selected ? Border.all(color: dotColor, width: 2) : null,
-      padding: EdgeInsets.zero,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(kYaruContainerRadius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 11,
-                  height: 11,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Text(
-                  modeLabel(mode),
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ],
-            ),
-          ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
         ),
-      ),
+        const SizedBox(width: 8),
+        Text(modeLabel(mode)),
+      ],
     );
   }
 }

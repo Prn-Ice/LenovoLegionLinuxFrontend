@@ -9,10 +9,12 @@ import '../repository/power_repository.dart';
 final powerRepositoryProvider = Provider<PowerRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
   final bridgeService = ref.watch(legionBridgeServiceProvider);
+  final powerProfileService = ref.watch(powerProfileServiceProvider);
 
   return PowerRepository(
     sysfsService: sysfsService,
     bridgeService: bridgeService,
+    powerProfileService: powerProfileService,
   );
 });
 
