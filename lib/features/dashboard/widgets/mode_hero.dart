@@ -23,25 +23,6 @@ String modeLabel(String? mode) {
   return LegionAccent.fromPowerModeValue(value)?.label ?? humanizeMode(value);
 }
 
-String modeSummary(String? mode) {
-  switch (mode?.trim()) {
-    case 'quiet':
-    case 'low-power':
-      return 'Silent and cool';
-    case 'balanced':
-      return 'Smart middle';
-    case 'performance':
-      return 'Full power';
-    case 'max-power':
-      return 'Maximum power';
-    case 'balanced-performance':
-    case 'custom':
-      return 'Your tune';
-    default:
-      return 'System profile';
-  }
-}
-
 String modeDescription(String? mode) {
   switch (mode?.trim()) {
     case 'quiet':
@@ -104,7 +85,9 @@ class ModeHero extends StatelessWidget {
         else
           LayoutBuilder(
             builder: (context, constraints) {
-              final maxColumns = constraints.maxWidth >= 760
+              final maxColumns = constraints.maxWidth >= 960
+                  ? 5
+                  : constraints.maxWidth >= 760
                   ? 4
                   : constraints.maxWidth >= 420
                   ? 2
@@ -218,35 +201,22 @@ class _ModeCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(kYaruContainerRadius),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 11,
-                        height: 11,
-                        decoration: BoxDecoration(
-                          color: dotColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Text(
-                          modeLabel(mode),
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ),
-                    ],
+                  Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: dotColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    modeSummary(mode),
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurface.withValues(alpha: 0.56),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      modeLabel(mode),
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
                 ],

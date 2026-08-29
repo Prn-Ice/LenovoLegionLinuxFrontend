@@ -46,7 +46,7 @@ void main() {
     );
 
     expect(find.textContaining('Quiet'), findsWidgets);
-    expect(find.text('Silent and cool'), findsOneWidget);
+    expect(find.text('Keeps heat, noise, and power use low.'), findsOneWidget);
   });
 
   testWidgets('shows a message when there are no writable modes', (

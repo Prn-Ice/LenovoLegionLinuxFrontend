@@ -30,6 +30,7 @@ void main() {
     expect(find.text('Balanced'), findsWidgets);
     expect(find.text('Performance'), findsOneWidget);
     expect(find.text('Custom'), findsOneWidget);
+    expect(find.text('Silent and cool'), findsNothing);
     expect(find.byKey(const ValueKey('power-limits-card')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('power-limit-slider-cpu_longterm')),
@@ -51,6 +52,10 @@ void main() {
     await _pumpPage(tester, width: 1100, dark: true);
 
     expect(tester.takeException(), isNull);
+    expect(
+      tester.getTopLeft(find.text('Quiet')).dy,
+      tester.getTopLeft(find.text('Custom')).dy,
+    );
     expect(
       find.text('Quick when you need it, calm when you do not.'),
       findsOneWidget,
