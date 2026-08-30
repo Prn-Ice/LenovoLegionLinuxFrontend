@@ -235,10 +235,18 @@ This prevents multiple polkit dialogs appearing simultaneously.
 | Code | Cause | UI message |
 |---|---|---|
 | `permissionDenied` | pkexec exit 126, polkit rejection, "authentication cancelled" | Approve the polkit prompt |
+| `privilegeSetup` | `pkexec` cannot start with effective root privileges | Explain the platform setup; provide copyable NixOS configuration |
 | `unavailable` | pkexec exit 127, "not supported", command not found | Verify legion_cli is installed |
 | `busy` | Duplicate action in flight | Wait and retry |
 | `timeout` | Command took longer than the timeout | Retry; check system load |
 | `commandFailed` | Non-zero exit, unclassified | Shows stderr |
+
+Feature views pass `errorMessage` to `AppPageBody`, which presents failures in a
+shared modal dialog without shifting page content. Known failures add structured
+recovery guidance; generic failures preserve selectable technical details.
+Routine success notices are not rendered globally. See the
+[Error and Feedback Standard](../error-and-feedback-standard.md) for the message
+hierarchy, copy behavior, platform guidance, and verification requirements.
 
 ---
 

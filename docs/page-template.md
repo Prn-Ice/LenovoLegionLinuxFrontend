@@ -22,7 +22,6 @@ class PowerPage extends ConsumerWidget {
     final sensors = ref.watch(liveSensorBlocProvider);   // compose as needed
     return AppPageBody(
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [ /* cards */ ],
     );
   }
@@ -38,6 +37,10 @@ class PowerPage extends ConsumerWidget {
   [navigation_shell.dart](../lib/features/navigation/view/navigation_shell.dart).
 - **Refresh lives in the title bar**, not the content. Add it per-section via
   `_titleBarActions` in the shell (`YaruWindowTitleBar.actions`).
+- **Errors use the shared modal dialog.** Pass `errorMessage` to `AppPageBody`;
+  never add a snackbar, floating banner, or toast. Routine success is reflected
+  by the updated control state rather than a global notice. Follow the
+  [Error and Feedback Standard](error-and-feedback-standard.md).
 
 ## 2. Cards & layout
 
@@ -218,6 +221,10 @@ commands extend
 - UI preflight checks are not a security boundary. The privileged backend must
   atomically revalidate mutable targets immediately before acting; disabling a
   button or refreshing a process list only improves the frontend flow.
+- A failed privileged action follows the
+  [Error and Feedback Standard](error-and-feedback-standard.md): explain what
+  failed, whether anything changed, why it failed when classified, and how to
+  recover. Keep raw tool output selectable under technical details.
 
 ## 8. Shell & platform
 

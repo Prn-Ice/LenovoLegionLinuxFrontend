@@ -2,6 +2,12 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+## UI Standards
+
+Follow [`docs/page-template.md`](docs/page-template.md) for page work. Errors,
+recovery guidance, copy feedback, and success notifications must follow
+[`docs/error-and-feedback-standard.md`](docs/error-and-feedback-standard.md).
+
 ## Quick Reference
 
 ```bash
@@ -37,4 +43,3 @@ bd sync               # Sync with git
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
-
