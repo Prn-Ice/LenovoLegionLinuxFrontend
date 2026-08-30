@@ -5,6 +5,7 @@ import 'package:legion_frontend/features/analytics/bloc/analytics_bloc.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/analytics/providers/analytics_provider.dart';
 import 'package:legion_frontend/features/analytics/repository/analytics_repository.dart';
+import 'package:legion_frontend/features/analytics/view/widgets/telemetry_history_card.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
@@ -44,9 +45,21 @@ void main() {
     expect(find.text('P2'), findsOneWidget);
     expect(find.text('Usage %'), findsOneWidget);
     expect(find.text('GPU working mode'), findsOneWidget);
-    expect(find.text('Hybrid (iGPU + dGPU)'), findsOneWidget);
+    expect(find.text('Hybrid graphics'), findsOneWidget);
     expect(find.text('Processes on the dGPU'), findsOneWidget);
     expect(find.text('Discrete GPU'), findsNothing);
+    expect(find.byKey(const ValueKey('gpu-vendor-nvidia')), findsOneWidget);
+    expect(
+      tester
+          .widget<TelemetryHistoryCard>(find.byType(TelemetryHistoryCard))
+          .accentColor,
+      const Color(0xFF3A9D4F),
+    );
+    for (final toggle in tester.widgetList<YaruSwitch>(
+      find.byType(YaruSwitch),
+    )) {
+      expect(toggle.selectedColor, const Color(0xFF3A9D4F));
+    }
     expect(find.text('No process targets'), findsOneWidget);
     final killButton = tester.widget<OutlinedButton>(
       find.ancestor(
@@ -60,6 +73,26 @@ void main() {
       findsNWidgets(2),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GPU identity uses the reported vendor mark', (tester) async {
+    for (final vendor in const {
+      'AMD Radeon RX 7600S': 'amd',
+      'Intel Arc A770M': 'intel',
+    }.entries) {
+      await _pumpPage(
+        tester,
+        width: 360,
+        processes: const [],
+        gpuName: vendor.key,
+      );
+
+      expect(
+        find.byKey(ValueKey('gpu-vendor-${vendor.value}')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('process confirmation names confirmed PIDs', (tester) async {
@@ -109,6 +142,7 @@ Future<void> _pumpPage(
   WidgetTester tester, {
   required double width,
   required List<DgpuProcess> processes,
+  String gpuName = 'NVIDIA GeForce RTX 4060',
 }) async {
   tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 1;
@@ -139,7 +173,7 @@ Future<void> _pumpPage(
   final sensorRepository = _MockLiveSensorRepository();
   when(
     sensorRepository.loadSnapshot,
-  ).thenAnswer((_) async => _liveSensorSnapshot);
+  ).thenAnswer((_) async => _liveSensorSnapshot(gpuName));
   final sensorBloc = LiveSensorBloc(
     repository: sensorRepository,
     pollInterval: const Duration(days: 1),
@@ -187,6 +221,7 @@ Future<void> _pumpPage(
 
   await tester.pumpWidget(
     ProviderScope(
+      key: UniqueKey(),
       overrides: [
         dgpuBlocProvider.overrideWith((ref) => dgpuBloc),
         liveSensorBlocProvider.overrideWith((ref) => sensorBloc),
@@ -207,7 +242,7 @@ Future<void> _pumpPage(
   await tester.pumpAndSettle();
 }
 
-const _liveSensorSnapshot = LiveSensorSnapshot(
+LiveSensorSnapshot _liveSensorSnapshot(String gpuName) => LiveSensorSnapshot(
   cpuName: 'Test CPU',
   cpuTempC: 62,
   cpuUtilPercent: 18,
@@ -215,7 +250,7 @@ const _liveSensorSnapshot = LiveSensorSnapshot(
   cpuPackagePowerW: 24,
   fan1Rpm: null,
   fan2Rpm: null,
-  gpuName: 'NVIDIA GeForce RTX 4060',
+  gpuName: gpuName,
   gpuTempC: 64,
   gpuUtilPercent: 42,
   gpuClockGhz: 1.8,

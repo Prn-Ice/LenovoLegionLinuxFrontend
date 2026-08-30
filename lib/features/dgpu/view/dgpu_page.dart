@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -46,6 +48,9 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final powerState = ref.watch(powerBlocProvider);
     final bloc = ref.read(dgpuBlocProvider.bloc);
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
+    final accent =
+        LegionAccent.fromPowerModeValue(powerState.currentMode?.value)?.color ??
+        Theme.of(context).colorScheme.primary;
 
     if (!state.hasLoaded || (state.isAvailable && sensorState.isLoading)) {
       return const Center(child: YaruCircularProgressIndicator());
@@ -81,7 +86,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             history: analytics.history,
             window: analytics.window,
             isCollecting: analytics.isCollecting,
-            accentColor: const Color(0xff2F9BFF),
+            accentColor: accent,
             onWindowChanged: analyticsBloc.add,
             options: const [
               TelemetrySeriesOption(
@@ -128,6 +133,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                     width: width,
                     child: _WorkingModeCard(
                       state: state,
+                      accent: accent,
                       isOverclockEnabled: powerState.gpuOverclockEnabled,
                       isPowerApplying: powerState.isApplying,
                       onOverclockChanged: (enabled) =>
@@ -243,12 +249,12 @@ class _GpuOverview extends StatelessWidget {
             children: [
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xff2F9BFF).withValues(alpha: 0.16),
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(11),
-                  child: Icon(Icons.memory, size: 20, color: Color(0xff2F9BFF)),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: _GpuVendorMark(name: name),
                 ),
               ),
               const SizedBox(width: 13),
@@ -372,6 +378,41 @@ class _RuntimeBadge extends StatelessWidget {
   }
 }
 
+class _GpuVendorMark extends StatelessWidget {
+  const _GpuVendorMark({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = name.toLowerCase();
+    final vendor = normalized.contains('nvidia')
+        ? 'nvidia'
+        : normalized.contains('amd') || normalized.contains('radeon')
+        ? 'amd'
+        : normalized.contains('intel') || normalized.contains('arc')
+        ? 'intel'
+        : null;
+
+    if (vendor == null) {
+      return Icon(
+        Icons.memory,
+        key: const ValueKey('gpu-vendor-unknown'),
+        size: 24,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      );
+    }
+
+    return SvgPicture.asset(
+      'assets/gpu_vendors/$vendor.svg',
+      key: ValueKey('gpu-vendor-$vendor'),
+      width: 24,
+      height: 24,
+      semanticsLabel: '${vendor.toUpperCase()} GPU',
+    );
+  }
+}
+
 class _GpuMetric extends StatelessWidget {
   const _GpuMetric({required this.value, required this.label});
 
@@ -490,6 +531,7 @@ class _ProcessesCard extends StatelessWidget {
 class _WorkingModeCard extends StatelessWidget {
   const _WorkingModeCard({
     required this.state,
+    required this.accent,
     required this.isOverclockEnabled,
     required this.isPowerApplying,
     required this.onOverclockChanged,
@@ -497,6 +539,7 @@ class _WorkingModeCard extends StatelessWidget {
   });
 
   final DgpuState state;
+  final Color accent;
   final bool? isOverclockEnabled;
   final bool isPowerApplying;
   final ValueChanged<bool> onOverclockChanged;
@@ -504,7 +547,6 @@ class _WorkingModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Column(
@@ -520,29 +562,18 @@ class _WorkingModeCard extends StatelessWidget {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: const Color(0xffB89A6A).withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  child: Text(
-                    'reboot to change',
-                    style: TextStyle(color: Color(0xffB89A6A), fontSize: 11),
-                  ),
+              Text(
+                state.hybridModeEnabled == true
+                    ? 'Hybrid graphics'
+                    : state.hybridModeEnabled == false
+                    ? 'Discrete only'
+                    : 'Unavailable',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: accent,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            state.hybridModeEnabled == true
-                ? 'Hybrid (iGPU + dGPU)'
-                : state.hybridModeEnabled == false
-                ? 'Discrete GPU only'
-                : 'Graphics mode unavailable',
-            style: TextStyle(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
           const Divider(height: 1),
@@ -553,8 +584,9 @@ class _WorkingModeCard extends StatelessWidget {
                 : null,
             title: 'Hybrid mode',
             subtitle: state.hybridModeSupported
-                ? 'Power down the dGPU automatically when idle'
+                ? 'Uses the iGPU when possible; changing this requires a reboot'
                 : 'Not supported on this device',
+            accent: accent,
           ),
           const Divider(height: 1),
           _DgpuSwitchRow(
@@ -566,6 +598,7 @@ class _WorkingModeCard extends StatelessWidget {
             subtitle: isOverclockEnabled == null
                 ? 'Not supported on this device'
                 : boolEnabledLabel(isOverclockEnabled),
+            accent: accent,
           ),
         ],
       ),
@@ -579,12 +612,14 @@ class _DgpuSwitchRow extends StatelessWidget {
     required this.onChanged,
     required this.title,
     required this.subtitle,
+    required this.accent,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
   final String title;
   final String subtitle;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -606,11 +641,7 @@ class _DgpuSwitchRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        YaruSwitch(
-          value: value,
-          selectedColor: const Color(0xff2F9BFF),
-          onChanged: onChanged,
-        ),
+        YaruSwitch(value: value, selectedColor: accent, onChanged: onChanged),
       ],
     ),
   );
@@ -636,22 +667,37 @@ class _DeactivateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Deactivate dGPU',
+            'Reset discrete GPU',
             style: Theme.of(
               context,
             ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(
-            'Stop confirmed compute processes, then restart the GPU PCI device '
-            'so it can return to its low-power state.',
+            'Close GPU workloads, then restart the PCI device to recover from '
+            'a stuck active state.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 12),
-          const PrivilegedActionNotice(
-            message: 'Save your work · admin privileges required',
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                Icons.admin_panel_settings_outlined,
+                size: 16,
+                color: scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Save your work. Admin authentication is required.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           Wrap(
