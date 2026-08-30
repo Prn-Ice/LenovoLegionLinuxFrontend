@@ -37,7 +37,7 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
     final bloc = ref.read(batteryBlocProvider.bloc);
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
 
-    if (state.isLoading && !state.hasLoaded) {
+    if (!state.hasLoaded && state.errorMessage == null) {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
@@ -45,7 +45,6 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
     final accent = const Color(0xff3A9D4F);
 
     return AppPageBody(
-      title: 'Battery & energy',
       errorMessage: state.errorMessage ?? analytics.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
@@ -54,6 +53,7 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
         _HistoryCollectionCard(
           isCollecting: analytics.isCollecting,
           history: analytics.history,
+          accent: accent,
           onCollectionChanged: (enabled) =>
               analyticsBloc.add(AnalyticsCollectionSetRequested(enabled)),
         ),
@@ -73,14 +73,20 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
               valueOf: _batteryPercent,
             ),
             TelemetrySeriesOption(
-              label: 'Energy use',
+              label: 'Battery power',
               unit: 'W',
               valueOf: _batteryPower,
+              description:
+                  'Battery-side charge/discharge power reported by the pack, '
+                  'not CPU package or wall power. Positive values discharge; '
+                  'negative values charge.',
             ),
             TelemetrySeriesOption(
               label: 'Temperature',
               unit: '°C',
               valueOf: _batteryTemperature,
+              unavailableMessage:
+                  'Battery temperature is not exposed by the battery driver.',
             ),
           ],
         ),
@@ -108,13 +114,6 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
         ),
         const SizedBox(height: 16),
         _BatteryControls(state: state, bloc: bloc),
-        const SizedBox(height: 16),
-        AppRefreshButton(
-          isBusy: state.isLoading,
-          onPressed: state.isApplying
-              ? null
-              : () => bloc.add(const BatteryRefreshRequested()),
-        ),
       ],
     );
   }
@@ -196,7 +195,7 @@ class _BatteryOverview extends StatelessWidget {
           ),
           _OverviewMetric(
             value: state.batteryTempC == null
-                ? '—'
+                ? 'N/A'
                 : '${state.batteryTempC!.toStringAsFixed(1)}°',
             label: 'Temperature',
           ),
@@ -238,11 +237,13 @@ class _HistoryCollectionCard extends StatelessWidget {
   const _HistoryCollectionCard({
     required this.isCollecting,
     required this.history,
+    required this.accent,
     required this.onCollectionChanged,
   });
 
   final bool isCollecting;
   final List<SensorRecord> history;
+  final Color accent;
   final ValueChanged<bool> onCollectionChanged;
 
   @override
@@ -298,7 +299,11 @@ class _HistoryCollectionCard extends StatelessWidget {
                 child: const Text('Export logs'),
               ),
               const SizedBox(width: 10),
-              Switch(value: isCollecting, onChanged: onCollectionChanged),
+              YaruSwitch(
+                value: isCollecting,
+                selectedColor: accent,
+                onChanged: onCollectionChanged,
+              ),
             ],
           );
           return constraints.maxWidth < 560
@@ -380,8 +385,16 @@ class _EnergyDetails extends StatelessWidget {
     title: 'Energy',
     rows: [
       ('Voltage', _measurement(state.voltageV, 'V', 2)),
-      ('Battery temperature', _measurement(state.batteryTempC, '°C', 1)),
-      ('Power rate', _measurement(state.batteryPowerDrawW?.abs(), 'W', 2)),
+      (
+        'Battery temperature',
+        state.batteryTempC == null
+            ? 'Not exposed by battery driver'
+            : _measurement(state.batteryTempC, '°C', 1),
+      ),
+      (
+        _batteryRateLabel(state),
+        _measurement(state.batteryPowerDrawW?.abs(), 'W', 2),
+      ),
       ('Remaining energy', _measurement(state.currentCapacityWh, 'Wh', 2)),
       ('Last full charge', _measurement(state.fullCapacityWh, 'Wh', 2)),
       ('Design capacity', _measurement(state.designCapacityWh, 'Wh', 2)),
@@ -501,10 +514,10 @@ class _BatteryControls extends StatelessWidget {
                 icon: Icons.usb,
                 title: 'Always-on USB',
                 subtitle: state.alwaysOnUsbEnabled == null
-                    ? 'State unavailable on this device'
+                    ? 'Not exposed by this system'
                     : state.alwaysOnUsbSupported
                     ? 'Charge devices while asleep'
-                    : 'Read-only until backend write support is available',
+                    : 'Charge devices while asleep · read-only',
                 value: state.alwaysOnUsbEnabled ?? false,
                 onChanged: state.alwaysOnUsbSupported && !state.isApplying
                     ? (enabled) => bloc.add(AlwaysOnUsbSetRequested(enabled))
@@ -572,7 +585,11 @@ class _ControlTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Switch(value: value, onChanged: onChanged),
+          YaruSwitch(
+            value: value,
+            selectedColor: const Color(0xff3A9D4F),
+            onChanged: onChanged,
+          ),
         ],
       ),
     );
@@ -581,8 +598,14 @@ class _ControlTile extends StatelessWidget {
 
 double? _batteryPercent(SensorRecord record) =>
     record.batteryPercent?.toDouble();
-double? _batteryPower(SensorRecord record) => record.batteryPowerDrawW?.abs();
+double? _batteryPower(SensorRecord record) => record.batteryPowerDrawW;
 double? _batteryTemperature(SensorRecord record) => record.batteryTempC;
+
+String _batteryRateLabel(BatteryState state) => switch (state.batteryCharging) {
+  true => 'Charge rate',
+  false => 'Discharge rate',
+  null => 'Battery power',
+};
 
 double? _batteryHealth(BatteryState state) {
   final full = state.fullCapacityWh;
@@ -594,8 +617,7 @@ double? _batteryHealth(BatteryState state) {
 String _statusDescription(BatteryState state) {
   if (state.batteryStatus == null) return 'Battery status is unavailable.';
   final status = state.batteryStatus!.toLowerCase();
-  if (status == 'not charging' &&
-      state.batteryConservationEnabled == true) {
+  if (status == 'not charging' && state.batteryConservationEnabled == true) {
     return 'Holding charge with battery health protection on.';
   }
   if (status == 'not charging') return 'The battery is not charging.';

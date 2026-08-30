@@ -44,13 +44,13 @@ void main() {
     await hiveDir.delete(recursive: true);
   });
 
-  testWidgets('renders navigation shell and dashboard actions', (tester) async {
+  testWidgets('renders navigation shell and core sections', (tester) async {
     await tester.pumpWidget(_testApp());
     // Pump once so post-frame callbacks (e.g. sensor bloc start) run.
     await tester.pump(Duration.zero);
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('Power'), findsWidgets);
-    expect(find.text('Rapid charge'), findsOneWidget);
     expect(find.text('Battery'), findsWidgets);
   });
 

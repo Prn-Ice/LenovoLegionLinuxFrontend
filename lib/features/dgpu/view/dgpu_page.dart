@@ -47,13 +47,15 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final bloc = ref.read(dgpuBlocProvider.bloc);
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
 
-    if (state.isLoading && !state.isAvailable) {
+    if (!state.hasLoaded || (state.isAvailable && sensorState.isLoading)) {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
     return AppPageBody(
-      title: 'Discrete GPU',
-      errorMessage: state.errorMessage ?? analytics.errorMessage,
+      errorMessage:
+          state.errorMessage ??
+          sensorState.errorMessage ??
+          analytics.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
         if (!state.isAvailable)
@@ -73,19 +75,14 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             ],
           )
         else ...[
-          _GpuOverview(
-            state: state,
-            sensor: sensorState.snapshot,
-            onRefresh: state.isApplying
-                ? null
-                : () => bloc.add(const DgpuRefreshRequested()),
-          ),
+          _GpuOverview(state: state, sensor: sensorState.snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
             history: analytics.history,
             window: analytics.window,
             isCollecting: analytics.isCollecting,
             accentColor: const Color(0xff2F9BFF),
+            filledSelection: true,
             onWindowChanged: analyticsBloc.add,
             options: const [
               TelemetrySeriesOption(
@@ -122,6 +119,14 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                 children: [
                   SizedBox(
                     width: width,
+                    child: _DeactivateCard(
+                      state: state,
+                      onKill: () => _killProcesses(context, bloc, state),
+                      onRestart: () => _restartPci(context, bloc, state),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
                     child: _WorkingModeCard(
                       state: state,
                       isOverclockEnabled: powerState.gpuOverclockEnabled,
@@ -130,14 +135,6 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                           _setOverclock(context, enabled),
                       onHybridChanged: (enabled) =>
                           _setHybridMode(context, bloc, state, enabled),
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _DeactivateCard(
-                      state: state,
-                      onKill: () => _killProcesses(context, bloc, state),
-                      onRestart: () => _restartPci(context, bloc, state),
                     ),
                   ),
                 ],
@@ -226,15 +223,10 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
 }
 
 class _GpuOverview extends StatelessWidget {
-  const _GpuOverview({
-    required this.state,
-    required this.sensor,
-    required this.onRefresh,
-  });
+  const _GpuOverview({required this.state, required this.sensor});
 
   final DgpuState state;
   final LiveSensorSnapshot sensor;
-  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -274,7 +266,7 @@ class _GpuOverview extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${state.pciAddress ?? 'PCI address unavailable'} · '
+                      'Discrete GPU · '
                       '${state.hybridModeEnabled == true
                           ? 'Hybrid mode on'
                           : state.hybridModeEnabled == false
@@ -289,11 +281,6 @@ class _GpuOverview extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               _RuntimeBadge(isActive: state.isActive),
-              IconButton(
-                tooltip: 'Refresh GPU status',
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh),
-              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -324,12 +311,6 @@ class _GpuOverview extends StatelessWidget {
                     ? _vramLabel(sensor.gpuVramUsedGb, sensor.gpuVramTotalGb)
                     : '—',
                 label: 'VRAM',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _measurement(sensor.gpuUtilPercent, '%', 0)
-                    : '—',
-                label: 'Usage',
               ),
             ],
           ),
@@ -439,16 +420,16 @@ class _ProcessesCard extends StatelessWidget {
             alignment: WrapAlignment.spaceBetween,
             children: [
               Text(
-                'Processes',
+                'Processes on the dGPU',
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                '${processes.length} compute ${processes.length == 1 ? 'process' : 'processes'}',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                '${processes.length} running',
+                style: monoFactStyle(
+                  scheme,
+                ).copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
             ],
           ),
@@ -464,7 +445,36 @@ class _ProcessesCard extends StatelessWidget {
               ),
             )
           else
-            _ProcessTable(processes: processes),
+            for (final process in processes) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        process.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'PID ${process.pid}',
+                      style: monoFactStyle(
+                        scheme,
+                      ).copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      _memoryLabel(process.usedMemoryMib),
+                      style: monoFactStyle(scheme),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           const SizedBox(height: 8),
           Text(
             'Display server processes may not appear in this list.',
@@ -495,36 +505,116 @@ class _WorkingModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppControlCard(
-      icon: Icons.tune,
-      title: 'Working mode',
-      description: 'Graphics mode changes take full effect after a reboot.',
-      children: [
-        const PrivilegedActionNotice(),
-        const SizedBox(height: 8),
-        AppSwitchTile(
-          value: state.hybridModeEnabled ?? false,
-          onChanged: state.hybridModeSupported && !state.isApplying
-              ? onHybridChanged
-              : null,
-          title: 'Hybrid mode',
-          subtitle: state.hybridModeSupported
-              ? boolEnabledLabel(state.hybridModeEnabled)
-              : 'Not supported on this device',
-        ),
-        AppSwitchTile(
-          value: isOverclockEnabled ?? false,
-          onChanged: isOverclockEnabled != null && !isPowerApplying
-              ? onOverclockChanged
-              : null,
-          title: 'GPU overclock',
-          subtitle: isOverclockEnabled == null
-              ? 'Not supported on this device'
-              : boolEnabledLabel(isOverclockEnabled),
-        ),
-      ],
+    final scheme = Theme.of(context).colorScheme;
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'GPU working mode',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xffB89A6A).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  child: Text(
+                    'reboot to change',
+                    style: TextStyle(color: Color(0xffB89A6A), fontSize: 11),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            state.hybridModeEnabled == true
+                ? 'Hybrid (iGPU + dGPU)'
+                : state.hybridModeEnabled == false
+                ? 'Discrete GPU only'
+                : 'Graphics mode unavailable',
+            style: TextStyle(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          _DgpuSwitchRow(
+            value: state.hybridModeEnabled ?? false,
+            onChanged: state.hybridModeSupported && !state.isApplying
+                ? onHybridChanged
+                : null,
+            title: 'Hybrid mode',
+            subtitle: state.hybridModeSupported
+                ? 'Power down the dGPU automatically when idle'
+                : 'Not supported on this device',
+          ),
+          const Divider(height: 1),
+          _DgpuSwitchRow(
+            value: isOverclockEnabled ?? false,
+            onChanged: isOverclockEnabled != null && !isPowerApplying
+                ? onOverclockChanged
+                : null,
+            title: 'GPU overclock',
+            subtitle: isOverclockEnabled == null
+                ? 'Not supported on this device'
+                : boolEnabledLabel(isOverclockEnabled),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _DgpuSwitchRow extends StatelessWidget {
+  const _DgpuSwitchRow({
+    required this.value,
+    required this.onChanged,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 11),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        YaruSwitch(
+          value: value,
+          selectedColor: const Color(0xff2F9BFF),
+          onChanged: onChanged,
+        ),
+      ],
+    ),
+  );
 }
 
 class _DeactivateCard extends StatelessWidget {
@@ -541,88 +631,70 @@ class _DeactivateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AppControlCard(
-      icon: Icons.power_settings_new,
-      title: 'Deactivate & restart',
-      description:
-          'Stop confirmed compute processes before restarting the GPU PCI device.',
-      children: [
-        const PrivilegedActionNotice(),
-        const SizedBox(height: 10),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.errorContainer.withValues(alpha: 0.45),
-            borderRadius: BorderRadius.circular(10),
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Deactivate dGPU',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              'These actions can terminate applications or temporarily remove '
-              'the GPU. Save your work before continuing.',
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
+          const SizedBox(height: 6),
+          Text(
+            'Stop confirmed compute processes, then restart the GPU PCI device '
+            'so it can return to its low-power state.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            FilledButton.icon(
-              onPressed: state.isApplying || state.processes.isEmpty
-                  ? null
-                  : onKill,
-              icon: const Icon(Icons.close, size: 17),
-              label: Text(
-                state.processes.isEmpty
-                    ? 'No process targets'
-                    : 'Kill ${state.processes.length} processes',
+          const SizedBox(height: 12),
+          const PrivilegedActionNotice(
+            message: 'Save your work · admin privileges required',
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  side: BorderSide(color: scheme.error.withValues(alpha: 0.65)),
+                ),
+                onPressed: state.isApplying || state.processes.isEmpty
+                    ? null
+                    : onKill,
+                icon: const Icon(Icons.close, size: 17),
+                label: Text(
+                  state.processes.isEmpty
+                      ? 'No process targets'
+                      : 'Kill ${state.processes.length} processes',
+                ),
               ),
-            ),
-            OutlinedButton.icon(
-              onPressed:
-                  state.isApplying ||
-                      state.pciAddress == null ||
-                      state.processes.isNotEmpty
-                  ? null
-                  : onRestart,
-              icon: const Icon(Icons.restart_alt, size: 17),
-              label: const Text('Restart PCI device'),
+              OutlinedButton.icon(
+                onPressed:
+                    state.isApplying ||
+                        state.pciAddress == null ||
+                        state.processes.isNotEmpty
+                    ? null
+                    : onRestart,
+                icon: const Icon(Icons.restart_alt, size: 17),
+                label: const Text('Restart PCI device'),
+              ),
+            ],
+          ),
+          if (state.processes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Restart becomes available after the process list is clear.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ProcessTable extends StatelessWidget {
-  const _ProcessTable({required this.processes});
-
-  final List<DgpuProcess> processes;
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowHeight: 36,
-        dataRowMinHeight: 34,
-        dataRowMaxHeight: 40,
-        columns: const [
-          DataColumn(label: Text('PID')),
-          DataColumn(label: Text('Process')),
-          DataColumn(label: Text('GPU memory'), numeric: true),
-        ],
-        rows: [
-          for (final process in processes)
-            DataRow(
-              cells: [
-                DataCell(Text('${process.pid}')),
-                DataCell(Text(process.name)),
-                DataCell(Text('${process.usedMemoryMib} MiB')),
-              ],
-            ),
         ],
       ),
     );
@@ -640,3 +712,7 @@ String _vramLabel(double? used, double? total) {
   if (used == null || total == null) return '—';
   return '${used.toStringAsFixed(1)} / ${total.toStringAsFixed(1)} GB';
 }
+
+String _memoryLabel(int memoryMib) => memoryMib >= 1024
+    ? '${(memoryMib / 1024).toStringAsFixed(1)} GB'
+    : '$memoryMib MiB';

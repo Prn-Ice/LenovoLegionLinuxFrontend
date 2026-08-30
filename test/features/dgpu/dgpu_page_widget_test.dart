@@ -43,15 +43,22 @@ void main() {
     expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
     expect(find.text('P2'), findsOneWidget);
     expect(find.text('Usage %'), findsOneWidget);
-    expect(find.text('Working mode'), findsOneWidget);
+    expect(find.text('GPU working mode'), findsOneWidget);
+    expect(find.text('Hybrid (iGPU + dGPU)'), findsOneWidget);
+    expect(find.text('Processes on the dGPU'), findsOneWidget);
+    expect(find.text('Discrete GPU'), findsNothing);
     expect(find.text('No process targets'), findsOneWidget);
-    final killButton = tester.widget<FilledButton>(
+    final killButton = tester.widget<OutlinedButton>(
       find.ancestor(
         of: find.text('No process targets'),
-        matching: find.byType(FilledButton),
+        matching: find.byType(OutlinedButton),
       ),
     );
     expect(killButton.onPressed, isNull);
+    expect(
+      find.byWidgetPredicate((widget) => widget is YaruPopupMenuButton),
+      findsNWidgets(2),
+    );
     expect(tester.takeException(), isNull);
   });
 

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../../core/widgets/surface_card.dart';
 import '../../bloc/analytics_event.dart';
@@ -13,6 +14,8 @@ class TelemetrySeriesOption {
     required this.unit,
     this.minimumY,
     this.maximumY,
+    this.description,
+    this.unavailableMessage,
   });
 
   final String label;
@@ -20,6 +23,8 @@ class TelemetrySeriesOption {
   final String unit;
   final double? minimumY;
   final double? maximumY;
+  final String? description;
+  final String? unavailableMessage;
 }
 
 class TelemetryHistoryCard extends StatefulWidget {
@@ -31,6 +36,7 @@ class TelemetryHistoryCard extends StatefulWidget {
     required this.onWindowChanged,
     required this.isCollecting,
     required this.accentColor,
+    this.filledSelection = false,
   });
 
   final List<SensorRecord> history;
@@ -39,6 +45,7 @@ class TelemetryHistoryCard extends StatefulWidget {
   final ValueChanged<AnalyticsWindowChanged> onWindowChanged;
   final bool isCollecting;
   final Color accentColor;
+  final bool filledSelection;
 
   @override
   State<TelemetryHistoryCard> createState() => _TelemetryHistoryCardState();
@@ -71,24 +78,14 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                   options: widget.options,
                   selectedIndex: _selectedIndex,
                   compact: constraints.maxWidth < 560,
+                  accentColor: widget.accentColor,
+                  filledSelection: widget.filledSelection,
                   onSelected: (index) => setState(() => _selectedIndex = index),
                 ),
-                DropdownButton<AnalyticsTimeWindow>(
-                  value: widget.window,
-                  underline: const SizedBox.shrink(),
-                  borderRadius: BorderRadius.circular(10),
-                  items: [
-                    for (final window in AnalyticsTimeWindow.values)
-                      DropdownMenuItem(
-                        value: window,
-                        child: Text('Last ${window.label}'),
-                      ),
-                  ],
-                  onChanged: (window) {
-                    if (window != null) {
-                      widget.onWindowChanged(AnalyticsWindowChanged(window));
-                    }
-                  },
+                _TimeWindowPicker(
+                  window: widget.window,
+                  onSelected: (window) =>
+                      widget.onWindowChanged(AnalyticsWindowChanged(window)),
                 ),
               ];
               return constraints.maxWidth < 560
@@ -109,6 +106,15 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                     );
             },
           ),
+          if (option.description != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              option.description!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
           const SizedBox(height: 14),
           SizedBox(
             height: 190,
@@ -116,24 +122,59 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                 ? Center(
                     child: Text(
                       widget.isCollecting
-                          ? 'History will appear after two samples.'
+                          ? option.unavailableMessage ??
+                                'History will appear after two samples.'
                           : 'History collection is paused.',
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
                   )
                 : LineChart(
                     LineChartData(
+                      minX: spots.first.x,
+                      maxX: spots.last.x,
                       minY: option.minimumY ?? _lowerBound(values),
                       maxY: option.maximumY ?? _upperBound(values),
                       lineTouchData: LineTouchData(
+                        getTouchedSpotIndicator: (barData, spotIndexes) => [
+                          for (final _ in spotIndexes)
+                            TouchedSpotIndicatorData(
+                              FlLine(
+                                color: widget.accentColor.withValues(
+                                  alpha: 0.45,
+                                ),
+                                strokeWidth: 1,
+                              ),
+                              FlDotData(
+                                show: true,
+                                getDotPainter: (_, _, _, _) =>
+                                    FlDotCirclePainter(
+                                      radius: 4,
+                                      color: widget.accentColor,
+                                      strokeWidth: 2,
+                                      strokeColor: scheme.surface,
+                                    ),
+                              ),
+                            ),
+                        ],
                         touchTooltipData: LineTouchTooltipData(
-                          getTooltipItems: (spots) => [
-                            for (final spot in spots)
+                          tooltipBorderRadius: BorderRadius.circular(8),
+                          tooltipPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 7,
+                          ),
+                          tooltipMargin: 10,
+                          fitInsideHorizontally: true,
+                          fitInsideVertically: true,
+                          getTooltipColor: (_) => scheme.inverseSurface,
+                          getTooltipItems: (touchedSpots) => [
+                            for (final spot in touchedSpots)
                               LineTooltipItem(
-                                '${spot.y.toStringAsFixed(1)} ${option.unit}',
+                                '${spot.y.toStringAsFixed(1)} ${option.unit}\n'
+                                '${_timeLabel(widget.history[spot.x.round()].timestamp)}',
                                 TextStyle(
                                   color: scheme.onInverseSurface,
                                   fontWeight: FontWeight.w600,
+                                  height: 1.35,
                                 ),
                               ),
                           ],
@@ -146,8 +187,23 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                         rightTitles: const AxisTitles(
                           sideTitles: SideTitles(showTitles: false),
                         ),
-                        bottomTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 24,
+                            interval: _bottomTitleInterval(spots),
+                            getTitlesWidget: (value, meta) => SideTitleWidget(
+                              meta: meta,
+                              child: Text(
+                                _axisTimeLabel(
+                                  widget.history[value.round()].timestamp,
+                                  widget.window,
+                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ),
+                          ),
                         ),
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
@@ -212,6 +268,11 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
     if (sampled.last != spots.last) sampled.add(spots.last);
     return sampled;
   }
+
+  double _bottomTitleInterval(List<FlSpot> spots) {
+    final range = spots.last.x - spots.first.x;
+    return range <= 4 ? 1 : range / 4;
+  }
 }
 
 class _SeriesPicker extends StatelessWidget {
@@ -219,38 +280,142 @@ class _SeriesPicker extends StatelessWidget {
     required this.options,
     required this.selectedIndex,
     required this.compact,
+    required this.accentColor,
+    required this.filledSelection,
     required this.onSelected,
   });
 
   final List<TelemetrySeriesOption> options;
   final int selectedIndex;
   final bool compact;
+  final Color accentColor;
+  final bool filledSelection;
   final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return DropdownButtonFormField<int>(
+      return YaruPopupMenuButton<int>(
         initialValue: selectedIndex,
-        decoration: const InputDecoration(isDense: true),
-        items: [
+        constraints: const BoxConstraints(minWidth: 180),
+        itemBuilder: (context) => [
           for (var index = 0; index < options.length; index++)
-            DropdownMenuItem(value: index, child: Text(options[index].label)),
+            YaruCheckedPopupMenuItem(
+              value: index,
+              checked: index == selectedIndex,
+              child: Text(options[index].label),
+            ),
         ],
-        onChanged: (index) {
-          if (index != null) onSelected(index);
-        },
+        onSelected: onSelected,
+        child: Text(options[selectedIndex].label),
       );
     }
 
-    return SegmentedButton<int>(
-      showSelectedIcon: false,
-      segments: [
-        for (var index = 0; index < options.length; index++)
-          ButtonSegment(value: index, label: Text(options[index].label)),
-      ],
-      selected: {selectedIndex},
-      onSelectionChanged: (selection) => onSelected(selection.first),
+    final scheme = Theme.of(context).colorScheme;
+    final selectedForeground =
+        ThemeData.estimateBrightnessForColor(accentColor) == Brightness.dark
+        ? Colors.white
+        : const Color(0xff102A43);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < options.length; index++)
+              Semantics(
+                selected: index == selectedIndex,
+                button: true,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(7),
+                  onTap: () => onSelected(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 120),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 13,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: index == selectedIndex
+                          ? filledSelection
+                                ? accentColor
+                                : scheme.surface
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(7),
+                      boxShadow: index == selectedIndex && !filledSelection
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      options[index].label,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: index == selectedIndex
+                            ? filledSelection
+                                  ? selectedForeground
+                                  : accentColor
+                            : scheme.onSurfaceVariant,
+                        fontWeight: index == selectedIndex
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
+}
+
+class _TimeWindowPicker extends StatelessWidget {
+  const _TimeWindowPicker({required this.window, required this.onSelected});
+
+  final AnalyticsTimeWindow window;
+  final ValueChanged<AnalyticsTimeWindow> onSelected;
+
+  @override
+  Widget build(BuildContext context) =>
+      YaruPopupMenuButton<AnalyticsTimeWindow>(
+        initialValue: window,
+        constraints: const BoxConstraints(minWidth: 160),
+        itemBuilder: (context) => [
+          for (final value in AnalyticsTimeWindow.values)
+            YaruCheckedPopupMenuItem(
+              value: value,
+              checked: value == window,
+              child: Text(_windowLabel(value)),
+            ),
+        ],
+        onSelected: onSelected,
+        child: Text(_windowLabel(window)),
+      );
+}
+
+String _windowLabel(AnalyticsTimeWindow window) => switch (window) {
+  AnalyticsTimeWindow.lastHour => 'Last hour',
+  AnalyticsTimeWindow.last6h => 'Last 6 hours',
+  AnalyticsTimeWindow.last24h => 'Last 24 hours',
+  AnalyticsTimeWindow.last7d => 'Last 7 days',
+  AnalyticsTimeWindow.last30d => 'Last 30 days',
+};
+
+String _timeLabel(DateTime time) =>
+    '${time.hour.toString().padLeft(2, '0')}:'
+    '${time.minute.toString().padLeft(2, '0')}';
+
+String _axisTimeLabel(DateTime time, AnalyticsTimeWindow window) {
+  if (window.duration <= const Duration(hours: 24)) return _timeLabel(time);
+  return '${time.month}/${time.day}';
 }

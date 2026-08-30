@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,16 +25,26 @@ void main() {
   ) async {
     await _pumpPage(tester, width: 360);
 
-    expect(find.text('Battery & energy'), findsOneWidget);
+    expect(find.text('Battery & energy'), findsNothing);
     expect(find.text('Full'), findsWidgets);
     expect(find.text('Discharging'), findsNothing);
     expect(find.text('Charge %'), findsOneWidget);
     expect(find.text('Export logs'), findsOneWidget);
     expect(find.text('Always-on USB'), findsOneWidget);
     expect(
-      find.text('Read-only until backend write support is available'),
+      find.text('Charge devices while asleep · read-only'),
       findsOneWidget,
     );
+    expect(find.byType(YaruPopupMenuButton<int>), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((widget) => widget is YaruPopupMenuButton),
+      findsNWidgets(2),
+    );
+    for (final widget in tester.widgetList<YaruSwitch>(
+      find.byType(YaruSwitch),
+    )) {
+      expect(widget.selectedColor, const Color(0xff3A9D4F));
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -44,7 +55,31 @@ void main() {
       tester.getTopLeft(find.text('BATTERY')).dy,
       tester.getTopLeft(find.text('ENERGY')).dy,
     );
+    final chart = tester.widget<LineChart>(find.byType(LineChart));
+    expect(
+      chart.data.lineTouchData.touchTooltipData.fitInsideHorizontally,
+      isTrue,
+    );
+    expect(
+      chart.data.lineTouchData.touchTooltipData.fitInsideVertically,
+      isTrue,
+    );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('battery explains telemetry the kernel does not expose', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 1100,
+      snapshot: _snapshotWithoutTemperature,
+      includeTemperature: false,
+    );
+
+    expect(find.text('Not exposed by battery driver'), findsOneWidget);
+    expect(find.text('Battery power'), findsOneWidget);
+    expect(find.byType(SegmentedButton<int>), findsNothing);
   });
 }
 
@@ -52,6 +87,8 @@ Future<void> _pumpPage(
   WidgetTester tester, {
   required double width,
   bool dark = false,
+  BatterySnapshot snapshot = _snapshot,
+  bool includeTemperature = true,
 }) async {
   tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 1;
@@ -59,7 +96,7 @@ Future<void> _pumpPage(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   final batteryRepository = _MockBatteryRepository();
-  when(batteryRepository.loadSnapshot).thenAnswer((_) async => _snapshot);
+  when(batteryRepository.loadSnapshot).thenAnswer((_) async => snapshot);
   final batteryBloc = BatteryBloc(
     repository: batteryRepository,
     pollInterval: const Duration(days: 1),
@@ -75,13 +112,13 @@ Future<void> _pumpPage(
       timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
       batteryPercent: 77,
       batteryPowerDrawW: 12,
-      batteryTempC: 28,
+      batteryTempC: includeTemperature ? 28 : null,
     ),
     SensorRecord(
       timestamp: DateTime.now(),
       batteryPercent: 78,
       batteryPowerDrawW: 0,
-      batteryTempC: 28.2,
+      batteryTempC: includeTemperature ? 28.2 : null,
     ),
   ];
   final analyticsRepository = _MockAnalyticsRepository();
@@ -129,6 +166,28 @@ const _snapshot = BatterySnapshot(
   currentCapacityWh: 44.2,
   batteryTempC: 26.7,
   batteryStatus: 'Full',
+  alwaysOnUsbEnabled: true,
+  alwaysOnUsbSupported: false,
+  voltageV: 17.33,
+  manufacturer: 'SMP',
+  modelName: 'L22M4PC3',
+  serialNumber: '387',
+);
+
+const _snapshotWithoutTemperature = BatterySnapshot(
+  batteryConservationEnabled: true,
+  batteryConservationSupported: true,
+  rapidChargingEnabled: false,
+  rapidChargingSupported: true,
+  batteryPercent: 78,
+  batteryCharging: false,
+  batteryPowerDrawW: 12.4,
+  cycleCounts: 87,
+  fullCapacityWh: 56.82,
+  designCapacityWh: 60,
+  currentCapacityWh: 44.2,
+  batteryTempC: null,
+  batteryStatus: 'Discharging',
   alwaysOnUsbEnabled: true,
   alwaysOnUsbSupported: false,
   voltageV: 17.33,

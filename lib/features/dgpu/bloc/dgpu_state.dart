@@ -9,6 +9,7 @@ class DgpuState extends Equatable {
     required this.pciAddress,
     required this.isLoading,
     required this.isApplying,
+    required this.hasLoaded,
     required this.errorMessage,
     required this.noticeMessage,
     required this.hybridModeEnabled,
@@ -22,6 +23,7 @@ class DgpuState extends Equatable {
     pciAddress: null,
     isLoading: false,
     isApplying: false,
+    hasLoaded: false,
     errorMessage: null,
     noticeMessage: null,
     hybridModeEnabled: null,
@@ -37,6 +39,7 @@ class DgpuState extends Equatable {
   final String? pciAddress;
   final bool isLoading;
   final bool isApplying;
+  final bool hasLoaded;
   final String? errorMessage;
   final String? noticeMessage;
 
@@ -56,6 +59,7 @@ class DgpuState extends Equatable {
     Object? pciAddress = _unset,
     bool? isLoading,
     bool? isApplying,
+    bool? hasLoaded,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
     Object? hybridModeEnabled = _unset,
@@ -70,6 +74,7 @@ class DgpuState extends Equatable {
           : pciAddress as String?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : errorMessage as String?,
@@ -91,6 +96,7 @@ class DgpuState extends Equatable {
     pciAddress,
     isLoading,
     isApplying,
+    hasLoaded,
     errorMessage,
     noticeMessage,
     hybridModeEnabled,

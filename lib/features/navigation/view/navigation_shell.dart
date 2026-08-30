@@ -7,6 +7,7 @@ import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_format.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/bloc/battery_state.dart';
+import '../../battery/bloc/battery_event.dart';
 import '../../battery/providers/battery_provider.dart';
 import '../../battery/view/battery_page.dart';
 import '../../dashboard/bloc/dashboard_event.dart';
@@ -14,6 +15,8 @@ import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/view/dashboard_page.dart';
 import '../../devices/view/devices_page.dart';
 import '../../dgpu/view/dgpu_page.dart';
+import '../../dgpu/bloc/dgpu_event.dart';
+import '../../dgpu/providers/dgpu_provider.dart';
 import '../../diagnostics/view/diagnostics_page.dart';
 import '../../display/view/display_page.dart';
 import '../../fans/view/fans_page.dart';
@@ -79,6 +82,12 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       AppSection.power =>
         () =>
             ref.read(powerBlocProvider.bloc).add(const PowerRefreshRequested()),
+      AppSection.battery =>
+        () => ref
+            .read(batteryBlocProvider.bloc)
+            .add(const BatteryRefreshRequested()),
+      AppSection.dgpu =>
+        () => ref.read(dgpuBlocProvider.bloc).add(const DgpuRefreshRequested()),
       _ => null,
     };
     if (onRefresh == null) return const [];

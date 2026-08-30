@@ -42,6 +42,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final devicesState = ref.watch(devicesBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
+
+    if (!state.hasInitialized || sensorState.isLoading) {
+      return Semantics(
+        label: 'Loading dashboard data',
+        child: const Center(child: YaruCircularProgressIndicator()),
+      );
+    }
+
     final accentObj = LegionAccent.fromPowerModeValue(
       snapshot.status.powerProfile?.trim(),
     );
@@ -52,7 +60,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? sensorState.errorMessage,
       noticeMessage: state.noticeMessage,
       children: [
         ModeHero(

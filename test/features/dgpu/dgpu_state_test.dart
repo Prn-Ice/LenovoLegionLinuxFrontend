@@ -18,6 +18,7 @@ void main() {
       final s = DgpuState.initial();
       expect(s.isLoading, isFalse);
       expect(s.isApplying, isFalse);
+      expect(s.hasLoaded, isFalse);
     });
 
     test('errorMessage and noticeMessage are null', () {

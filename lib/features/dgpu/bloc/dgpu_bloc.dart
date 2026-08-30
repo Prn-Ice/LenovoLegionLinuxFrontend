@@ -133,6 +133,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           pciAddress: snapshot.pciAddress,
           isLoading: false,
           isApplying: false,
+          hasLoaded: true,
           noticeMessage: noticeMessage,
           hybridModeEnabled: snapshot.hybridModeEnabled,
           hybridModeSupported: snapshot.hybridModeSupported,
@@ -144,6 +145,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
         state.copyWith(
           isLoading: false,
           isApplying: false,
+          hasLoaded: true,
           errorMessage: 'Failed to load GPU status: $error',
         ),
       );

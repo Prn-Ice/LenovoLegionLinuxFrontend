@@ -8,10 +8,8 @@ class LiveSensorState extends Equatable {
     this.errorMessage,
   });
 
-  factory LiveSensorState.initial() => LiveSensorState(
-    snapshot: LiveSensorSnapshot.initial(),
-    isLoading: false,
-  );
+  factory LiveSensorState.initial() =>
+      LiveSensorState(snapshot: LiveSensorSnapshot.initial(), isLoading: true);
 
   final LiveSensorSnapshot snapshot;
   final bool isLoading;
