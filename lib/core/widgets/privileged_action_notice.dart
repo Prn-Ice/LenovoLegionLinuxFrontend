@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 class PrivilegedActionNotice extends StatelessWidget {
   const PrivilegedActionNotice({
@@ -49,9 +50,16 @@ Future<bool> confirmPrivilegedAction(
   final approved = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.admin_panel_settings_outlined),
-      title: Text(title),
-      content: Text(message),
+      titlePadding: EdgeInsets.zero,
+      title: YaruDialogTitleBar(title: Text(title)),
+      contentPadding: const EdgeInsets.fromLTRB(
+        kYaruPagePadding,
+        kYaruPagePadding,
+        kYaruPagePadding,
+        0,
+      ),
+      content: Text(message, textAlign: TextAlign.left),
+      actionsPadding: const EdgeInsets.all(kYaruPagePadding),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),

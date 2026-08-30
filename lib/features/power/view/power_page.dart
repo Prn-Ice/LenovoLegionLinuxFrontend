@@ -720,7 +720,6 @@ class _OverclockingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Column(
@@ -729,21 +728,12 @@ class _OverclockingCard extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(YaruIcons.gears, size: 19, color: accent),
-            const SizedBox(width: 9),
             Expanded(
               child: Text('Advanced tuning', style: textTheme.titleMedium),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Overclocking can increase temperature, power use, and instability.',
-          style: textTheme.bodySmall?.copyWith(
-            color: scheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         QuickControls(
           accent: accent,
           controls: [

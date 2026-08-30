@@ -214,7 +214,7 @@ void main() {
     expect(find.text('Unavailable'), findsNWidgets(2));
   });
 
-  testWidgets('supported overclock toggle keeps its adjacent warning', (
+  testWidgets('CPU overclock confirmation uses focused Yaru warning copy', (
     tester,
   ) async {
     final harness = await _pumpPage(tester, width: 800);
@@ -223,7 +223,7 @@ void main() {
       find.text(
         'Overclocking can increase temperature, power use, and instability.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
     await tester.tap(
       find.descendant(
@@ -233,6 +233,21 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Enable CPU overclock'), findsOneWidget);
+    expect(find.byType(YaruDialogTitleBar), findsOneWidget);
+    expect(
+      find.text(
+        'CPU overclocking can increase heat, power use, and instability. '
+        'This change requires privileged access.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'GPU overclocking can increase heat, power use, and instability. '
+        'This change requires privileged access.',
+      ),
+      findsNothing,
+    );
 
     await tester.tap(find.text('Enable'));
     await tester.pumpAndSettle();
