@@ -59,6 +59,21 @@ class PowerPage extends ConsumerWidget {
   [metric_format.dart](../lib/core/widgets/metric_format.dart) — kept
   widget-free so it's unit-tested directly.
 - Both flip to `colorScheme.error` past their `criticalThreshold`.
+- **`TelemetryHistoryCard`**
+  ([features/analytics/view/widgets/telemetry_history_card.dart](../lib/features/analytics/view/widgets/telemetry_history_card.dart))
+  is the shared time-series surface. Pass the surface's resolved accent into it;
+  do not hardcode another chart or selector colour inside the card.
+- Keep the standard Material `SegmentedButton` for compact series choices when
+  they fit. At constrained widths, use `YaruPopupMenuButton`; selected popup
+  checks inherit the same accent through `YaruCheckboxTheme`. Do not replace
+  either with a custom segmented control merely to change its colour.
+- Every displayed measurement needs a documented unit and meaning. Preserve
+  sign conventions and provenance in labels or supporting copy when ambiguity
+  is possible. For example, battery `power_now` is signed battery-side
+  charge/discharge power, not CPU package power or wall power.
+- Missing telemetry stays missing. Render `—` plus a concise explanation when
+  useful; do not infer battery temperature, fabricate history, or substitute a
+  related measurement without labeling it as such.
 
 ## 4. Typography — **the rule**
 
@@ -101,14 +116,18 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
 
 ## 5. Colour & accent
 
-- Colours are **theme-relative** (`scheme.onSurface.withValues(alpha: …)`),
-  never hardcoded hex — so light/dark both work.
+- Neutral colours are **theme-relative**
+  (`scheme.onSurface.withValues(alpha: …)`) so light/dark both work. Named
+  semantic and vendor colours are the exception; resolve them once at the
+  surface instead of scattering raw hex values through child components.
 - Muted hierarchy: **0.7** (label/caption) · **0.56** (subtitle/meta) ·
   **0.5** (micro label) · **0.08** (track/hairline).
-- The page accent comes from
+- The default page accent comes from
   [`LegionAccent.fromPowerModeValue`](../lib/core/theme/legion_accent.dart)
   (quiet=teal, balanced=green, performance=orange, custom=violet). Thread the
-  resolved `Color accent` into cards.
+  resolved `Color accent` into cards. A deliberately semantic surface may own a
+  stable accent instead, such as Battery green, but it must still have one
+  authoritative resolved colour.
 - Accent colours describe real state, not page identity. In particular, Custom
   violet belongs to an explicitly custom or dirty value; do not tint a whole
   settings page violet merely because it contains advanced controls.
@@ -119,12 +138,30 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   semantic state colour, set that component's selected properties directly and
   leave its inactive appearance to the Yaru theme.
 
+Keep these colour roles separate:
+
+| Role | Purpose | Example |
+|---|---|---|
+| Interaction accent | Selected controls, chart series, focus | Current power-mode accent or the surface's explicit semantic accent |
+| Semantic status | A proven state or consequence | Active green, warning, destructive error |
+| Vendor identity | Hardware manufacturer recognition only | NVIDIA/AMD/Intel mark in a device identity header |
+
+A vendor colour must not tint the page's selectors, switches, chart, or
+destructive actions. Likewise, an `Active` badge remains a semantic status even
+when the current interaction accent is another colour.
+
 ## Icons
 
-Use **`YaruIcons.*`**, not Material `Icons.*` — the app is Yaru-native. The nav
-rail already does (via each section's `yaruIcon`); dashboard content uses
-`YaruIcons.chip` (device), `thunderbolt` (power/charge), `health` (battery
-health), `keyboard` (Fn), `touchpad`, `refresh`. `import 'package:yaru/yaru.dart'`.
+Use **`YaruIcons.*`**, not Material `Icons.*`, for generic navigation and action
+icons so the app stays Yaru-native. The nav rail already does this via each
+section's `yaruIcon`.
+
+Known hardware identity is the exception: show the detected manufacturer's
+mark rather than a decorative generic chip glyph. Use a neutral container, keep
+the mark in its vendor colour, provide a semantic label, and retain a subdued
+generic GPU/device fallback for unknown names. Vendor-aware presentation does
+not claim backend support for that vendor; capability remains a separate fact.
+See [GPU vendor asset provenance](../assets/gpu_vendors/README.md).
 
 ## 6. Capability and state truth
 
@@ -134,6 +171,9 @@ health), `keyboard` (Fn), `touchpad`, `refresh`. `import 'package:yaru/yaru.dart
 - Never invent hardware values or draw a plausible curve when the driver did
   not provide one. Preserve nullable states through the repository, bloc, and
   widget layers.
+- Model first load separately from an empty result. Until the first snapshot or
+  first failed attempt completes, show a loading state; do not briefly render
+  zeros, `—`, or an empty process list as if they were observed hardware state.
 - Recommendation, explicit selection, successful application, and confirmed
   hardware-active state are different concepts. Name and render only the state
   the backend can prove; a recommendation must not silently become selected,
@@ -167,6 +207,18 @@ onChanged: guard(
 commands extend
 [`PrivilegedRepository`](../lib/core/data/privileged_repository.dart).
 
+- Keep authentication and save-work guidance compact and legible. It supports
+  the task; it should not visually outweigh the action being explained.
+- Reserve `colorScheme.error` for the destructive control and consequence, not
+  the whole card. Destructive controls remain outlined unless there is a clear
+  reason to make destruction the primary action.
+- Confirmation copy names the exact targets when known (for example PIDs and a
+  PCI address), explains likely data loss or interruption, and uses a specific
+  action label.
+- UI preflight checks are not a security boundary. The privileged backend must
+  atomically revalidate mutable targets immediately before acting; disabling a
+  button or refreshing a process list only improves the frontend flow.
+
 ## 8. Shell & platform
 
 - Window is a rounded GNOME/Handy window via **handy_window**
@@ -183,6 +235,10 @@ commands extend
   flake's formatter churns unrelated files).
 - **TDD for logic** (red→green). Declarative styling/config is exempt, but lock
   real invariants (e.g. the mono-font test).
+- Treat the visual handoff as the starting authority, then reconcile it with
+  established shell behaviour, proven backend capability, and direct review.
+  Reuse an app-wide accent or native control rather than preserving an isolated
+  mockup detail that makes one page disagree with the rest of the application.
 - Verify each change: `flutter analyze` clean + `flutter test` green before
   committing.
 

@@ -6,6 +6,13 @@
 
 **Architecture:** New `dgpu` feature slice + new `AppSection.dgpu` nav entry. GPU active state is read from sysfs `power/runtime_status` (unprivileged, no GPU wakeup). Process list comes from `nvidia-smi --query-compute-apps` (unprivileged). Two new `legion_cli.py` subcommands (`dgpu kill-processes`, `dgpu restart-pci`) handle the privileged deactivation actions and are routed through the existing bridge/pkexec infrastructure. Both features live on one page; the deactivation actions are only shown when the GPU is available.
 
+> **Current vendor scope:** Discovery, telemetry, process enumeration, and
+> privileged dGPU operations remain NVIDIA-only: the repository scans PCI vendor
+> `0x10de` and depends on `nvidia-smi`. The identity header can render NVIDIA,
+> AMD, or Intel marks from a reported GPU name so it never shows the wrong brand
+> and can be reused if support expands. Those presentation assets do not imply
+> AMD or Intel dGPU backend support.
+
 **Tech Stack:** Flutter, riverbloc, equatable, `dart:io`, `legion_cli.py` (Python changes)
 
 **NOTE:** All `flutter` commands must run from `frontend/legion_frontend/` (direnv). Python changes are in `python/legion_linux/legion_linux/legion_cli.py`.
