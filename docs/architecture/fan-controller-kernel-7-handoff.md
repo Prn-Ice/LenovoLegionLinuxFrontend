@@ -1,11 +1,15 @@
 # Fan controller on Kernel 7
 
-## Status
+> Historical deployment record. The Kernel 7 driver now probes successfully.
+> Continue current fan and power-limit investigation from
+> [Legion driver issues handoff](legion-driver-issues-handoff.md).
 
-The missing fan curve on the development machine has a confirmed backend root
-cause. The machine is running a pre-Kernel-7 LenovoLegionLinux module on Kernel
-7.2.0. The frontend must continue to render unavailable values until a corrected
-module is deployed and its hwmon data can be read back.
+## Historical status (2026-08-29)
+
+At the time of this capture, the missing fan curve had a confirmed backend root
+cause. The machine was running a pre-Kernel-7 LenovoLegionLinux module on Kernel
+7.2.0. A corrected module has since been deployed; its remaining data-quality
+failures are recorded in the current driver handoff linked above.
 
 Do not unbind `PNP0C09:00` from `acpi-ec`, write directly to EC/sysfs nodes, or
 force-load another model configuration to work around this problem.
@@ -100,11 +104,10 @@ Deployment changes applied to
    - `lenovo-legion-module` builds against Kernel 7.2.0 and its `.ko` exports
      only WMI GUID aliases — no `acpi*:PNP0C09:*` alias — confirming the
      synthetic-platform-device layout of PRs #423/#434.
-4. Remaining: build a new NixOS generation, reboot into it, and run the
-   read-only checks below before exercising any write command from the
-   frontend or `legion_cli`.
+4. This deployment and reboot were subsequently completed. The module now uses
+   the synthetic platform device and probes successfully.
 
-## Reboot verification
+## Historical reboot verification
 
 Expected kernel log lines include a probe and successful device load, not only
 the module-level `Loading legion_laptop` line:

@@ -97,7 +97,7 @@ void main() {
 
     expect(
       find.text(
-        'The platform controller does not expose adjustable power limits.',
+        'The platform controller did not provide usable power-limit values.',
       ),
       findsOneWidget,
     );

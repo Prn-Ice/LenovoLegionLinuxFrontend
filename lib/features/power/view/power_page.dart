@@ -507,7 +507,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'The platform controller does not expose adjustable power limits.',
+                    'The platform controller did not provide usable power-limit values.',
                     style: textTheme.bodySmall?.copyWith(
                       color: scheme.onSurface.withValues(alpha: 0.7),
                     ),
