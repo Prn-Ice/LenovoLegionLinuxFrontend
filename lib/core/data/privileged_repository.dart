@@ -11,10 +11,10 @@ import '../services/legion_frontend_bridge_service.dart';
 /// [wrapBridgeError].
 ///
 /// Defaults intentionally mirror [LegionFrontendBridgeService.runPrivilegedCommand]
-/// (`timeout` 5s, `detectUnavailableResponse` true) so subclasses that relied on
-/// the bridge defaults need no call-site changes. Subclasses that need other
-/// values (e.g. a longer timeout, or suppressing unavailable-response detection)
-/// must pass them explicitly at the call site.
+/// (`timeout` 5s, no retries, `detectUnavailableResponse` true) so subclasses
+/// that relied on the bridge defaults need no call-site changes. Subclasses that
+/// need other values (e.g. a longer timeout, or suppressing unavailable-response
+/// detection) must pass them explicitly at the call site.
 abstract class PrivilegedRepository {
   const PrivilegedRepository({required this.bridgeService});
 

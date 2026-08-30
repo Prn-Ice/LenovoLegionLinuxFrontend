@@ -47,4 +47,45 @@ void main() {
 
     expect(cli.privilegedExecutable, '/run/wrappers/bin/pkexec');
   });
+
+  test(
+    'does not classify diagnostic kernel timeouts as command timeouts',
+    () async {
+      final cli = _MockCliService();
+      when(() => cli.runCommand(any(), privileged: true)).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 1,
+          stdout: '',
+          stderr: '''
+amdgpu: ring gfx_0.0.0 timeout
+OSError: [Errno 22] Invalid argument
+''',
+        ),
+      );
+      final bridge = LegionFrontendBridgeService(cliService: cli);
+
+      await expectLater(
+        bridge.runPrivilegedCommand(
+          method: 'feature.set',
+          args: const ['set-feature', 'PlatformProfileFeature', 'custom'],
+          retries: 1,
+        ),
+        throwsA(
+          isA<LegionBridgeException>()
+              .having(
+                (error) => error.code,
+                'code',
+                LegionBridgeErrorCode.commandFailed,
+              )
+              .having(
+                (error) => error.details,
+                'details',
+                contains('Errno 22'),
+              ),
+        ),
+      );
+
+      verify(() => cli.runCommand(any(), privileged: true)).called(1);
+    },
+  );
 }

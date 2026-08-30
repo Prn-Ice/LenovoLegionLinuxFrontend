@@ -110,6 +110,7 @@ void main() {
     when(() => sysfs.readPlatformProfileChoices()).thenAnswer(
       (_) async => ['low-power', 'balanced', 'performance', 'custom'],
     );
+    when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
     when(() => daemon.loadSnapshot()).thenAnswer((_) async => _snapshot());
     when(() => daemon.setActiveProfile('performance')).thenAnswer((_) async {});
     final directWrites = <String>[];
@@ -122,6 +123,35 @@ void main() {
     verify(() => daemon.setActiveProfile('performance')).called(1);
     expect(directWrites, ['custom']);
   });
+
+  test(
+    'rejects vendor profiles on battery before changing PPD state',
+    () async {
+      when(() => sysfs.readPlatformProfileChoices()).thenAnswer(
+        (_) async => ['low-power', 'balanced', 'performance', 'custom'],
+      );
+      when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => false);
+      final directWrites = <String>[];
+
+      await expectLater(
+        service.setProfile(
+          'custom',
+          writePlatformProfile: (profile) async => directWrites.add(profile),
+        ),
+        throwsA(
+          isA<PowerProfileServiceException>().having(
+            (error) => error.message,
+            'message',
+            'Connect AC power before switching to Custom mode.',
+          ),
+        ),
+      );
+
+      verifyNever(() => daemon.loadSnapshot());
+      verifyNever(() => daemon.setActiveProfile(any()));
+      expect(directWrites, isEmpty);
+    },
+  );
 
   test('rejects an unsupported mode before changing PPD state', () async {
     when(

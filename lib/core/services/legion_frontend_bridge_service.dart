@@ -88,7 +88,7 @@ class LegionFrontendBridgeService {
     required String method,
     required List<String> args,
     Duration timeout = const Duration(seconds: 5),
-    int retries = 1,
+    int retries = 0,
     bool detectUnavailableResponse = true,
   }) async {
     final actionKey = _buildActionKey(method: method, args: args);
@@ -280,10 +280,6 @@ class LegionFrontendBridgeService {
         outputLower.contains('not supported') ||
         outputLower.contains('unsupported')) {
       return LegionBridgeErrorCode.unavailable;
-    }
-
-    if (outputLower.contains('timed out') || outputLower.contains('timeout')) {
-      return LegionBridgeErrorCode.timeout;
     }
 
     if (outputLower.contains('busy') ||

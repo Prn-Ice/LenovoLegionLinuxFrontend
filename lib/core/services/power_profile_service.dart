@@ -170,12 +170,19 @@ class PowerProfileService {
     required Future<void> Function(String profile) writePlatformProfile,
   }) async {
     final hardwareProfiles = await _sysfsService.readPlatformProfileChoices();
+    final requestedProfile = platformProfile.trim();
+    if (_requiresExternalPower(requestedProfile) &&
+        await _sysfsService.readOnPowerSupplyMode() == false) {
+      throw PowerProfileServiceException(
+        'Connect AC power before switching to ${_profileLabel(requestedProfile)} mode.',
+      );
+    }
     final daemon = await _daemonClient.loadSnapshot();
-    final daemonProfile = daemonProfileForPlatformValue(platformProfile);
+    final daemonProfile = daemonProfileForPlatformValue(requestedProfile);
     final writeTarget = daemonProfile == null
-        ? platformProfile.trim()
+        ? requestedProfile
         : platformValueForDaemonProfile(daemonProfile, hardwareProfiles) ??
-              platformProfile.trim();
+              requestedProfile;
 
     if (hardwareProfiles.isNotEmpty &&
         !hardwareProfiles.contains(writeTarget)) {
@@ -204,6 +211,14 @@ class PowerProfileService {
     }
     await writePlatformProfile(writeTarget);
   }
+
+  static bool _requiresExternalPower(String profile) =>
+      profile == 'custom' ||
+      profile == 'balanced-performance' ||
+      profile == 'max-power';
+
+  static String _profileLabel(String profile) =>
+      profile == 'max-power' ? 'Extreme' : 'Custom';
 
   static String? daemonProfileForPlatformValue(String value) {
     return switch (value.trim()) {
