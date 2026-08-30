@@ -1,4 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:equatable/equatable.dart';
+
+String formatBatteryDuration(int minutes) {
+  final hours = minutes ~/ 60;
+  final remainingMinutes = minutes % 60;
+  if (hours == 0) return '${remainingMinutes}m';
+  if (remainingMinutes == 0) return '${hours}h';
+  return '${hours}h ${remainingMinutes}m';
+}
 
 class BatteryState extends Equatable {
   const BatteryState({
@@ -62,6 +72,28 @@ class BatteryState extends Equatable {
       batteryConservationEnabled != null ||
       rapidChargingEnabled != null ||
       batteryPercent != null;
+
+  /// Estimates the number of minutes until empty/full from the current power
+  /// draw. AC-connected, idle batteries are deliberately not estimated.
+  int? estimatedTimeMinutes({required bool? onPowerSupply}) {
+    final power = batteryPowerDrawW;
+    if (batteryCharging == null || power == null || !power.isFinite) {
+      return null;
+    }
+    final draw = power.abs();
+    if (draw < 0.5) return null;
+
+    final energy = batteryCharging == true
+        ? (fullCapacityWh ?? double.nan) - (currentCapacityWh ?? double.nan)
+        : onPowerSupply == false
+        ? currentCapacityWh ?? double.nan
+        : double.nan;
+    if (!energy.isFinite || energy <= 0) return null;
+
+    final minutes = energy / draw * 60;
+    if (!minutes.isFinite || minutes <= 0 || minutes > 48 * 60) return null;
+    return math.max(1, minutes.round());
+  }
 
   BatteryState copyWith({
     Object? batteryConservationEnabled = _unset,

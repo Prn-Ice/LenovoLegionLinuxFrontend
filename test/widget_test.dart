@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
@@ -9,6 +9,7 @@ import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/diagnostics/view/diagnostics_page.dart';
+import 'package:yaru/yaru.dart';
 
 class _UnavailablePackagePowerClient implements PackagePowerTelemetryClient {
   const _UnavailablePackagePowerClient();
@@ -51,6 +52,29 @@ void main() {
     expect(find.text('Power'), findsWidgets);
     expect(find.text('Rapid charge'), findsOneWidget);
     expect(find.text('Battery'), findsWidgets);
+  });
+
+  testWidgets('aligns wide light shell surfaces with the redesign', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(_testApp());
+    await tester.pump(Duration.zero);
+
+    final detail = tester.widget<YaruDetailPage>(find.byType(YaruDetailPage));
+    expect(detail.backgroundColor, const Color(0xffFAF9F8));
+    expect(
+      (detail.appBar! as YaruWindowTitleBar).backgroundColor,
+      const Color(0xffFAF9F8),
+    );
+
+    final masterDetailTheme = tester.widget<YaruMasterDetailTheme>(
+      find.byType(YaruMasterDetailTheme),
+    );
+    expect(masterDetailTheme.data.sideBarColor, const Color(0xffECEBE9));
   });
 
   testWidgets('renders diagnostics page', (tester) async {

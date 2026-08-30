@@ -4,6 +4,37 @@ import 'package:legion_frontend/core/widgets/surface_card.dart';
 import 'package:yaru/yaru.dart';
 
 void main() {
+  testWidgets('uses redesign light defaults', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(brightness: Brightness.light),
+        home: const SurfaceCard(child: Text('content')),
+      ),
+    );
+
+    final container = tester.widget<YaruBorderContainer>(
+      find.byType(YaruBorderContainer),
+    );
+    expect(container.color, const Color(0xffFFFFFF));
+    expect(container.border, Border.all(color: const Color(0xffE6E2DD)));
+  });
+
+  testWidgets('retains dark default styling', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(brightness: Brightness.dark),
+        home: const SurfaceCard(child: Text('content')),
+      ),
+    );
+
+    final container = tester.widget<YaruBorderContainer>(
+      find.byType(YaruBorderContainer),
+    );
+    expect(container.color, isNot(const Color(0xffFFFFFF)));
+    expect(container.border, isA<Border>());
+    expect((container.border! as Border).top.color.a, closeTo(0.06, 0.001));
+  });
+
   testWidgets('forwards surface overrides to YaruBorderContainer', (
     tester,
   ) async {

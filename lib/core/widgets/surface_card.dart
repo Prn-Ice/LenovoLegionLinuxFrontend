@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
-/// The standard dashboard card surface, matching the design's `#333` card on the
-/// `#2a2a2a` page: a slightly-raised fill, a hairline border, and a 13px radius.
+/// The standard dashboard card surface: a theme-aware fill, a hairline border,
+/// and a 13px radius.
 ///
 /// [YaruBorderContainer] defaults to a *transparent* fill, which left the cards
 /// flat; this gives them the design's raised look while staying theme-driven.
@@ -29,21 +29,20 @@ class SurfaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // Design: a subtle raise over the page (#333 over #2a2a2a), not Yaru's
-    // lightest container which reads too bright. Derive it from the surface so
-    // it tracks the theme.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final defaultFill = isDark
         ? Color.alphaBlend(
             Colors.white.withValues(alpha: 0.045),
             scheme.surface,
           )
-        : scheme.surfaceContainerLow;
+        : const Color(0xffFFFFFF);
+    final defaultBorder = isDark
+        ? scheme.onSurface.withValues(alpha: 0.06)
+        : const Color(0xffE6E2DD);
     return YaruBorderContainer(
       padding: padding,
       color: color ?? defaultFill,
-      border:
-          border ?? Border.all(color: scheme.onSurface.withValues(alpha: 0.06)),
+      border: border ?? Border.all(color: defaultBorder),
       borderRadius: _radius,
       child: child,
     );

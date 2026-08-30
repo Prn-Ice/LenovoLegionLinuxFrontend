@@ -6,6 +6,7 @@ import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_format.dart';
 import '../../automation/view/automation_page.dart';
+import '../../battery/bloc/battery_state.dart';
 import '../../battery/providers/battery_provider.dart';
 import '../../battery/view/battery_page.dart';
 import '../../dashboard/bloc/dashboard_event.dart';
@@ -25,6 +26,8 @@ import '../bloc/navigation_event.dart';
 import '../models/app_section.dart';
 import '../models/nav_entry.dart';
 import '../providers/navigation_provider.dart';
+
+const _pageColor = Color(0xffFAF9F8);
 
 class NavigationShell extends ConsumerStatefulWidget {
   const NavigationShell({super.key});
@@ -117,10 +120,12 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         Theme.of(context).colorScheme.primary;
     // The sidebar pane reads a touch darker than the content, per the design.
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sidebarColor = Color.alphaBlend(
-      Colors.black.withValues(alpha: isDark ? 0.18 : 0.03),
-      Theme.of(context).colorScheme.surface,
-    );
+    final sidebarColor = isDark
+        ? Color.alphaBlend(
+            Colors.black.withValues(alpha: 0.18),
+            Theme.of(context).colorScheme.surface,
+          )
+        : const Color(0xffECEBE9);
 
     final width = MediaQuery.of(context).size.width;
 
@@ -153,8 +158,10 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
             tooltip: NavShellEntries.sections[index].label,
             style: style,
           ),
-          pageBuilder: (context, index) =>
-              _buildPage(NavShellEntries.sections[index]),
+          pageBuilder: (context, index) => ColoredBox(
+            color: isDark ? Theme.of(context).colorScheme.surface : _pageColor,
+            child: _buildPage(NavShellEntries.sections[index]),
+          ),
           onSelected: (index) => _navigateTo(NavShellEntries.sections[index]),
         ),
       );
@@ -189,6 +196,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         pageBuilder: (context, index) {
           final section = NavShellEntries.sections[index];
           return YaruDetailPage(
+            backgroundColor: isDark ? null : _pageColor,
             appBar: YaruWindowTitleBar(
               border: _titleBarBorder(context),
               centerTitle: false,
@@ -197,6 +205,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
                   : null,
               title: Text(section.label, style: _titleStyle(context)),
               actions: _titleBarActions(section),
+              backgroundColor: isDark ? null : _pageColor,
             ),
             body: _buildPage(section),
           );
@@ -262,12 +271,11 @@ class _SidebarStatusFooter extends ConsumerWidget {
     final onAc = ref.watch(
       dashboardBlocProvider.select((s) => s.snapshot.onPowerSupply),
     );
-    final percent = ref.watch(
-      batteryBlocProvider.select((s) => s.batteryPercent),
-    );
-    final charging = ref.watch(
-      batteryBlocProvider.select((s) => s.batteryCharging),
-    );
+    final batteryState = ref.watch(batteryBlocProvider);
+    final percent = batteryState.batteryPercent;
+    final charging = batteryState.batteryCharging;
+    final estimate = batteryState.estimatedTimeMinutes(onPowerSupply: onAc);
+    final known = percent != null || charging != null || onAc != null;
 
     final status = charging == true
         ? 'Charging'
@@ -276,6 +284,13 @@ class _SidebarStatusFooter extends ConsumerWidget {
         : onAc == false
         ? 'On battery'
         : 'Power';
+
+    final detail = percent == null
+        ? null
+        : estimate == null
+        ? 'Battery $percent%'
+        : '$percent% · ${formatBatteryDuration(estimate)} '
+              '${charging == true ? 'to full' : 'left'}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -291,7 +306,9 @@ class _SidebarStatusFooter extends ConsumerWidget {
                 ? YaruIcons.battery_full_charging
                 : YaruIcons.battery,
             size: 18,
-            color: scheme.onSurface.withValues(alpha: 0.6),
+            color: known
+                ? const Color(0xff3A9D4F)
+                : scheme.onSurface.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -306,9 +323,9 @@ class _SidebarStatusFooter extends ConsumerWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                if (percent != null)
+                if (detail != null)
                   Text(
-                    'Battery $percent%',
+                    detail,
                     style: TextStyle(
                       fontFamily: kMonoFontFamily,
                       package: kMonoFontPackage,
