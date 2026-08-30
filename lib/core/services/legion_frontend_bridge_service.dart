@@ -6,6 +6,7 @@ import 'legion_cli_service.dart';
 
 enum LegionBridgeErrorCode {
   permissionDenied,
+  privilegeSetup,
   unavailable,
   busy,
   timeout,
@@ -33,6 +34,8 @@ class LegionBridgeException implements Exception {
     return switch (code) {
       LegionBridgeErrorCode.permissionDenied =>
         'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
+      LegionBridgeErrorCode.privilegeSetup =>
+        'Privileged actions are not configured. On NixOS, set security.polkit.enablePkexecWrapper = true and rebuild the system.',
       LegionBridgeErrorCode.unavailable =>
         'Required command or capability is unavailable. Verify legion_cli, pkexec, and model/kernel feature support.',
       LegionBridgeErrorCode.busy =>
@@ -234,6 +237,8 @@ class LegionFrontendBridgeService {
     final message = switch (code) {
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',
+      LegionBridgeErrorCode.privilegeSetup =>
+        'Privileged command support is unavailable for $method.',
       LegionBridgeErrorCode.unavailable =>
         'Capability is unavailable for $method.',
       LegionBridgeErrorCode.busy => 'System is busy while running $method.',
@@ -252,6 +257,10 @@ class LegionFrontendBridgeService {
   }
 
   LegionBridgeErrorCode _classifyFailureCode(String outputLower, int exitCode) {
+    if (outputLower.contains('pkexec must be setuid root')) {
+      return LegionBridgeErrorCode.privilegeSetup;
+    }
+
     if (exitCode == 126 ||
         outputLower.contains('not authorized') ||
         outputLower.contains('authorization failed') ||

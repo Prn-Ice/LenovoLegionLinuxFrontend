@@ -46,14 +46,21 @@ void main() {
       find.byKey(const ValueKey('power-limit-slider-cpu_longterm')),
       findsOneWidget,
     );
-    expect(find.text('Hardware default: 54 W'), findsWidgets);
-    expect(find.text('Additional limits (3)'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('power-limit-default-cpu_longterm')),
+          )
+          .data,
+      '54 W',
+    );
+    expect(find.text('Additional limits'), findsOneWidget);
     expect(find.text('CPU overclock'), findsOneWidget);
     expect(find.text('GPU overclock'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
     expect(find.text('Refresh'), findsNothing);
 
-    final additionalLimits = find.text('Additional limits (3)');
+    final additionalLimits = find.text('Additional limits');
     await tester.ensureVisible(additionalLimits);
     await tester.pumpAndSettle();
     await tester.tap(additionalLimits);
@@ -172,27 +179,43 @@ void main() {
   ) async {
     await _pumpPage(tester, width: 800);
 
-    await tester.tap(find.text('Additional limits (3)'));
+    await tester.tap(find.text('Additional limits'));
     await tester.pumpAndSettle();
 
     expect(find.text('CPU temperature limit'), findsOneWidget);
     expect(find.text('100 °C'), findsWidgets);
     expect(find.text('GPU AC power-target offset'), findsOneWidget);
     expect(find.text('45 W'), findsWidgets);
+    expect(find.text('Adjustable'), findsOneWidget);
+    expect(find.text('Controller readings'), findsOneWidget);
+    expect(find.text('Read only'), findsOneWidget);
     expect(
-      find.text('Reported by the controller · Read-only'),
-      findsNWidgets(2),
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('power-limit-default-cpu_temperature')),
+          )
+          .data,
+      '100 °C',
     );
-    expect(find.text('Hardware default: 100 °C'), findsOneWidget);
-    expect(find.text('Hardware default: 45 W'), findsOneWidget);
-    expect(find.text('Set'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(
+              const ValueKey('power-limit-default-gpu_power_target_offset'),
+            ),
+          )
+          .data,
+      '45 W',
+    );
+    expect(find.text('Change'), findsNothing);
+    expect(find.text('No staged changes'), findsNothing);
     expect(
       find.descendant(
         of: find.ancestor(
           of: find.text('CPU temperature limit'),
           matching: find.byType(YaruListTile),
         ),
-        matching: find.text('Set'),
+        matching: find.text('Change'),
       ),
       findsNothing,
     );
@@ -202,10 +225,47 @@ void main() {
           of: find.text('GPU AC power-target offset'),
           matching: find.byType(YaruListTile),
         ),
-        matching: find.text('Set'),
+        matching: find.text('Change'),
       ),
       findsNothing,
     );
+  });
+
+  testWidgets('compact additional limit changes stage without clutter', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 320,
+      snapshot: _snapshot(currentMode: const PowerMode('custom')),
+    );
+
+    final additionalLimits = find.text('Additional limits');
+    await tester.ensureVisible(additionalLimits);
+    await tester.pumpAndSettle();
+    await tester.tap(additionalLimits);
+    await tester.pumpAndSettle();
+
+    final change = find.text('Change');
+    await tester.ensureVisible(change);
+    await tester.pumpAndSettle();
+    await tester.tap(change);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('GPU Temperature Limit'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byType(TextField), '90');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved limit changes'), findsOneWidget);
+    expect(find.text('No staged changes'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('unknown hardware keeps the default baseline truthful', (
@@ -227,7 +287,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Hardware default unavailable'), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(
+            find.byKey(const ValueKey('power-limit-default-cpu_longterm')),
+          )
+          .data,
+      'Unavailable',
+    );
   });
 
   testWidgets('custom power limits remain disabled on battery', (tester) async {

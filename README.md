@@ -20,6 +20,15 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 - `legion_cli` installed and in PATH (provides privileged write access via polkit)
 - NVIDIA driver (optional, for dGPU features)
 
+On NixOS, enable both Polkit and its opt-in `pkexec` wrapper:
+
+```nix
+security.polkit = {
+  enable = true;
+  enablePkexecWrapper = true;
+};
+```
+
 ## Running
 
 ```bash

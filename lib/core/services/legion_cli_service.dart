@@ -15,16 +15,21 @@ class LegionCliResult {
 }
 
 class LegionCliService {
-  LegionCliService({String? cliPath}) : _cliPath = cliPath ?? _resolveCliPath();
+  LegionCliService({String? cliPath, String? privilegedExecutable})
+    : _cliPath = cliPath ?? _resolveCliPath(),
+      _privilegedExecutable =
+          privilegedExecutable ?? _resolvePrivilegedExecutable();
 
   final String _cliPath;
+  final String _privilegedExecutable;
   String get cliPath => _cliPath;
+  String get privilegedExecutable => _privilegedExecutable;
 
   Future<LegionCliResult> runCommand(
     List<String> args, {
     bool privileged = false,
   }) async {
-    final executable = privileged ? 'pkexec' : _cliPath;
+    final executable = privileged ? _privilegedExecutable : _cliPath;
     final commandArgs = privileged ? [_cliPath, ...args] : args;
 
     final result = await Process.run(executable, commandArgs);
@@ -38,6 +43,11 @@ class LegionCliService {
 
   static String _resolveCliPath() {
     return _resolveInstalledCliPath();
+  }
+
+  static String _resolvePrivilegedExecutable() {
+    const nixosWrapper = '/run/wrappers/bin/pkexec';
+    return File(nixosWrapper).existsSync() ? nixosWrapper : 'pkexec';
   }
 
   static String _resolveInstalledCliPath() {
