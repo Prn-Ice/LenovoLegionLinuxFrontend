@@ -82,7 +82,6 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             window: analytics.window,
             isCollecting: analytics.isCollecting,
             accentColor: const Color(0xff2F9BFF),
-            filledSelection: true,
             onWindowChanged: analyticsBloc.add,
             options: const [
               TelemetrySeriesOption(

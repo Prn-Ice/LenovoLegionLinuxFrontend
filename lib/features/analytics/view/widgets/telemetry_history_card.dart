@@ -36,7 +36,6 @@ class TelemetryHistoryCard extends StatefulWidget {
     required this.onWindowChanged,
     required this.isCollecting,
     required this.accentColor,
-    this.filledSelection = false,
   });
 
   final List<SensorRecord> history;
@@ -45,7 +44,6 @@ class TelemetryHistoryCard extends StatefulWidget {
   final ValueChanged<AnalyticsWindowChanged> onWindowChanged;
   final bool isCollecting;
   final Color accentColor;
-  final bool filledSelection;
 
   @override
   State<TelemetryHistoryCard> createState() => _TelemetryHistoryCardState();
@@ -79,11 +77,11 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                   selectedIndex: _selectedIndex,
                   compact: constraints.maxWidth < 560,
                   accentColor: widget.accentColor,
-                  filledSelection: widget.filledSelection,
                   onSelected: (index) => setState(() => _selectedIndex = index),
                 ),
                 _TimeWindowPicker(
                   window: widget.window,
+                  accentColor: widget.accentColor,
                   onSelected: (window) =>
                       widget.onWindowChanged(AnalyticsWindowChanged(window)),
                 ),
@@ -281,7 +279,6 @@ class _SeriesPicker extends StatelessWidget {
     required this.selectedIndex,
     required this.compact,
     required this.accentColor,
-    required this.filledSelection,
     required this.onSelected,
   });
 
@@ -289,118 +286,113 @@ class _SeriesPicker extends StatelessWidget {
   final int selectedIndex;
   final bool compact;
   final Color accentColor;
-  final bool filledSelection;
   final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
     if (compact) {
-      return YaruPopupMenuButton<int>(
-        initialValue: selectedIndex,
-        constraints: const BoxConstraints(minWidth: 180),
-        itemBuilder: (context) => [
-          for (var index = 0; index < options.length; index++)
-            YaruCheckedPopupMenuItem(
-              value: index,
-              checked: index == selectedIndex,
-              child: Text(options[index].label),
-            ),
-        ],
-        onSelected: onSelected,
-        child: Text(options[selectedIndex].label),
+      return _AccentCheckboxTheme(
+        accentColor: accentColor,
+        child: YaruPopupMenuButton<int>(
+          initialValue: selectedIndex,
+          constraints: const BoxConstraints(minWidth: 180),
+          itemBuilder: (context) => [
+            for (var index = 0; index < options.length; index++)
+              YaruCheckedPopupMenuItem(
+                value: index,
+                checked: index == selectedIndex,
+                child: Text(options[index].label),
+              ),
+          ],
+          onSelected: onSelected,
+          child: Text(options[selectedIndex].label),
+        ),
       );
     }
 
     final scheme = Theme.of(context).colorScheme;
-    final selectedForeground =
-        ThemeData.estimateBrightnessForColor(accentColor) == Brightness.dark
-        ? Colors.white
-        : const Color(0xff102A43);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < options.length; index++)
-              Semantics(
-                selected: index == selectedIndex,
-                button: true,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(7),
-                  onTap: () => onSelected(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 13,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: index == selectedIndex
-                          ? filledSelection
-                                ? accentColor
-                                : scheme.surface
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(7),
-                      boxShadow: index == selectedIndex && !filledSelection
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 2,
-                                offset: const Offset(0, 1),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Text(
-                      options[index].label,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: index == selectedIndex
-                            ? filledSelection
-                                  ? selectedForeground
-                                  : accentColor
-                            : scheme.onSurfaceVariant,
-                        fontWeight: index == selectedIndex
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
+    return SegmentedButton<int>(
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? accentColor.withValues(alpha: 0.18)
+              : Colors.transparent,
+        ),
+        foregroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? accentColor
+              : scheme.onSurfaceVariant,
         ),
       ),
+      segments: [
+        for (var index = 0; index < options.length; index++)
+          ButtonSegment(value: index, label: Text(options[index].label)),
+      ],
+      selected: {selectedIndex},
+      onSelectionChanged: (selection) => onSelected(selection.first),
     );
   }
 }
 
 class _TimeWindowPicker extends StatelessWidget {
-  const _TimeWindowPicker({required this.window, required this.onSelected});
+  const _TimeWindowPicker({
+    required this.window,
+    required this.accentColor,
+    required this.onSelected,
+  });
 
   final AnalyticsTimeWindow window;
+  final Color accentColor;
   final ValueChanged<AnalyticsTimeWindow> onSelected;
 
   @override
-  Widget build(BuildContext context) =>
-      YaruPopupMenuButton<AnalyticsTimeWindow>(
-        initialValue: window,
-        constraints: const BoxConstraints(minWidth: 160),
-        itemBuilder: (context) => [
-          for (final value in AnalyticsTimeWindow.values)
-            YaruCheckedPopupMenuItem(
-              value: value,
-              checked: value == window,
-              child: Text(_windowLabel(value)),
-            ),
-        ],
-        onSelected: onSelected,
-        child: Text(_windowLabel(window)),
-      );
+  Widget build(BuildContext context) => _AccentCheckboxTheme(
+    accentColor: accentColor,
+    child: YaruPopupMenuButton<AnalyticsTimeWindow>(
+      initialValue: window,
+      constraints: const BoxConstraints(minWidth: 160),
+      itemBuilder: (context) => [
+        for (final value in AnalyticsTimeWindow.values)
+          YaruCheckedPopupMenuItem(
+            value: value,
+            checked: value == window,
+            child: Text(_windowLabel(value)),
+          ),
+      ],
+      onSelected: onSelected,
+      child: Text(_windowLabel(window)),
+    ),
+  );
+}
+
+class _AccentCheckboxTheme extends StatelessWidget {
+  const _AccentCheckboxTheme({required this.accentColor, required this.child});
+
+  final Color accentColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final checkmarkColor =
+        ThemeData.estimateBrightnessForColor(accentColor) == Brightness.dark
+        ? Colors.white
+        : const Color(0xff102A43);
+    Color? selectedColor(Set<WidgetState> states) =>
+        states.contains(WidgetState.selected) ? accentColor : null;
+
+    return YaruCheckboxTheme(
+      data: YaruCheckboxTheme.of(context).copyWith(
+        color: WidgetStateProperty.resolveWith(selectedColor),
+        borderColor: WidgetStateProperty.resolveWith(selectedColor),
+        checkmarkColor: WidgetStateProperty.resolveWith(
+          (states) =>
+              states.contains(WidgetState.selected) ? checkmarkColor : null,
+        ),
+      ),
+      child: child,
+    );
+  }
 }
 
 String _windowLabel(AnalyticsTimeWindow window) => switch (window) {
