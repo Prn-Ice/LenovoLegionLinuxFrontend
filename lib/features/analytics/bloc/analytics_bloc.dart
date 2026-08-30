@@ -10,12 +10,13 @@ import 'analytics_state.dart';
 class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   AnalyticsBloc({
     required AnalyticsRepository repository,
-    Duration pollInterval = const Duration(seconds: 3),
+    Duration pollInterval = const Duration(seconds: 30),
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(AnalyticsState.initial()) {
     on<AnalyticsStarted>(_onStarted);
     on<AnalyticsTicked>(_onTicked);
+    on<AnalyticsCollectionSetRequested>(_onCollectionSetRequested);
     on<AnalyticsWindowChanged>(_onWindowChanged);
   }
 
@@ -23,6 +24,7 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   final Duration _pollInterval;
   Timer? _pollTimer;
   bool _started = false;
+  bool _tickInFlight = false;
 
   Future<void> _onStarted(
     AnalyticsStarted _,
@@ -31,18 +33,47 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
     if (_started) return;
     _started = true;
     await _repository.pruneOldRecords();
-    await _tick(emit);
-    _pollTimer = Timer.periodic(
-      _pollInterval,
-      (_) => add(const AnalyticsTicked()),
+    final since = DateTime.now().subtract(state.window.duration);
+    emit(
+      state.copyWith(
+        history: _repository.readHistory(since: since),
+        isCollecting: true,
+      ),
     );
+    await _tick(emit);
+    _startTimer();
   }
 
   Future<void> _onTicked(
     AnalyticsTicked _,
     Emitter<AnalyticsState> emit,
   ) async {
+    if (!state.isCollecting) return;
     await _tick(emit);
+  }
+
+  Future<void> _onCollectionSetRequested(
+    AnalyticsCollectionSetRequested event,
+    Emitter<AnalyticsState> emit,
+  ) async {
+    if (event.enabled == state.isCollecting) return;
+    if (event.enabled) {
+      emit(state.copyWith(isCollecting: true, errorMessage: null));
+      await _tick(emit);
+      _startTimer();
+    } else {
+      _pollTimer?.cancel();
+      _pollTimer = null;
+      emit(state.copyWith(isCollecting: false));
+    }
+  }
+
+  void _startTimer() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => add(const AnalyticsTicked()),
+    );
   }
 
   Future<void> _onWindowChanged(
@@ -59,17 +90,26 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   }
 
   Future<void> _tick(Emitter<AnalyticsState> emit) async {
+    if (_tickInFlight) return;
+    _tickInFlight = true;
     try {
-      await _repository.recordReading();
+      final reading = await _repository.recordReading();
       final since = DateTime.now().subtract(state.window.duration);
+      var firstRetained = 0;
+      while (firstRetained < state.history.length &&
+          state.history[firstRetained].timestamp.isBefore(since)) {
+        firstRetained++;
+      }
       emit(
         state.copyWith(
-          history: _repository.readHistory(since: since),
+          history: [...state.history.skip(firstRetained), reading],
           errorMessage: null,
         ),
       );
     } catch (error) {
       emit(state.copyWith(errorMessage: 'Sensor read failed: $error'));
+    } finally {
+      _tickInFlight = false;
     }
   }
 

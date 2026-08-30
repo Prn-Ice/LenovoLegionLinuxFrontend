@@ -11,6 +11,11 @@ class SensorRecord extends HiveObject {
     this.fan2Rpm,
     this.cpuTempC,
     this.gpuTempC,
+    this.batteryPercent,
+    this.batteryPowerDrawW,
+    this.batteryTempC,
+    this.gpuUtilPercent,
+    this.gpuPowerDrawW,
   });
 
   @HiveField(0)
@@ -27,4 +32,19 @@ class SensorRecord extends HiveObject {
 
   @HiveField(4)
   double? gpuTempC;
+
+  @HiveField(5)
+  int? batteryPercent;
+
+  @HiveField(6)
+  double? batteryPowerDrawW;
+
+  @HiveField(7)
+  double? batteryTempC;
+
+  @HiveField(8)
+  double? gpuUtilPercent;
+
+  @HiveField(9)
+  double? gpuPowerDrawW;
 }

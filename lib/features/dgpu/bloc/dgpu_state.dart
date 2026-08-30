@@ -13,6 +13,7 @@ class DgpuState extends Equatable {
     required this.noticeMessage,
     required this.hybridModeEnabled,
     required this.hybridModeSupported,
+    required this.name,
   });
 
   factory DgpuState.initial() => const DgpuState(
@@ -25,6 +26,7 @@ class DgpuState extends Equatable {
     noticeMessage: null,
     hybridModeEnabled: null,
     hybridModeSupported: false,
+    name: null,
   );
 
   static const _unset = Object();
@@ -43,6 +45,7 @@ class DgpuState extends Equatable {
 
   /// true when the hybrid mode sysfs file was found.
   final bool hybridModeSupported;
+  final String? name;
 
   /// true when the GPU sysfs entry was found (even if suspended)
   bool get isAvailable => isActive != null;
@@ -57,21 +60,27 @@ class DgpuState extends Equatable {
     Object? noticeMessage = _unset,
     Object? hybridModeEnabled = _unset,
     bool? hybridModeSupported,
+    Object? name = _unset,
   }) {
     return DgpuState(
       isActive: isActive == _unset ? this.isActive : isActive as bool?,
       processes: processes ?? this.processes,
-      pciAddress: pciAddress == _unset ? this.pciAddress : pciAddress as String?,
+      pciAddress: pciAddress == _unset
+          ? this.pciAddress
+          : pciAddress as String?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
-      errorMessage:
-          errorMessage == _unset ? this.errorMessage : errorMessage as String?,
-      noticeMessage:
-          noticeMessage == _unset ? this.noticeMessage : noticeMessage as String?,
+      errorMessage: errorMessage == _unset
+          ? this.errorMessage
+          : errorMessage as String?,
+      noticeMessage: noticeMessage == _unset
+          ? this.noticeMessage
+          : noticeMessage as String?,
       hybridModeEnabled: hybridModeEnabled == _unset
           ? this.hybridModeEnabled
           : hybridModeEnabled as bool?,
       hybridModeSupported: hybridModeSupported ?? this.hybridModeSupported,
+      name: name == _unset ? this.name : name as String?,
     );
   }
 
@@ -86,5 +95,6 @@ class DgpuState extends Equatable {
     noticeMessage,
     hybridModeEnabled,
     hybridModeSupported,
+    name,
   ];
 }

@@ -32,7 +32,7 @@ void main() {
     blocTest<AnalyticsBloc, AnalyticsState>(
       'records a reading and updates history',
       build: () => AnalyticsBloc(repository: repo),
-      seed: () => AnalyticsState.initial(),
+      seed: () => AnalyticsState.initial().copyWith(isCollecting: true),
       act: (bloc) => bloc.add(const AnalyticsTicked()),
       expect: () => [
         isA<AnalyticsState>().having(
@@ -70,6 +70,23 @@ void main() {
         verify(() => repo.pruneOldRecords()).called(1);
         verify(() => repo.recordReading()).called(1);
       },
+    );
+  });
+
+  group('AnalyticsCollectionSetRequested', () {
+    blocTest<AnalyticsBloc, AnalyticsState>(
+      'pauses collection without recording another sample',
+      build: () => AnalyticsBloc(repository: repo),
+      seed: () => AnalyticsState.initial().copyWith(isCollecting: true),
+      act: (bloc) => bloc.add(const AnalyticsCollectionSetRequested(false)),
+      expect: () => [
+        isA<AnalyticsState>().having(
+          (state) => state.isCollecting,
+          'isCollecting',
+          false,
+        ),
+      ],
+      verify: (_) => verifyNever(() => repo.recordReading()),
     );
   });
 }

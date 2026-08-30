@@ -9,6 +9,7 @@ import '../repository/analytics_repository.dart';
 final analyticsRepositoryProvider = Provider<AnalyticsRepository>((ref) {
   return AnalyticsRepository(
     sysfsService: ref.watch(legionSysfsServiceProvider),
+    nvidiaSmiService: ref.watch(nvidiaSmiServiceProvider),
     box: ref.watch(sensorRecordBoxProvider),
   );
 });

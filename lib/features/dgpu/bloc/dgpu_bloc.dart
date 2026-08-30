@@ -58,7 +58,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
     );
     try {
-      await _repository.killGpuProcesses();
+      await _repository.killGpuProcesses(event.expectedPids);
       await _reloadState(
         emit,
         showLoading: false,
@@ -78,7 +78,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
     );
     try {
-      await _repository.restartPciDevice();
+      await _repository.restartPciDevice(event.expectedPciAddress);
       await _reloadState(
         emit,
         showLoading: false,
@@ -100,12 +100,14 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     );
     try {
       await _repository.setHybridMode(event.enabled);
-      emit(state.copyWith(
-        isApplying: false,
-        hybridModeEnabled: event.enabled,
-        noticeMessage:
-            'Hybrid mode updated. A reboot is required for changes to take effect.',
-      ));
+      emit(
+        state.copyWith(
+          isApplying: false,
+          hybridModeEnabled: event.enabled,
+          noticeMessage:
+              'Hybrid mode updated. A reboot is required for changes to take effect.',
+        ),
+      );
     } on DgpuRepositoryException catch (e) {
       emit(state.copyWith(isApplying: false, errorMessage: e.toString()));
     }
@@ -134,6 +136,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           noticeMessage: noticeMessage,
           hybridModeEnabled: snapshot.hybridModeEnabled,
           hybridModeSupported: snapshot.hybridModeSupported,
+          name: snapshot.name,
         ),
       );
     } catch (error) {

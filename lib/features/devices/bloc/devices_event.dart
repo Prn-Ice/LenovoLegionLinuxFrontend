@@ -46,15 +46,6 @@ final class FnLockSetRequested extends DevicesEvent {
   List<Object?> get props => [enabled];
 }
 
-final class AlwaysOnUsbSetRequested extends DevicesEvent {
-  const AlwaysOnUsbSetRequested(this.enabled);
-
-  final bool enabled;
-
-  @override
-  List<Object?> get props => [enabled];
-}
-
 final class CameraSetRequested extends DevicesEvent {
   const CameraSetRequested(this.enabled);
 

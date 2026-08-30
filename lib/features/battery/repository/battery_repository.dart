@@ -12,6 +12,8 @@ class BatteryRepositoryException implements Exception {
 }
 
 class BatteryRepository extends PrivilegedRepository {
+  static const bool _alwaysOnUsbWriteSupported = false;
+
   const BatteryRepository({
     required LegionSysfsService sysfsService,
     required super.bridgeService,
@@ -35,6 +37,11 @@ class BatteryRepository extends PrivilegedRepository {
       _sysfsService.readBatteryDesignCapacityWh(),
       _sysfsService.readBatteryCurrentCapacityWh(),
       _sysfsService.readBatteryTempC(),
+      _sysfsService.readAlwaysOnUsbChargingMode(),
+      _sysfsService.readBatteryVoltageV(),
+      _sysfsService.readBatteryManufacturer(),
+      _sysfsService.readBatteryModelName(),
+      _sysfsService.readBatterySerialNumber(),
     ]);
 
     final batteryConservation = results[0] as bool?;
@@ -47,6 +54,7 @@ class BatteryRepository extends PrivilegedRepository {
     final designCapacityWh = results[7] as double?;
     final currentCapacityWh = results[8] as double?;
     final batteryTempC = results[9] as double?;
+    final alwaysOnUsb = results[10] as bool?;
 
     return BatterySnapshot(
       batteryConservationEnabled: batteryConservation,
@@ -63,6 +71,13 @@ class BatteryRepository extends PrivilegedRepository {
       designCapacityWh: designCapacityWh,
       currentCapacityWh: currentCapacityWh,
       batteryTempC: batteryTempC,
+      batteryStatus: batteryStatusStr,
+      alwaysOnUsbEnabled: alwaysOnUsb,
+      alwaysOnUsbSupported: _alwaysOnUsbWriteSupported,
+      voltageV: results[11] as double?,
+      manufacturer: results[12] as String?,
+      modelName: results[13] as String?,
+      serialNumber: results[14] as String?,
     );
   }
 
@@ -87,6 +102,24 @@ class BatteryRepository extends PrivilegedRepository {
       method: 'rapid_charging.set',
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
+    );
+  }
+
+  Future<void> setAlwaysOnUsb(bool enabled) async {
+    if (!_alwaysOnUsbWriteSupported) {
+      throw const BatteryRepositoryException(
+        'Always-on USB is read-only because backend write support is not available.',
+      );
+    }
+
+    final command = enabled
+        ? 'always-on-usb-charging-enable'
+        : 'always-on-usb-charging-disable';
+    await runPrivilegedCommand(
+      [command],
+      method: 'always_on_usb.set',
+      failurePrefix:
+          'Failed to set always-on USB charging to ${enabled ? 'on' : 'off'}',
     );
   }
 }

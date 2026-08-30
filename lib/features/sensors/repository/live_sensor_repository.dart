@@ -77,6 +77,7 @@ class LiveSensorRepository {
         gpuFanPercent: nvidia.fanPercent,
         gpuPowerDrawW: nvidia.powerDrawW,
         gpuIsDiscrete: true,
+        gpuPerformanceState: nvidia.performanceState,
         motherboardTempC: moboTemp,
         batteryPercent: batteryPercent,
         batteryCharging: batteryStatusStr == null
@@ -108,6 +109,7 @@ class LiveSensorRepository {
       gpuFanPercent: null,
       gpuPowerDrawW: null,
       gpuIsDiscrete: false,
+      gpuPerformanceState: null,
       motherboardTempC: moboTemp,
       batteryPercent: batteryPercent,
       batteryCharging: batteryStatusStr == null

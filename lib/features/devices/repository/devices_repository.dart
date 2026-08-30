@@ -12,10 +12,6 @@ class DevicesRepositoryException implements Exception {
 }
 
 class DevicesRepository extends PrivilegedRepository {
-  // Keep writes gated until backend/CLI support for always-on USB is
-  // verified end-to-end (see roadmap item okf.4).
-  static const bool _alwaysOnUsbWriteSupported = false;
-
   const DevicesRepository({
     required LegionSysfsService sysfsService,
     required super.bridgeService,
@@ -31,7 +27,6 @@ class DevicesRepository extends PrivilegedRepository {
     final touchpad = await _sysfsService.readTouchpadMode();
     final winKey = await _sysfsService.readWinKeyMode();
     final fnLock = await _sysfsService.readFnLockMode();
-    final alwaysOnUsb = await _sysfsService.readAlwaysOnUsbChargingMode();
     final camera = await _sysfsService.readCameraPowerMode();
 
     return DevicesSnapshot(
@@ -41,8 +36,6 @@ class DevicesRepository extends PrivilegedRepository {
       winKeySupported: winKey != null,
       fnLockEnabled: fnLock,
       fnLockSupported: fnLock != null,
-      alwaysOnUsbEnabled: alwaysOnUsb,
-      alwaysOnUsbSupported: _alwaysOnUsbWriteSupported,
       cameraEnabled: camera,
       cameraSupported: camera != null,
     );
@@ -71,24 +64,6 @@ class DevicesRepository extends PrivilegedRepository {
       [command],
       method: 'fn_lock.set',
       failurePrefix: 'Failed to set Fn lock to ${enabled ? 'on' : 'off'}',
-    );
-  }
-
-  Future<void> setAlwaysOnUsb(bool enabled) async {
-    if (!_alwaysOnUsbWriteSupported) {
-      throw const DevicesRepositoryException(
-        'Always-on USB is currently read-only because backend write support is not available yet.',
-      );
-    }
-
-    final command = enabled
-        ? 'always-on-usb-charging-enable'
-        : 'always-on-usb-charging-disable';
-    await runPrivilegedCommand(
-      [command],
-      method: 'always_on_usb.set',
-      failurePrefix:
-          'Failed to set always-on USB charging to ${enabled ? 'on' : 'off'}',
     );
   }
 

@@ -55,6 +55,7 @@ void main() {
         vramUsedGb: null,
         vramTotalGb: null,
         powerDrawW: null,
+        performanceState: 'P2',
       ),
     );
 
@@ -62,6 +63,7 @@ void main() {
 
     expect(snapshot.cpuPackagePowerW, 24.5);
     expect(snapshot.gpuIsDiscrete, isTrue);
+    expect(snapshot.gpuPerformanceState, 'P2');
     verify(packagePower.readPackagePowerWatts).called(1);
   });
 

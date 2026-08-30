@@ -8,8 +8,6 @@ class DevicesSnapshot extends Equatable {
     required this.winKeySupported,
     required this.fnLockEnabled,
     required this.fnLockSupported,
-    required this.alwaysOnUsbEnabled,
-    required this.alwaysOnUsbSupported,
     required this.cameraEnabled,
     required this.cameraSupported,
   });
@@ -20,8 +18,6 @@ class DevicesSnapshot extends Equatable {
   final bool winKeySupported;
   final bool? fnLockEnabled;
   final bool fnLockSupported;
-  final bool? alwaysOnUsbEnabled;
-  final bool alwaysOnUsbSupported;
   final bool? cameraEnabled;
   final bool cameraSupported;
 
@@ -33,8 +29,6 @@ class DevicesSnapshot extends Equatable {
     winKeySupported,
     fnLockEnabled,
     fnLockSupported,
-    alwaysOnUsbEnabled,
-    alwaysOnUsbSupported,
     cameraEnabled,
     cameraSupported,
   ];

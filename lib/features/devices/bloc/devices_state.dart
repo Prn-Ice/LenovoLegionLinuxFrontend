@@ -8,8 +8,6 @@ class DevicesState extends Equatable {
     required this.winKeySupported,
     required this.fnLockEnabled,
     required this.fnLockSupported,
-    required this.alwaysOnUsbEnabled,
-    required this.alwaysOnUsbSupported,
     required this.cameraEnabled,
     required this.cameraSupported,
     required this.isLoading,
@@ -25,8 +23,6 @@ class DevicesState extends Equatable {
     winKeySupported: false,
     fnLockEnabled: null,
     fnLockSupported: false,
-    alwaysOnUsbEnabled: null,
-    alwaysOnUsbSupported: false,
     cameraEnabled: null,
     cameraSupported: false,
     isLoading: false,
@@ -43,8 +39,6 @@ class DevicesState extends Equatable {
   final bool winKeySupported;
   final bool? fnLockEnabled;
   final bool fnLockSupported;
-  final bool? alwaysOnUsbEnabled;
-  final bool alwaysOnUsbSupported;
   final bool? cameraEnabled;
   final bool cameraSupported;
   final bool isLoading;
@@ -56,7 +50,6 @@ class DevicesState extends Equatable {
       touchpadEnabled != null ||
       winKeyEnabled != null ||
       fnLockEnabled != null ||
-      alwaysOnUsbEnabled != null ||
       cameraEnabled != null;
 
   DevicesState copyWith({
@@ -66,8 +59,6 @@ class DevicesState extends Equatable {
     bool? winKeySupported,
     Object? fnLockEnabled = _unset,
     bool? fnLockSupported,
-    Object? alwaysOnUsbEnabled = _unset,
-    bool? alwaysOnUsbSupported,
     Object? cameraEnabled = _unset,
     bool? cameraSupported,
     bool? isLoading,
@@ -88,10 +79,6 @@ class DevicesState extends Equatable {
           ? this.fnLockEnabled
           : fnLockEnabled as bool?,
       fnLockSupported: fnLockSupported ?? this.fnLockSupported,
-      alwaysOnUsbEnabled: alwaysOnUsbEnabled == _unset
-          ? this.alwaysOnUsbEnabled
-          : alwaysOnUsbEnabled as bool?,
-      alwaysOnUsbSupported: alwaysOnUsbSupported ?? this.alwaysOnUsbSupported,
       cameraEnabled: cameraEnabled == _unset
           ? this.cameraEnabled
           : cameraEnabled as bool?,
@@ -115,8 +102,6 @@ class DevicesState extends Equatable {
     winKeySupported,
     fnLockEnabled,
     fnLockSupported,
-    alwaysOnUsbEnabled,
-    alwaysOnUsbSupported,
     cameraEnabled,
     cameraSupported,
     isLoading,

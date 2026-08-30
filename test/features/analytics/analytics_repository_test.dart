@@ -4,16 +4,20 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
+import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/analytics/repository/analytics_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSysfsService extends Mock implements LegionSysfsService {}
 
+class MockNvidiaSmiService extends Mock implements NvidiaSmiService {}
+
 void main() {
   late Directory tmpDir;
   late MockSysfsService sysfs;
   late AnalyticsRepository repo;
+  late MockNvidiaSmiService nvidia;
   late Box<SensorRecord> box;
 
   setUp(() async {
@@ -29,8 +33,17 @@ void main() {
     when(() => sysfs.readFan2Rpm()).thenAnswer((_) async => 2200);
     when(() => sysfs.readCpuTempC()).thenAnswer((_) async => 55.0);
     when(() => sysfs.readGpuTempC()).thenAnswer((_) async => 48.0);
+    when(() => sysfs.readBatteryPercent()).thenAnswer((_) async => 74);
+    when(() => sysfs.readBatteryPowerDrawW()).thenAnswer((_) async => 12.4);
+    when(() => sysfs.readBatteryTempC()).thenAnswer((_) async => 29.5);
+    nvidia = MockNvidiaSmiService();
+    when(() => nvidia.readSnapshot()).thenAnswer((_) async => null);
 
-    repo = AnalyticsRepository(sysfsService: sysfs, box: box);
+    repo = AnalyticsRepository(
+      sysfsService: sysfs,
+      nvidiaSmiService: nvidia,
+      box: box,
+    );
   });
 
   tearDown(() async {
@@ -45,6 +58,8 @@ void main() {
     expect(box.values.first.fan2Rpm, 2200);
     expect(box.values.first.cpuTempC, 55.0);
     expect(box.values.first.gpuTempC, 48.0);
+    expect(box.values.first.batteryPercent, 74);
+    expect(box.values.first.batteryPowerDrawW, 12.4);
   });
 
   test('readHistory returns all records within the window', () async {

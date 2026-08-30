@@ -6,6 +6,7 @@ import 'package:riverbloc/riverbloc.dart';
 import '../services/legion_cli_service.dart';
 import '../services/legion_frontend_bridge_service.dart';
 import '../services/legion_sysfs_service.dart';
+import '../services/nvidia_smi_service.dart';
 import '../services/package_power_telemetry_service.dart';
 import '../services/power_profile_service.dart';
 import '../services/xrandr_service.dart';
@@ -17,6 +18,10 @@ final legionSysfsServiceProvider = Provider<LegionSysfsService>(
 
 final legionCliServiceProvider = Provider<LegionCliService>(
   (ref) => LegionCliService(),
+);
+
+final nvidiaSmiServiceProvider = Provider<NvidiaSmiService>(
+  (ref) => NvidiaSmiService(),
 );
 
 final legionBridgeServiceProvider = Provider<LegionFrontendBridgeService>((

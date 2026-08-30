@@ -62,26 +62,7 @@ class DevicesPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // 2. Power card
-        AppControlCard(
-          icon: YaruIcons.thunderbolt,
-          title: 'Power',
-          children: [
-            AppSwitchTile(
-              value: state.alwaysOnUsbEnabled ?? false,
-              onChanged: (state.alwaysOnUsbSupported && !state.isApplying)
-                  ? (enabled) => bloc.add(AlwaysOnUsbSetRequested(enabled))
-                  : null,
-              title: 'Always-on USB',
-              subtitle: state.alwaysOnUsbSupported
-                  ? boolEnabledLabel(state.alwaysOnUsbEnabled)
-                  : 'Not supported on this device',
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-
-        // 3. Camera card
+        // 2. Camera card
         AppControlCard(
           icon: YaruIcons.camera_web,
           title: 'Camera',

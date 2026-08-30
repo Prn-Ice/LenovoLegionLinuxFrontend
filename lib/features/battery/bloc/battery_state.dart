@@ -24,6 +24,13 @@ class BatteryState extends Equatable {
     required this.designCapacityWh,
     required this.currentCapacityWh,
     required this.batteryTempC,
+    required this.batteryStatus,
+    required this.alwaysOnUsbEnabled,
+    required this.alwaysOnUsbSupported,
+    required this.voltageV,
+    required this.manufacturer,
+    required this.modelName,
+    required this.serialNumber,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -43,6 +50,13 @@ class BatteryState extends Equatable {
     designCapacityWh: null,
     currentCapacityWh: null,
     batteryTempC: null,
+    batteryStatus: null,
+    alwaysOnUsbEnabled: null,
+    alwaysOnUsbSupported: false,
+    voltageV: null,
+    manufacturer: null,
+    modelName: null,
+    serialNumber: null,
     isLoading: false,
     isApplying: false,
     errorMessage: null,
@@ -63,6 +77,13 @@ class BatteryState extends Equatable {
   final double? designCapacityWh;
   final double? currentCapacityWh;
   final double? batteryTempC;
+  final String? batteryStatus;
+  final bool? alwaysOnUsbEnabled;
+  final bool alwaysOnUsbSupported;
+  final double? voltageV;
+  final String? manufacturer;
+  final String? modelName;
+  final String? serialNumber;
   final bool isLoading;
   final bool isApplying;
   final String? errorMessage;
@@ -72,6 +93,14 @@ class BatteryState extends Equatable {
       batteryConservationEnabled != null ||
       rapidChargingEnabled != null ||
       batteryPercent != null;
+
+  String get chargeStateLabel => switch (batteryStatus?.toLowerCase()) {
+    'charging' => 'Charging',
+    'discharging' => 'Discharging',
+    'full' => 'Full',
+    'not charging' => 'Not charging',
+    _ => 'Unknown',
+  };
 
   /// Estimates the number of minutes until empty/full from the current power
   /// draw. AC-connected, idle batteries are deliberately not estimated.
@@ -108,6 +137,13 @@ class BatteryState extends Equatable {
     Object? designCapacityWh = _unset,
     Object? currentCapacityWh = _unset,
     Object? batteryTempC = _unset,
+    Object? batteryStatus = _unset,
+    Object? alwaysOnUsbEnabled = _unset,
+    bool? alwaysOnUsbSupported,
+    Object? voltageV = _unset,
+    Object? manufacturer = _unset,
+    Object? modelName = _unset,
+    Object? serialNumber = _unset,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -148,6 +184,21 @@ class BatteryState extends Equatable {
       batteryTempC: batteryTempC == _unset
           ? this.batteryTempC
           : batteryTempC as double?,
+      batteryStatus: batteryStatus == _unset
+          ? this.batteryStatus
+          : batteryStatus as String?,
+      alwaysOnUsbEnabled: alwaysOnUsbEnabled == _unset
+          ? this.alwaysOnUsbEnabled
+          : alwaysOnUsbEnabled as bool?,
+      alwaysOnUsbSupported: alwaysOnUsbSupported ?? this.alwaysOnUsbSupported,
+      voltageV: voltageV == _unset ? this.voltageV : voltageV as double?,
+      manufacturer: manufacturer == _unset
+          ? this.manufacturer
+          : manufacturer as String?,
+      modelName: modelName == _unset ? this.modelName : modelName as String?,
+      serialNumber: serialNumber == _unset
+          ? this.serialNumber
+          : serialNumber as String?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -173,6 +224,13 @@ class BatteryState extends Equatable {
     designCapacityWh,
     currentCapacityWh,
     batteryTempC,
+    batteryStatus,
+    alwaysOnUsbEnabled,
+    alwaysOnUsbSupported,
+    voltageV,
+    manufacturer,
+    modelName,
+    serialNumber,
     isLoading,
     isApplying,
     errorMessage,

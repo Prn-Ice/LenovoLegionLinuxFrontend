@@ -36,3 +36,12 @@ final class RapidChargingSetRequested extends BatteryEvent {
   @override
   List<Object?> get props => [enabled];
 }
+
+final class AlwaysOnUsbSetRequested extends BatteryEvent {
+  const AlwaysOnUsbSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}

@@ -19,7 +19,6 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
     on<TouchpadSetRequested>(_onTouchpadSetRequested);
     on<WinKeySetRequested>(_onWinKeySetRequested);
     on<FnLockSetRequested>(_onFnLockSetRequested);
-    on<AlwaysOnUsbSetRequested>(_onAlwaysOnUsbSetRequested);
     on<CameraSetRequested>(_onCameraSetRequested);
   }
 
@@ -90,18 +89,6 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
     );
   }
 
-  Future<void> _onAlwaysOnUsbSetRequested(
-    AlwaysOnUsbSetRequested event,
-    Emitter<DevicesState> emit,
-  ) async {
-    await _apply(
-      emit,
-      action: () => _repository.setAlwaysOnUsb(event.enabled),
-      successMessage:
-          'Always-on USB charging ${event.enabled ? 'enabled' : 'disabled'}.',
-    );
-  }
-
   Future<void> _onCameraSetRequested(
     CameraSetRequested event,
     Emitter<DevicesState> emit,
@@ -160,8 +147,6 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
           winKeySupported: snapshot.winKeySupported,
           fnLockEnabled: snapshot.fnLockEnabled,
           fnLockSupported: snapshot.fnLockSupported,
-          alwaysOnUsbEnabled: snapshot.alwaysOnUsbEnabled,
-          alwaysOnUsbSupported: snapshot.alwaysOnUsbSupported,
           cameraEnabled: snapshot.cameraEnabled,
           cameraSupported: snapshot.cameraSupported,
           isLoading: false,

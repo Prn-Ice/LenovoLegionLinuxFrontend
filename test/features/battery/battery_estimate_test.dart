@@ -68,4 +68,30 @@ void main() {
     expect(formatBatteryDuration(120), '2h');
     expect(formatBatteryDuration(140), '2h 20m');
   });
+
+  test('preserves truthful kernel charge states', () {
+    expect(
+      BatteryState.initial()
+          .copyWith(batteryStatus: 'Charging')
+          .chargeStateLabel,
+      'Charging',
+    );
+    expect(
+      BatteryState.initial()
+          .copyWith(batteryStatus: 'Discharging')
+          .chargeStateLabel,
+      'Discharging',
+    );
+    expect(
+      BatteryState.initial().copyWith(batteryStatus: 'Full').chargeStateLabel,
+      'Full',
+    );
+    expect(
+      BatteryState.initial()
+          .copyWith(batteryStatus: 'Not charging')
+          .chargeStateLabel,
+      'Not charging',
+    );
+    expect(BatteryState.initial().chargeStateLabel, 'Unknown');
+  });
 }

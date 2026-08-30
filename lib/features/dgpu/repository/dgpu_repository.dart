@@ -45,12 +45,14 @@ class DgpuRepository extends PrivilegedRepository {
       isActive = null;
     }
     final processes = await _queryComputeProcesses();
+    final name = pciAddress == null ? null : await _queryPciName(pciAddress);
     return DgpuSnapshot(
       isActive: isActive,
       processes: processes,
       pciAddress: pciAddress,
       hybridModeEnabled: hybridMode,
       hybridModeSupported: hybridMode != null,
+      name: name,
     );
   }
 
@@ -65,7 +67,16 @@ class DgpuRepository extends PrivilegedRepository {
     );
   }
 
-  Future<void> killGpuProcesses() async {
+  Future<void> killGpuProcesses(List<int> expectedPids) async {
+    final currentPids =
+        (await _queryComputeProcesses()).map((process) => process.pid).toList()
+          ..sort();
+    final baseline = [...expectedPids]..sort();
+    if (baseline.isEmpty || !_sameValues(currentPids, baseline)) {
+      throw const DgpuRepositoryException(
+        'The GPU process list changed. Refresh and confirm the current targets before trying again.',
+      );
+    }
     await runPrivilegedCommand(
       ['dgpu', 'kill-processes'],
       method: 'dgpu.kill_processes',
@@ -75,7 +86,18 @@ class DgpuRepository extends PrivilegedRepository {
     );
   }
 
-  Future<void> restartPciDevice() async {
+  Future<void> restartPciDevice(String expectedPciAddress) async {
+    final currentAddress = await _findNvidiaGpuPciAddress();
+    if (currentAddress != expectedPciAddress) {
+      throw const DgpuRepositoryException(
+        'The GPU PCI target changed. Refresh before trying again.',
+      );
+    }
+    if ((await _queryComputeProcesses()).isNotEmpty) {
+      throw const DgpuRepositoryException(
+        'GPU compute processes are still active. Stop them before restarting the PCI device.',
+      );
+    }
     await runPrivilegedCommand(
       ['dgpu', 'restart-pci'],
       method: 'dgpu.restart_pci',
@@ -145,5 +167,29 @@ class DgpuRepository extends PrivilegedRepository {
     } on Exception catch (_) {
       return [];
     }
+  }
+
+  Future<String?> _queryPciName(String pciAddress) async {
+    try {
+      final result = await Process.run('lspci', [
+        '-s',
+        pciAddress,
+      ]).timeout(const Duration(seconds: 4));
+      if (result.exitCode != 0) return null;
+      final output = '${result.stdout}'.trim();
+      if (output.isEmpty) return null;
+      final separator = output.indexOf(': ');
+      return separator == -1 ? output : output.substring(separator + 2);
+    } on Exception catch (_) {
+      return null;
+    }
+  }
+
+  bool _sameValues(List<int> left, List<int> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
   }
 }

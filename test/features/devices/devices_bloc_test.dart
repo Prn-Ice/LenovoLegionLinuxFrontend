@@ -20,8 +20,6 @@ void main() {
     winKeySupported: false,
     fnLockEnabled: null,
     fnLockSupported: false,
-    alwaysOnUsbEnabled: null,
-    alwaysOnUsbSupported: false,
     cameraEnabled: null,
     cameraSupported: false,
   );
@@ -33,8 +31,6 @@ void main() {
     winKeySupported: true,
     fnLockEnabled: null,
     fnLockSupported: false,
-    alwaysOnUsbEnabled: null,
-    alwaysOnUsbSupported: false,
     cameraEnabled: null,
     cameraSupported: false,
   );
@@ -81,9 +77,9 @@ void main() {
     blocTest<DevicesBloc, DevicesState>(
       'DevicesTicked reloads silently when not applying',
       build: () {
-        when(() => repo.loadSnapshot()).thenAnswer(
-          (_) async => snapshotWithData,
-        );
+        when(
+          () => repo.loadSnapshot(),
+        ).thenAnswer((_) async => snapshotWithData);
         return DevicesBloc(
           repository: repo,
           pollInterval: const Duration(seconds: 60),

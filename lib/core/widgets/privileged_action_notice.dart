@@ -28,11 +28,13 @@ class PrivilegedActionNotice extends StatelessWidget {
             color: scheme.onSecondaryContainer,
           ),
           const SizedBox(width: 6),
-          Text(
-            message,
-            style: TextStyle(
-              color: scheme.onSecondaryContainer,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: scheme.onSecondaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

@@ -20,6 +20,7 @@ class LiveSensorSnapshot extends Equatable {
     required this.gpuFanPercent,
     required this.gpuPowerDrawW,
     required this.gpuIsDiscrete,
+    this.gpuPerformanceState,
     required this.motherboardTempC,
     required this.batteryPercent,
     required this.batteryCharging,
@@ -73,6 +74,7 @@ class LiveSensorSnapshot extends Equatable {
   final int? gpuFanPercent;
   final double? gpuPowerDrawW;
   final bool gpuIsDiscrete;
+  final String? gpuPerformanceState;
 
   final double? motherboardTempC;
   final int? batteryPercent;
@@ -100,6 +102,7 @@ class LiveSensorSnapshot extends Equatable {
     gpuFanPercent,
     gpuPowerDrawW,
     gpuIsDiscrete,
+    gpuPerformanceState,
     motherboardTempC,
     batteryPercent,
     batteryCharging,

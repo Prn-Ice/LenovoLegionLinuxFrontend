@@ -28,17 +28,20 @@ class AnalyticsState extends Equatable {
     required this.history,
     required this.window,
     required this.errorMessage,
+    required this.isCollecting,
   });
 
   factory AnalyticsState.initial() => const AnalyticsState(
     history: [],
     window: AnalyticsTimeWindow.lastHour,
     errorMessage: null,
+    isCollecting: false,
   );
 
   final List<SensorRecord> history;
   final AnalyticsTimeWindow window;
   final String? errorMessage;
+  final bool isCollecting;
 
   SensorRecord? get latest => history.isEmpty ? null : history.last;
 
@@ -46,16 +49,18 @@ class AnalyticsState extends Equatable {
     List<SensorRecord>? history,
     AnalyticsTimeWindow? window,
     Object? errorMessage = _unset,
+    bool? isCollecting,
   }) => AnalyticsState(
     history: history ?? this.history,
     window: window ?? this.window,
     errorMessage: errorMessage == _unset
         ? this.errorMessage
         : errorMessage as String?,
+    isCollecting: isCollecting ?? this.isCollecting,
   );
 
   static const _unset = Object();
 
   @override
-  List<Object?> get props => [history, window, errorMessage];
+  List<Object?> get props => [history, window, errorMessage, isCollecting];
 }

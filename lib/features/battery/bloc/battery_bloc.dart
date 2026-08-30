@@ -18,6 +18,7 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     on<BatteryTicked>(_onTicked);
     on<BatteryConservationSetRequested>(_onBatteryConservationSetRequested);
     on<RapidChargingSetRequested>(_onRapidChargingSetRequested);
+    on<AlwaysOnUsbSetRequested>(_onAlwaysOnUsbSetRequested);
   }
 
   final BatteryRepository _repository;
@@ -78,6 +79,19 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     );
   }
 
+  Future<void> _onAlwaysOnUsbSetRequested(
+    AlwaysOnUsbSetRequested event,
+    Emitter<BatteryState> emit,
+  ) async {
+    if (!state.alwaysOnUsbSupported) return;
+    await _apply(
+      emit,
+      action: () => _repository.setAlwaysOnUsb(event.enabled),
+      successMessage:
+          'Always-on USB charging ${event.enabled ? 'enabled' : 'disabled'}.',
+    );
+  }
+
   Future<void> _apply(
     Emitter<BatteryState> emit, {
     required Future<void> Function() action,
@@ -131,6 +145,13 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
           designCapacityWh: snapshot.designCapacityWh,
           currentCapacityWh: snapshot.currentCapacityWh,
           batteryTempC: snapshot.batteryTempC,
+          batteryStatus: snapshot.batteryStatus,
+          alwaysOnUsbEnabled: snapshot.alwaysOnUsbEnabled,
+          alwaysOnUsbSupported: snapshot.alwaysOnUsbSupported,
+          voltageV: snapshot.voltageV,
+          manufacturer: snapshot.manufacturer,
+          modelName: snapshot.modelName,
+          serialNumber: snapshot.serialNumber,
           isLoading: false,
           errorMessage: null,
         ),

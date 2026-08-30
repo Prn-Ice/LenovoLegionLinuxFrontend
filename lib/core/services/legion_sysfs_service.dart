@@ -512,6 +512,20 @@ class LegionSysfsService {
     return null;
   }
 
+  Future<double?> readBatteryVoltageV() async {
+    final raw = await readIntFile('${await _batteryBase()}/voltage_now');
+    return raw == null ? null : raw / 1e6;
+  }
+
+  Future<String?> readBatteryManufacturer() async =>
+      _readTrimmedFile('${await _batteryBase()}/manufacturer');
+
+  Future<String?> readBatteryModelName() async =>
+      _readTrimmedFile('${await _batteryBase()}/model_name');
+
+  Future<String?> readBatterySerialNumber() async =>
+      _readTrimmedFile('${await _batteryBase()}/serial_number');
+
   // ── Board / disk temperatures ─────────────────────────────────────────────
 
   /// Motherboard temperature in °C via hwmon (e.g. acpitz, it87, nct6775).

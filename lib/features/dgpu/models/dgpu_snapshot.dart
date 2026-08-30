@@ -9,6 +9,7 @@ class DgpuSnapshot extends Equatable {
     required this.pciAddress,
     required this.hybridModeEnabled,
     required this.hybridModeSupported,
+    this.name,
   });
 
   /// null = GPU sysfs path not found (not available / not NVIDIA)
@@ -25,6 +26,7 @@ class DgpuSnapshot extends Equatable {
 
   /// true when the hybrid mode sysfs file was found.
   final bool hybridModeSupported;
+  final String? name;
 
   @override
   List<Object?> get props => [
@@ -33,5 +35,6 @@ class DgpuSnapshot extends Equatable {
     pciAddress,
     hybridModeEnabled,
     hybridModeSupported,
+    name,
   ];
 }

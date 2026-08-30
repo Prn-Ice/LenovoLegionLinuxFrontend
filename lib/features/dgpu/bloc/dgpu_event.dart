@@ -21,12 +21,22 @@ final class DgpuTicked extends DgpuEvent {
 
 /// Kill all compute processes using the GPU (privileged).
 final class DgpuKillProcessesRequested extends DgpuEvent {
-  const DgpuKillProcessesRequested();
+  const DgpuKillProcessesRequested(this.expectedPids);
+
+  final List<int> expectedPids;
+
+  @override
+  List<Object?> get props => [expectedPids];
 }
 
 /// Remove the GPU from the PCI tree and re-scan to re-initialize (privileged).
 final class DgpuRestartPciRequested extends DgpuEvent {
-  const DgpuRestartPciRequested();
+  const DgpuRestartPciRequested(this.expectedPciAddress);
+
+  final String expectedPciAddress;
+
+  @override
+  List<Object?> get props => [expectedPciAddress];
 }
 
 /// Enable or disable hybrid mode (privileged). Reboot required.

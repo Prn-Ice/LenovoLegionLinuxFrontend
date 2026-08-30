@@ -14,6 +14,13 @@ class BatterySnapshot extends Equatable {
     required this.designCapacityWh,
     required this.currentCapacityWh,
     required this.batteryTempC,
+    this.batteryStatus,
+    this.alwaysOnUsbEnabled,
+    this.alwaysOnUsbSupported = false,
+    this.voltageV,
+    this.manufacturer,
+    this.modelName,
+    this.serialNumber,
   });
 
   final bool? batteryConservationEnabled;
@@ -28,6 +35,13 @@ class BatterySnapshot extends Equatable {
   final double? designCapacityWh;
   final double? currentCapacityWh;
   final double? batteryTempC;
+  final String? batteryStatus;
+  final bool? alwaysOnUsbEnabled;
+  final bool alwaysOnUsbSupported;
+  final double? voltageV;
+  final String? manufacturer;
+  final String? modelName;
+  final String? serialNumber;
 
   @override
   List<Object?> get props => [
@@ -43,5 +57,12 @@ class BatterySnapshot extends Equatable {
     designCapacityWh,
     currentCapacityWh,
     batteryTempC,
+    batteryStatus,
+    alwaysOnUsbEnabled,
+    alwaysOnUsbSupported,
+    voltageV,
+    manufacturer,
+    modelName,
+    serialNumber,
   ];
 }
