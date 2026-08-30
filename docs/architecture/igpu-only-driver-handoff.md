@@ -40,7 +40,7 @@ rollback still require a controlled hardware test before the frontend enables
 the option.
 
 The hardened kernel and combined CLI implementation is committed in the driver
-repository as `481af7d`.
+repository as `5a2a2d1`.
 
 ## Firmware evidence
 
@@ -117,9 +117,9 @@ the same combinations appear through sysfs as shown in the result table.
 
 ## Driver changes
 
-The existing driver source at base commit `f4849cd` already defined methods
+The existing driver source at base commit `4055714` already defined methods
 `63` through `66`, but exposed them through an unsafe generic helper. Driver
-commit `481af7d` hardens the contract with these properties:
+commit `5a2a2d1` hardens the contract with these properties:
 
 - Hide `igpumode` and `notify_dgpu` unless method `63` returns a positive
   capability code.
@@ -145,7 +145,7 @@ sets.
 
 ## User-space contract
 
-Driver commit `481af7d` implements an authoritative user-space contract that
+Driver commit `5a2a2d1` implements an authoritative user-space contract that
 combines `gsync` and `igpumode` rather than exposing two unrelated controls:
 
 ```text
