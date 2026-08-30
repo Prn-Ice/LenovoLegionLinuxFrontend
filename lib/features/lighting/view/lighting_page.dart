@@ -1060,6 +1060,7 @@ class _BacklightSection extends StatelessWidget {
           enabled: state.whiteKeyboardBacklightEnabled,
           confirmTitle: 'Toggle keyboard backlight',
           onApply: (v) => bloc.add(WhiteKeyboardBacklightSetRequested(v)),
+          writable: false,
         ),
       if (state.yLogoLightSupported)
         _toggle(
@@ -1101,11 +1102,12 @@ class _BacklightSection extends StatelessWidget {
     required bool? enabled,
     required String confirmTitle,
     required void Function(bool) onApply,
+    bool writable = true,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final on = enabled ?? false;
-    final canToggle = !state.isApplying;
+    final canToggle = writable && !state.isApplying;
 
     return Row(
       children: [
@@ -1127,7 +1129,9 @@ class _BacklightSection extends StatelessWidget {
             children: [
               Text(title, style: textTheme.titleSmall),
               Text(
-                on ? 'On' : 'Off',
+                writable
+                    ? (on ? 'On' : 'Off')
+                    : '${on ? 'On' : 'Off'} (read-only)',
                 style: textTheme.bodySmall?.copyWith(
                   color: scheme.onSurface.withValues(alpha: 0.56),
                 ),

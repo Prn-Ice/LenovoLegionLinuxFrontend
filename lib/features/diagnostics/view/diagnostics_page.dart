@@ -160,9 +160,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                 status: _boolStatus(snapshot?.pythonAvailable),
               ),
               _StatusLine(
-                label: 'pkexec',
-                value: _boolLabel(snapshot?.pkexecAvailable),
-                status: _boolStatus(snapshot?.pkexecAvailable),
+                label: 'legion-control',
+                value: _boolLabel(snapshot?.controlServiceActive),
+                status: _boolStatus(snapshot?.controlServiceActive),
               ),
               _StatusLine(
                 label: 'systemctl',
@@ -259,7 +259,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       'cli_path': snapshot.cliPath,
       'cli_path_exists': snapshot.cliPathExists,
       'python_available': snapshot.pythonAvailable,
-      'pkexec_available': snapshot.pkexecAvailable,
+      'control_service_active': snapshot.controlServiceActive,
       'systemctl_available': snapshot.systemctlAvailable,
       'cli_healthy': snapshot.cliHealthy,
       'cli_health_summary': snapshot.cliHealthSummary,

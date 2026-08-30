@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
-const _nixosPolkitConfiguration = '''security.polkit = {
+const _nixosControlConfiguration = '''security.polkit.enable = true;
+services.legionControl = {
   enable = true;
-  enablePkexecWrapper = true;
+  backendPackage = pkgs.lenovo-legion;
 };''';
 
 class AppPageBody extends StatelessWidget {
@@ -233,19 +234,19 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
     return [
       const Text(
-        'The app could not start pkexec, so the requested system change was not made.',
+        'The app could not reach its privileged control service, so the requested system change was not made.',
       ),
       const SizedBox(height: 16),
       Text('What this means', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       const Text(
-        'pkexec is the Polkit helper that asks for administrator authorization. It must first start with effective root privileges; this installation does not currently provide those privileges.',
+        'legion-control is a narrowly scoped system service that applies supported hardware changes after Polkit authorizes this app. The service or its policy is not available in this installation.',
       ),
       const SizedBox(height: 16),
       Text('NixOS', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       const Text(
-        'NixOS provides setuid programs through system wrappers. Add this to your system configuration, rebuild NixOS, then try the action again.',
+        'Import the frontend NixOS module, enable the control service and Polkit, rebuild NixOS, then try the action again.',
       ),
       const SizedBox(height: 10),
       DecoratedBox(
@@ -277,7 +278,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
                 ],
               ),
               Text(
-                _nixosPolkitConfiguration,
+                _nixosControlConfiguration,
                 style: textTheme.bodyMedium?.copyWith(
                   fontFamily: 'monospace',
                   height: 1.45,
@@ -291,7 +292,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
       Text('Other Linux distributions', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       const Text(
-        'Ubuntu, Debian, Fedora, Arch, and most other distributions normally install /usr/bin/pkexec as a root-owned setuid executable through their Polkit package. This app needs no special setup there. If the same error appears, reinstall the distribution\'s Polkit package or ask the system administrator to restore its packaged permissions.',
+        'Install the legion-control systemd unit, D-Bus policy, and Polkit action supplied in packaging/, then enable Polkit and start legion-control.service.',
       ),
       const SizedBox(height: 16),
       Text('Technical details', style: textTheme.titleSmall),
@@ -307,7 +308,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     if (mounted) setState(() => _configurationCopied = true);
     try {
       await Clipboard.setData(
-        const ClipboardData(text: _nixosPolkitConfiguration),
+        const ClipboardData(text: _nixosControlConfiguration),
       );
     } catch (_) {
       if (mounted) setState(() => _configurationCopied = false);
@@ -328,8 +329,11 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
 bool _isPrivilegeSetupError(String message) {
   final normalized = message.toLowerCase();
-  return normalized.contains('pkexec must be setuid root') ||
-      normalized.contains('security.polkit.enablepkexecwrapper');
+  return normalized.contains(
+        'legion-control service could not provide privileged access',
+      ) ||
+      normalized.contains('legion-control service is not configured') ||
+      normalized.contains('org.freedesktop.dbus.error.serviceunknown');
 }
 
 class AppSectionCard extends StatelessWidget {

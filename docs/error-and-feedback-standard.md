@@ -77,29 +77,29 @@ only when a classified failure has genuinely different recovery instructions.
 ## Known Failure Guidance
 
 Known failures deserve structured, domain-specific content. The current
-reference is `LegionBridgeErrorCode.privilegeSetup`, detected when `pkexec`
-reports that it must be setuid root.
+reference is `LegionBridgeErrorCode.privilegeSetup`, returned when the
+`legion-control` D-Bus service or its authorization policy is not configured.
 
 The explanation must make these facts clear:
 
-- `pkexec` is the Polkit helper that requests administrator authorization.
-- It must start with effective root privileges before Polkit can authenticate.
+- `legion-control` is a narrowly scoped root service, not a generic command
+  runner.
+- Polkit authorizes the frontend's unique D-Bus sender before writes are
+  accepted.
 - The command did not run, so the requested hardware or system setting did not
   change.
-- NixOS supplies setuid programs through wrappers rather than setting the bit on
-  immutable Nix store binaries.
-- Most other distributions install `/usr/bin/pkexec` with the required
-  root-owned setuid permissions through their Polkit package. They need no
-  application-specific configuration. The same error there normally indicates
-  damaged package permissions, a modified installation, or system hardening
-  that an administrator must address.
+- NixOS users must import the supplied module and enable both Polkit and
+  `services.legionControl`.
+- Other distributions must install the supplied systemd unit, D-Bus policy, and
+  Polkit action.
 
 The NixOS recovery block is canonical:
 
 ```nix
-security.polkit = {
+security.polkit.enable = true;
+services.legionControl = {
   enable = true;
-  enablePkexecWrapper = true;
+  backendPackage = pkgs.lenovo-legion;
 };
 ```
 

@@ -1,7 +1,7 @@
 # sysfs vs legion_cli Access Audit
 
 **Date:** 2026-03-07
-**Scope:** `LegionSysfsService` (direct sysfs reads) vs `LegionFrontendBridgeService` (pkexec → legion_cli writes) across all feature repositories.
+**Scope:** `LegionSysfsService` (direct sysfs reads) vs `LegionFrontendBridgeService` (`LegionControl1` writes) across all feature repositories.
 
 ---
 
@@ -12,7 +12,7 @@ The frontend uses a consistent, principled split:
 | Direction | Mechanism | Why |
 |---|---|---|
 | **Reads** | `LegionSysfsService` — direct file I/O | No privilege needed; avoids process spawn overhead |
-| **Writes** | `LegionFrontendBridgeService` → `pkexec legion_cli` | Kernel module writes require root; CLI handles all validation |
+| **Writes** | `LegionFrontendBridgeService` → typed `LegionControl1` D-Bus methods | Kernel writes require root; both client and service validate a narrow allow-list |
 
 This is correct and should be maintained.
 
@@ -48,9 +48,9 @@ This is correct and should be maintained.
 
 ---
 
-## Write Surface (`pkexec legion_cli`)
+## Write Surface (`LegionControl1`)
 
-Two strategies are in use. Both are correct — which to use depends on CLI surface.
+Repositories retain the CLI command vocabulary, but `LegionControlClient` maps it to typed D-Bus methods. The root service independently validates each request before constructing a fixed backend argument vector.
 
 ### Strategy A: Named subcommands
 
@@ -82,7 +82,6 @@ Used for features registered in `Feature.features` in `legion.py` but without de
 | `platform_profile` | `PlatformProfileFeature` | power |
 | `winkey` | `WinkeyFeature` | battery_devices |
 | `overdrive` | `OverdriveFeature` | display_lighting |
-| `white_kbd_backlight` | `WhiteKeyboardBacklightFeature` | display_lighting |
 | `y_logo_light` | `YLogoLight` | display_lighting |
 | `io_port_light` | `IOPortLight` | display_lighting |
 | `cpu_overclock` | `CPUOverclock` | power |
@@ -108,6 +107,8 @@ Used for features registered in `Feature.features` in `legion.py` but without de
 | `on_power_supply` | Sensor — AC state is not user-settable |
 | `cpu_temperature_limit` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
 | `gpu_power_target_offset` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
+| `white_kbd_backlight` | Not included in the privileged service allow-list until a validated backend contract exists |
+| `dgpu` deactivation | Process killing and PCI restart are intentionally outside the privileged service allow-list |
 
 The Power page shows an authoritative hardware-default baseline when one is
 known for the exact product and BIOS. The current model table is intentionally
@@ -133,13 +134,13 @@ slider bounds or current values.
 
 ### ✅ What's working well
 
-1. **Read/write separation is clean and consistent.** Every read is sysfs-direct; every write is pkexec-gated. No reads go through pkexec, no writes go through sysfs. This is the right design.
+1. **Read/write separation is clean and consistent.** Reads are unprivileged; writes cross the typed, Polkit-authorized D-Bus boundary. Dart does not write sysfs or launch an elevation helper.
 
 2. **Dual write strategy is intentional, not accidental.** Named subcommands exist for the features most commonly toggled. `set-feature` is the generic escape hatch for the full Feature registry. Both routes are stable.
 
 3. **Fan curve read goes direct to sysfs** (not via `fancurve-write-hw-to-file`). This avoids spawning a privileged process just to read state, and is the correct approach.
 
-4. **No coverage gaps in features that are exposed in the UI.** Every UI control has a matching sysfs read path and a CLI write path.
+4. **The root surface is deliberately smaller than the UI's historical command vocabulary.** Unsupported white-keyboard, camera, and dGPU mutations fail closed until a reviewed contract is added.
 
 ### ⚠️ Items to note
 
@@ -153,9 +154,8 @@ slider bounds or current values.
 
 ## Recommendation: Access Strategy Going Forward
 
-**No changes to the existing strategy are needed.** Continue with:
+Continue with:
 
 - **New read-only features:** Add to `LegionSysfsService`.
-- **New writable features with a named CLI subcommand:** Use named subcommand form in the repository.
-- **New writable features without a named subcommand:** Use `set-feature <FeatureName> <value>` and document the Python class name in a comment.
+- **New writable features:** Add a typed D-Bus method or extend an existing allow-list only after documenting ranges, payload limits, and backend argument construction; update both Dart and C++ tests.
 - **Reactive state changes (okf.18):** Investigate `monitor` command as the notification source.

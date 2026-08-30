@@ -13,7 +13,7 @@ The frontend is a Flutter desktop application for Linux. It does **not** contain
 │   Legion Linux Frontend (Dart)  │
 │                                 │
 │  reads ──────────────────────► sysfs   (direct, unprivileged)
-│  writes ─► pkexec legion_cli ► sysfs   (privileged, via polkit)
+│  writes ─► LegionControl1 ───► legion_cli / systemctl
 └─────────────────────────────────┘
          ▲
     legion_linux kernel module
@@ -22,9 +22,9 @@ The frontend is a Flutter desktop application for Linux. It does **not** contain
 
 **Reads** are done directly from sysfs using `dart:io File.readAsString()`. No privilege required; no process spawned.
 
-**Writes** always go through `legion_cli` (a Python CLI tool installed system-wide), invoked via `pkexec` for privilege elevation. The polkit agent shows the user an authentication dialog before any write completes.
+**Writes** go through `io.github.prnice.LegionControl1`, a root system-bus service. The service exposes typed, allow-listed methods and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. On the first write, Polkit authenticates the frontend's unique D-Bus sender; authorization remains valid for that connection and is revoked when it disconnects.
 
-The frontend never writes directly to sysfs. It never calls `sudo`. It never executes shell commands with `sh -c` for hardware control (only for the optional user-defined automation step).
+The frontend never writes directly to sysfs. It never calls `sudo` or `pkexec`, and the control service never accepts arbitrary commands or paths. The optional user-defined automation step is unprivileged and runs as the desktop user.
 
 ---
 
@@ -46,9 +46,9 @@ Snapshot (plain data class)
   │  raw poll result — no business logic
   ▼
 Services (LegionSysfsService / LegionFrontendBridgeService)
-  │  raw sysfs reads / pkexec writes
+  │  raw sysfs reads / typed D-Bus writes
   ▼
-Hardware (sysfs / legion_cli binary)
+Hardware (sysfs / LegionControl1)
 ```
 
 ### Layer responsibilities
@@ -59,8 +59,8 @@ Hardware (sysfs / legion_cli binary)
 | **BLoC** | Handle events; emit new `State`; coordinate repo calls | No I/O; no widget tree access |
 | **Repository** | Fetch snapshots; call bridge for writes; translate exceptions | Single source of truth for domain logic |
 | **Snapshot** | Immutable data bag returned by a single `loadSnapshot()` call | No methods beyond constructor |
-| **Services** | `LegionSysfsService` (sysfs reads), `LegionFrontendBridgeService` (pkexec writes) | No domain knowledge |
-| **Hardware** | sysfs nodes, `legion_cli` binary | External |
+| **Services** | `LegionSysfsService` (sysfs reads), `LegionFrontendBridgeService` and `LegionControlClient` (typed D-Bus writes) | No domain knowledge |
+| **Hardware** | sysfs nodes and the root `LegionControl1` service | External |
 
 ---
 
@@ -76,7 +76,8 @@ lib/
 │   ├── providers/
 │   │   └── system_services_provider.dart   Riverpod providers for shared services
 │   ├── services/
-│   │   ├── legion_cli_service.dart         Process.run wrapper (pkexec or plain)
+│   │   ├── legion_cli_service.dart         Unprivileged legion_cli read wrapper
+│   │   ├── legion_control_client.dart      Typed privileged D-Bus client
 │   │   ├── legion_frontend_bridge_service.dart  Privileged command queue + error classification
 │   │   ├── legion_sysfs_service.dart       Sysfs read helpers
 │   │   └── xrandr_service.dart             Display resolution queries
@@ -185,46 +186,37 @@ How a user action (e.g. "set power mode to performance") reaches hardware:
 5. BLoC calls repository.setPowerMode('performance')
 6. Repository calls bridgeService.runPrivilegedCommand(
      method: 'power.set_mode',
-     args: ['set-feature', 'PlatformProfile', 'performance'],
-     timeout: Duration(seconds: 5),
+     args: ['set-feature', 'PlatformProfileFeature', 'performance'],
+     timeout: Duration(seconds: 15),
    )
 7. BridgeService checks deduplication (same method+args already pending? → busy error)
 8. BridgeService enqueues command in _privilegedQueue (sequential, never concurrent)
-9. BridgeService calls LegionCliService.runCommand(args, privileged: true)
-10. LegionCliService runs: pkexec legion_cli --donotexpecthwmon set-feature PlatformProfileFeature performance
-    → polkit agent shows auth dialog (if not already authenticated)
+9. BridgeService maps the request through LegionControlClient
+10. LegionControlClient calls Authorize once for its D-Bus connection, then SetFeature
+    → polkit agent shows an authentication dialog for the first write
+    → the root service validates the feature and value
+    → the service runs a fixed legion_cli argument vector
     → kernel module writes to sysfs
 11. Result returns up the chain; on success BLoC calls loadSnapshot() and emits updated state
 12. On failure, BridgeService classifies the error code and throws LegionBridgeException
     → BLoC catches it, emits errorMessage
 ```
 
-### Two write strategies
+### Typed write contract
 
-`legion_cli` supports two ways to write settings:
+The D-Bus service exposes only these operation families:
 
-**Named subcommands** (feature-specific):
-```
-legion_cli set-feature PlatformProfile quiet
-legion_cli batteryconservation-enable
-legion_cli boot-logo enable /path/to/image.bmp
-```
+`SetFeature`, `SetToggle`, fan preset/curve operations, custom conservation,
+boot-logo set/restore, and fixed-ID service control. Feature names, values,
+toggle IDs, preset names, numeric ranges, payload sizes, and service IDs are
+validated independently in Dart and C++. Unsupported requests are rejected
+before a root subprocess starts.
 
-**Grouped subcommands** (for multi-step operations):
-```
-legion_cli boot-logo enable /path/to/image.bmp
-legion_cli boot-logo restore
-legion_cli dgpu kill-processes
-legion_cli dgpu restart-pci
-```
-
-The choice between them is determined by what `legion_cli` exposes for each feature. See `docs/architecture/sysfs-vs-cli-access-audit.md` for the full feature-by-feature breakdown.
-
-`LegionCliService` adds the global `--donotexpecthwmon` option before commands
-that do not use fan-controller I/O. This prevents a missing fan-controller `hwmon`
-directory from blocking unrelated power, battery, display, and device writes.
-Fan-curve, mini-fan-curve, fan-controller lock, and maximum-fan-speed commands
-deliberately retain the default controller requirement.
+The control service adds the global `--donotexpecthwmon` option before commands
+that do not use fan-controller I/O. This prevents a missing fan-controller
+`hwmon` directory from blocking unrelated power, battery, display, and device
+writes. Fan-curve, mini-fan-curve, fan-controller lock, and maximum-fan-speed
+commands deliberately retain the default controller requirement.
 
 ### Privileged command serialisation
 
@@ -232,17 +224,19 @@ The bridge service uses a future-chain queue (`_privilegedQueue`) to ensure priv
 - Gets a `busy` error (if it's the exact same method+args — deduplication)
 - Waits in the queue behind the first command (if it's a different command)
 
-This prevents multiple polkit dialogs appearing simultaneously.
+This prevents concurrent root operations. The persistent D-Bus connection also
+means the Polkit prompt occurs once per frontend connection rather than once per
+command.
 
 ### Error classification
 
-`LegionBridgeException` carries a `LegionBridgeErrorCode` classified by the bridge service from exit codes and output text:
+`LegionBridgeException` carries a `LegionBridgeErrorCode` translated from stable D-Bus errors:
 
 | Code | Cause | UI message |
 |---|---|---|
-| `permissionDenied` | pkexec exit 126, polkit rejection, "authentication cancelled" | Approve the polkit prompt |
-| `privilegeSetup` | `pkexec` cannot start with effective root privileges | Explain the platform setup; provide copyable NixOS configuration |
-| `unavailable` | pkexec exit 127, "not supported", command not found | Verify legion_cli is installed |
+| `permissionDenied` | Polkit denial or cancelled authentication | Approve the Polkit prompt |
+| `privilegeSetup` | Control service or Polkit action is not configured | Enable/install the service and policy |
+| `unavailable` | Backend or requested capability is unavailable | Verify the service, backend, and hardware support |
 | `busy` | Duplicate action in flight | Wait and retry |
 | `timeout` | Command took longer than the timeout | Retry; check system load |
 | `commandFailed` | Non-zero exit, unclassified | Shows stderr |

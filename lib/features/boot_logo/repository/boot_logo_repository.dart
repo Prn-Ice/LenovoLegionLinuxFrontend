@@ -23,7 +23,6 @@ class BootLogoRepository extends PrivilegedRepository {
       final result = await bridgeService.runCommand(
         method: 'boot-logo.status',
         args: ['boot-logo', 'status'],
-        privileged: false,
         detectUnavailableResponse: false,
       );
 

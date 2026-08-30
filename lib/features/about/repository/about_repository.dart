@@ -110,7 +110,7 @@ class AboutRepository {
 
     final cliPathExists = File(_cli.cliPath).existsSync();
     final pythonAvailable = await _isCommandAvailable('python3');
-    final pkexecAvailable = await _isCommandAvailable('pkexec');
+    final controlServiceActive = await _isControlServiceActive();
     final systemctlAvailable = await _isCommandAvailable('systemctl');
     final cliProbe = await _probeCliHealth();
     final results = await Future.wait([
@@ -125,7 +125,7 @@ class AboutRepository {
       cliPath: _cli.cliPath,
       cliPathExists: cliPathExists,
       pythonAvailable: pythonAvailable,
-      pkexecAvailable: pkexecAvailable,
+      controlServiceActive: controlServiceActive,
       systemctlAvailable: systemctlAvailable,
       cliHealthy: cliProbe.$1,
       cliHealthSummary: cliProbe.$2,
@@ -312,6 +312,19 @@ class AboutRepository {
       final result = await Process.run('which', [command]);
       return result.exitCode == 0;
     } on ProcessException {
+      return false;
+    }
+  }
+
+  Future<bool> _isControlServiceActive() async {
+    try {
+      final result = await Process.run('systemctl', [
+        'is-active',
+        '--quiet',
+        'legion-control.service',
+      ]).timeout(const Duration(seconds: 2));
+      return result.exitCode == 0;
+    } on Object {
       return false;
     }
   }

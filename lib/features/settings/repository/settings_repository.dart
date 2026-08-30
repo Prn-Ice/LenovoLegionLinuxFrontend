@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../../core/services/legion_control_client.dart';
 import '../models/service_control.dart';
 import '../models/settings_snapshot.dart';
 
@@ -13,7 +14,10 @@ class SettingsRepositoryException implements Exception {
 }
 
 class SettingsRepository {
-  SettingsRepository();
+  SettingsRepository({required LegionControlClient controlClient})
+    : _controlClient = controlClient;
+
+  final LegionControlClient _controlClient;
 
   static final List<ServiceControl> _serviceDefinitions = [
     const ServiceControl(
@@ -79,33 +83,11 @@ class SettingsRepository {
       );
     }
 
-    final action = enabled ? 'start' : 'stop';
-    final enableAction = enabled ? 'enable' : 'disable';
-
-    for (final unit in service.units) {
-      await _runPrivilegedSystemctl([action, unit], service.label);
-      await _runPrivilegedSystemctl([enableAction, unit], service.label);
+    try {
+      await _controlClient.setServiceEnabled(service.id, enabled);
+    } on LegionControlException catch (error) {
+      throw SettingsRepositoryException('$error');
     }
-  }
-
-  Future<void> _runPrivilegedSystemctl(List<String> args, String label) async {
-    final result = await Process.run('pkexec', ['systemctl', ...args]);
-    if (result.exitCode == 0) {
-      return;
-    }
-
-    final stderr = '${result.stderr}'.trim();
-    final stdout = '${result.stdout}'.trim();
-    final details = [
-      if (stderr.isNotEmpty) stderr,
-      if (stdout.isNotEmpty) stdout,
-    ].join('\n');
-
-    final message = details.isEmpty
-        ? 'Failed to run systemctl ${args.join(' ')} for $label.'
-        : 'Failed to run systemctl ${args.join(' ')} for $label: $details';
-
-    throw SettingsRepositoryException(message);
   }
 
   Future<_UnitStatus> _readUnitStatus(String unit) async {

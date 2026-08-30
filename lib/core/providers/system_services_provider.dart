@@ -4,6 +4,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../services/legion_cli_service.dart';
+import '../services/legion_control_client.dart';
 import '../services/legion_frontend_bridge_service.dart';
 import '../services/legion_sysfs_service.dart';
 import '../services/nvidia_smi_service.dart';
@@ -28,7 +29,17 @@ final legionBridgeServiceProvider = Provider<LegionFrontendBridgeService>((
   ref,
 ) {
   final cliService = ref.watch(legionCliServiceProvider);
-  return LegionFrontendBridgeService(cliService: cliService);
+  final controlClient = ref.watch(legionControlClientProvider);
+  return LegionFrontendBridgeService(
+    cliService: cliService,
+    controlClient: controlClient,
+  );
+});
+
+final legionControlClientProvider = Provider<LegionControlClient>((ref) {
+  final client = LegionControlClient(transport: DBusLegionControlTransport());
+  ref.onDispose(() => unawaited(client.close()));
+  return client;
 });
 
 final xrandrServiceProvider = Provider<XrandrService>((ref) => XrandrService());

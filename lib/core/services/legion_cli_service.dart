@@ -18,30 +18,18 @@ class LegionCliResult {
 }
 
 class LegionCliService {
-  LegionCliService({
-    String? cliPath,
-    String? privilegedExecutable,
-    ProcessRunner? processRunner,
-  }) : _cliPath = cliPath ?? _resolveCliPath(),
-       _privilegedExecutable =
-           privilegedExecutable ?? _resolvePrivilegedExecutable(),
-       _processRunner = processRunner ?? Process.run;
+  LegionCliService({String? cliPath, ProcessRunner? processRunner})
+    : _cliPath = cliPath ?? _resolveCliPath(),
+      _processRunner = processRunner ?? Process.run;
 
   final String _cliPath;
-  final String _privilegedExecutable;
   final ProcessRunner _processRunner;
   String get cliPath => _cliPath;
-  String get privilegedExecutable => _privilegedExecutable;
 
-  Future<LegionCliResult> runCommand(
-    List<String> args, {
-    bool privileged = false,
-  }) async {
-    final executable = privileged ? _privilegedExecutable : _cliPath;
+  Future<LegionCliResult> runCommand(List<String> args) async {
     final cliArgs = _withHwmonExpectation(args);
-    final commandArgs = privileged ? [_cliPath, ...cliArgs] : cliArgs;
 
-    final result = await _processRunner(executable, commandArgs);
+    final result = await _processRunner(_cliPath, cliArgs);
 
     return LegionCliResult(
       exitCode: result.exitCode,
@@ -52,11 +40,6 @@ class LegionCliService {
 
   static String _resolveCliPath() {
     return _resolveInstalledCliPath();
-  }
-
-  static String _resolvePrivilegedExecutable() {
-    const nixosWrapper = '/run/wrappers/bin/pkexec';
-    return File(nixosWrapper).existsSync() ? nixosWrapper : 'pkexec';
   }
 
   static List<String> _withHwmonExpectation(List<String> args) {

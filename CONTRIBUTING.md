@@ -127,11 +127,9 @@ feat(<name>): add <Name>Page view
 
 ## Privileged commands
 
-All writes go through `legion_cli`. The binary is invoked via `pkexec`:
+All writes go through the typed `io.github.prnice.LegionControl1` system-bus API. The root service validates each operation against a fixed allow-list before invoking `legion_cli` or `systemctl`; it never accepts an arbitrary executable, argument vector, service unit, or caller-controlled root file path.
 
-```
-pkexec /usr/bin/legion_cli <subcommand> [args...]
-```
+The frontend's `LegionControlClient` maps the repository command vocabulary to typed D-Bus methods. `Authorize` triggers Polkit once for the frontend's unique D-Bus sender, and the service revokes that authorization when the sender disconnects.
 
 Two strategies are used depending on the feature (see `docs/architecture/sysfs-vs-cli-access-audit.md`):
 
@@ -142,6 +140,8 @@ Two strategies are used depending on the feature (see `docs/architecture/sysfs-v
 | Grouped subcommand | `boot-logo enable /path/to/image` |
 
 Use `bridgeService.runPrivilegedCommand(method: '...', args: [...])` — do not call `LegionCliService` directly from a repository.
+
+When adding a writable feature, extend and test both the Dart mapping and the C++ allow-list. Do not add a generic command method or a privilege-elevation fallback.
 
 ## Troubleshooting
 
@@ -154,7 +154,8 @@ pip install /path/to/LenovoLegionLinux/python/legion_linux
 
 **Permission denied on write**
 - A polkit agent must be running (`gnome-polkit-agent`, `lxpolkit`, `polkit-kde-agent`, etc.)
-- The polkit policy from `legion_cli.policy` must be installed in `/usr/share/polkit-1/actions/`
+- `legion-control.service` must be running
+- The supplied D-Bus policy and `io.github.prnice.legion-control.policy` must be installed
 
 **Sysfs file not found**
 - The `legion_linux` kernel module may not be loaded: `sudo modprobe legion_linux`

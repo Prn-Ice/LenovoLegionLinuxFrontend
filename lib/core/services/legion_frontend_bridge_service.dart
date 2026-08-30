@@ -3,6 +3,7 @@ import 'dart:collection';
 
 import '../models/bridge_command_record.dart';
 import 'legion_cli_service.dart';
+import 'legion_control_client.dart';
 
 enum LegionBridgeErrorCode {
   permissionDenied,
@@ -35,9 +36,9 @@ class LegionBridgeException implements Exception {
       LegionBridgeErrorCode.permissionDenied =>
         'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
       LegionBridgeErrorCode.privilegeSetup =>
-        'pkexec could not start with root privileges, so no system change was made. On NixOS, set security.polkit.enablePkexecWrapper = true and rebuild the system. Other distributions normally configure pkexec through their Polkit package.',
+        'The legion-control service could not provide privileged access. Verify the service and its Polkit policy are installed and running.',
       LegionBridgeErrorCode.unavailable =>
-        'Required command or capability is unavailable. Verify legion_cli, pkexec, and model/kernel feature support.',
+        'The legion-control service or requested capability is unavailable. Verify the service is installed and running.',
       LegionBridgeErrorCode.busy =>
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
@@ -66,10 +67,14 @@ class LegionBridgeException implements Exception {
 }
 
 class LegionFrontendBridgeService {
-  LegionFrontendBridgeService({required LegionCliService cliService})
-    : _cliService = cliService;
+  LegionFrontendBridgeService({
+    required LegionCliService cliService,
+    LegionControlClient? controlClient,
+  }) : _cliService = cliService,
+       _controlClient = controlClient;
 
   final LegionCliService _cliService;
+  final LegionControlClient? _controlClient;
   final Set<String> _pendingActionKeys = <String>{};
   Future<void> _privilegedQueue = Future<void>.value();
   static const int _historyCapacity = 20;
@@ -87,7 +92,7 @@ class LegionFrontendBridgeService {
   Future<void> runPrivilegedCommand({
     required String method,
     required List<String> args,
-    Duration timeout = const Duration(seconds: 5),
+    Duration timeout = const Duration(seconds: 15),
     int retries = 0,
     bool detectUnavailableResponse = true,
   }) async {
@@ -142,7 +147,6 @@ class LegionFrontendBridgeService {
     required List<String> args,
     Duration timeout = const Duration(seconds: 5),
     int retries = 0,
-    bool privileged = false,
     bool detectUnavailableResponse = false,
   }) async {
     final start = DateTime.now();
@@ -153,7 +157,7 @@ class LegionFrontendBridgeService {
         args: args,
         timeout: timeout,
         retries: retries,
-        privileged: privileged,
+        privileged: false,
         detectUnavailableResponse: detectUnavailableResponse,
       );
       succeeded = true;
@@ -162,7 +166,7 @@ class LegionFrontendBridgeService {
       _recordHistory(
         method: method,
         args: args,
-        isPrivileged: privileged,
+        isPrivileged: false,
         succeeded: succeeded,
         start: start,
       );
@@ -185,12 +189,22 @@ class LegionFrontendBridgeService {
     while (true) {
       attempt += 1;
       try {
-        final result = await _cliService
-            .runCommand(args, privileged: privileged)
-            .timeout(timeout);
+        final result = privileged
+            ? await _runControlCommand(method, args)
+                  .timeout(timeout)
+                  .then(
+                    (_) => const LegionCliResult(
+                      exitCode: 0,
+                      stdout: '',
+                      stderr: '',
+                    ),
+                  )
+            : await _cliService.runCommand(args).timeout(timeout);
 
         final unavailable =
-            detectUnavailableResponse && _looksUnavailable(result);
+            !privileged &&
+            detectUnavailableResponse &&
+            _looksUnavailable(result);
 
         if (result.ok && !unavailable) {
           return result;
@@ -219,8 +233,55 @@ class LegionFrontendBridgeService {
         }
 
         throw error;
+      } on LegionControlException catch (error) {
+        final translated = _translateControlError(method, error);
+        if (attempt <= retries &&
+            (translated.code == LegionBridgeErrorCode.busy ||
+                translated.code == LegionBridgeErrorCode.timeout)) {
+          continue;
+        }
+        throw translated;
+      } on Object catch (error) {
+        throw LegionBridgeException(
+          code: LegionBridgeErrorCode.commandFailed,
+          method: method,
+          message: 'Failed to run $method.',
+          stderr: '$error',
+        );
       }
     }
+  }
+
+  Future<void> _runControlCommand(String method, List<String> args) {
+    final client = _controlClient;
+    if (client == null) {
+      throw const LegionControlSetupException(
+        'The legion-control service is not configured.',
+      );
+    }
+    return client.runCommand(args);
+  }
+
+  LegionBridgeException _translateControlError(
+    String method,
+    LegionControlException error,
+  ) {
+    final code = switch (error) {
+      LegionControlSetupException() => LegionBridgeErrorCode.privilegeSetup,
+      LegionControlPermissionDeniedException() =>
+        LegionBridgeErrorCode.permissionDenied,
+      LegionControlBusyException() => LegionBridgeErrorCode.busy,
+      LegionControlTimeoutException() => LegionBridgeErrorCode.timeout,
+      LegionControlUnavailableException() ||
+      LegionControlNotSupportedException() => LegionBridgeErrorCode.unavailable,
+      _ => LegionBridgeErrorCode.commandFailed,
+    };
+    return LegionBridgeException(
+      code: code,
+      method: method,
+      message: 'Failed to run $method.',
+      stderr: error.message,
+    );
   }
 
   LegionBridgeException _buildCommandFailure(
@@ -257,10 +318,6 @@ class LegionFrontendBridgeService {
   }
 
   LegionBridgeErrorCode _classifyFailureCode(String outputLower, int exitCode) {
-    if (outputLower.contains('pkexec must be setuid root')) {
-      return LegionBridgeErrorCode.privilegeSetup;
-    }
-
     if (exitCode == 126 ||
         outputLower.contains('not authorized') ||
         outputLower.contains('authorization failed') ||
@@ -275,7 +332,6 @@ class LegionFrontendBridgeService {
 
     if (exitCode == 127 ||
         outputLower.contains('command not found') ||
-        outputLower.contains('pkexec: not found') ||
         outputLower.contains('command not available') ||
         outputLower.contains('not supported') ||
         outputLower.contains('unsupported')) {

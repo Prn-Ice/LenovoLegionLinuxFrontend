@@ -4,12 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 
 void main() {
-  test('non-fan privileged commands opt out of hwmon discovery', () async {
+  test('non-fan commands opt out of hwmon discovery', () async {
     late String executable;
     late List<String> arguments;
     final service = LegionCliService(
       cliPath: '/bin/legion_cli',
-      privilegedExecutable: '/run/wrappers/bin/pkexec',
       processRunner: (command, args) async {
         executable = command;
         arguments = args;
@@ -21,11 +20,10 @@ void main() {
       'set-feature',
       'PlatformProfileFeature',
       'custom',
-    ], privileged: true);
+    ]);
 
-    expect(executable, '/run/wrappers/bin/pkexec');
+    expect(executable, '/bin/legion_cli');
     expect(arguments, const [
-      '/bin/legion_cli',
       '--donotexpecthwmon',
       'set-feature',
       'PlatformProfileFeature',

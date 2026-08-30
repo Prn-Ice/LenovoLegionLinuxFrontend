@@ -7,9 +7,9 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 - Fan curve editor
 - Power profile / platform profile switching
 - Battery conservation and rapid charging
-- Fn-lock, touchpad, camera toggles
+- Fn-lock and touchpad controls; camera status
 - Boot logo customization
-- Discrete GPU monitoring and deactivation
+- Discrete GPU monitoring
 - Automation (run external programs on profile change)
 - Display lighting (LampArray)
 - Real-time dashboard
@@ -17,15 +17,18 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 ## Requirements
 
 - `legion_linux` kernel module installed (provides sysfs interface)
-- `legion_cli` installed and in PATH (provides privileged write access via polkit)
+- `legion_cli` installed (the privileged service uses its validated hardware operations)
+- `legion-control.service`, its D-Bus policy, and its Polkit action installed
+- A desktop Polkit authentication agent
 - NVIDIA driver (optional, for dGPU features)
 
-On NixOS, enable both Polkit and its opt-in `pkexec` wrapper:
+On NixOS, import `packaging/nixos/legion-telemetry.nix` and enable the control service:
 
 ```nix
-security.polkit = {
+security.polkit.enable = true;
+services.legionControl = {
   enable = true;
-  enablePkexecWrapper = true;
+  backendPackage = pkgs.lenovo-legion;
 };
 ```
 
@@ -50,6 +53,6 @@ flutter analyze
 
 ## Architecture
 
-The frontend communicates with the backend exclusively through the system-installed `legion_cli` binary. No direct sysfs writes from Dart - all privileged operations go through `pkexec legion_cli <subcommand>`. Read operations use direct sysfs file reads via `dart:io`.
+Read operations use direct sysfs file reads or the read-only telemetry D-Bus service. Privileged writes use the typed `io.github.prnice.LegionControl1` system-bus API. That root service accepts only allow-listed operations, asks Polkit to authorize the frontend's D-Bus connection, and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. Dart never writes sysfs directly and never launches a privilege-elevation helper.
 
 See `docs/architecture/` for detailed documentation.

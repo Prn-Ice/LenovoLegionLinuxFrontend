@@ -796,6 +796,7 @@ class _DeactivateCard extends StatelessWidget {
   final DgpuState state;
   final VoidCallback onKill;
   final VoidCallback onRestart;
+  final bool deactivationSupported = false;
 
   @override
   Widget build(BuildContext context) {
@@ -830,7 +831,7 @@ class _DeactivateCard extends StatelessWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  'Save your work. Admin authentication is required.',
+                  'Privileged dGPU deactivation is not available in this build.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -848,7 +849,10 @@ class _DeactivateCard extends StatelessWidget {
                   foregroundColor: scheme.error,
                   side: BorderSide(color: scheme.error.withValues(alpha: 0.65)),
                 ),
-                onPressed: state.isApplying || state.processes.isEmpty
+                onPressed:
+                    !deactivationSupported ||
+                        state.isApplying ||
+                        state.processes.isEmpty
                     ? null
                     : onKill,
                 icon: const Icon(Icons.close, size: 17),
@@ -860,7 +864,8 @@ class _DeactivateCard extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed:
-                    state.isApplying ||
+                    !deactivationSupported ||
+                        state.isApplying ||
                         state.pciAddress == null ||
                         state.processes.isNotEmpty
                     ? null

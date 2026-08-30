@@ -141,7 +141,9 @@ void main() {
     }
   });
 
-  testWidgets('process confirmation names confirmed PIDs', (tester) async {
+  testWidgets('privileged deactivation actions are visibly unavailable', (
+    tester,
+  ) async {
     await _pumpPage(
       tester,
       width: 900,
@@ -150,37 +152,24 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Kill 1 processes'));
-    await tester.pumpAndSettle();
-    expect(find.text('Kill 1 GPU processes'), findsOneWidget);
-    expect(find.textContaining('PIDs 4242'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
+    expect(
+      find.text('Privileged dGPU deactivation is not available in this build.'),
+      findsOneWidget,
+    );
+    final killButton = tester.widget<OutlinedButton>(
+      find.ancestor(
+        of: find.text('Kill 1 processes'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
     final restartButton = tester.widget<OutlinedButton>(
       find.ancestor(
         of: find.text('Restart PCI device'),
         matching: find.byType(OutlinedButton),
       ),
     );
+    expect(killButton.onPressed, isNull);
     expect(restartButton.onPressed, isNull);
-  });
-
-  testWidgets('PCI restart confirmation names the discovered target', (
-    tester,
-  ) async {
-    await _pumpPage(tester, width: 900, processes: const []);
-
-    await tester.tap(find.text('Restart PCI device'));
-    await tester.pumpAndSettle();
-    expect(find.text('Restart GPU PCI device'), findsOneWidget);
-    expect(
-      find.text(
-        'This removes 0000:01:00.0 from the PCI tree and rescans it. The GPU '
-        'will briefly disappear. Close GPU applications first. Continue?',
-      ),
-      findsOneWidget,
-    );
   });
 }
 

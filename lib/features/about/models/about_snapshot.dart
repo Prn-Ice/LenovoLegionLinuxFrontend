@@ -9,7 +9,7 @@ class AboutSnapshot extends Equatable {
     required this.cliPath,
     required this.cliPathExists,
     required this.pythonAvailable,
-    required this.pkexecAvailable,
+    required this.controlServiceActive,
     required this.systemctlAvailable,
     required this.cliHealthy,
     required this.cliHealthSummary,
@@ -25,7 +25,7 @@ class AboutSnapshot extends Equatable {
   final String cliPath;
   final bool cliPathExists;
   final bool pythonAvailable;
-  final bool pkexecAvailable;
+  final bool controlServiceActive;
   final bool systemctlAvailable;
   final bool cliHealthy;
   final String cliHealthSummary;
@@ -42,7 +42,7 @@ class AboutSnapshot extends Equatable {
     cliPath,
     cliPathExists,
     pythonAvailable,
-    pkexecAvailable,
+    controlServiceActive,
     systemctlAvailable,
     cliHealthy,
     cliHealthSummary,

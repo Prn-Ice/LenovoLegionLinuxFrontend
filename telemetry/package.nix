@@ -4,16 +4,18 @@
   cmake,
   pkg-config,
   glib,
+  polkit,
 }:
 
 stdenv.mkDerivation {
-  pname = "legion-telemetry-service";
+  pname = "legion-telemetry-and-control-services";
   version = "1.0.0";
 
   src = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
       ../telemetry
+      ../control
       ../packaging
     ];
   };
@@ -22,23 +24,26 @@ stdenv.mkDerivation {
     cmake
     pkg-config
   ];
-  buildInputs = [ glib ];
+  buildInputs = [ glib polkit ];
 
   preConfigure = ''
     cd telemetry
   '';
-  cmakeFlags = [ "-DBUILD_TESTING=ON" ];
+  cmakeFlags = [
+    "-DBUILD_TESTING=ON"
+    "-DBUILD_LEGION_CONTROL_SERVICE=ON"
+  ];
 
   doCheck = true;
   checkPhase = ''
     runHook preCheck
-    cmake --build . --target package_power_sampler_test
+    cmake --build . --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test
     ctest --output-on-failure
     runHook postCheck
   '';
 
   meta = {
-    description = "Read-only CPU package power telemetry for Legion Frontend";
+    description = "Lenovo Legion telemetry and privileged hardware control services";
     platforms = lib.platforms.linux;
     mainProgram = "legion-telemetry-service";
   };
