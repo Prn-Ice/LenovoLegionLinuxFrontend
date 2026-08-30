@@ -26,6 +26,7 @@ class SensorStrip extends StatelessWidget {
           max: 100,
           label: 'CPU temp',
           unit: '°',
+          fractionDigits: 1,
           accent: accent,
           critical: _tempCritical,
         ),
@@ -36,6 +37,7 @@ class SensorStrip extends StatelessWidget {
           max: 100,
           label: snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
           unit: '°',
+          fractionDigits: 1,
           accent: accent,
           critical: _tempCritical,
         ),
@@ -43,27 +45,17 @@ class SensorStrip extends StatelessWidget {
         _GaugeCard(
           value: snapshot.fan1Rpm!.toDouble(),
           min: 0,
-          max: 6000,
-          label: 'CPU fan',
+          max: (snapshot.fan1MaxRpm ?? 6000).toDouble(),
+          label: 'CPU fan (RPM)',
           accent: accent,
         ),
-      if (snapshot.gpuFanRpm != null)
+      if (snapshot.fan2Rpm != null)
         _GaugeCard(
-          value: snapshot.gpuFanRpm!.toDouble(),
+          value: snapshot.fan2Rpm!.toDouble(),
           min: 0,
-          max: 6000,
-          label: 'GPU fan',
+          max: (snapshot.fan2MaxRpm ?? 6000).toDouble(),
+          label: 'GPU fan (RPM)',
           accent: accent,
-        ),
-      if (snapshot.motherboardTempC != null)
-        _GaugeCard(
-          value: snapshot.motherboardTempC,
-          min: 30,
-          max: 100,
-          label: 'Board temp',
-          unit: '°',
-          accent: accent,
-          critical: _tempCritical,
         ),
       if (snapshot.diskTempC != null)
         _GaugeCard(
@@ -72,6 +64,7 @@ class SensorStrip extends StatelessWidget {
           max: 90,
           label: 'Disk temp',
           unit: '°',
+          fractionDigits: 1,
           accent: accent,
           critical: 75,
         ),
@@ -94,6 +87,13 @@ class SensorStrip extends StatelessWidget {
         ),
       if (snapshot.gpuPowerDrawW != null)
         _tile('GPU power', snapshot.gpuPowerDrawW, ' W', showBar: false),
+      if (snapshot.cpuPackagePowerW != null)
+        _tile(
+          'CPU package power',
+          snapshot.cpuPackagePowerW,
+          ' W',
+          showBar: false,
+        ),
     ];
 
     if (gauges.isEmpty && tiles.isEmpty) {
@@ -152,6 +152,7 @@ class _GaugeCard extends StatelessWidget {
     required this.accent,
     this.unit = '',
     this.critical,
+    this.fractionDigits = 0,
   });
 
   final double? value;
@@ -161,6 +162,7 @@ class _GaugeCard extends StatelessWidget {
   final Color accent;
   final String unit;
   final double? critical;
+  final int fractionDigits;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +181,7 @@ class _GaugeCard extends StatelessWidget {
               unit: unit,
               accent: accent,
               criticalThreshold: critical,
+              fractionDigits: fractionDigits,
               size: 116,
             ),
             const SizedBox(height: 14),
@@ -212,6 +215,9 @@ class _SecondaryLine extends StatelessWidget {
           ? ' ${snapshot.batteryPowerDrawW!.toStringAsFixed(0)}W'
           : '';
       items.add('Battery ${snapshot.batteryPercent}% $state$draw');
+    }
+    if (snapshot.motherboardTempC != null) {
+      items.add('System ${snapshot.motherboardTempC!.toStringAsFixed(1)}°C');
     }
     if (items.isEmpty) return const SizedBox.shrink();
 

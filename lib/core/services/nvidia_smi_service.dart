@@ -6,7 +6,7 @@ class NvidiaSmiSnapshot {
     required this.utilPercent,
     required this.clkGhz,
     required this.tempC,
-    required this.fanRpm,
+    required this.fanPercent,
     required this.vramUsedGb,
     required this.vramTotalGb,
     required this.powerDrawW,
@@ -16,7 +16,7 @@ class NvidiaSmiSnapshot {
   final double? utilPercent;
   final double? clkGhz;
   final double? tempC;
-  final int? fanRpm;
+  final int? fanPercent;
   final double? vramUsedGb;
   final double? vramTotalGb;
   final double? powerDrawW;
@@ -49,7 +49,7 @@ class NvidiaSmiService {
         utilPercent: parseDouble(parts[1]),
         clkGhz: clkMhz != null ? clkMhz / 1000.0 : null,
         tempC: parseDouble(parts[3]),
-        fanRpm: parseInt(parts[4]),
+        fanPercent: parseInt(parts[4]),
         vramUsedGb: parseDouble(parts[5]) != null
             ? parseDouble(parts[5])! / 1024.0
             : null,

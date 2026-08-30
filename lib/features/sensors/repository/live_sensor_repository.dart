@@ -26,7 +26,9 @@ class LiveSensorRepository {
       _sysfs.readAverageCpuClockGhz(),
       _packagePowerTelemetry.readPackagePowerWatts(),
       _sysfs.readFan1Rpm(),
+      _sysfs.readFan1MaxRpm(),
       _sysfs.readFan2Rpm(),
+      _sysfs.readFan2MaxRpm(),
       _sysfs.readMotherboardTempC(),
       _sysfs.readBatteryPowerDrawW(),
       _sysfs.readDiskTempC(),
@@ -39,11 +41,13 @@ class LiveSensorRepository {
     final cpuClock = results[3] as double?;
     final cpuPackagePower = results[4] as double?;
     final fan1 = results[5] as int?;
-    final fan2 = results[6] as int?;
-    final moboTemp = results[7] as double?;
-    final batteryDraw = results[8] as double?;
-    final diskTemp = results[9] as double?;
-    final nvidia = results[10] as NvidiaSmiSnapshot?;
+    final fan1Max = results[6] as int?;
+    final fan2 = results[7] as int?;
+    final fan2Max = results[8] as int?;
+    final moboTemp = results[9] as double?;
+    final batteryDraw = results[10] as double?;
+    final diskTemp = results[11] as double?;
+    final nvidia = results[12] as NvidiaSmiSnapshot?;
 
     // Battery percent from sysfs.
     final batteryPercent = await _sysfs.readIntFile(
@@ -61,14 +65,16 @@ class LiveSensorRepository {
         cpuClockGhz: cpuClock,
         cpuPackagePowerW: cpuPackagePower,
         fan1Rpm: fan1,
+        fan1MaxRpm: fan1Max,
         fan2Rpm: fan2,
+        fan2MaxRpm: fan2Max,
         gpuName: nvidia.name,
         gpuTempC: nvidia.tempC,
         gpuUtilPercent: nvidia.utilPercent,
         gpuClockGhz: nvidia.clkGhz,
         gpuVramUsedGb: nvidia.vramUsedGb,
         gpuVramTotalGb: nvidia.vramTotalGb,
-        gpuFanRpm: nvidia.fanRpm,
+        gpuFanPercent: nvidia.fanPercent,
         gpuPowerDrawW: nvidia.powerDrawW,
         gpuIsDiscrete: true,
         motherboardTempC: moboTemp,
@@ -90,14 +96,16 @@ class LiveSensorRepository {
       cpuClockGhz: cpuClock,
       cpuPackagePowerW: cpuPackagePower,
       fan1Rpm: fan1,
+      fan1MaxRpm: fan1Max,
       fan2Rpm: fan2,
+      fan2MaxRpm: fan2Max,
       gpuName: null,
       gpuTempC: igpuTemp,
       gpuUtilPercent: null,
       gpuClockGhz: null,
       gpuVramUsedGb: null,
       gpuVramTotalGb: null,
-      gpuFanRpm: null,
+      gpuFanPercent: null,
       gpuPowerDrawW: null,
       gpuIsDiscrete: false,
       motherboardTempC: moboTemp,

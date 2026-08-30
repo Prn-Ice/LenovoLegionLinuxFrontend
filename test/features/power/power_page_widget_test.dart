@@ -225,7 +225,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(find.text('CPU overclock'));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('cpu-overclock')),
+        matching: find.byType(YaruSwitch),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Enable CPU overclock'), findsOneWidget);
 
@@ -372,7 +377,7 @@ const _liveSensorSnapshot = LiveSensorSnapshot(
   gpuClockGhz: null,
   gpuVramUsedGb: null,
   gpuVramTotalGb: null,
-  gpuFanRpm: null,
+  gpuFanPercent: null,
   gpuPowerDrawW: null,
   gpuIsDiscrete: false,
   motherboardTempC: null,

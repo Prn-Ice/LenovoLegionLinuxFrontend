@@ -71,11 +71,15 @@ class FanCurve extends Equatable {
     required this.name,
     required this.points,
     this.enableMiniFanCurve = true,
+    this.fan1MaxRpm = 5000,
+    this.fan2MaxRpm = 5000,
   });
 
   final String name;
   final List<FanCurvePoint> points;
   final bool enableMiniFanCurve;
+  final int fan1MaxRpm;
+  final int fan2MaxRpm;
 
   FanCurve copyWithPoint(int index, FanCurvePoint point) {
     final updated = List<FanCurvePoint>.from(points);
@@ -84,6 +88,8 @@ class FanCurve extends Equatable {
       name: name,
       points: List.unmodifiable(updated),
       enableMiniFanCurve: enableMiniFanCurve,
+      fan1MaxRpm: fan1MaxRpm,
+      fan2MaxRpm: fan2MaxRpm,
     );
   }
 
@@ -91,11 +97,15 @@ class FanCurve extends Equatable {
     String? name,
     List<FanCurvePoint>? points,
     bool? enableMiniFanCurve,
+    int? fan1MaxRpm,
+    int? fan2MaxRpm,
   }) {
     return FanCurve(
       name: name ?? this.name,
       points: points ?? this.points,
       enableMiniFanCurve: enableMiniFanCurve ?? this.enableMiniFanCurve,
+      fan1MaxRpm: fan1MaxRpm ?? this.fan1MaxRpm,
+      fan2MaxRpm: fan2MaxRpm ?? this.fan2MaxRpm,
     );
   }
 
@@ -115,10 +125,18 @@ class FanCurve extends Equatable {
       buf.writeln('  acceleration: ${p.accel}');
       buf.writeln('  deceleration: ${p.decel}');
     }
-    buf.writeln('enable_minifancurve: ${enableMiniFanCurve ? 'true' : 'false'}');
+    buf.writeln(
+      'enable_minifancurve: ${enableMiniFanCurve ? 'true' : 'false'}',
+    );
     return buf.toString();
   }
 
   @override
-  List<Object?> get props => [name, points, enableMiniFanCurve];
+  List<Object?> get props => [
+    name,
+    points,
+    enableMiniFanCurve,
+    fan1MaxRpm,
+    fan2MaxRpm,
+  ];
 }

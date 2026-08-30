@@ -88,11 +88,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                   ),
                 )
               else ...[
-                _infoRow(
-                  context,
-                  'Name',
-                  sensorState.snapshot.gpuName ?? '—',
-                ),
+                _infoRow(context, 'Name', sensorState.snapshot.gpuName ?? '—'),
                 _infoRow(
                   context,
                   'Utilisation',
@@ -116,9 +112,9 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                 ),
                 _infoRow(
                   context,
-                  'Fan',
-                  sensorState.snapshot.gpuFanRpm != null
-                      ? '${sensorState.snapshot.gpuFanRpm!.round()} RPM'
+                  'Fan speed',
+                  sensorState.snapshot.gpuFanPercent != null
+                      ? '${sensorState.snapshot.gpuFanPercent}%'
                       : '—',
                 ),
                 _infoRow(
@@ -215,7 +211,8 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
               const SizedBox(height: 8),
               AppSwitchTile(
                 value: powerState.gpuOverclockEnabled ?? false,
-                onChanged: (powerState.gpuOverclockEnabled != null &&
+                onChanged:
+                    (powerState.gpuOverclockEnabled != null &&
                         !powerState.isApplying)
                     ? (enabled) async {
                         final confirmed = await confirmPrivilegedAction(
@@ -251,20 +248,19 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
               const SizedBox(height: 8),
               AppSwitchTile(
                 value: state.hybridModeEnabled ?? false,
-                onChanged:
-                    (state.hybridModeSupported && !state.isApplying)
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Toggle hybrid mode',
-                              message:
-                                  'This action uses privileged access and may require authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) return;
-                            bloc.add(HybridModeSetRequested(enabled));
-                          }
-                        : null,
+                onChanged: (state.hybridModeSupported && !state.isApplying)
+                    ? (enabled) async {
+                        final confirmed = await confirmPrivilegedAction(
+                          context,
+                          title: 'Toggle hybrid mode',
+                          message:
+                              'This action uses privileged access and may require authentication.',
+                          confirmLabel: 'Apply',
+                        );
+                        if (!context.mounted || !confirmed) return;
+                        bloc.add(HybridModeSetRequested(enabled));
+                      }
+                    : null,
                 title: 'Hybrid mode',
                 subtitle: state.hybridModeSupported
                     ? boolEnabledLabel(state.hybridModeEnabled)
@@ -349,11 +345,13 @@ class _ProcessTable extends StatelessWidget {
         ],
         rows: [
           for (final p in processes)
-            DataRow(cells: [
-              DataCell(Text('${p.pid}')),
-              DataCell(Text(p.name)),
-              DataCell(Text('${p.usedMemoryMib} MiB')),
-            ]),
+            DataRow(
+              cells: [
+                DataCell(Text('${p.pid}')),
+                DataCell(Text(p.name)),
+                DataCell(Text('${p.usedMemoryMib} MiB')),
+              ],
+            ),
         ],
       ),
     );

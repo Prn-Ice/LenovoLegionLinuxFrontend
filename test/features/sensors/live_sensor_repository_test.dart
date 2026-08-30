@@ -32,7 +32,9 @@ void main() {
     when(sysfs.readCpuUtilisationPercent).thenAnswer((_) async => 18);
     when(sysfs.readAverageCpuClockGhz).thenAnswer((_) async => 3.1);
     when(sysfs.readFan1Rpm).thenAnswer((_) async => null);
+    when(sysfs.readFan1MaxRpm).thenAnswer((_) async => null);
     when(sysfs.readFan2Rpm).thenAnswer((_) async => null);
+    when(sysfs.readFan2MaxRpm).thenAnswer((_) async => null);
     when(sysfs.readMotherboardTempC).thenAnswer((_) async => null);
     when(sysfs.readBatteryPowerDrawW).thenAnswer((_) async => null);
     when(sysfs.readDiskTempC).thenAnswer((_) async => null);
@@ -49,7 +51,7 @@ void main() {
         utilPercent: null,
         clkGhz: null,
         tempC: null,
-        fanRpm: null,
+        fanPercent: null,
         vramUsedGb: null,
         vramTotalGb: null,
         powerDrawW: null,

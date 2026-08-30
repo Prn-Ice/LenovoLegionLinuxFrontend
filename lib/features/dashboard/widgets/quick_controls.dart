@@ -7,6 +7,7 @@ import '../../../core/widgets/surface_card.dart';
 /// One toggle in the dashboard [QuickControls] hub.
 class QuickControl {
   const QuickControl({
+    this.widgetKey,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -14,6 +15,8 @@ class QuickControl {
     required this.onChanged,
   });
 
+  /// Optional stable key for controls rendered outside the dashboard.
+  final Key? widgetKey;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -43,14 +46,22 @@ class QuickControls extends StatelessWidget {
       minCardWidth: 320,
       children: [
         for (final control in controls)
-          _QuickControlCard(accent: accent, control: control),
+          _QuickControlCard(
+            key: control.widgetKey,
+            accent: accent,
+            control: control,
+          ),
       ],
     );
   }
 }
 
 class _QuickControlCard extends StatelessWidget {
-  const _QuickControlCard({required this.accent, required this.control});
+  const _QuickControlCard({
+    super.key,
+    required this.accent,
+    required this.control,
+  });
 
   final Color accent;
   final QuickControl control;

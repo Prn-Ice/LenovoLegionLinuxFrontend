@@ -10,6 +10,7 @@ import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../dashboard/widgets/mode_hero.dart';
+import '../../dashboard/widgets/quick_controls.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/power_bloc.dart';
@@ -164,7 +165,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Allowed range: ${reading.spec.min}-${reading.spec.max} ${reading.spec.unit}',
+                'Allowed range: ${reading.spec.effectiveMin}-${reading.spec.max} ${reading.spec.unit}',
               ),
               const SizedBox(height: 12),
               TextField(
@@ -218,8 +219,8 @@ class _PowerPageState extends ConsumerState<PowerPage> {
       setError('Enter a whole number.');
       return;
     }
-    if (parsed < spec.min || parsed > spec.max) {
-      setError('Enter a value from ${spec.min} to ${spec.max}.');
+    if (parsed < spec.effectiveMin || parsed > spec.max) {
+      setError('Enter a value from ${spec.effectiveMin} to ${spec.max}.');
       return;
     }
     Navigator.of(context).pop(parsed);
@@ -565,7 +566,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                         contentPadding: EdgeInsets.zero,
                         title: Text(reading.spec.label),
                         subtitle: Text(
-                          '${reading.spec.min}-${reading.spec.max} ${reading.spec.unit}',
+                          '${reading.spec.effectiveMin}-${reading.spec.max} ${reading.spec.unit}',
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -661,7 +662,7 @@ class _PowerLimitSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final spec = reading.spec;
-    final value = reading.value.clamp(spec.min, spec.max).toDouble();
+    final value = reading.value.clamp(spec.effectiveMin, spec.max).toDouble();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -682,9 +683,9 @@ class _PowerLimitSlider extends StatelessWidget {
           child: Slider(
             key: ValueKey('power-limit-slider-${spec.id}'),
             value: value,
-            min: spec.min.toDouble(),
+            min: spec.effectiveMin.toDouble(),
             max: spec.max.toDouble(),
-            divisions: spec.max - spec.min,
+            divisions: spec.max - spec.effectiveMin,
             label: '${value.round()} ${spec.unit}',
             onChanged: enabled ? (value) => onChanged(value.round()) : null,
           ),
@@ -692,7 +693,10 @@ class _PowerLimitSlider extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${spec.min} ${spec.unit}', style: monoMetaStyle(scheme)),
+            Text(
+              '${spec.effectiveMin} ${spec.unit}',
+              style: monoMetaStyle(scheme),
+            ),
             Text('${spec.max} ${spec.unit}', style: monoMetaStyle(scheme)),
           ],
         ),
@@ -719,45 +723,51 @@ class _OverclockingCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return SurfaceCard(
+    return Column(
       key: const ValueKey('overclocking-card'),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(YaruIcons.gears, size: 19, color: accent),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text('Advanced tuning', style: textTheme.titleMedium),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(YaruIcons.gears, size: 19, color: accent),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text('Advanced tuning', style: textTheme.titleMedium),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Overclocking can increase temperature, power use, and instability.',
+          style: textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 10),
+        QuickControls(
+          accent: accent,
+          controls: [
+            if (state.cpuOverclockEnabled case final value?)
+              QuickControl(
+                widgetKey: const ValueKey('cpu-overclock'),
+                icon: YaruIcons.computer,
+                value: value,
+                onChanged: state.isApplying ? null : onCpuChanged,
+                title: 'CPU overclock',
+                subtitle: value ? 'Enabled' : 'Disabled',
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Overclocking can increase temperature, power use, and instability.',
-            style: textTheme.bodySmall?.copyWith(
-              color: scheme.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (state.cpuOverclockEnabled case final value?)
-            AppSwitchTile(
-              value: value,
-              onChanged: state.isApplying ? null : onCpuChanged,
-              title: 'CPU overclock',
-              subtitle: value ? 'Enabled' : 'Disabled',
-            ),
-          if (state.gpuOverclockEnabled case final value?)
-            AppSwitchTile(
-              value: value,
-              onChanged: state.isApplying ? null : onGpuChanged,
-              title: 'GPU overclock',
-              subtitle: value ? 'Enabled' : 'Disabled',
-            ),
-        ],
-      ),
+            if (state.gpuOverclockEnabled case final value?)
+              QuickControl(
+                widgetKey: const ValueKey('gpu-overclock'),
+                icon: YaruIcons.video,
+                value: value,
+                onChanged: state.isApplying ? null : onGpuChanged,
+                title: 'GPU overclock',
+                subtitle: value ? 'Enabled' : 'Disabled',
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

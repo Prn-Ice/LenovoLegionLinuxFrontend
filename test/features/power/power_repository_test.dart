@@ -15,6 +15,7 @@ class _MockProfileService extends Mock implements PowerProfileService {}
 void main() {
   late _MockSysfs sysfs;
   late _MockBridge bridge;
+  late _MockProfileService profileService;
   late PowerRepository repository;
   final reading = PowerLimitReading(
     spec: PowerRepository.allPowerLimits.first,
@@ -24,11 +25,47 @@ void main() {
   setUp(() {
     sysfs = _MockSysfs();
     bridge = _MockBridge();
+    profileService = _MockProfileService();
     repository = PowerRepository(
       sysfsService: sysfs,
-      powerProfileService: _MockProfileService(),
+      powerProfileService: profileService,
       bridgeService: bridge,
     );
+  });
+
+  test('omits non-positive limits while retaining positive readings', () async {
+    when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'balanced');
+    when(
+      () => sysfs.readPlatformProfileChoices(),
+    ).thenAnswer((_) async => ['balanced']);
+    when(() => sysfs.readCpuOverclockMode()).thenAnswer((_) async => null);
+    when(() => sysfs.readGpuOverclockMode()).thenAnswer((_) async => null);
+    when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+    when(() => sysfs.readCpuPolicySnapshot()).thenAnswer((_) async => null);
+    when(
+      () => profileService.loadDaemonSnapshot(),
+    ).thenAnswer((_) async => null);
+    when(
+      () => profileService.availableProfiles(
+        hardwareProfiles: ['balanced'],
+        daemon: null,
+      ),
+    ).thenReturn(['balanced']);
+    for (final spec in PowerRepository.allPowerLimits) {
+      when(() => sysfs.readLegionIntFile(spec.sysfsAttribute)).thenAnswer(
+        (_) async => switch (spec.id) {
+          'cpu_longterm' => 35,
+          'cpu_shortterm' => 201,
+          _ => 0,
+        },
+      );
+    }
+
+    final snapshot = await repository.loadSnapshot();
+
+    expect(snapshot.powerLimits, hasLength(1));
+    expect(snapshot.powerLimits.single.spec.id, 'cpu_longterm');
+    expect(snapshot.powerLimits.single.value, 35);
   });
 
   test('rejects power-limit writes outside Custom mode', () async {
@@ -61,6 +98,29 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('rejects non-positive power-limit writes', () async {
+    final zeroReading = PowerLimitReading(
+      spec: PowerRepository.allPowerLimits.firstWhere((spec) => spec.min == 0),
+      value: 0,
+    );
+
+    await expectLater(
+      repository.setPowerLimit(zeroReading.spec, zeroReading.value),
+      throwsA(
+        isA<PowerRepositoryException>().having(
+          (error) => error.message,
+          'message',
+          contains('between 1 and'),
+        ),
+      ),
+    );
+    await expectLater(
+      repository.setPowerLimits([zeroReading]),
+      throwsA(isA<PowerRepositoryException>()),
+    );
+    verifyZeroInteractions(bridge);
   });
 
   test('writes validated staged limits in Custom mode on AC', () async {

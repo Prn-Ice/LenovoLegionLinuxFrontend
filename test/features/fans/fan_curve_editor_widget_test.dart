@@ -53,10 +53,12 @@ void main() {
     );
 
     await _expandPreciseControls(tester);
-    final selector = tester.widget<DropdownButton<int>>(
-      find.byKey(const ValueKey('fan-point-selector')),
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('fan-point-selector')),
+        matching: find.text('9'),
+      ),
     );
-    selector.onChanged!(8);
     await tester.pump();
     expect(find.text('81°C'), findsWidgets);
     expect(find.textContaining('4000 RPM'), findsOneWidget);
@@ -96,11 +98,17 @@ void main() {
     );
     await _expandPreciseControls(tester);
 
-    final selector = tester.widget<DropdownButton<int>>(
+    final selector = tester.widget<Wrap>(
       find.byKey(const ValueKey('fan-point-selector')),
     );
-    expect(selector.items, hasLength(10));
-    expect(selector.onChanged, isNotNull);
+    expect(selector.children, hasLength(10));
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fan-point-selector')),
+        matching: find.text('10'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const ValueKey('fan-speed-slider')));
     await tester.pump();

@@ -339,7 +339,7 @@ LiveSensorSnapshot _sensorSnapshot() => const LiveSensorSnapshot(
   gpuClockGhz: 1.8,
   gpuVramUsedGb: 2,
   gpuVramTotalGb: 8,
-  gpuFanRpm: null,
+  gpuFanPercent: null,
   gpuPowerDrawW: 40,
   gpuIsDiscrete: true,
   motherboardTempC: 42,

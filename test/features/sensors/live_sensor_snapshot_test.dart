@@ -27,7 +27,7 @@ void main() {
         gpuClockGhz: null,
         gpuVramUsedGb: null,
         gpuVramTotalGb: null,
-        gpuFanRpm: null,
+        gpuFanPercent: null,
         gpuPowerDrawW: null,
         gpuIsDiscrete: false,
         motherboardTempC: null,

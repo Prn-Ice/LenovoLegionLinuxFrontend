@@ -8,14 +8,16 @@ class LiveSensorSnapshot extends Equatable {
     required this.cpuClockGhz,
     required this.cpuPackagePowerW,
     required this.fan1Rpm,
+    this.fan1MaxRpm,
     required this.fan2Rpm,
+    this.fan2MaxRpm,
     required this.gpuName,
     required this.gpuTempC,
     required this.gpuUtilPercent,
     required this.gpuClockGhz,
     required this.gpuVramUsedGb,
     required this.gpuVramTotalGb,
-    required this.gpuFanRpm,
+    required this.gpuFanPercent,
     required this.gpuPowerDrawW,
     required this.gpuIsDiscrete,
     required this.motherboardTempC,
@@ -32,14 +34,16 @@ class LiveSensorSnapshot extends Equatable {
     cpuClockGhz: null,
     cpuPackagePowerW: null,
     fan1Rpm: null,
+    fan1MaxRpm: null,
     fan2Rpm: null,
+    fan2MaxRpm: null,
     gpuName: null,
     gpuTempC: null,
     gpuUtilPercent: null,
     gpuClockGhz: null,
     gpuVramUsedGb: null,
     gpuVramTotalGb: null,
-    gpuFanRpm: null,
+    gpuFanPercent: null,
     gpuPowerDrawW: null,
     gpuIsDiscrete: false,
     motherboardTempC: null,
@@ -55,7 +59,9 @@ class LiveSensorSnapshot extends Equatable {
   final double? cpuClockGhz;
   final double? cpuPackagePowerW;
   final int? fan1Rpm;
+  final int? fan1MaxRpm;
   final int? fan2Rpm;
+  final int? fan2MaxRpm;
 
   // Active GPU (dGPU when active, iGPU otherwise).
   final String? gpuName;
@@ -64,7 +70,7 @@ class LiveSensorSnapshot extends Equatable {
   final double? gpuClockGhz;
   final double? gpuVramUsedGb;
   final double? gpuVramTotalGb;
-  final int? gpuFanRpm;
+  final int? gpuFanPercent;
   final double? gpuPowerDrawW;
   final bool gpuIsDiscrete;
 
@@ -82,14 +88,16 @@ class LiveSensorSnapshot extends Equatable {
     cpuClockGhz,
     cpuPackagePowerW,
     fan1Rpm,
+    fan1MaxRpm,
     fan2Rpm,
+    fan2MaxRpm,
     gpuName,
     gpuTempC,
     gpuUtilPercent,
     gpuClockGhz,
     gpuVramUsedGb,
     gpuVramTotalGb,
-    gpuFanRpm,
+    gpuFanPercent,
     gpuPowerDrawW,
     gpuIsDiscrete,
     motherboardTempC,

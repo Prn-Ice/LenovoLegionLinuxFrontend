@@ -51,6 +51,86 @@ void main() {
     },
   );
 
+  test('reads complete curve and propagates channel maxima', () async {
+    final controller = Directory('${controllerRoot.path}/hwmon0');
+    await controller.create();
+    await File('${controller.path}/fan1_max').writeAsString('10000\n');
+    await File('${controller.path}/fan2_max').writeAsString('9000\n');
+    for (var i = 1; i <= 10; i++) {
+      final values = <String, int>{
+        'pwm1_auto_point${i}_pwm': i * 20,
+        'pwm2_auto_point${i}_pwm': i * 20,
+        'pwm1_auto_point${i}_temp_hyst': 3,
+        'pwm1_auto_point${i}_temp': 30 + i * 5,
+        'pwm2_auto_point${i}_temp_hyst': 3,
+        'pwm2_auto_point${i}_temp': 32 + i * 5,
+        'pwm3_auto_point${i}_temp_hyst': 2,
+        'pwm3_auto_point${i}_temp': 35 + i * 5,
+        'pwm1_auto_point${i}_accel': 4,
+        'pwm1_auto_point${i}_decel': 8,
+      };
+      for (final entry in values.entries) {
+        await File(
+          '${controller.path}/${entry.key}',
+        ).writeAsString('${entry.value}\n');
+      }
+    }
+    final curve = await LegionSysfsService(
+      hwmonRoot: hwmonRoot.path,
+      fanHwmonRoot: controllerRoot.path,
+    ).readFanCurve();
+    expect(curve?.fan1MaxRpm, 10000);
+    expect(curve?.fan2MaxRpm, 9000);
+    expect(curve?.points.first.fan1Rpm, closeTo(784, 1));
+  });
+
+  test(
+    'rejects an incomplete curve instead of rendering partial controls',
+    () async {
+      final controller = Directory('${controllerRoot.path}/hwmon0');
+      await controller.create();
+      await File('${controller.path}/fan1_max').writeAsString('10000');
+      await File('${controller.path}/fan2_max').writeAsString('10000');
+      expect(
+        await LegionSysfsService(
+          hwmonRoot: hwmonRoot.path,
+          fanHwmonRoot: controllerRoot.path,
+        ).readFanCurve(),
+        isNull,
+      );
+    },
+  );
+
+  test('rejects a present but all-zero curve', () async {
+    final controller = Directory('${controllerRoot.path}/hwmon0');
+    await controller.create();
+    await File('${controller.path}/fan1_max').writeAsString('10000');
+    await File('${controller.path}/fan2_max').writeAsString('10000');
+    for (var i = 1; i <= 10; i++) {
+      for (final field in [
+        'pwm1_auto_point${i}_pwm',
+        'pwm2_auto_point${i}_pwm',
+        'pwm1_auto_point${i}_temp_hyst',
+        'pwm1_auto_point${i}_temp',
+        'pwm2_auto_point${i}_temp_hyst',
+        'pwm2_auto_point${i}_temp',
+        'pwm3_auto_point${i}_temp_hyst',
+        'pwm3_auto_point${i}_temp',
+        'pwm1_auto_point${i}_accel',
+        'pwm1_auto_point${i}_decel',
+      ]) {
+        await File('${controller.path}/$field').writeAsString('0');
+      }
+    }
+    expect(
+      await LegionSysfsService(
+        hwmonRoot: hwmonRoot.path,
+        fanHwmonRoot: controllerRoot.path,
+      ).readFanCurve(),
+      isNull,
+    );
+  });
+
   test('discovers the Kernel 7 synthetic platform root', () async {
     final virtualRoot = Directory('${root.path}/platform/legion');
     final legacyRoot = Directory('${root.path}/platform/PNP0C09:00');

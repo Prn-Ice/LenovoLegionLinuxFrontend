@@ -111,7 +111,7 @@ class FanCurveUnavailablePanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'The active driver does not expose fan-curve controls. Live readings remain available.',
+                        'The controller did not provide a usable fan curve. Live readings remain available.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -153,13 +153,17 @@ class FanCurveUnavailablePanel extends StatelessWidget {
 }
 
 class _FanCurveEditorState extends State<FanCurveEditor> {
-  static const double _maxRpm = 5000;
-
   int _selectedIndex = 0;
   int? _draggingIndex;
   Offset? _dragPosition;
 
   bool get _canEdit => widget.enabled && !widget.isApplying;
+
+  double get _maxRpm =>
+      (widget.channel == FanChannel.cpu
+              ? widget.curve.fan1MaxRpm
+              : widget.curve.fan2MaxRpm)
+          .toDouble();
 
   int _temperature(FanCurvePoint point) => widget.channel == FanChannel.cpu
       ? point.cpuUpperTemp
@@ -199,10 +203,13 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
 
   int _boundedRpm(int index, int value) {
     final points = widget.curve.points;
-    final minimum = index == 0 ? 0 : _rpm(points[index - 1]).clamp(0, 5000);
+    final maximumRpm = _maxRpm.round();
+    final minimum = index == 0
+        ? 0
+        : _rpm(points[index - 1]).clamp(0, maximumRpm);
     final maximum = index == points.length - 1
-        ? 5000
-        : _rpm(points[index + 1]).clamp(0, 5000);
+        ? maximumRpm
+        : _rpm(points[index + 1]).clamp(0, maximumRpm);
     if (minimum > maximum) return _rpm(points[index]);
     return value.clamp(minimum, maximum);
   }
@@ -597,105 +604,97 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
     final percent = rpm / _maxRpm * 100;
     final hysteresis = (temperature - _lowerTemperature(point)).clamp(0, 100);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: widget.accent.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(11),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(
-                'Selected point',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              DropdownButton<int>(
-                key: const ValueKey('fan-point-selector'),
-                value: _selectedIndex,
-                isDense: true,
-                onChanged: _canEdit
-                    ? (value) {
-                        if (value != null) {
-                          setState(() => _selectedIndex = value);
-                        }
-                      }
-                    : null,
-                items: [
-                  for (var i = 0; i < widget.curve.points.length; i++)
-                    DropdownMenuItem(value: i, child: Text('Point ${i + 1}')),
-                ],
-              ),
-              Text(
-                'Hysteresis $hysteresis°C  ·  Ramp ${point.accel}/${point.decel}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final controls = [
-                _CurveValueControl(
-                  controlKey: const ValueKey('fan-temperature-slider'),
-                  label: 'Temperature',
-                  valueLabel: '$temperature°C',
-                  value: temperature.toDouble(),
-                  enabled: _canEdit,
-                  onChanged: (value) => widget.onPointChanged(
-                    _selectedIndex,
-                    _updatePoint(
-                      point,
-                      temperature: _boundedTemperature(
-                        _selectedIndex,
-                        value.round(),
-                      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Selected point',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Wrap(
+              key: const ValueKey('fan-point-selector'),
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var i = 0; i < widget.curve.points.length; i++)
+                  ChoiceChip(
+                    label: Text('${i + 1}'),
+                    selected: _selectedIndex == i,
+                    onSelected: _canEdit
+                        ? (_) => setState(() => _selectedIndex = i)
+                        : null,
+                  ),
+              ],
+            ),
+            Text(
+              'Hysteresis $hysteresis°C  ·  Ramp ${point.accel}/${point.decel}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final controls = [
+              _CurveValueControl(
+                controlKey: const ValueKey('fan-temperature-slider'),
+                label: 'Temperature',
+                valueLabel: '$temperature°C',
+                value: temperature.toDouble(),
+                enabled: _canEdit,
+                onChanged: (value) => widget.onPointChanged(
+                  _selectedIndex,
+                  _updatePoint(
+                    point,
+                    temperature: _boundedTemperature(
+                      _selectedIndex,
+                      value.round(),
                     ),
                   ),
                 ),
-                _CurveValueControl(
-                  controlKey: const ValueKey('fan-speed-slider'),
-                  label: 'Fan speed',
-                  valueLabel: '${percent.round()}%  ·  $rpm RPM',
-                  value: percent,
-                  enabled: _canEdit,
-                  onChanged: (value) => widget.onPointChanged(
-                    _selectedIndex,
-                    _updatePoint(
-                      point,
-                      rpm: _boundedRpm(
-                        _selectedIndex,
-                        (value * _maxRpm / 100).round(),
-                      ),
+              ),
+              _CurveValueControl(
+                controlKey: const ValueKey('fan-speed-slider'),
+                label: 'Fan speed',
+                valueLabel: '${percent.round()}%  ·  $rpm RPM',
+                value: percent,
+                enabled: _canEdit,
+                onChanged: (value) => widget.onPointChanged(
+                  _selectedIndex,
+                  _updatePoint(
+                    point,
+                    rpm: _boundedRpm(
+                      _selectedIndex,
+                      (value * _maxRpm / 100).round(),
                     ),
                   ),
                 ),
-              ];
-              if (constraints.maxWidth < 620) {
-                return Column(
-                  children: [
-                    controls.first,
-                    const SizedBox(height: 8),
-                    controls.last,
-                  ],
-                );
-              }
-              return Row(
+              ),
+            ];
+            if (constraints.maxWidth < 620) {
+              return Column(
                 children: [
-                  Expanded(child: controls.first),
-                  const SizedBox(width: 20),
-                  Expanded(child: controls.last),
+                  controls.first,
+                  const SizedBox(height: 8),
+                  controls.last,
                 ],
               );
-            },
-          ),
-        ],
-      ),
+            }
+            return Row(
+              children: [
+                Expanded(child: controls.first),
+                const SizedBox(width: 20),
+                Expanded(child: controls.last),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }

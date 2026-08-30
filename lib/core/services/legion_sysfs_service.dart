@@ -231,32 +231,44 @@ class LegionSysfsService {
     final fan1Max = await readIntFile('${hwmonPath}fan1_max');
     final fan2Max = await readIntFile('${hwmonPath}fan2_max');
 
-    if (fan1Max == null || fan1Max == 0 || fan2Max == null || fan2Max == 0) {
+    if (fan1Max == null || fan1Max <= 0 || fan2Max == null || fan2Max <= 0) {
       return null;
     }
 
     final points = <FanCurvePoint>[];
     for (var i = 1; i <= 10; i++) {
-      final pwm1 =
-          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm')) ?? 0;
-      final pwm2 =
-          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm')) ?? 0;
-      final cpuLower =
-          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp_hyst')) ?? 0;
-      final cpuUpper =
-          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_temp')) ?? 0;
-      final gpuLower =
-          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp_hyst')) ?? 0;
-      final gpuUpper =
-          (await readIntFile('${hwmonPath}pwm2_auto_point${i}_temp')) ?? 0;
-      final icLower =
-          (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp_hyst')) ?? 0;
-      final icUpper =
-          (await readIntFile('${hwmonPath}pwm3_auto_point${i}_temp')) ?? 0;
-      final accel =
-          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_accel')) ?? 0;
-      final decel =
-          (await readIntFile('${hwmonPath}pwm1_auto_point${i}_decel')) ?? 0;
+      final values = await Future.wait([
+        readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm'),
+        readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm'),
+        readIntFile('${hwmonPath}pwm1_auto_point${i}_temp_hyst'),
+        readIntFile('${hwmonPath}pwm1_auto_point${i}_temp'),
+        readIntFile('${hwmonPath}pwm2_auto_point${i}_temp_hyst'),
+        readIntFile('${hwmonPath}pwm2_auto_point${i}_temp'),
+        readIntFile('${hwmonPath}pwm3_auto_point${i}_temp_hyst'),
+        readIntFile('${hwmonPath}pwm3_auto_point${i}_temp'),
+        readIntFile('${hwmonPath}pwm1_auto_point${i}_accel'),
+        readIntFile('${hwmonPath}pwm1_auto_point${i}_decel'),
+      ]);
+      if (values.any((value) => value == null)) return null;
+      final [
+        pwm1!,
+        pwm2!,
+        cpuLower!,
+        cpuUpper!,
+        gpuLower!,
+        gpuUpper!,
+        icLower!,
+        icUpper!,
+        accel!,
+        decel!,
+      ] = values;
+      if (!_validPwm(pwm1) ||
+          !_validPwm(pwm2) ||
+          !_validTemperatureRange(cpuLower, cpuUpper) ||
+          !_validTemperatureRange(gpuLower, gpuUpper) ||
+          !_validTemperatureRange(icLower, icUpper)) {
+        return null;
+      }
 
       points.add(
         FanCurvePoint(
@@ -274,7 +286,13 @@ class LegionSysfsService {
       );
     }
 
-    return FanCurve(name: 'custom', points: List.unmodifiable(points));
+    if (!_usableFanCurve(points)) return null;
+    return FanCurve(
+      name: 'custom',
+      points: List.unmodifiable(points),
+      fan1MaxRpm: fan1Max,
+      fan2MaxRpm: fan2Max,
+    );
   }
 
   Future<bool?> readCpuOverclockMode() async {
@@ -295,18 +313,22 @@ class LegionSysfsService {
     return _readFanRpm(2);
   }
 
+  Future<int?> readFan1MaxRpm() => _readFanMaxRpm(1);
+
+  Future<int?> readFan2MaxRpm() => _readFanMaxRpm(2);
+
   /// CPU package temperature in °C. Returns null if unavailable.
   Future<double?> readCpuTempC() async {
-    // Prefer the dedicated CPU sensor (Intel coretemp / AMD k10temp).
+    // legion_hwmon's labeled CPU sensor is the controller's dedicated CPU
+    // reading and avoids presenting the same ACPI temperature as the system.
     var path = await _findHwmonTempInput(
+      driverNames: {'legion_hwmon'},
+      label: 'CPU Temperature',
+    );
+    // Prefer the dedicated CPU sensor (Intel coretemp / AMD k10temp).
+    path ??= await _findHwmonTempInput(
       driverNames: {'coretemp', 'k10temp'},
       label: 'Package id 0',
-      fallbackIndex: 1,
-    );
-    // Fall back to the ACPI thermal zone when no CPU hwmon is present — e.g.
-    // k10temp not loaded on some AMD systems, where acpitz tracks SoC temp.
-    path ??= await _findHwmonTempInput(
-      driverNames: {'acpitz'},
       fallbackIndex: 1,
     );
     final raw = path == null ? null : await readIntFile(path);
@@ -662,6 +684,13 @@ class LegionSysfsService {
     return null;
   }
 
+  Future<int?> _readFanMaxRpm(int fanNumber) async {
+    final controller = await _findFanHwmonDir();
+    if (controller == null) return null;
+    final value = await readIntFile('${controller}fan${fanNumber}_max');
+    return value == null || value <= 0 ? null : value;
+  }
+
   Future<String?> _readFirstCpuStatLine() async {
     try {
       final file = File('/proc/stat');
@@ -675,6 +704,36 @@ class LegionSysfsService {
 
   static int _pwmToRpm(int pwm, int maxRpm) {
     return (pwm / 255.0 * maxRpm).round();
+  }
+
+  static bool _validPwm(int value) => value >= 0 && value <= 255;
+
+  static bool _validTemperatureRange(int lower, int upper) =>
+      lower >= 0 && upper >= lower && upper <= 120;
+
+  static bool _usableFanCurve(List<FanCurvePoint> points) {
+    if (points.isEmpty ||
+        points.every((point) => point.cpuUpperTemp == 0) ||
+        points.every((point) => point.gpuUpperTemp == 0) ||
+        points.every((point) => point.fan1Rpm == 0) ||
+        points.every((point) => point.fan2Rpm == 0)) {
+      return false;
+    }
+    // A present-but-zero legion_hwmon table is not a usable curve. Treat the
+    // whole table as unavailable rather than rendering a collapsed editor.
+    // Reject a present-but-zero table through the semantic checks above: a
+    // usable curve needs non-zero temperature and PWM channels.
+    for (var i = 1; i < points.length; i++) {
+      final previous = points[i - 1];
+      final current = points[i];
+      if (current.cpuUpperTemp < previous.cpuUpperTemp ||
+          current.gpuUpperTemp < previous.gpuUpperTemp ||
+          current.fan1Rpm < previous.fan1Rpm ||
+          current.fan2Rpm < previous.fan2Rpm) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<int?> readIntFile(String path) async {

@@ -171,7 +171,7 @@ class PowerRepository extends PrivilegedRepository {
     final powerLimits = <PowerLimitReading>[];
     for (final spec in allPowerLimits) {
       final value = await _sysfsService.readLegionIntFile(spec.sysfsAttribute);
-      if (value != null) {
+      if (value != null && value >= spec.effectiveMin && value <= spec.max) {
         powerLimits.add(PowerLimitReading(spec: spec, value: value));
       }
     }
@@ -208,9 +208,9 @@ class PowerRepository extends PrivilegedRepository {
   }
 
   Future<void> setPowerLimit(PowerLimitSpec limit, int value) async {
-    if (value < limit.min || value > limit.max) {
+    if (value < limit.effectiveMin || value > limit.max) {
       throw PowerRepositoryException(
-        '${limit.label} must be between ${limit.min} and ${limit.max}.',
+        '${limit.label} must be between ${limit.effectiveMin} and ${limit.max}.',
       );
     }
 
@@ -225,11 +225,11 @@ class PowerRepository extends PrivilegedRepository {
 
   Future<void> setPowerLimits(List<PowerLimitReading> readings) async {
     for (final reading in readings) {
-      if (reading.value < reading.spec.min ||
+      if (reading.value < reading.spec.effectiveMin ||
           reading.value > reading.spec.max) {
         throw PowerRepositoryException(
           '${reading.spec.label} must be between '
-          '${reading.spec.min} and ${reading.spec.max}.',
+          '${reading.spec.effectiveMin} and ${reading.spec.max}.',
         );
       }
     }

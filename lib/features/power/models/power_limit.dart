@@ -19,6 +19,8 @@ class PowerLimitSpec extends Equatable {
   final int min;
   final int max;
 
+  int get effectiveMin => min > 0 ? min : 1;
+
   @override
   List<Object?> get props => [
     id,

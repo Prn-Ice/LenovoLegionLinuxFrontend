@@ -122,6 +122,39 @@ void main() {
       expect(result, anyOf(isNull, isA<double>()));
     });
 
+    test(
+      'keeps ACPI system temperature separate from CPU temperature',
+      () async {
+        final root = await Directory.systemTemp.createTemp('hwmon-temp-test-');
+        addTearDown(() => root.delete(recursive: true));
+        final acpi = Directory('${root.path}/hwmon0')..createSync();
+        File('${acpi.path}/name').writeAsStringSync('acpitz\n');
+        File('${acpi.path}/temp1_input').writeAsStringSync('42000\n');
+
+        final temperatureService = LegionSysfsService(hwmonRoot: root.path);
+
+        expect(await temperatureService.readCpuTempC(), isNull);
+        expect(await temperatureService.readMotherboardTempC(), 42);
+      },
+    );
+
+    test('prefers the labeled Legion CPU temperature', () async {
+      final root = await Directory.systemTemp.createTemp('hwmon-temp-test-');
+      addTearDown(() => root.delete(recursive: true));
+      final legion = Directory('${root.path}/hwmon0')..createSync();
+      File('${legion.path}/name').writeAsStringSync('legion_hwmon\n');
+      File('${legion.path}/temp2_label').writeAsStringSync('CPU Temperature\n');
+      File('${legion.path}/temp2_input').writeAsStringSync('61000\n');
+      final acpi = Directory('${root.path}/hwmon1')..createSync();
+      File('${acpi.path}/name').writeAsStringSync('acpitz\n');
+      File('${acpi.path}/temp1_input').writeAsStringSync('42000\n');
+
+      final temperatureService = LegionSysfsService(hwmonRoot: root.path);
+
+      expect(await temperatureService.readCpuTempC(), 61);
+      expect(await temperatureService.readMotherboardTempC(), 42);
+    });
+
     test('readDiskTempC returns double? without throwing', () async {
       final result = await service.readDiskTempC();
       expect(result, anyOf(isNull, isA<double>()));

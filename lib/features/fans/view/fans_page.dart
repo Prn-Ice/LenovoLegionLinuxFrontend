@@ -5,6 +5,7 @@ import 'package:yaru/yaru.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../dashboard/widgets/quick_controls.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/fans_bloc.dart';
@@ -49,7 +50,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         : sensors.gpuTempC;
     final currentRpm = _channel == FanChannel.cpu
         ? sensors.fan1Rpm
-        : sensors.fan2Rpm ?? sensors.gpuFanRpm;
+        : sensors.fan2Rpm;
 
     if (state.isLoading && !state.hasLoaded) {
       return const Center(child: YaruCircularProgressIndicator());
@@ -97,6 +98,7 @@ class _FansPageState extends ConsumerState<FansPage> {
           const SizedBox(height: 16),
           _FanControls(
             state: state,
+            accent: accent,
             onMiniFanCurveChanged: (enabled) =>
                 _setMiniFanCurve(context, bloc, enabled),
             onMaximumFanSpeedChanged: (enabled) =>
@@ -341,22 +343,25 @@ class _PresetChip extends StatelessWidget {
 class _FanControls extends StatelessWidget {
   const _FanControls({
     required this.state,
+    required this.accent,
     required this.onMiniFanCurveChanged,
     required this.onMaximumFanSpeedChanged,
     required this.onLockFanControllerChanged,
   });
 
   final FansState state;
+  final Color accent;
   final ValueChanged<bool> onMiniFanCurveChanged;
   final ValueChanged<bool> onMaximumFanSpeedChanged;
   final ValueChanged<bool> onLockFanControllerChanged;
 
   @override
   Widget build(BuildContext context) {
-    final controls = <Widget>[
+    final controls = <QuickControl>[
       if (state.miniFanCurveEnabled case final value?)
-        AppSwitchTile(
-          key: const ValueKey('mini-fan-curve'),
+        QuickControl(
+          widgetKey: const ValueKey('mini-fan-curve'),
+          icon: YaruIcons.snow,
           value: value,
           onChanged: state.isApplying ? null : onMiniFanCurveChanged,
           title: 'Reduce fan cycling',
@@ -365,8 +370,9 @@ class _FanControls extends StatelessWidget {
               : "Use the controller's low-temperature fan behavior.",
         ),
       if (state.maximumFanSpeedEnabled case final value?)
-        AppSwitchTile(
-          key: const ValueKey('maximum-fan-speed'),
+        QuickControl(
+          widgetKey: const ValueKey('maximum-fan-speed'),
+          icon: YaruIcons.meter_9,
           value: value,
           onChanged: state.isApplying ? null : onMaximumFanSpeedChanged,
           title: 'Maximum fan speed',
@@ -375,7 +381,9 @@ class _FanControls extends StatelessWidget {
               : 'Run both fans at full speed until disabled.',
         ),
       if (state.lockFanControllerEnabled case final value?)
-        AppSwitchTile(
+        QuickControl(
+          widgetKey: const ValueKey('lock-fan-controller'),
+          icon: YaruIcons.lock,
           value: value,
           onChanged: state.isApplying ? null : onLockFanControllerChanged,
           title: 'Exclusive fan control',
@@ -385,13 +393,12 @@ class _FanControls extends StatelessWidget {
         ),
     ];
 
-    return AppSectionCard(
-      title: 'Fan controls',
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < controls.length; i++) ...[
-          controls[i],
-          if (i != controls.length - 1) const Divider(height: 1),
-        ],
+        Text('Fan controls', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        QuickControls(accent: accent, controls: controls),
       ],
     );
   }

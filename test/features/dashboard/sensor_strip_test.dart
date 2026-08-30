@@ -7,24 +7,28 @@ LiveSensorSnapshot _snapshot({
   double? cpuTempC,
   double? gpuTempC,
   double? cpuUtilPercent,
+  int? fan2Rpm,
+  double? cpuPackagePowerW,
+  double? motherboardTempC,
 }) => LiveSensorSnapshot(
   cpuName: 'CPU',
   cpuTempC: cpuTempC,
   cpuUtilPercent: cpuUtilPercent,
   cpuClockGhz: null,
-  cpuPackagePowerW: null,
+  cpuPackagePowerW: cpuPackagePowerW,
   fan1Rpm: null,
-  fan2Rpm: null,
+  fan2Rpm: fan2Rpm,
+  fan2MaxRpm: 10000,
   gpuName: null,
   gpuTempC: gpuTempC,
   gpuUtilPercent: null,
   gpuClockGhz: null,
   gpuVramUsedGb: null,
   gpuVramTotalGb: null,
-  gpuFanRpm: null,
+  gpuFanPercent: null,
   gpuPowerDrawW: null,
   gpuIsDiscrete: true,
-  motherboardTempC: null,
+  motherboardTempC: motherboardTempC,
   batteryPercent: null,
   batteryCharging: null,
   batteryPowerDrawW: null,
@@ -57,6 +61,29 @@ void main() {
     expect(find.text('dGPU temp'), findsOneWidget); // discrete gpu gauge label
     expect(find.textContaining('72'), findsWidgets);
     expect(find.text('CPU load'), findsOneWidget); // utilisation tile
+  });
+
+  testWidgets('uses GPU fan RPM and keeps system temperature secondary', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SensorStrip(
+        snapshot: _snapshot(
+          fan2Rpm: 2200,
+          cpuPackagePowerW: 8.8,
+          motherboardTempC: 48.2,
+        ),
+        accent: accent,
+      ),
+    );
+
+    expect(find.text('GPU fan (RPM)'), findsOneWidget);
+    expect(find.textContaining('2200'), findsWidgets);
+    expect(find.text('CPU package power'), findsOneWidget);
+    expect(find.textContaining('9'), findsWidgets);
+    expect(find.text('System 48.2°C'), findsOneWidget);
+    expect(find.text('Board temp'), findsNothing);
   });
 
   testWidgets('shows the unavailable message when no sensors are present', (
