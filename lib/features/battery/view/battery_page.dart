@@ -46,7 +46,6 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
 
     return AppPageBody(
       errorMessage: state.errorMessage ?? analytics.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         _BatteryOverview(state: state, health: health, accent: accent),
         const SizedBox(height: 16),
@@ -334,22 +333,15 @@ class _HistoryCollectionCard extends StatelessWidget {
         .first
         .replaceAll(':', '-');
     try {
-      final uri = await FilePicker.saveFile(
+      await FilePicker.saveFile(
         dialogTitle: 'Export telemetry logs',
         fileName: 'legion-telemetry-$stamp.csv',
         bytes: sensorRecordsCsv(history),
         mimeType: 'text/csv',
       );
-      if (uri != null && context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Telemetry exported to $uri')));
-      }
     } catch (error) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not export telemetry: $error')),
-        );
+        await showAppErrorDialog(context, 'Could not export telemetry: $error');
       }
     }
   }

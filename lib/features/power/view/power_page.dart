@@ -51,7 +51,6 @@ class _PowerPageState extends ConsumerState<PowerPage> {
 
     return AppPageBody(
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         ModeHero(
           accent: accent,
@@ -485,12 +484,6 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
     final additional = widget.readings
         .where((reading) => !_primaryIds.contains(reading.spec.id))
         .toList(growable: false);
-    final adjustableAdditional = additional
-        .where((reading) => reading.spec.isWritable)
-        .toList(growable: false);
-    final controllerReadings = additional
-        .where((reading) => !reading.spec.isWritable)
-        .toList(growable: false);
     final hasWritableLimits = widget.readings.any(
       (reading) => reading.spec.isWritable,
     );
@@ -581,33 +574,18 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (adjustableAdditional.isNotEmpty) ...[
-                      const _LimitGroupHeader(title: 'Adjustable'),
-                      for (var i = 0; i < adjustableAdditional.length; i++) ...[
-                        if (i > 0) const Divider(height: 1),
-                        _AdditionalLimitRow(
-                          reading: adjustableAdditional[i],
-                          value: _valueFor(adjustableAdditional[i]),
-                          showAction: widget.canEdit && !widget.isApplying,
-                          onChange: () =>
-                              _changeAdditionalLimit(adjustableAdditional[i]),
-                        ),
-                      ],
-                    ],
-                    if (controllerReadings.isNotEmpty) ...[
-                      if (adjustableAdditional.isNotEmpty)
-                        const SizedBox(height: 16),
-                      const _LimitGroupHeader(
-                        title: 'Controller readings',
-                        trailing: 'Read only',
+                    for (var i = 0; i < additional.length; i++) ...[
+                      if (i > 0) const Divider(height: 1),
+                      _AdditionalLimitRow(
+                        reading: additional[i],
+                        value: _valueFor(additional[i]),
+                        onChange:
+                            additional[i].spec.isWritable &&
+                                widget.canEdit &&
+                                !widget.isApplying
+                            ? () => _changeAdditionalLimit(additional[i])
+                            : null,
                       ),
-                      for (var i = 0; i < controllerReadings.length; i++) ...[
-                        if (i > 0) const Divider(height: 1),
-                        _AdditionalLimitRow(
-                          reading: controllerReadings[i],
-                          value: _valueFor(controllerReadings[i]),
-                        ),
-                      ],
                     ],
                   ],
                 ),
@@ -766,46 +744,15 @@ class _PowerLimitSlider extends StatelessWidget {
   }
 }
 
-class _LimitGroupHeader extends StatelessWidget {
-  const _LimitGroupHeader({required this.title, this.trailing});
-
-  final String title;
-  final String? trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          if (trailing case final text?)
-            Text(text, style: monoMetaStyle(scheme)),
-        ],
-      ),
-    );
-  }
-}
-
 class _AdditionalLimitRow extends StatelessWidget {
   const _AdditionalLimitRow({
     required this.reading,
     required this.value,
-    this.showAction = false,
     this.onChange,
   });
 
   final PowerLimitReading reading;
   final int value;
-  final bool showAction;
   final VoidCallback? onChange;
 
   @override
@@ -835,11 +782,11 @@ class _AdditionalLimitRow extends StatelessWidget {
                   children: [
                     Expanded(child: current),
                     Expanded(child: baseline),
-                    if (showAction)
-                      OutlinedButton(
-                        onPressed: onChange,
-                        child: const Text('Change'),
-                      ),
+                    OutlinedButton(
+                      key: ValueKey('power-limit-change-${reading.spec.id}'),
+                      onPressed: onChange,
+                      child: const Text('Change'),
+                    ),
                   ],
                 ),
               ],
@@ -853,12 +800,11 @@ class _AdditionalLimitRow extends StatelessWidget {
               SizedBox(width: 112, child: baseline),
               SizedBox(
                 width: 92,
-                child: showAction
-                    ? OutlinedButton(
-                        onPressed: onChange,
-                        child: const Text('Change'),
-                      )
-                    : null,
+                child: OutlinedButton(
+                  key: ValueKey('power-limit-change-${reading.spec.id}'),
+                  onPressed: onChange,
+                  child: const Text('Change'),
+                ),
               ),
             ],
           );

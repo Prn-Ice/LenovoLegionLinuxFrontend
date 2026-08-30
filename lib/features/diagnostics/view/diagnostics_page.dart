@@ -25,6 +25,8 @@ class DiagnosticsPage extends ConsumerStatefulWidget {
 }
 
 class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
+  bool _diagnosticsCopied = false;
+
   @override
   void initState() {
     super.initState();
@@ -206,9 +208,12 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           title: 'Command History (last 20)',
           trailing: snapshot != null
               ? OutlinedButton.icon(
-                  onPressed: () => _copyDiagnosticsJson(context, snapshot),
-                  icon: const Icon(Icons.copy_all_outlined, size: 16),
-                  label: const Text('Copy JSON'),
+                  onPressed: () => _copyDiagnosticsJson(snapshot),
+                  icon: Icon(
+                    _diagnosticsCopied ? Icons.check : Icons.copy_all_outlined,
+                    size: 16,
+                  ),
+                  label: Text(_diagnosticsCopied ? 'Copied' : 'Copy JSON'),
                 )
               : null,
           children: [
@@ -248,10 +253,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     return value ? AboutDiagnosticStatus.ok : AboutDiagnosticStatus.error;
   }
 
-  Future<void> _copyDiagnosticsJson(
-    BuildContext context,
-    AboutSnapshot snapshot,
-  ) async {
+  Future<void> _copyDiagnosticsJson(AboutSnapshot snapshot) async {
     final payload = <String, Object?>{
       'updated_at': snapshot.updatedAt.toIso8601String(),
       'cli_path': snapshot.cliPath,
@@ -290,11 +292,12 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           .toList(growable: false),
     };
     final text = const JsonEncoder.withIndent('  ').convert(payload);
-    await Clipboard.setData(ClipboardData(text: text));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Diagnostics JSON copied to clipboard.')),
-      );
+    if (mounted) setState(() => _diagnosticsCopied = true);
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+    } catch (_) {
+      if (mounted) setState(() => _diagnosticsCopied = false);
+      rethrow;
     }
   }
 }

@@ -24,7 +24,6 @@ class BootLogoPage extends ConsumerWidget {
     return AppPageBody(
       title: 'Boot Logo',
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         AppSectionCard(
           title: 'Boot Logo',

@@ -1,9 +1,11 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
-enum AppStatusTone { error, notice }
+const _nixosPolkitConfiguration = '''security.polkit = {
+  enable = true;
+  enablePkexecWrapper = true;
+};''';
 
 class AppPageBody extends StatelessWidget {
   const AppPageBody({
@@ -12,7 +14,6 @@ class AppPageBody extends StatelessWidget {
     this.subtitle,
     this.headerAction,
     this.errorMessage,
-    this.noticeMessage,
     required this.children,
   });
 
@@ -22,210 +23,313 @@ class AppPageBody extends StatelessWidget {
   /// Optional action shown at the top-right of the page header (e.g. refresh).
   final Widget? headerAction;
   final String? errorMessage;
-  final String? noticeMessage;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return ListView(
-      padding: const EdgeInsets.all(kYaruPagePadding),
-      children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1200),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (title != null) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title!,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
+    return AppErrorDialogListener(
+      errorMessage: errorMessage,
+      child: ListView(
+        padding: const EdgeInsets.all(kYaruPagePadding),
+        children: [
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (title != null) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title!,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                            ),
-                            if (subtitle != null) ...[
-                              const SizedBox(height: 4),
-                              DefaultTextStyle(
-                                style: textTheme.bodySmall!,
-                                child: subtitle!,
-                              ),
+                              if (subtitle != null) ...[
+                                const SizedBox(height: 4),
+                                DefaultTextStyle(
+                                  style: textTheme.bodySmall!,
+                                  child: subtitle!,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      ?headerAction,
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                        ?headerAction,
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  ...children,
                 ],
-                AppStatusMessages(
-                  errorMessage: errorMessage,
-                  noticeMessage: noticeMessage,
-                  bottomSpacing: 12,
-                ),
-                ...children,
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-class AppStatusMessages extends StatefulWidget {
-  const AppStatusMessages({
+class AppErrorDialogListener extends StatefulWidget {
+  const AppErrorDialogListener({
     super.key,
     this.errorMessage,
-    this.noticeMessage,
-    this.bottomSpacing = 0,
+    required this.child,
   });
 
   final String? errorMessage;
-  final String? noticeMessage;
-  final double bottomSpacing;
+  final Widget child;
 
   @override
-  State<AppStatusMessages> createState() => _AppStatusMessagesState();
+  State<AppErrorDialogListener> createState() => _AppErrorDialogListenerState();
 }
 
-class _AppStatusMessagesState extends State<AppStatusMessages> {
-  static const _noticeDuration = Duration(seconds: 4);
-
-  Timer? _noticeTimer;
-  String? _visibleError;
-  String? _visibleNotice;
+class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
+  bool _dialogVisible = false;
+  String? _pendingMessage;
 
   @override
   void initState() {
     super.initState();
-    _visibleError = widget.errorMessage;
-    _visibleNotice = widget.noticeMessage;
-    _scheduleNoticeDismissal();
+    _scheduleDialog(widget.errorMessage);
   }
 
   @override
-  void didUpdateWidget(covariant AppStatusMessages oldWidget) {
+  void didUpdateWidget(covariant AppErrorDialogListener oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.errorMessage != widget.errorMessage) {
-      _visibleError = widget.errorMessage;
-    }
-    if (oldWidget.noticeMessage != widget.noticeMessage) {
-      _visibleNotice = widget.noticeMessage;
-      _scheduleNoticeDismissal();
+      _scheduleDialog(widget.errorMessage);
     }
   }
 
-  void _scheduleNoticeDismissal() {
-    _noticeTimer?.cancel();
-    if (_visibleNotice == null) return;
-    _noticeTimer = Timer(_noticeDuration, () {
-      if (mounted) setState(() => _visibleNotice = null);
+  void _scheduleDialog(String? message) {
+    if (message == null || message.trim().isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showDialog(message);
     });
   }
 
-  @override
-  void dispose() {
-    _noticeTimer?.cancel();
-    super.dispose();
+  Future<void> _showDialog(String message) async {
+    if (_dialogVisible) {
+      _pendingMessage = message;
+      return;
+    }
+
+    _dialogVisible = true;
+    await showAppErrorDialog(context, message);
+    if (!mounted) return;
+    _dialogVisible = false;
+
+    final pendingMessage = _pendingMessage;
+    _pendingMessage = null;
+    if (pendingMessage != null && pendingMessage != message) {
+      _scheduleDialog(pendingMessage);
+    }
   }
 
   @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+Future<void> showAppErrorDialog(BuildContext context, String message) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AppErrorDialog(message: message),
+  );
+}
+
+class AppErrorDialog extends StatefulWidget {
+  const AppErrorDialog({super.key, required this.message});
+
+  final String message;
+
+  @override
+  State<AppErrorDialog> createState() => _AppErrorDialogState();
+}
+
+class _AppErrorDialogState extends State<AppErrorDialog> {
+  bool _configurationCopied = false;
+  bool _detailsCopied = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_visibleError != null)
-          AppStatusBanner(
-            message: _visibleError!,
-            tone: AppStatusTone.error,
-            onDismiss: () => setState(() => _visibleError = null),
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    final isPrivilegeSetup = _isPrivilegeSetupError(widget.message);
+
+    return AlertDialog(
+      title: YaruDialogTitleBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 20, color: scheme.error),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                isPrivilegeSetup
+                    ? 'Privileged access needs setup'
+                    : 'Action could not be completed',
+              ),
+            ),
+          ],
+        ),
+      ),
+      titlePadding: EdgeInsets.zero,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
+          child: SelectionArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: isPrivilegeSetup
+                  ? _buildPrivilegeSetupContent(context)
+                  : [
+                      const Text(
+                        'The requested action did not complete. No confirmation was received that the setting changed.',
+                      ),
+                      const SizedBox(height: 16),
+                      Text('Details', style: textTheme.titleSmall),
+                      const SizedBox(height: 6),
+                      Text(widget.message),
+                    ],
+            ),
           ),
-        if (_visibleError != null && _visibleNotice != null)
-          const SizedBox(height: 8),
-        if (_visibleNotice != null)
-          AppStatusBanner(
-            message: _visibleNotice!,
-            tone: AppStatusTone.notice,
-            onDismiss: () {
-              _noticeTimer?.cancel();
-              setState(() => _visibleNotice = null);
-            },
+        ),
+      ),
+      actions: [
+        if (!isPrivilegeSetup)
+          TextButton.icon(
+            onPressed: _copyDetails,
+            icon: Icon(
+              _detailsCopied ? Icons.check : Icons.copy_outlined,
+              size: 18,
+            ),
+            label: Text(_detailsCopied ? 'Copied' : 'Copy details'),
           ),
-        if ((_visibleError != null || _visibleNotice != null) &&
-            widget.bottomSpacing > 0)
-          SizedBox(height: widget.bottomSpacing),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
       ],
     );
   }
-}
 
-class AppStatusBanner extends StatelessWidget {
-  const AppStatusBanner({
-    super.key,
-    required this.message,
-    required this.tone,
-    this.onDismiss,
-  });
-
-  final String message;
-  final AppStatusTone tone;
-  final VoidCallback? onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> _buildPrivilegeSetupContent(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final isError = tone == AppStatusTone.error;
 
-    final foreground = isError
-        ? scheme.onErrorContainer
-        : scheme.onPrimaryContainer;
-
-    return Semantics(
-      container: true,
-      liveRegion: true,
-      child: Card(
-        margin: EdgeInsets.zero,
-        color: isError ? scheme.errorContainer : scheme.primaryContainer,
-        elevation: 1,
+    return [
+      const Text(
+        'The app could not start pkexec, so the requested system change was not made.',
+      ),
+      const SizedBox(height: 16),
+      Text('What this means', style: textTheme.titleSmall),
+      const SizedBox(height: 6),
+      const Text(
+        'pkexec is the Polkit helper that asks for administrator authorization. It must first start with effective root privileges; this installation does not currently provide those privileges.',
+      ),
+      const SizedBox(height: 16),
+      Text('NixOS', style: textTheme.titleSmall),
+      const SizedBox(height: 6),
+      const Text(
+        'NixOS provides setuid programs through system wrappers. Add this to your system configuration, rebuild NixOS, then try the action again.',
+      ),
+      const SizedBox(height: 10),
+      DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                isError ? Icons.error_outline : Icons.info_outline,
-                color: foreground,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'System configuration',
+                      style: textTheme.labelMedium,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _copyConfiguration,
+                    icon: Icon(
+                      _configurationCopied ? Icons.check : Icons.copy_outlined,
+                      size: 17,
+                    ),
+                    label: Text(_configurationCopied ? 'Copied' : 'Copy'),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(message, style: TextStyle(color: foreground)),
-              ),
-              if (onDismiss != null) ...[
-                const SizedBox(width: 4),
-                IconButton(
-                  tooltip: 'Dismiss',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onDismiss,
-                  icon: Icon(Icons.close, size: 18, color: foreground),
+              Text(
+                _nixosPolkitConfiguration,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFamily: 'monospace',
+                  height: 1.45,
                 ),
-              ],
+              ),
             ],
           ),
         ),
       ),
-    );
+      const SizedBox(height: 16),
+      Text('Other Linux distributions', style: textTheme.titleSmall),
+      const SizedBox(height: 6),
+      const Text(
+        'Ubuntu, Debian, Fedora, Arch, and most other distributions normally install /usr/bin/pkexec as a root-owned setuid executable through their Polkit package. This app needs no special setup there. If the same error appears, reinstall the distribution\'s Polkit package or ask the system administrator to restore its packaged permissions.',
+      ),
+      const SizedBox(height: 16),
+      Text('Technical details', style: textTheme.titleSmall),
+      const SizedBox(height: 6),
+      Text(
+        widget.message,
+        style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+      ),
+    ];
   }
+
+  Future<void> _copyConfiguration() async {
+    if (mounted) setState(() => _configurationCopied = true);
+    try {
+      await Clipboard.setData(
+        const ClipboardData(text: _nixosPolkitConfiguration),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _configurationCopied = false);
+      rethrow;
+    }
+  }
+
+  Future<void> _copyDetails() async {
+    if (mounted) setState(() => _detailsCopied = true);
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.message));
+    } catch (_) {
+      if (mounted) setState(() => _detailsCopied = false);
+      rethrow;
+    }
+  }
+}
+
+bool _isPrivilegeSetupError(String message) {
+  final normalized = message.toLowerCase();
+  return normalized.contains('pkexec must be setuid root') ||
+      normalized.contains('security.polkit.enablepkexecwrapper');
 }
 
 class AppSectionCard extends StatelessWidget {

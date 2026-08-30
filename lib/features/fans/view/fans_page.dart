@@ -58,7 +58,6 @@ class _FansPageState extends ConsumerState<FansPage> {
 
     return AppPageBody(
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         _FanWorkspaceToolbar(
           channel: _channel,

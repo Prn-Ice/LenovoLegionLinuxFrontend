@@ -61,7 +61,6 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           state.errorMessage ??
           sensorState.errorMessage ??
           analytics.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         if (!state.isAvailable)
           AppControlCard(

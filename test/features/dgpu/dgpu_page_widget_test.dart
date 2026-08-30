@@ -118,7 +118,7 @@ void main() {
     await tester.tap(find.text('Configure mode'));
     await tester.pumpAndSettle();
     verify(() => dgpuRepository.setHybridMode(false)).called(1);
-    expect(find.textContaining('Graphics mode configured'), findsOneWidget);
+    expect(find.textContaining('Graphics mode configured'), findsNothing);
   });
 
   testWidgets('GPU identity uses the reported vendor mark', (tester) async {

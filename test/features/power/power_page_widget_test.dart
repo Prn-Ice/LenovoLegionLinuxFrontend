@@ -186,9 +186,9 @@ void main() {
     expect(find.text('100 °C'), findsWidgets);
     expect(find.text('GPU AC power-target offset'), findsOneWidget);
     expect(find.text('45 W'), findsWidgets);
-    expect(find.text('Adjustable'), findsOneWidget);
-    expect(find.text('Controller readings'), findsOneWidget);
-    expect(find.text('Read only'), findsOneWidget);
+    expect(find.text('Adjustable'), findsNothing);
+    expect(find.text('Controller readings'), findsNothing);
+    expect(find.text('Read only'), findsNothing);
     expect(
       tester
           .widget<Text>(
@@ -207,27 +207,25 @@ void main() {
           .data,
       '45 W',
     );
-    expect(find.text('Change'), findsNothing);
+    expect(find.text('Change'), findsNWidgets(3));
     expect(find.text('No staged changes'), findsNothing);
     expect(
-      find.descendant(
-        of: find.ancestor(
-          of: find.text('CPU temperature limit'),
-          matching: find.byType(YaruListTile),
-        ),
-        matching: find.text('Change'),
-      ),
-      findsNothing,
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const ValueKey('power-limit-change-cpu_temperature')),
+          )
+          .onPressed,
+      isNull,
     );
     expect(
-      find.descendant(
-        of: find.ancestor(
-          of: find.text('GPU AC power-target offset'),
-          matching: find.byType(YaruListTile),
-        ),
-        matching: find.text('Change'),
-      ),
-      findsNothing,
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(
+              const ValueKey('power-limit-change-gpu_power_target_offset'),
+            ),
+          )
+          .onPressed,
+      isNull,
     );
   });
 
@@ -246,7 +244,9 @@ void main() {
     await tester.tap(additionalLimits);
     await tester.pumpAndSettle();
 
-    final change = find.text('Change');
+    final change = find.byKey(
+      const ValueKey('power-limit-change-gpu_temperature'),
+    );
     await tester.ensureVisible(change);
     await tester.pumpAndSettle();
     await tester.tap(change);

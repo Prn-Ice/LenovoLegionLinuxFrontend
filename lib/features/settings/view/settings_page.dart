@@ -31,7 +31,6 @@ class SettingsPage extends ConsumerWidget {
     return AppPageBody(
       title: 'Settings',
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         AppControlCard(
           icon: Icons.palette_outlined,
@@ -150,8 +149,7 @@ class SettingsPage extends ConsumerWidget {
                 validationError: bootLogoState.validationError,
                 isApplying: bootLogoState.isApplying,
                 onPick: () => _pickFile(bootLogoBloc),
-                onClear: () =>
-                    bootLogoBloc.add(const BootLogoFileSelected('')),
+                onClear: () => bootLogoBloc.add(const BootLogoFileSelected('')),
               ),
               const SizedBox(height: 8),
               Text(

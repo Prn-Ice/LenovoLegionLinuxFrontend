@@ -23,7 +23,6 @@ class DisplayPage extends ConsumerWidget {
     return AppPageBody(
       title: 'Display',
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         AppControlCard(
           icon: YaruIcons.monitor,
@@ -79,9 +78,9 @@ class DisplayPage extends ConsumerWidget {
                 onSelected: state.isApplying
                     ? null
                     : (i) => _setRefreshRate(
-                          bloc,
-                          state.availableRefreshRates![i],
-                        ),
+                        bloc,
+                        state.availableRefreshRates![i],
+                      ),
               ),
           ],
         ),

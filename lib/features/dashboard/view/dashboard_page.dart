@@ -61,7 +61,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return AppPageBody(
       errorMessage: state.errorMessage ?? sensorState.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         ModeHero(
           accent: accent,

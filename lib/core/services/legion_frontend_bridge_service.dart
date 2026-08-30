@@ -35,7 +35,7 @@ class LegionBridgeException implements Exception {
       LegionBridgeErrorCode.permissionDenied =>
         'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
       LegionBridgeErrorCode.privilegeSetup =>
-        'Privileged actions are not configured. On NixOS, set security.polkit.enablePkexecWrapper = true and rebuild the system.',
+        'pkexec could not start with root privileges, so no system change was made. On NixOS, set security.polkit.enablePkexecWrapper = true and rebuild the system. Other distributions normally configure pkexec through their Polkit package.',
       LegionBridgeErrorCode.unavailable =>
         'Required command or capability is unavailable. Verify legion_cli, pkexec, and model/kernel feature support.',
       LegionBridgeErrorCode.busy =>

@@ -155,7 +155,6 @@ class _LightingPageState extends ConsumerState<LightingPage> {
       ),
       child: AppPageBody(
         errorMessage: rgb.errorMessage ?? lighting.errorMessage,
-        noticeMessage: lighting.noticeMessage,
         children: [
           if (rgb.available && device != null) ...[
             _DeviceCard(

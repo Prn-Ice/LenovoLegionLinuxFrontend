@@ -21,7 +21,6 @@ class DevicesPage extends ConsumerWidget {
     return AppPageBody(
       title: 'Devices',
       errorMessage: state.errorMessage,
-      noticeMessage: state.noticeMessage,
       children: [
         // 1. Input card
         AppControlCard(
