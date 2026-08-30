@@ -9,6 +9,7 @@ LiveSensorSnapshot _snapshot({
   double? cpuUtilPercent,
   int? fan2Rpm,
   double? cpuPackagePowerW,
+  double? gpuPowerDrawW,
   double? motherboardTempC,
 }) => LiveSensorSnapshot(
   cpuName: 'CPU',
@@ -26,7 +27,7 @@ LiveSensorSnapshot _snapshot({
   gpuVramUsedGb: null,
   gpuVramTotalGb: null,
   gpuFanPercent: null,
-  gpuPowerDrawW: null,
+  gpuPowerDrawW: gpuPowerDrawW,
   gpuIsDiscrete: true,
   motherboardTempC: motherboardTempC,
   batteryPercent: null,
@@ -63,7 +64,7 @@ void main() {
     expect(find.text('CPU load'), findsOneWidget); // utilisation tile
   });
 
-  testWidgets('uses GPU fan RPM and keeps system temperature secondary', (
+  testWidgets('keeps power in the mode hero and system temperature secondary', (
     tester,
   ) async {
     await _pump(
@@ -71,7 +72,9 @@ void main() {
       SensorStrip(
         snapshot: _snapshot(
           fan2Rpm: 2200,
+          cpuUtilPercent: 40,
           cpuPackagePowerW: 8.8,
+          gpuPowerDrawW: 2.3,
           motherboardTempC: 48.2,
         ),
         accent: accent,
@@ -80,8 +83,8 @@ void main() {
 
     expect(find.text('GPU fan (RPM)'), findsOneWidget);
     expect(find.textContaining('2200'), findsWidgets);
-    expect(find.text('CPU package power'), findsOneWidget);
-    expect(find.textContaining('9'), findsWidgets);
+    expect(find.text('CPU package power'), findsNothing);
+    expect(find.text('GPU power'), findsNothing);
     expect(find.text('System 48.2°C'), findsOneWidget);
     expect(find.text('Board temp'), findsNothing);
   });

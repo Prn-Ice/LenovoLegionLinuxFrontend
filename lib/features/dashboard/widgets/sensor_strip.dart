@@ -6,7 +6,7 @@ import '../../../core/widgets/surface_card.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 
 /// Telemetry hero for the dashboard: a row of gauge cards (temperatures + fan
-/// speeds) above a load card with utilisation bars and power, all from the
+/// speeds) above a load card with utilisation bars, all from the
 /// shared [LiveSensorSnapshot]. [accent] follows the current power mode.
 class SensorStrip extends StatelessWidget {
   const SensorStrip({super.key, required this.snapshot, required this.accent});
@@ -85,15 +85,6 @@ class SensorStrip extends StatelessWidget {
           accent: accent,
           fractionDigits: 1,
         ),
-      if (snapshot.gpuPowerDrawW != null)
-        _tile('GPU power', snapshot.gpuPowerDrawW, ' W', showBar: false),
-      if (snapshot.cpuPackagePowerW != null)
-        _tile(
-          'CPU package power',
-          snapshot.cpuPackagePowerW,
-          ' W',
-          showBar: false,
-        ),
     ];
 
     if (gauges.isEmpty && tiles.isEmpty) {
@@ -127,18 +118,8 @@ class SensorStrip extends StatelessWidget {
     );
   }
 
-  Widget _tile(
-    String label,
-    double? value,
-    String unit, {
-    bool showBar = true,
-  }) => MetricTile(
-    label: label,
-    value: value,
-    unit: unit,
-    accent: accent,
-    showBar: showBar,
-  );
+  Widget _tile(String label, double? value, String unit) =>
+      MetricTile(label: label, value: value, unit: unit, accent: accent);
 }
 
 /// A single gauge card: the radial gauge centered in a bordered surface with
