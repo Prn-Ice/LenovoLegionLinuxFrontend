@@ -74,6 +74,14 @@ class PowerRepository extends PrivilegedRepository {
       max: 100,
     ),
     PowerLimitSpec(
+      id: 'cpu_temperature',
+      label: 'CPU temperature limit',
+      sysfsAttribute: 'cpu_temperature_limit',
+      unit: '°C',
+      min: 0,
+      max: 120,
+    ),
+    PowerLimitSpec(
       id: 'cpu_apu_sppt',
       label: 'CPU APU SPPT Power Limit',
       featureName:
@@ -97,6 +105,13 @@ class PowerRepository extends PrivilegedRepository {
       featureName:
           'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
       sysfsAttribute: 'gpu_ctgp_powerlimit',
+      min: 0,
+      max: 200,
+    ),
+    PowerLimitSpec(
+      id: 'gpu_power_target_offset',
+      label: 'GPU AC power-target offset',
+      sysfsAttribute: 'gpu_power_target_offset',
       min: 0,
       max: 200,
     ),
@@ -130,6 +145,19 @@ class PowerRepository extends PrivilegedRepository {
     ),
   ];
 
+  // Verified from the 82Y4 M1CN48WW DSDT and repeated live captures. Do not
+  // broaden this map to another BIOS without equally authoritative evidence.
+  static const Map<String, int> _m1cn48wwHardwareDefaults = {
+    'cpu_longterm': 54,
+    'cpu_shortterm': 54,
+    'cpu_peak': 65,
+    'cpu_cross_loading': 45,
+    'cpu_temperature': 100,
+    'gpu_ctgp': 60,
+    'gpu_temperature': 87,
+    'gpu_power_target_offset': 45,
+  };
+
   Future<PowerSnapshot> loadSnapshot() async {
     final currentRaw = await _sysfsService.readPlatformProfile();
     final choicesRaw = await _sysfsService.readPlatformProfileChoices();
@@ -138,6 +166,7 @@ class PowerRepository extends PrivilegedRepository {
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
     final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
     final cpuPolicy = await _sysfsService.readCpuPolicySnapshot();
+    final hardwareDefaults = await _loadHardwareDefaults();
 
     final hardwareProfiles = choicesRaw.isEmpty
         ? daemonSnapshot == null
@@ -172,7 +201,13 @@ class PowerRepository extends PrivilegedRepository {
     for (final spec in allPowerLimits) {
       final value = await _sysfsService.readLegionIntFile(spec.sysfsAttribute);
       if (value != null && value >= spec.effectiveMin && value <= spec.max) {
-        powerLimits.add(PowerLimitReading(spec: spec, value: value));
+        powerLimits.add(
+          PowerLimitReading(
+            spec: spec,
+            value: value,
+            hardwareDefault: hardwareDefaults[spec.id],
+          ),
+        );
       }
     }
 
@@ -208,6 +243,10 @@ class PowerRepository extends PrivilegedRepository {
   }
 
   Future<void> setPowerLimit(PowerLimitSpec limit, int value) async {
+    final featureName = limit.featureName;
+    if (featureName == null) {
+      throw PowerRepositoryException('${limit.label} is read-only.');
+    }
     if (value < limit.effectiveMin || value > limit.max) {
       throw PowerRepositoryException(
         '${limit.label} must be between ${limit.effectiveMin} and ${limit.max}.',
@@ -217,7 +256,7 @@ class PowerRepository extends PrivilegedRepository {
     await _requireLimitWriteContext();
 
     await runPrivilegedCommand(
-      ['set-feature', limit.featureName, '$value'],
+      ['set-feature', featureName, '$value'],
       method: 'feature.set',
       failurePrefix: 'Failed to set ${limit.label}',
     );
@@ -225,6 +264,9 @@ class PowerRepository extends PrivilegedRepository {
 
   Future<void> setPowerLimits(List<PowerLimitReading> readings) async {
     for (final reading in readings) {
+      if (!reading.spec.isWritable) {
+        throw PowerRepositoryException('${reading.spec.label} is read-only.');
+      }
       if (reading.value < reading.spec.effectiveMin ||
           reading.value > reading.spec.max) {
         throw PowerRepositoryException(
@@ -252,7 +294,7 @@ class PowerRepository extends PrivilegedRepository {
     try {
       for (final reading in readings) {
         await runPrivilegedCommand(
-          ['set-feature', reading.spec.featureName, '${reading.value}'],
+          ['set-feature', reading.spec.featureName!, '${reading.value}'],
           method: 'feature.set',
           failurePrefix: 'Failed to set ${reading.spec.label}',
         );
@@ -265,7 +307,7 @@ class PowerRepository extends PrivilegedRepository {
           await runPrivilegedCommand(
             [
               'set-feature',
-              reading.spec.featureName,
+              reading.spec.featureName!,
               '${originals[reading.spec.id]}',
             ],
             method: 'feature.set',
@@ -296,6 +338,17 @@ class PowerRepository extends PrivilegedRepository {
         'Connect AC power before changing custom power limits.',
       );
     }
+  }
+
+  Future<Map<String, int>> _loadHardwareDefaults() async {
+    final identity = await Future.wait([
+      _sysfsService.readDeviceProductName(),
+      _sysfsService.readBiosVersion(),
+    ]);
+    if (identity[0] == '82Y4' && identity[1] == 'M1CN48WW') {
+      return _m1cn48wwHardwareDefaults;
+    }
+    return const {};
   }
 
   Future<void> setCpuOverclock(bool enabled) async {

@@ -31,6 +31,8 @@ void main() {
       powerProfileService: profileService,
       bridgeService: bridge,
     );
+    when(() => sysfs.readDeviceProductName()).thenAnswer((_) async => null);
+    when(() => sysfs.readBiosVersion()).thenAnswer((_) async => null);
   });
 
   test('omits non-positive limits while retaining positive readings', () async {
@@ -51,11 +53,15 @@ void main() {
         daemon: null,
       ),
     ).thenReturn(['balanced']);
+    when(() => sysfs.readDeviceProductName()).thenAnswer((_) async => '82Y4');
+    when(() => sysfs.readBiosVersion()).thenAnswer((_) async => 'M1CN48WW');
     for (final spec in PowerRepository.allPowerLimits) {
       when(() => sysfs.readLegionIntFile(spec.sysfsAttribute)).thenAnswer(
         (_) async => switch (spec.id) {
           'cpu_longterm' => 35,
           'cpu_shortterm' => 201,
+          'cpu_temperature' => 100,
+          'gpu_power_target_offset' => 45,
           _ => 0,
         },
       );
@@ -63,9 +69,44 @@ void main() {
 
     final snapshot = await repository.loadSnapshot();
 
-    expect(snapshot.powerLimits, hasLength(1));
-    expect(snapshot.powerLimits.single.spec.id, 'cpu_longterm');
-    expect(snapshot.powerLimits.single.value, 35);
+    expect(snapshot.powerLimits, hasLength(3));
+    expect(snapshot.powerLimits.first.spec.id, 'cpu_longterm');
+    expect(snapshot.powerLimits.first.value, 35);
+    expect(snapshot.powerLimits.first.hardwareDefault, 54);
+    expect(
+      snapshot.powerLimits
+          .where((reading) => !reading.spec.isWritable)
+          .map((reading) => reading.spec.id),
+      ['cpu_temperature', 'gpu_power_target_offset'],
+    );
+    expect(snapshot.powerLimits.last.hardwareDefault, 45);
+
+    when(() => sysfs.readBiosVersion()).thenAnswer((_) async => 'M1CN49WW');
+    final otherBiosSnapshot = await repository.loadSnapshot();
+    expect(
+      otherBiosSnapshot.powerLimits.every(
+        (reading) => reading.hardwareDefault == null,
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects writes to controller-reported read-only limits', () async {
+    final readOnly = PowerRepository.allPowerLimits.firstWhere(
+      (spec) => spec.id == 'cpu_temperature',
+    );
+
+    await expectLater(
+      repository.setPowerLimit(readOnly, 100),
+      throwsA(
+        isA<PowerRepositoryException>().having(
+          (error) => error.message,
+          'message',
+          contains('read-only'),
+        ),
+      ),
+    );
+    verifyZeroInteractions(bridge);
   });
 
   test('rejects power-limit writes outside Custom mode', () async {
@@ -132,7 +173,7 @@ void main() {
     when(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName, '60'],
+        args: ['set-feature', reading.spec.featureName!, '60'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),
@@ -143,7 +184,7 @@ void main() {
     verify(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName, '60'],
+        args: ['set-feature', reading.spec.featureName!, '60'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),
@@ -166,7 +207,7 @@ void main() {
     when(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName, '60'],
+        args: ['set-feature', reading.spec.featureName!, '60'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),
@@ -174,7 +215,7 @@ void main() {
     when(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', second.spec.featureName, '80'],
+        args: ['set-feature', second.spec.featureName!, '80'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),
@@ -188,7 +229,7 @@ void main() {
     when(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName, '55'],
+        args: ['set-feature', reading.spec.featureName!, '55'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),
@@ -202,7 +243,7 @@ void main() {
     verify(
       () => bridge.runPrivilegedCommand(
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName, '55'],
+        args: ['set-feature', reading.spec.featureName!, '55'],
         timeout: const Duration(seconds: 5),
         detectUnavailableResponse: true,
       ),

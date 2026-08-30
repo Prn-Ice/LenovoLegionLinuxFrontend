@@ -46,11 +46,21 @@ void main() {
       find.byKey(const ValueKey('power-limit-slider-cpu_longterm')),
       findsOneWidget,
     );
-    expect(find.text('Additional limits (1)'), findsOneWidget);
+    expect(find.text('Hardware default: 54 W'), findsWidgets);
+    expect(find.text('Additional limits (3)'), findsOneWidget);
     expect(find.text('CPU overclock'), findsOneWidget);
     expect(find.text('GPU overclock'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
     expect(find.text('Refresh'), findsNothing);
+
+    final additionalLimits = find.text('Additional limits (3)');
+    await tester.ensureVisible(additionalLimits);
+    await tester.pumpAndSettle();
+    await tester.tap(additionalLimits);
+    await tester.pumpAndSettle();
+    expect(find.text('CPU temperature limit'), findsOneWidget);
+    expect(find.text('GPU AC power-target offset'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Power page has no overflow at wide dark layout', (tester) async {
@@ -155,6 +165,69 @@ void main() {
       findsOneWidget,
     );
     expect(tester.widget<Slider>(find.byType(Slider).first).onChanged, isNull);
+  });
+
+  testWidgets('controller-only limits show values and hardware defaults', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 800);
+
+    await tester.tap(find.text('Additional limits (3)'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('CPU temperature limit'), findsOneWidget);
+    expect(find.text('100 °C'), findsWidgets);
+    expect(find.text('GPU AC power-target offset'), findsOneWidget);
+    expect(find.text('45 W'), findsWidgets);
+    expect(
+      find.text('Reported by the controller · Read-only'),
+      findsNWidgets(2),
+    );
+    expect(find.text('Hardware default: 100 °C'), findsOneWidget);
+    expect(find.text('Hardware default: 45 W'), findsOneWidget);
+    expect(find.text('Set'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('CPU temperature limit'),
+          matching: find.byType(YaruListTile),
+        ),
+        matching: find.text('Set'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('GPU AC power-target offset'),
+          matching: find.byType(YaruListTile),
+        ),
+        matching: find.text('Set'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('unknown hardware keeps the default baseline truthful', (
+    tester,
+  ) async {
+    final limit = PowerLimitReading(
+      spec: PowerRepository.allPowerLimits.first,
+      value: 55,
+    );
+    await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: PowerSnapshot(
+        currentMode: const PowerMode('balanced'),
+        availableModes: const [PowerMode('balanced')],
+        powerLimits: [limit],
+        cpuOverclockEnabled: null,
+        gpuOverclockEnabled: null,
+      ),
+    );
+
+    expect(find.text('Hardware default unavailable'), findsOneWidget);
   });
 
   testWidgets('custom power limits remain disabled on battery', (tester) async {
@@ -370,10 +443,14 @@ PowerSnapshot _snapshot({
   PowerProfilesDaemonSnapshot? daemonSnapshot,
   CpuPolicySnapshot? cpuPolicy,
 }) {
-  PowerLimitReading reading(String id, int value) => PowerLimitReading(
-    spec: PowerRepository.allPowerLimits.firstWhere((spec) => spec.id == id),
-    value: value,
-  );
+  PowerLimitReading reading(String id, int value, int hardwareDefault) =>
+      PowerLimitReading(
+        spec: PowerRepository.allPowerLimits.firstWhere(
+          (spec) => spec.id == id,
+        ),
+        value: value,
+        hardwareDefault: hardwareDefault,
+      );
 
   return PowerSnapshot(
     currentMode: currentMode,
@@ -384,10 +461,12 @@ PowerSnapshot _snapshot({
       PowerMode('balanced-performance'),
     ],
     powerLimits: [
-      reading('cpu_longterm', 55),
-      reading('cpu_shortterm', 75),
-      reading('gpu_ctgp', 140),
-      reading('gpu_temperature', 87),
+      reading('cpu_longterm', 55, 54),
+      reading('cpu_shortterm', 75, 54),
+      reading('gpu_ctgp', 140, 60),
+      reading('cpu_temperature', 100, 100),
+      reading('gpu_temperature', 87, 87),
+      reading('gpu_power_target_offset', 45, 45),
     ],
     cpuOverclockEnabled: false,
     gpuOverclockEnabled: gpuOverclockSupported ? false : null,

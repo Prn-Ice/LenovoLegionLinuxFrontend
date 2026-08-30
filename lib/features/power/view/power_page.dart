@@ -464,7 +464,11 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
   List<PowerLimitReading> _stagedReadings() => [
     for (final reading in widget.readings)
       if (_drafts[reading.spec.id] case final value?)
-        PowerLimitReading(spec: reading.spec, value: value),
+        PowerLimitReading(
+          spec: reading.spec,
+          value: value,
+          hardwareDefault: reading.hardwareDefault,
+        ),
   ];
 
   @override
@@ -477,6 +481,10 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
     final additional = widget.readings
         .where((reading) => !_primaryIds.contains(reading.spec.id))
         .toList(growable: false);
+    final hasWritableLimits = widget.readings.any(
+      (reading) => reading.spec.isWritable,
+    );
+    final blockReason = hasWritableLimits ? widget.blockReason : null;
 
     return SurfaceCard(
       key: const ValueKey('power-limits-card'),
@@ -489,7 +497,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
               Expanded(
                 child: Text('Power limits', style: textTheme.titleMedium),
               ),
-              if (widget.readings.isNotEmpty)
+              if (hasWritableLimits)
                 Text(
                   'Custom mode only',
                   style: textTheme.bodySmall?.copyWith(
@@ -518,12 +526,12 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
           ] else ...[
             const SizedBox(height: 8),
             Text(
-              'Higher limits can increase heat, fan noise, and power use. Changes are applied to the Lenovo controller.',
+              'Controller values are read from firmware. Hardware defaults are shown only when verified for this model.',
               style: textTheme.bodySmall?.copyWith(
                 color: scheme.onSurface.withValues(alpha: 0.7),
               ),
             ),
-            if (widget.blockReason case final reason?) ...[
+            if (blockReason case final reason?) ...[
               const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,6 +555,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 reading: PowerLimitReading(
                   spec: primary[i].spec,
                   value: _valueFor(primary[i]),
+                  hardwareDefault: primary[i].hardwareDefault,
                 ),
                 accent: widget.accent,
                 enabled: widget.canEdit && !widget.isApplying,
@@ -565,8 +574,16 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                       YaruListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(reading.spec.label),
-                        subtitle: Text(
-                          '${reading.spec.effectiveMin}-${reading.spec.max} ${reading.spec.unit}',
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reading.spec.isWritable
+                                  ? 'Editable range: ${reading.spec.effectiveMin}-${reading.spec.max} ${reading.spec.unit}'
+                                  : 'Reported by the controller · Read-only',
+                            ),
+                            Text(_hardwareDefaultLabel(reading)),
+                          ],
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -575,24 +592,28 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                               '${_valueFor(reading)} ${reading.spec.unit}',
                               style: monoStatValueStyle,
                             ),
-                            const SizedBox(width: 12),
-                            OutlinedButton(
-                              onPressed: !widget.canEdit || widget.isApplying
-                                  ? null
-                                  : () async {
-                                      final value = await widget
-                                          .onValueRequested(
-                                            PowerLimitReading(
-                                              spec: reading.spec,
-                                              value: _valueFor(reading),
-                                            ),
-                                          );
-                                      if (value != null && mounted) {
-                                        _stage(reading, value);
-                                      }
-                                    },
-                              child: const Text('Set'),
-                            ),
+                            if (reading.spec.isWritable) ...[
+                              const SizedBox(width: 12),
+                              OutlinedButton(
+                                onPressed: !widget.canEdit || widget.isApplying
+                                    ? null
+                                    : () async {
+                                        final value = await widget
+                                            .onValueRequested(
+                                              PowerLimitReading(
+                                                spec: reading.spec,
+                                                value: _valueFor(reading),
+                                                hardwareDefault:
+                                                    reading.hardwareDefault,
+                                              ),
+                                            );
+                                        if (value != null && mounted) {
+                                          _stage(reading, value);
+                                        }
+                                      },
+                                child: const Text('Set'),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -600,44 +621,49 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 ),
               ),
             ],
-            const SizedBox(height: 18),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                Text(
-                  _dirty ? 'Unsaved limit changes' : 'No staged changes',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurface.withValues(alpha: 0.68),
+            if (hasWritableLimits) ...[
+              const SizedBox(height: 18),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 10,
+                children: [
+                  Text(
+                    _dirty ? 'Unsaved limit changes' : 'No staged changes',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurface.withValues(alpha: 0.68),
+                    ),
                   ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: _dirty && !widget.isApplying
-                          ? () => setState(_drafts.clear)
-                          : null,
-                      child: const Text('Revert'),
-                    ),
-                    FilledButton(
-                      onPressed: _dirty && widget.canEdit && !widget.isApplying
-                          ? () => widget.onApplyRequested(_stagedReadings())
-                          : null,
-                      child: widget.isApplying
-                          ? const SizedBox.square(
-                              dimension: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Apply changes'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: _dirty && !widget.isApplying
+                            ? () => setState(_drafts.clear)
+                            : null,
+                        child: const Text('Revert'),
+                      ),
+                      FilledButton(
+                        onPressed:
+                            _dirty && widget.canEdit && !widget.isApplying
+                            ? () => widget.onApplyRequested(_stagedReadings())
+                            : null,
+                        child: widget.isApplying
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Apply changes'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
           ],
         ],
       ),
@@ -673,6 +699,8 @@ class _PowerLimitSlider extends StatelessWidget {
             Text('${value.round()} ${spec.unit}', style: monoStatValueStyle),
           ],
         ),
+        const SizedBox(height: 2),
+        Text(_hardwareDefaultLabel(reading), style: monoMetaStyle(scheme)),
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             activeTrackColor: accent,
@@ -703,6 +731,13 @@ class _PowerLimitSlider extends StatelessWidget {
       ],
     );
   }
+}
+
+String _hardwareDefaultLabel(PowerLimitReading reading) {
+  final value = reading.hardwareDefault;
+  return value == null
+      ? 'Hardware default unavailable'
+      : 'Hardware default: $value ${reading.spec.unit}';
 }
 
 class _OverclockingCard extends StatelessWidget {

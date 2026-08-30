@@ -4,7 +4,7 @@ class PowerLimitSpec extends Equatable {
   const PowerLimitSpec({
     required this.id,
     required this.label,
-    required this.featureName,
+    this.featureName,
     required this.sysfsAttribute,
     this.unit = 'W',
     required this.min,
@@ -13,13 +13,15 @@ class PowerLimitSpec extends Equatable {
 
   final String id;
   final String label;
-  final String featureName;
+  final String? featureName;
   final String sysfsAttribute;
   final String unit;
   final int min;
   final int max;
 
   int get effectiveMin => min > 0 ? min : 1;
+
+  bool get isWritable => featureName != null;
 
   @override
   List<Object?> get props => [
@@ -34,11 +36,16 @@ class PowerLimitSpec extends Equatable {
 }
 
 class PowerLimitReading extends Equatable {
-  const PowerLimitReading({required this.spec, required this.value});
+  const PowerLimitReading({
+    required this.spec,
+    required this.value,
+    this.hardwareDefault,
+  });
 
   final PowerLimitSpec spec;
   final int value;
+  final int? hardwareDefault;
 
   @override
-  List<Object?> get props => [spec, value];
+  List<Object?> get props => [spec, value, hardwareDefault];
 }

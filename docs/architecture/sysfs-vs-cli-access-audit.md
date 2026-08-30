@@ -43,6 +43,8 @@ This is correct and should be maintained.
 | `fan_curve` (10 points) | `.../hwmon/hwmon*/pwm{1,2,3}_auto_point{1-10}_{pwm,temp,temp_hyst,accel,decel}` | 100 reads per load |
 | `cpu_overclock` | `.../PNP0C09:00/cpu_oc` | |
 | `gpu_overclock` | `.../PNP0C09:00/gpu_oc` | |
+| `cpu_temperature_limit` | `.../legion/cpu_temperature_limit` | Read-only in the frontend until a validated CLI write contract exists |
+| `gpu_power_target_offset` | `.../legion/gpu_power_target_offset` | Read-only in the frontend until a validated CLI write contract exists |
 
 ---
 
@@ -104,6 +106,15 @@ Used for features registered in `Feature.features` in `legion.py` but without de
 |---|---|
 | `camera_power` | CLI only exposes `camera-power status`; write not supported by driver on most models |
 | `on_power_supply` | Sensor — AC state is not user-settable |
+| `cpu_temperature_limit` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
+| `gpu_power_target_offset` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
+
+The Power page shows an authoritative hardware-default baseline when one is
+known for the exact product and BIOS. The current model table is intentionally
+limited to Lenovo product `82Y4` with BIOS `M1CN48WW`, whose defaults were
+verified from firmware and repeated live captures. Other systems show
+`Hardware default unavailable`; the frontend does not infer defaults from
+slider bounds or current values.
 
 ---
 
