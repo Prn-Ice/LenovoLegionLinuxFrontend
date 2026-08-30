@@ -105,7 +105,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           isApplying: false,
           hybridModeEnabled: event.enabled,
           noticeMessage:
-              'Hybrid mode updated. A reboot is required for changes to take effect.',
+              'Graphics mode configured. A reboot is required for it to take effect.',
         ),
       );
     } on DgpuRepositoryException catch (e) {

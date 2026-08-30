@@ -12,6 +12,10 @@
 > AMD, or Intel marks from a reported GPU name so it never shows the wrong brand
 > and can be reused if support expands. Those presentation assets do not imply
 > AMD or Intel dGPU backend support.
+>
+> A disabled Integrated-only option is reserved in the current UI. Driver and
+> firmware investigation is tracked by `lllf-cqn.20`; see
+> [the iGPU-only driver handoff](../architecture/igpu-only-driver-handoff.md).
 
 **Tech Stack:** Flutter, riverbloc, equatable, `dart:io`, `legion_cli.py` (Python changes)
 

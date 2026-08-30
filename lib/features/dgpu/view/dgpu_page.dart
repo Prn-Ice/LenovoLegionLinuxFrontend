@@ -112,6 +112,12 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           const SizedBox(height: 16),
           _ProcessesCard(processes: state.processes),
           const SizedBox(height: 16),
+          _GraphicsModeCard(
+            state: state,
+            accent: accent,
+            onModeChanged: (mode) => _setGraphicsMode(context, bloc, mode),
+          ),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth >= 780
@@ -131,15 +137,12 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                   ),
                   SizedBox(
                     width: width,
-                    child: _WorkingModeCard(
-                      state: state,
+                    child: _GpuPerformanceCard(
                       accent: accent,
                       isOverclockEnabled: powerState.gpuOverclockEnabled,
                       isPowerApplying: powerState.isApplying,
                       onOverclockChanged: (enabled) =>
                           _setOverclock(context, enabled),
-                      onHybridChanged: (enabled) =>
-                          _setHybridMode(context, bloc, state, enabled),
                     ),
                   ),
                 ],
@@ -164,22 +167,23 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     ref.read(powerBlocProvider.bloc).add(GpuOverclockSetRequested(enabled));
   }
 
-  Future<void> _setHybridMode(
+  Future<void> _setGraphicsMode(
     BuildContext context,
     DgpuBloc bloc,
-    DgpuState state,
-    bool enabled,
+    _GraphicsMode mode,
   ) async {
+    if (mode == _GraphicsMode.integratedOnly) return;
+    final hybridEnabled = mode == _GraphicsMode.hybrid;
     final confirmed = await confirmPrivilegedAction(
       context,
-      title: '${enabled ? 'Enable' : 'Disable'} hybrid mode',
+      title: 'Configure ${mode.label}',
       message:
-          'This changes the working graphics mode and requires a reboot. '
-          'Apply the change to ${enabled ? 'hybrid graphics' : 'discrete graphics only'}?',
-      confirmLabel: 'Apply',
+          '${mode.confirmation} A reboot is required before the new graphics '
+          'mode takes effect.',
+      confirmLabel: 'Configure mode',
     );
     if (!context.mounted || !confirmed) return;
-    bloc.add(HybridModeSetRequested(enabled));
+    bloc.add(HybridModeSetRequested(hybridEnabled));
   }
 
   Future<void> _killProcesses(
@@ -273,10 +277,10 @@ class _GpuOverview extends StatelessWidget {
                     Text(
                       'Discrete GPU · '
                       '${state.hybridModeEnabled == true
-                          ? 'Hybrid mode on'
+                          ? 'Hybrid configured'
                           : state.hybridModeEnabled == false
-                          ? 'Discrete mode'
-                          : 'Working mode unknown'}',
+                          ? 'Discrete-only configured'
+                          : 'Graphics mode unknown'}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -528,22 +532,174 @@ class _ProcessesCard extends StatelessWidget {
   }
 }
 
-class _WorkingModeCard extends StatelessWidget {
-  const _WorkingModeCard({
+enum _GraphicsMode {
+  hybrid(
+    label: 'Hybrid',
+    description: 'The iGPU handles the desktop; the dGPU wakes when needed.',
+    confirmation:
+        'Hybrid mode lets the iGPU handle normal work and keeps the dGPU available on demand.',
+  ),
+  integratedOnly(
+    label: 'Integrated only',
+    description:
+        'Lowest-power mode. Driver support is required; dGPU-wired display ports may be unavailable.',
+    confirmation: '',
+  ),
+  discreteOnly(
+    label: 'Discrete only',
+    description:
+        'The dGPU remains primary for maximum compatibility and performance.',
+    confirmation:
+        'Discrete-only mode keeps the dGPU as the primary graphics device and increases power use.',
+  );
+
+  const _GraphicsMode({
+    required this.label,
+    required this.description,
+    required this.confirmation,
+  });
+
+  final String label;
+  final String description;
+  final String confirmation;
+}
+
+class _GraphicsModeCard extends StatelessWidget {
+  const _GraphicsModeCard({
     required this.state,
     required this.accent,
-    required this.isOverclockEnabled,
-    required this.isPowerApplying,
-    required this.onOverclockChanged,
-    required this.onHybridChanged,
+    required this.onModeChanged,
   });
 
   final DgpuState state;
   final Color accent;
+  final ValueChanged<_GraphicsMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final configuredMode = state.hybridModeEnabled == null
+        ? null
+        : state.hybridModeEnabled!
+        ? _GraphicsMode.hybrid
+        : _GraphicsMode.discreteOnly;
+
+    return SurfaceCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Graphics mode',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                configuredMode == null
+                    ? 'Unavailable'
+                    : 'Configured: ${configuredMode.label}',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: configuredMode == null
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Choose the graphics configuration for the next boot.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (var index = 0; index < _GraphicsMode.values.length; index++) ...[
+            if (index > 0) const Divider(height: 1),
+            _GraphicsModeTile(
+              mode: _GraphicsMode.values[index],
+              configuredMode: configuredMode,
+              accent: accent,
+              enabled:
+                  _GraphicsMode.values[index] != _GraphicsMode.integratedOnly &&
+                  state.hybridModeSupported &&
+                  !state.isApplying,
+              onChanged: onModeChanged,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GraphicsModeTile extends StatelessWidget {
+  const _GraphicsModeTile({
+    required this.mode,
+    required this.configuredMode,
+    required this.accent,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final _GraphicsMode mode;
+  final _GraphicsMode? configuredMode;
+  final Color accent;
+  final bool enabled;
+  final ValueChanged<_GraphicsMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final ValueChanged<_GraphicsMode?>? handleChanged = enabled
+        ? (value) {
+            if (value != null && value != configuredMode) onChanged(value);
+          }
+        : null;
+
+    return YaruRadioListTile<_GraphicsMode>(
+      key: ValueKey('graphics-mode-${mode.name}'),
+      value: mode,
+      groupValue: configuredMode,
+      onChanged: handleChanged,
+      control: YaruRadio<_GraphicsMode>(
+        key: ValueKey('graphics-mode-${mode.name}-control'),
+        value: mode,
+        groupValue: configuredMode,
+        onChanged: handleChanged,
+        selectedColor: accent,
+      ),
+      title: Text(mode.label),
+      subtitle: Text(mode.description),
+      secondary: mode == _GraphicsMode.integratedOnly
+          ? Text(
+              'Unavailable',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            )
+          : null,
+      contentPadding: EdgeInsets.zero,
+    );
+  }
+}
+
+class _GpuPerformanceCard extends StatelessWidget {
+  const _GpuPerformanceCard({
+    required this.accent,
+    required this.isOverclockEnabled,
+    required this.isPowerApplying,
+    required this.onOverclockChanged,
+  });
+
+  final Color accent;
   final bool? isOverclockEnabled;
   final bool isPowerApplying;
   final ValueChanged<bool> onOverclockChanged;
-  final ValueChanged<bool> onHybridChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -556,38 +712,22 @@ class _WorkingModeCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'GPU working mode',
+                  'GPU performance',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              Text(
-                state.hybridModeEnabled == true
-                    ? 'Hybrid graphics'
-                    : state.hybridModeEnabled == false
-                    ? 'Discrete only'
-                    : 'Unavailable',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: accent,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          const Divider(height: 1),
-          _DgpuSwitchRow(
-            value: state.hybridModeEnabled ?? false,
-            onChanged: state.hybridModeSupported && !state.isApplying
-                ? onHybridChanged
-                : null,
-            title: 'Hybrid mode',
-            subtitle: state.hybridModeSupported
-                ? 'Uses the iGPU when possible; changing this requires a reboot'
-                : 'Not supported on this device',
-            accent: accent,
+          const SizedBox(height: 4),
+          Text(
+            'Optional firmware performance controls.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
+          const SizedBox(height: 10),
           const Divider(height: 1),
           _DgpuSwitchRow(
             value: isOverclockEnabled ?? false,

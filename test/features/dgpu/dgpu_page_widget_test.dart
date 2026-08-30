@@ -44,8 +44,12 @@ void main() {
     expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
     expect(find.text('P2'), findsOneWidget);
     expect(find.text('Usage %'), findsOneWidget);
-    expect(find.text('GPU working mode'), findsOneWidget);
-    expect(find.text('Hybrid graphics'), findsOneWidget);
+    expect(find.text('Graphics mode'), findsOneWidget);
+    expect(find.text('Hybrid'), findsOneWidget);
+    expect(find.text('Configured: Hybrid'), findsOneWidget);
+    expect(find.text('Integrated only'), findsOneWidget);
+    expect(find.text('Discrete only'), findsOneWidget);
+    expect(find.text('GPU performance'), findsOneWidget);
     expect(find.text('Processes on the dGPU'), findsOneWidget);
     expect(find.text('Discrete GPU'), findsNothing);
     expect(find.byKey(const ValueKey('gpu-vendor-nvidia')), findsOneWidget);
@@ -55,6 +59,7 @@ void main() {
           .accentColor,
       const Color(0xFF3A9D4F),
     );
+    expect(find.byType(YaruSwitch), findsOneWidget);
     for (final toggle in tester.widgetList<YaruSwitch>(
       find.byType(YaruSwitch),
     )) {
@@ -73,6 +78,47 @@ void main() {
       findsNWidgets(2),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('graphics modes expose only the supported backend choices', (
+    tester,
+  ) async {
+    final dgpuRepository = await _pumpPage(
+      tester,
+      width: 900,
+      processes: const [],
+    );
+
+    final hybrid = find.byKey(const ValueKey('graphics-mode-hybrid'));
+    await tester.ensureVisible(hybrid);
+    await tester.tap(hybrid);
+    await tester.pumpAndSettle();
+    expect(find.text('Configure Hybrid'), findsNothing);
+    verifyNever(() => dgpuRepository.setHybridMode(any()));
+
+    final integrated = find.byKey(
+      const ValueKey('graphics-mode-integratedOnly'),
+    );
+    await tester.ensureVisible(integrated);
+    final integratedControl = tester.widget<YaruRadio>(
+      find.byKey(const ValueKey('graphics-mode-integratedOnly-control')),
+    );
+    expect(integratedControl.onChanged, isNull);
+    await tester.tap(integrated, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(find.text('Configure Integrated only'), findsNothing);
+    verifyNever(() => dgpuRepository.setHybridMode(any()));
+
+    final discrete = find.byKey(const ValueKey('graphics-mode-discreteOnly'));
+    await tester.ensureVisible(discrete);
+    await tester.tap(discrete);
+    await tester.pumpAndSettle();
+    expect(find.text('Configure Discrete only'), findsOneWidget);
+    expect(find.textContaining('A reboot is required'), findsOneWidget);
+    await tester.tap(find.text('Configure mode'));
+    await tester.pumpAndSettle();
+    verify(() => dgpuRepository.setHybridMode(false)).called(1);
+    expect(find.textContaining('Graphics mode configured'), findsOneWidget);
   });
 
   testWidgets('GPU identity uses the reported vendor mark', (tester) async {
@@ -138,7 +184,7 @@ void main() {
   });
 }
 
-Future<void> _pumpPage(
+Future<_MockDgpuRepository> _pumpPage(
   WidgetTester tester, {
   required double width,
   required List<DgpuProcess> processes,
@@ -160,6 +206,7 @@ Future<void> _pumpPage(
       name: 'NVIDIA Corporation AD107M',
     ),
   );
+  when(() => dgpuRepository.setHybridMode(any())).thenAnswer((_) async {});
   final dgpuBloc = DgpuBloc(
     repository: dgpuRepository,
     pollInterval: const Duration(days: 1),
@@ -240,6 +287,7 @@ Future<void> _pumpPage(
     ),
   );
   await tester.pumpAndSettle();
+  return dgpuRepository;
 }
 
 LiveSensorSnapshot _liveSensorSnapshot(String gpuName) => LiveSensorSnapshot(
