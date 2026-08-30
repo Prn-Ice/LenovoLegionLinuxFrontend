@@ -235,6 +235,10 @@ void main() {
     expect(find.text('Enable CPU overclock'), findsOneWidget);
     expect(find.byType(YaruDialogTitleBar), findsOneWidget);
     expect(
+      tester.getSize(find.byType(YaruDialogTitleBar)).width,
+      lessThanOrEqualTo(460),
+    );
+    expect(
       find.text(
         'CPU overclocking can increase heat, power use, and instability. '
         'This change requires privileged access.',
@@ -252,6 +256,44 @@ void main() {
     await tester.tap(find.text('Enable'));
     await tester.pumpAndSettle();
     verify(() => harness.repository.setCpuOverclock(true)).called(1);
+  });
+
+  testWidgets('GPU overclock confirmation uses GPU warning copy', (
+    tester,
+  ) async {
+    final harness = await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(gpuOverclockSupported: true),
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('gpu-overclock')),
+        matching: find.byType(YaruSwitch),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enable GPU overclock'), findsOneWidget);
+    expect(
+      find.text(
+        'GPU overclocking can increase heat, power use, and instability. '
+        'This change requires privileged access.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'CPU overclocking can increase heat, power use, and instability. '
+        'This change requires privileged access.',
+      ),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Enable'));
+    await tester.pumpAndSettle();
+    verify(() => harness.repository.setGpuOverclock(true)).called(1);
   });
 }
 
@@ -324,6 +366,7 @@ Future<_PowerHarness> _pumpPage(
 PowerSnapshot _snapshot({
   PowerMode currentMode = const PowerMode('balanced'),
   bool? onPowerSupply = true,
+  bool gpuOverclockSupported = false,
   PowerProfilesDaemonSnapshot? daemonSnapshot,
   CpuPolicySnapshot? cpuPolicy,
 }) {
@@ -347,7 +390,7 @@ PowerSnapshot _snapshot({
       reading('gpu_temperature', 87),
     ],
     cpuOverclockEnabled: false,
-    gpuOverclockEnabled: null,
+    gpuOverclockEnabled: gpuOverclockSupported ? false : null,
     onPowerSupply: onPowerSupply,
     daemonSnapshot: daemonSnapshot,
     cpuPolicy: cpuPolicy,
