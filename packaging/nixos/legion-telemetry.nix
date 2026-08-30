@@ -90,6 +90,13 @@ in
         wantedBy = [ "multi-user.target" ];
         after = [ "dbus.service" ];
         wants = [ "dbus.service" ];
+        # legion_cli uses these commands internally. Keep the root service PATH
+        # limited to immutable store paths rather than inheriting a user PATH.
+        path = [
+          pkgs.bashNonInteractive
+          pkgs.e2fsprogs
+          pkgs.util-linux
+        ];
         serviceConfig = {
           Type = "dbus";
           BusName = "io.github.prnice.LegionControl1";
