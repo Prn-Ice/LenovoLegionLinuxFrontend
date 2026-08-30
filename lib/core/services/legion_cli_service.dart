@@ -1,5 +1,8 @@
 import 'dart:io';
 
+typedef ProcessRunner =
+    Future<ProcessResult> Function(String executable, List<String> arguments);
+
 class LegionCliResult {
   const LegionCliResult({
     required this.exitCode,
@@ -15,13 +18,18 @@ class LegionCliResult {
 }
 
 class LegionCliService {
-  LegionCliService({String? cliPath, String? privilegedExecutable})
-    : _cliPath = cliPath ?? _resolveCliPath(),
-      _privilegedExecutable =
-          privilegedExecutable ?? _resolvePrivilegedExecutable();
+  LegionCliService({
+    String? cliPath,
+    String? privilegedExecutable,
+    ProcessRunner? processRunner,
+  }) : _cliPath = cliPath ?? _resolveCliPath(),
+       _privilegedExecutable =
+           privilegedExecutable ?? _resolvePrivilegedExecutable(),
+       _processRunner = processRunner ?? Process.run;
 
   final String _cliPath;
   final String _privilegedExecutable;
+  final ProcessRunner _processRunner;
   String get cliPath => _cliPath;
   String get privilegedExecutable => _privilegedExecutable;
 
@@ -30,9 +38,10 @@ class LegionCliService {
     bool privileged = false,
   }) async {
     final executable = privileged ? _privilegedExecutable : _cliPath;
-    final commandArgs = privileged ? [_cliPath, ...args] : args;
+    final cliArgs = _withHwmonExpectation(args);
+    final commandArgs = privileged ? [_cliPath, ...cliArgs] : cliArgs;
 
-    final result = await Process.run(executable, commandArgs);
+    final result = await _processRunner(executable, commandArgs);
 
     return LegionCliResult(
       exitCode: result.exitCode,
@@ -48,6 +57,21 @@ class LegionCliService {
   static String _resolvePrivilegedExecutable() {
     const nixosWrapper = '/run/wrappers/bin/pkexec';
     return File(nixosWrapper).existsSync() ? nixosWrapper : 'pkexec';
+  }
+
+  static List<String> _withHwmonExpectation(List<String> args) {
+    const hwmonCommandPrefixes = [
+      'fancurve-',
+      'minifancurve-',
+      'lockfancontroller-',
+      'maximumfanspeed-',
+    ];
+    if (args.isEmpty ||
+        args.contains('--donotexpecthwmon') ||
+        hwmonCommandPrefixes.any(args.first.startsWith)) {
+      return args;
+    }
+    return ['--donotexpecthwmon', ...args];
   }
 
   static String _resolveInstalledCliPath() {

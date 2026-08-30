@@ -191,7 +191,7 @@ How a user action (e.g. "set power mode to performance") reaches hardware:
 7. BridgeService checks deduplication (same method+args already pending? → busy error)
 8. BridgeService enqueues command in _privilegedQueue (sequential, never concurrent)
 9. BridgeService calls LegionCliService.runCommand(args, privileged: true)
-10. LegionCliService runs: pkexec /usr/bin/legion_cli set-feature PlatformProfile performance
+10. LegionCliService runs: pkexec legion_cli --donotexpecthwmon set-feature PlatformProfileFeature performance
     → polkit agent shows auth dialog (if not already authenticated)
     → kernel module writes to sysfs
 11. Result returns up the chain; on success BLoC calls loadSnapshot() and emits updated state
@@ -219,6 +219,12 @@ legion_cli dgpu restart-pci
 ```
 
 The choice between them is determined by what `legion_cli` exposes for each feature. See `docs/architecture/sysfs-vs-cli-access-audit.md` for the full feature-by-feature breakdown.
+
+`LegionCliService` adds the global `--donotexpecthwmon` option before commands
+that do not use fan-controller I/O. This prevents a missing fan-controller `hwmon`
+directory from blocking unrelated power, battery, display, and device writes.
+Fan-curve, mini-fan-curve, fan-controller lock, and maximum-fan-speed commands
+deliberately retain the default controller requirement.
 
 ### Privileged command serialisation
 
