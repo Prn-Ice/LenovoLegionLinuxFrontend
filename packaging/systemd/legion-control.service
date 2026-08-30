@@ -21,6 +21,7 @@ ProtectKernelModules=yes
 RestrictAddressFamilies=AF_UNIX
 RestrictNamespaces=yes
 SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
 SystemCallFilter=@system-service
 [Install]
 WantedBy=multi-user.target

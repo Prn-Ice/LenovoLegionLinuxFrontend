@@ -116,6 +116,7 @@ in
           RestrictAddressFamilies = [ "AF_UNIX" ];
           RestrictNamespaces = true;
           SystemCallArchitectures = "native";
+          SystemCallErrorNumber = "EPERM";
           SystemCallFilter = [ "@system-service" ];
         };
       };
