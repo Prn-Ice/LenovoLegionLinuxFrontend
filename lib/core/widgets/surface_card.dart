@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yaru/yaru.dart';
 
 /// The standard dashboard card surface, matching the design's `#333` card on the
 /// `#2a2a2a` page: a slightly-raised fill, a hairline border, and a 13px radius.
@@ -38,15 +39,12 @@ class SurfaceCard extends StatelessWidget {
             scheme.surface,
           )
         : scheme.surfaceContainerLow;
-    return Container(
+    return YaruBorderContainer(
       padding: padding,
-      decoration: BoxDecoration(
-        color: color ?? defaultFill,
-        borderRadius: _radius,
-        border:
-            border ??
-            Border.all(color: scheme.onSurface.withValues(alpha: 0.06)),
-      ),
+      color: color ?? defaultFill,
+      border:
+          border ?? Border.all(color: scheme.onSurface.withValues(alpha: 0.06)),
+      borderRadius: _radius,
       child: child,
     );
   }
