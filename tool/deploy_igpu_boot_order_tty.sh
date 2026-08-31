@@ -31,6 +31,12 @@ sudo systemctl restart nvidia-container-toolkit-cdi-generator.service
 printf '\nGraphics reconciliation:\n'
 sudo "$CLI" --donotexpecthwmon graphics-mode status --json
 printf '\nService state:\n'
-systemctl --no-pager --full status \
+systemctl --no-pager show \
   legion-graphics-reconcile.service \
-  nvidia-container-toolkit-cdi-generator.service
+  nvidia-container-toolkit-cdi-generator.service \
+  --property=Id \
+  --property=ActiveState \
+  --property=SubState \
+  --property=Result \
+  --property=ExecMainStatus \
+  --property=ConditionResult
