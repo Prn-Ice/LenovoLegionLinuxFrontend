@@ -190,21 +190,17 @@ void main() {
   );
 
   test(
-    'reauthorizes after an authorized method loses its sender cache',
+    'reauthorizes and retries after the service loses its sender cache',
     () async {
-      final transport = _FakeTransport();
+      final transport = _AuthorizationLossTransport();
       final client = LegionControlClient(transport: transport);
-      transport.callFailure = DBusMethodResponseException(
-        DBusMethodErrorResponse.accessDenied(),
-      );
-      await expectLater(
-        client.setToggle('hybrid-mode', true),
-        throwsA(isA<LegionControlPermissionDeniedException>()),
-      );
-      transport.callFailure = null;
-      await client.setToggle('hybrid-mode', false);
+
+      await client.setToggle('hybrid-mode', true);
+
       expect(transport.authorizationCalls, 2);
       expect(transport.calls, hasLength(1));
+      expect(transport.calls.single.$1, 'SetToggle');
+      expect(transport.calls.single.$2, ['hybrid-mode', true]);
     },
   );
 
@@ -288,4 +284,17 @@ class _RetryTransport extends _FakeTransport {
   }
 
   void releaseFirstAuthorization() => _firstAuthorization.complete();
+}
+
+class _AuthorizationLossTransport extends _FakeTransport {
+  var _hasLostAuthorization = false;
+
+  @override
+  Future<void> call(String method, List<Object> arguments) async {
+    if (!_hasLostAuthorization) {
+      _hasLostAuthorization = true;
+      throw DBusMethodResponseException(DBusMethodErrorResponse.accessDenied());
+    }
+    await super.call(method, arguments);
+  }
 }

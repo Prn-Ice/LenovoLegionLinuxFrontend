@@ -121,7 +121,11 @@ class LegionControlClient {
 
   final LegionControlTransport _transport;
   final BytesReader _bytesReader;
-  Future<void> _call(String method, List<Object> arguments) async {
+  Future<void> _call(
+    String method,
+    List<Object> arguments, {
+    bool retryAfterAuthorizationLoss = true,
+  }) async {
     final authorization = _authorization ??= _transport.authorize();
     try {
       await authorization;
@@ -135,9 +139,11 @@ class LegionControlClient {
     try {
       await _transport.call(method, arguments);
     } on DBusMethodResponseException catch (error) {
-      if (_isAuthorizationFailure(error) &&
-          identical(_authorization, authorization)) {
-        _authorization = null;
+      if (_isAuthorizationFailure(error)) {
+        if (identical(_authorization, authorization)) _authorization = null;
+        if (retryAfterAuthorizationLoss) {
+          return _call(method, arguments, retryAfterAuthorizationLoss: false);
+        }
       }
       throw _translateDbusError(error);
     } catch (_) {
