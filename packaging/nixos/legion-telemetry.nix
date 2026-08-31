@@ -8,6 +8,14 @@
 let
   cfg = config.services.legionTelemetry;
   control = config.services.legionControl;
+  nvidiaPciPresent = pkgs.writeShellScript "nvidia-pci-present" ''
+    for vendor in /sys/bus/pci/devices/*/vendor; do
+      if [[ -r "$vendor" ]] && [[ "$(<"$vendor")" == "0x10de" ]]; then
+        exit 0
+      fi
+    done
+    exit 1
+  '';
 in
 {
   options.services.legionTelemetry = {
@@ -167,6 +175,12 @@ in
           SystemCallFilter = [ "@system-service" ];
         };
       };
+
+      systemd.services.nvidia-container-toolkit-cdi-generator =
+        lib.mkIf config.hardware.nvidia-container-toolkit.enable
+          {
+            serviceConfig.ExecCondition = nvidiaPciPresent;
+          };
     })
   ];
 }
