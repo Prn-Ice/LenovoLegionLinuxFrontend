@@ -133,6 +133,7 @@ in
 
       systemd.services.legion-graphics-reconcile = {
         description = "Reconcile Lenovo Legion graphics topology";
+        path = [ pkgs.bash ];
         wantedBy = [ "graphical.target" ];
         requiredBy = [ "display-manager.service" ];
         before = [ "display-manager.service" ];
