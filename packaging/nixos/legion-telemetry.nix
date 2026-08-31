@@ -136,7 +136,10 @@ in
         path = [ pkgs.bash ];
         wantedBy = [ "graphical.target" ];
         requiredBy = [ "display-manager.service" ];
-        before = [ "display-manager.service" ];
+        before = [
+          "display-manager.service"
+          "nvidia-container-toolkit-cdi-generator.service"
+        ];
         after = [
           "local-fs.target"
           "systemd-modules-load.service"
