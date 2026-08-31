@@ -5,6 +5,7 @@ import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_snapshot.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
+import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -20,8 +21,7 @@ void main() {
         isActive: true,
         processes: [],
         pciAddress: '0000:01:00.0',
-        hybridModeEnabled: null,
-        hybridModeSupported: false,
+        graphicsModeStatus: null,
       ),
     );
   });
@@ -63,6 +63,67 @@ void main() {
   );
 
   blocTest<DgpuBloc, DgpuState>(
+    'sets a graphics mode and reloads authoritative state',
+    build: () {
+      when(
+        () => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
+      ).thenAnswer((_) async {});
+      when(
+        repo.loadSnapshotAfterGraphicsWrite,
+      ).thenAnswer((_) async => _hybridSnapshot);
+      return DgpuBloc(repository: repo);
+    },
+    seed: () => DgpuState.initial().copyWith(
+      graphicsModeStatus: _hybridStatus,
+      hasLoaded: true,
+    ),
+    act: (bloc) => bloc.add(
+      const DgpuGraphicsModeSetRequested(GraphicsMode.hybridIgpuOnly),
+    ),
+    expect: () => [
+      isA<DgpuState>().having((state) => state.isApplying, 'applying', true),
+      isA<DgpuState>()
+          .having((state) => state.isApplying, 'applying', false)
+          .having((state) => state.errorMessage, 'error', isNull),
+    ],
+    verify: (_) {
+      verify(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly)).called(1);
+      verify(repo.loadSnapshotAfterGraphicsWrite).called(1);
+    },
+  );
+
+  blocTest<DgpuBloc, DgpuState>(
+    'reloads authoritative state after a classified graphics failure',
+    build: () {
+      when(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly)).thenThrow(
+        const DgpuRepositoryException(
+          'The selected policy may have changed; restore Hybrid.',
+        ),
+      );
+      when(
+        repo.loadSnapshotAfterGraphicsWrite,
+      ).thenAnswer((_) async => _hybridSnapshot);
+      return DgpuBloc(repository: repo);
+    },
+    seed: () => DgpuState.initial().copyWith(
+      graphicsModeStatus: _hybridStatus,
+      hasLoaded: true,
+    ),
+    act: (bloc) => bloc.add(
+      const DgpuGraphicsModeSetRequested(GraphicsMode.hybridIgpuOnly),
+    ),
+    expect: () => [
+      isA<DgpuState>().having((state) => state.isApplying, 'applying', true),
+      isA<DgpuState>().having(
+        (state) => state.errorMessage,
+        'error',
+        contains('may have changed'),
+      ),
+    ],
+    verify: (_) => verify(repo.loadSnapshotAfterGraphicsWrite).called(1),
+  );
+
+  blocTest<DgpuBloc, DgpuState>(
     'passes the confirmed PCI baseline to the repository',
     build: () {
       when(
@@ -79,3 +140,21 @@ void main() {
         verify(() => repo.restartPciDevice('0000:01:00.0')).called(1),
   );
 }
+
+const _hybridStatus = GraphicsModeStatus(
+  selectedMode: GraphicsMode.hybrid,
+  effectiveState: DgpuTopology.attached,
+  expectedState: DgpuTopology.attached,
+  reconciliation: GraphicsReconciliation.settled,
+  clientInspectionComplete: false,
+  activeClients: [],
+  availableModes: GraphicsMode.values,
+  reconciliationAttempts: null,
+);
+
+const _hybridSnapshot = DgpuSnapshot(
+  isActive: true,
+  processes: [],
+  pciAddress: '0000:01:00.0',
+  graphicsModeStatus: _hybridStatus,
+);

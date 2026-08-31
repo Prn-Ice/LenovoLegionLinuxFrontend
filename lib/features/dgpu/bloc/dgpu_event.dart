@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../models/graphics_mode.dart';
+
 sealed class DgpuEvent extends Equatable {
   const DgpuEvent();
 
@@ -17,6 +19,15 @@ final class DgpuRefreshRequested extends DgpuEvent {
 
 final class DgpuTicked extends DgpuEvent {
   const DgpuTicked();
+}
+
+final class DgpuGraphicsModeSetRequested extends DgpuEvent {
+  const DgpuGraphicsModeSetRequested(this.mode);
+
+  final GraphicsMode mode;
+
+  @override
+  List<Object?> get props => [mode];
 }
 
 /// Kill all compute processes using the GPU (privileged).
@@ -37,14 +48,4 @@ final class DgpuRestartPciRequested extends DgpuEvent {
 
   @override
   List<Object?> get props => [expectedPciAddress];
-}
-
-/// Enable or disable hybrid mode (privileged). Reboot required.
-final class HybridModeSetRequested extends DgpuEvent {
-  const HybridModeSetRequested(this.enabled);
-
-  final bool enabled;
-
-  @override
-  List<Object?> get props => [enabled];
 }

@@ -44,6 +44,14 @@ class LegionControlBusyException extends LegionControlException {
   const LegionControlBusyException(super.message);
 }
 
+class LegionControlGraphicsBlockedException extends LegionControlException {
+  const LegionControlGraphicsBlockedException(super.message);
+}
+
+class LegionControlGraphicsPendingException extends LegionControlException {
+  const LegionControlGraphicsPendingException(super.message);
+}
+
 /// The production transport for the privileged legion-control system service.
 class DBusLegionControlTransport implements LegionControlTransport {
   DBusLegionControlTransport({DBusClient? client})
@@ -192,6 +200,7 @@ class LegionControlClient {
     'balanced-performance-ac',
   };
   static const _serviceIds = {'power_profiles_daemon', 'legiond_stack'};
+  static const _graphicsModes = {'hybrid', 'hybrid-igpu-only', 'discrete'};
 
   Future<void> setFeature(String feature, String value) {
     _validateFeature(feature, value);
@@ -201,6 +210,13 @@ class LegionControlClient {
   Future<void> setToggle(String id, bool enabled) {
     if (!_toggleIds.contains(id)) _unsupported('Unsupported toggle.');
     return _call('SetToggle', [id, enabled]);
+  }
+
+  Future<void> setGraphicsMode(String mode) {
+    if (!_graphicsModes.contains(mode)) {
+      _unsupported('Unsupported graphics mode.');
+    }
+    return _call('SetGraphicsMode', [mode]);
   }
 
   Future<void> applyFanPreset(String preset) {
@@ -240,6 +256,9 @@ class LegionControlClient {
 
     final toggle = _toggleCommand(args);
     if (toggle != null) return setToggle(toggle.$1, toggle.$2);
+    if (args.length == 3 && args[0] == 'graphics-mode' && args[1] == 'set') {
+      return setGraphicsMode(args[2]);
+    }
     if (args.length == 2 &&
         args[0] == 'fancurve-write-preset-to-hw' &&
         args[1].isNotEmpty) {
@@ -355,6 +374,12 @@ class LegionControlClient {
     }
     if (name.endsWith('Error.Unavailable')) {
       return LegionControlUnavailableException(message);
+    }
+    if (name.endsWith('Error.GraphicsBlocked')) {
+      return LegionControlGraphicsBlockedException(message);
+    }
+    if (name.endsWith('Error.GraphicsPending')) {
+      return LegionControlGraphicsPendingException(message);
     }
     if (name.endsWith('Busy')) return LegionControlBusyException(message);
     if (name.endsWith('Timeout') || name.endsWith('TimedOut')) {

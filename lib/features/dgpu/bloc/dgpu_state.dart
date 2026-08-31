@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../models/dgpu_process.dart';
+import '../models/graphics_mode.dart';
 
 class DgpuState extends Equatable {
   const DgpuState({
@@ -12,8 +13,8 @@ class DgpuState extends Equatable {
     required this.hasLoaded,
     required this.errorMessage,
     required this.noticeMessage,
-    required this.hybridModeEnabled,
-    required this.hybridModeSupported,
+    required this.graphicsModeStatus,
+    required this.applyingGraphicsMode,
     required this.name,
   });
 
@@ -26,8 +27,8 @@ class DgpuState extends Equatable {
     hasLoaded: false,
     errorMessage: null,
     noticeMessage: null,
-    hybridModeEnabled: null,
-    hybridModeSupported: false,
+    graphicsModeStatus: null,
+    applyingGraphicsMode: null,
     name: null,
   );
 
@@ -43,11 +44,8 @@ class DgpuState extends Equatable {
   final String? errorMessage;
   final String? noticeMessage;
 
-  /// null if hybrid mode sysfs file is not present (unsupported).
-  final bool? hybridModeEnabled;
-
-  /// true when the hybrid mode sysfs file was found.
-  final bool hybridModeSupported;
+  final GraphicsModeStatus? graphicsModeStatus;
+  final GraphicsMode? applyingGraphicsMode;
   final String? name;
 
   /// true when the GPU sysfs entry was found (even if suspended)
@@ -62,8 +60,8 @@ class DgpuState extends Equatable {
     bool? hasLoaded,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
-    Object? hybridModeEnabled = _unset,
-    bool? hybridModeSupported,
+    Object? graphicsModeStatus = _unset,
+    Object? applyingGraphicsMode = _unset,
     Object? name = _unset,
   }) {
     return DgpuState(
@@ -81,10 +79,12 @@ class DgpuState extends Equatable {
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,
-      hybridModeEnabled: hybridModeEnabled == _unset
-          ? this.hybridModeEnabled
-          : hybridModeEnabled as bool?,
-      hybridModeSupported: hybridModeSupported ?? this.hybridModeSupported,
+      graphicsModeStatus: graphicsModeStatus == _unset
+          ? this.graphicsModeStatus
+          : graphicsModeStatus as GraphicsModeStatus?,
+      applyingGraphicsMode: applyingGraphicsMode == _unset
+          ? this.applyingGraphicsMode
+          : applyingGraphicsMode as GraphicsMode?,
       name: name == _unset ? this.name : name as String?,
     );
   }
@@ -99,8 +99,8 @@ class DgpuState extends Equatable {
     hasLoaded,
     errorMessage,
     noticeMessage,
-    hybridModeEnabled,
-    hybridModeSupported,
+    graphicsModeStatus,
+    applyingGraphicsMode,
     name,
   ];
 }

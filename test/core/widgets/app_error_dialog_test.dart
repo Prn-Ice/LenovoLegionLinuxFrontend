@@ -78,4 +78,25 @@ void main() {
     expect(find.text('Close'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('classified graphics failures use consequence-specific titles', (
+    tester,
+  ) async {
+    for (final failure in const {
+      'Could not switch to Hybrid iGPU-only. The firmware policy was not changed because the privileged preflight found active dGPU/DRM clients.':
+          'Graphics change blocked',
+      'Hybrid iGPU-only was selected, but the effective GPU topology did not settle. The firmware policy may have changed.':
+          'Graphics policy did not settle',
+    }.entries) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: AppErrorDialog(message: failure.key)),
+        ),
+      );
+
+      expect(find.text(failure.value), findsOneWidget);
+      expect(find.text(failure.key), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+  });
 }

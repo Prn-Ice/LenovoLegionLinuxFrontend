@@ -109,6 +109,34 @@ void main() {
     );
   });
 
+  test('maps only guarded graphics modes to the typed method', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+
+    for (final mode in const ['hybrid', 'hybrid-igpu-only', 'discrete']) {
+      await client.runCommand(['graphics-mode', 'set', mode]);
+    }
+
+    expect(transport.calls.map((call) => call.$1), [
+      'SetGraphicsMode',
+      'SetGraphicsMode',
+      'SetGraphicsMode',
+    ]);
+    expect(transport.calls.map((call) => call.$2.single), [
+      'hybrid',
+      'hybrid-igpu-only',
+      'discrete',
+    ]);
+    await expectLater(
+      client.runCommand(const ['graphics-mode', 'set', 'hybrid-auto']),
+      throwsA(isA<LegionControlNotSupportedException>()),
+    );
+    await expectLater(
+      client.runCommand(const ['graphics-mode', 'set', 'hybrid', '--json']),
+      throwsA(isA<LegionControlNotSupportedException>()),
+    );
+  });
+
   test('validates service IDs and byte payload boundaries', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
@@ -154,6 +182,33 @@ void main() {
         ),
       );
       transport.callFailure = null;
+    }
+  });
+
+  test('maps classified graphics errors centrally', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+    final failures = <String, Type>{
+      'io.github.prnice.LegionControl1.Error.GraphicsBlocked':
+          LegionControlGraphicsBlockedException,
+      'io.github.prnice.LegionControl1.Error.GraphicsPending':
+          LegionControlGraphicsPendingException,
+    };
+
+    for (final entry in failures.entries) {
+      transport.callFailure = DBusMethodResponseException(
+        DBusMethodErrorResponse(entry.key),
+      );
+      await expectLater(
+        client.setGraphicsMode('hybrid-igpu-only'),
+        throwsA(
+          isA<LegionControlException>().having(
+            (error) => error.runtimeType,
+            'type',
+            entry.value,
+          ),
+        ),
+      );
     }
   });
 

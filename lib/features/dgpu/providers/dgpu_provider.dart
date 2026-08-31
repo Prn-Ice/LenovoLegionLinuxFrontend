@@ -8,15 +8,10 @@ import '../repository/dgpu_repository.dart';
 
 final dgpuRepositoryProvider = Provider<DgpuRepository>((ref) {
   final bridgeService = ref.watch(legionBridgeServiceProvider);
-  final sysfsService = ref.watch(legionSysfsServiceProvider);
-  return DgpuRepository(
-    bridgeService: bridgeService,
-    sysfsService: sysfsService,
-  );
+  return DgpuRepository(bridgeService: bridgeService);
 });
 
-final dgpuBlocProvider =
-    BlocProvider.autoDispose<DgpuBloc, DgpuState>((ref) {
-      final repository = ref.watch(dgpuRepositoryProvider);
-      return DgpuBloc(repository: repository)..add(const DgpuStarted());
-    });
+final dgpuBlocProvider = BlocProvider.autoDispose<DgpuBloc, DgpuState>((ref) {
+  final repository = ref.watch(dgpuRepositoryProvider);
+  return DgpuBloc(repository: repository)..add(const DgpuStarted());
+});

@@ -44,8 +44,10 @@ const std::map<std::string, std::string> toggles = {
 const std::map<std::string, std::vector<std::string>> services = {
     {"power_profiles_daemon", {"power-profiles-daemon.service"}},
     {"legiond_stack",
-     {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
-      "legiond-cpuset.timer"}}};
+      {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
+       "legiond-cpuset.timer"}}};
+const std::set<std::string> graphics_modes = {
+    "hybrid", "hybrid-igpu-only", "discrete"};
 bool decimal(const std::string &s) {
   return !s.empty() && std::regex_match(s, std::regex("(0|[1-9][0-9]*)"));
 }
@@ -142,5 +144,23 @@ Command ServiceCommand(const std::string &id, bool on) {
   const auto &units = services.at(id);
   command.argv.insert(command.argv.end(), units.begin(), units.end());
   return command;
+}
+bool ValidateGraphicsMode(const std::string &mode, std::string *error) {
+  if (graphics_modes.count(mode))
+    return true;
+  *error = "unsupported graphics mode";
+  return false;
+}
+Command GraphicsModeCommand(const std::string &mode) {
+  return {{"--donotexpecthwmon", "graphics-mode", "set", mode, "--json"}};
+}
+GraphicsExit ClassifyGraphicsExit(int exit_status) {
+  if (exit_status == 0)
+    return GraphicsExit::kSuccess;
+  if (exit_status == 2)
+    return GraphicsExit::kBlocked;
+  if (exit_status == 3)
+    return GraphicsExit::kPending;
+  return GraphicsExit::kFailed;
 }
 } // namespace legion_control

@@ -15,10 +15,10 @@ The firmware does provide an iGPU-only mode. It is one of four combined GPU
 working modes, not an independent replacement for Hybrid:
 
 | User-facing mode | `gsync` sysfs | `igpumode` | Firmware behavior |
-|---|---:|---:|---|
-| Hybrid | `1` | `0` (`Default`) | iGPU drives normal work; dGPU remains available |
-| Hybrid iGPU-only | `1` | `1` (`IGPUOnly`) | firmware requests dGPU ejection |
-| Hybrid Auto | `1` | `2` (`Auto`) | firmware attaches/ejects the dGPU based on AC state |
+| --- | ---: | ---: | --- |
+| Hybrid | `1` | `0` (`Default`) | dGPU remains available |
+| Hybrid iGPU-only | `1` | `1` (`IGPUOnly`) | requests dGPU ejection |
+| Hybrid Auto | `1` | `2` (`Auto`) | AC controls dGPU attach/eject |
 | Discrete | `0` | `0` (`Default`) | dGPU/MUX mode; reboot is required |
 
 `gsync` is the historical, inverted Linux sysfs name used for the Hybrid/MUX
@@ -34,13 +34,15 @@ gsync                1
 issupportgsync       2
 ```
 
-No iGPU-mode write was performed during this investigation. Firmware evidence
-is sufficient to harden the API, but display routing, session behavior, and
-rollback still require a controlled hardware test before the frontend enables
-the option.
+Controlled hardware testing was completed on 2026-08-31 for the internal panel,
+Plasma Wayland, suspend/resume, live rollback, and Auto AC/battery behavior. A
+guarded iGPU-only transition and rollback both succeeded. Auto also followed AC
+state, but its autonomous delayed eject creates a safety race that prevents it
+from being exposed as a normal frontend action. External displays, X11,
+hibernate, cold boot, and BIOS recovery remain unverified.
 
-The hardened kernel and combined CLI implementation is committed in the driver
-repository as `5a2a2d1`.
+The hardened kernel and combined CLI implementation is in the driver repository
+at `78f33ee`. The machine was returned to plain Hybrid mode after testing.
 
 ## Firmware evidence
 
@@ -67,7 +69,7 @@ Method `64` (`0x40`, `GetIGPUModeStatus`) reads firmware selector `0x78` and
 maps it as follows (`DSDT.dsl:20030-20053`):
 
 | Selector `0x78` | WMI result | Meaning |
-|---:|---:|---|
+| ---: | ---: | --- |
 | `0x00` | `0` | `Default` |
 | `0xa5` | `1` | `IGPUOnly` |
 | `0xaa` | `2` | `Auto` |
@@ -118,8 +120,9 @@ the same combinations appear through sysfs as shown in the result table.
 ## Driver changes
 
 The existing driver source at base commit `4055714` already defined methods
-`63` through `66`, but exposed them through an unsafe generic helper. Driver
-commit `5a2a2d1` hardens the contract with these properties:
+`63` through `66`, but exposed them through an unsafe generic helper. The kernel
+work first landed in `5a2a2d1` and is included in `78f33ee`; it hardens the
+contract with these properties:
 
 - Hide `igpumode` and `notify_dgpu` unless method `63` returns a positive
   capability code.
@@ -145,12 +148,14 @@ sets.
 
 ## User-space contract
 
-Driver commit `5a2a2d1` implements an authoritative user-space contract that
+Driver commit `78f33ee` implements an authoritative user-space contract that
 combines `gsync` and `igpumode` rather than exposing two unrelated controls:
 
 ```text
 graphics-mode status
+graphics-mode status --json
 graphics-mode choices
+graphics-mode reconcile --json
 graphics-mode set hybrid
 graphics-mode set hybrid-igpu-only
 graphics-mode set hybrid-auto
@@ -159,23 +164,34 @@ graphics-mode set discrete
 
 Required behavior:
 
-- `status` validates both raw reads and prints exactly one combined mode.
+- `status` validates both raw reads and prints exactly one combined mode; JSON
+  status separates selected policy, expected topology, effective topology,
+  reconciliation state, available modes, and root-observed dGPU clients.
 - `choices` advertises Hybrid/Discrete only when G-Sync support is positive and
   advertises iGPU-only/Auto only when iGPU-mode support is positive.
 - `set` rejects a value outside `choices` before requesting privilege.
+- A detach preflight scans root-visible `/proc/*/fd` handles for NVIDIA and its
+  DRM nodes, fails closed when inspection is incomplete, and rechecks
+  immediately before the firmware write.
 - Transitions to Hybrid, Hybrid iGPU-only, or Hybrid Auto set the historical
   Hybrid/MUX boolean first, then set `igpumode`.
 - A transition to Discrete first restores `igpumode=Default`, then changes the
   Hybrid/MUX boolean.
+- Reconciliation uses observed PCI availability with `NotifyDGPUStatus`, up to
+  five attempts at five-second intervals. Exit `2` means the write was blocked
+  by preflight; exit `3` means the selector was accepted but topology did not
+  settle.
 - User space reports that Hybrid/Discrete MUX changes require reboot and that
   iGPU-only/Auto can change live dGPU availability.
 - The existing `hybrid-mode-enable/disable` commands remain available during
   migration and retain their current meaning.
 
 The Flutter model should replace `bool? hybridModeEnabled` with a graphics-mode
-enum plus an available-mode set. It should add **Hybrid Auto**, label the
-integrated option **Hybrid iGPU-only**, and enable either only when the combined
-backend contract advertises it.
+enum plus authoritative selected/effective/reconciliation state. It should
+label the integrated option **Hybrid iGPU-only** and represent **Hybrid Auto**
+truthfully when another tool selected it. Auto must remain non-actionable; an
+advertised firmware choice is not sufficient evidence that a desktop action is
+safe.
 
 ## Controlled hardware validation
 
@@ -207,10 +223,92 @@ PCI device as a substitute for firmware mode, or run the first test while an
 external display is the only usable screen. Do not claim a battery-life
 improvement without comparable measured idle data.
 
+### Results from 2026-08-31
+
+#### Unguarded detach attempts
+
+Plasma and later detached Code/Electron processes retained NVIDIA handles.
+Firmware partially removed the dGPU and rollback required reboot. The detailed
+evidence is in the `lllf-j9t` notes.
+
+#### Guarded Hybrid to Hybrid iGPU-only
+
+Passed with complete root inspection, zero clients, two reconciliation
+attempts, NVIDIA PCI/DRM removal, and AMD-only Plasma Wayland on internal eDP.
+Evidence: `/tmp/lllf-igpu-only-2026-08-31T12-37-01+01-00.log`.
+
+#### iGPU-only suspend/resume
+
+Passed; AMD/internal eDP resumed and NVIDIA remained detached. The detailed
+evidence is in the `lllf-j9t` notes.
+
+#### iGPU-only to Hybrid rollback
+
+Passed in one attempt. NVIDIA VGA/audio, drivers, DRM, and `nvidia-smi`
+recovered before Plasma restart.
+Evidence: `/tmp/lllf-restore-hybrid-2026-08-31T14-58-56+01-00.log`.
+
+#### Hybrid to Auto on AC
+
+Passed; selected Auto remained attached and settled, with Plasma functional.
+Evidence: `/tmp/lllf-auto-ac-2026-08-31T15-20-41+01-00.log`.
+
+#### Auto AC to battery
+
+Passed only with all graphical clients stopped. Firmware detached autonomously
+after about 29 seconds, briefly reporting partial topology, without explicit
+CLI reconciliation.
+Evidence: `/tmp/lllf-auto-battery-2026-08-31T17-17-01+01-00.log`.
+
+#### Auto battery suspend/resume
+
+Passed; the NVIDIA slot remained absent and AMD/internal eDP resumed. The
+detailed evidence is in the `lllf-j9t` notes.
+
+#### Auto battery to AC
+
+Passed with Plasma running. Firmware hot-added NVIDIA VGA/audio and both
+drivers bound successfully. Evidence is in the boot journal at
+`2026-08-31 17:25:48`.
+
+#### Final Auto to Hybrid restore
+
+Passed in one attempt; the machine is back in attached, settled Hybrid mode.
+Evidence: `/tmp/lllf-restore-hybrid-2026-08-31T17-29-36+01-00.log`.
+
+The tests establish these safety constraints:
+
+1. Stopping only `display-manager.service` is insufficient. The graphical user
+   target, Wayland/X11 sessions, and detached Electron applications can retain
+   dGPU handles. Root handle inspection must remain authoritative.
+2. Selected policy is not effective topology. On an earlier iGPU-only reboot,
+   the selector persisted but NVIDIA enumerated and bound before
+   `legion_laptop` loaded. Reconciliation must run before the display manager.
+3. Auto is not safe for ordinary desktop use. Once selected, later AC loss can
+   trigger firmware ejection independently of the CLI preflight. A userspace
+   power monitor cannot atomically observe AC loss, prevent new opens, quiesce
+   every client, and beat the autonomous firmware transition.
+4. The repeated `00:01.1` D0-to-D3hot refusal, NVIDIA SBIOS/EDID assertions, and
+   `00:08.1` spurious PME interrupts did not prevent tested transitions, but
+   remain residual warnings rather than validated harmless behavior.
+
+The following acceptance items remain open:
+
+- early-boot reconciliation before graphical login;
+- external HDMI and USB-C routing with physical displays;
+- X11 and hibernate behavior;
+- cold-boot persistence and exercised BIOS/UEFI recovery;
+- comparable idle-power measurements before making battery-life claims.
+
 ## Completion gate
 
-Firmware semantics, the safe driver read/write contract, and the combined CLI
-contract are now implemented. The frontend option remains disabled until that
-driver is deployed and the controlled hardware matrix above demonstrates
-display routing, session survival, suspend/resume, persistence, and BIOS
-rollback on this machine.
+Firmware semantics, the guarded driver/CLI contract, internal-panel live
+transitions, suspend/resume, and live Hybrid rollback are validated. Safe
+frontend work may expose read-only selected/expected/effective status now.
+
+Hybrid Auto must remain disabled. Hybrid iGPU-only must remain a controlled TTY
+operation until early-boot reconciliation and a typed privileged frontend flow
+can preserve the root preflight contract without claiming success before
+effective topology settles. The overall feature is not complete until the open
+matrix items above are either validated or explicitly excluded from the
+shipping scope.

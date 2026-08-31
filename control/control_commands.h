@@ -11,6 +11,8 @@ struct Command {
   std::vector<std::string> argv;
 };
 
+enum class GraphicsExit { kSuccess, kBlocked, kPending, kFailed };
+
 bool ValidateFeature(const std::string &, const std::string &, std::string *);
 bool ValidateToggle(const std::string &, bool, std::string *);
 bool ValidatePreset(const std::string &, std::string *);
@@ -26,5 +28,8 @@ Command RestoreBootLogoCommand();
 Command ConservationCommand(uint32_t, uint32_t);
 bool ValidateService(const std::string &, std::string *);
 Command ServiceCommand(const std::string &, bool);
+bool ValidateGraphicsMode(const std::string &, std::string *);
+Command GraphicsModeCommand(const std::string &);
+GraphicsExit ClassifyGraphicsExit(int);
 } // namespace legion_control
 #endif

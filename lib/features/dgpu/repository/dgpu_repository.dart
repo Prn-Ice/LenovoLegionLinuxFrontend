@@ -1,9 +1,10 @@
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
-import '../../../core/services/legion_sysfs_service.dart';
+import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
+import '../models/graphics_mode.dart';
 
 class DgpuRepositoryException implements Exception {
   const DgpuRepositoryException(this.message);
@@ -15,26 +16,28 @@ class DgpuRepositoryException implements Exception {
 }
 
 class DgpuRepository extends PrivilegedRepository {
-  const DgpuRepository({
-    required super.bridgeService,
-    required LegionSysfsService sysfsService,
-  }) : _sysfsService = sysfsService;
+  const DgpuRepository({required super.bridgeService});
 
   @override
   Exception wrapBridgeError(String message) => DgpuRepositoryException(message);
 
-  final LegionSysfsService _sysfsService;
-
   static const _knownRuntimeStatusPath =
       '/sys/bus/pci/devices/0000:01:00.0/power/runtime_status';
 
-  Future<DgpuSnapshot> loadSnapshot() async {
+  Future<DgpuSnapshot> loadSnapshot() => _loadSnapshot();
+
+  Future<DgpuSnapshot> loadSnapshotAfterGraphicsWrite() =>
+      _loadSnapshot(requireGraphicsModeStatus: true);
+
+  Future<DgpuSnapshot> _loadSnapshot({
+    bool requireGraphicsModeStatus = false,
+  }) async {
     final results = await Future.wait([
       _findNvidiaGpuPciAddress(),
-      _sysfsService.readHybridMode(),
+      loadGraphicsModeStatus(required: requireGraphicsModeStatus),
     ]);
     final pciAddress = results[0] as String?;
-    final hybridMode = results[1] as bool?;
+    final graphicsModeStatus = results[1] as GraphicsModeStatus?;
 
     final bool? isActive;
     if (pciAddress != null) {
@@ -50,21 +53,87 @@ class DgpuRepository extends PrivilegedRepository {
       isActive: isActive,
       processes: processes,
       pciAddress: pciAddress,
-      hybridModeEnabled: hybridMode,
-      hybridModeSupported: hybridMode != null,
+      graphicsModeStatus: graphicsModeStatus,
       name: name,
     );
   }
 
-  Future<void> setHybridMode(bool enabled) async {
-    final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    await runPrivilegedCommand(
-      [command],
-      method: 'hybrid_mode.set',
-      failurePrefix: 'Failed to set hybrid mode to ${enabled ? 'on' : 'off'}',
-      timeout: const Duration(seconds: 10),
-      detectUnavailableResponse: true,
-    );
+  Future<GraphicsModeStatus?> loadGraphicsModeStatus({
+    bool required = false,
+  }) async {
+    try {
+      final result = await bridgeService.runCommand(
+        method: 'graphics_mode.status',
+        args: const ['graphics-mode', 'status', '--json'],
+        timeout: const Duration(seconds: 8),
+        detectUnavailableResponse: false,
+      );
+      if (!result.ok) {
+        if (required) {
+          throw DgpuRepositoryException(
+            'Authoritative graphics status could not be reloaded after the '
+            'mode request. Backend output: ${result.stderr}',
+          );
+        }
+        return null;
+      }
+      return GraphicsModeStatus.parse(result.stdout);
+    } on DgpuRepositoryException {
+      rethrow;
+    } catch (error) {
+      if (required) {
+        throw DgpuRepositoryException(
+          'Authoritative graphics status could not be reloaded after the mode '
+          'request: $error',
+        );
+      }
+      return null;
+    }
+  }
+
+  Future<void> setGraphicsMode(GraphicsMode mode) async {
+    if (mode == GraphicsMode.hybridAuto) {
+      throw const DgpuRepositoryException(
+        'Hybrid Auto is not available as a desktop action because it can '
+        'detach the dGPU after AC is unplugged without another client preflight.',
+      );
+    }
+
+    try {
+      await bridgeService.runPrivilegedCommand(
+        method: 'graphics_mode.set',
+        args: ['graphics-mode', 'set', mode.wireValue],
+        timeout: const Duration(seconds: 45),
+        detectUnavailableResponse: false,
+      );
+    } on LegionBridgeException catch (error) {
+      final technicalDetails = error.details.isEmpty
+          ? ''
+          : '\n\nTechnical details:\n${error.details}';
+      switch (error.code) {
+        case LegionBridgeErrorCode.graphicsBlocked:
+          throw DgpuRepositoryException(
+            'Could not switch to ${mode.label}. The firmware policy was not '
+            'changed because the privileged preflight found active dGPU/DRM '
+            'clients or could not complete client inspection. Close '
+            'GPU-accelerated applications and external-display sessions, then '
+            'retry from a text console.$technicalDetails',
+          );
+        case LegionBridgeErrorCode.graphicsPending:
+          throw DgpuRepositoryException(
+            '${mode.label} was selected, but the effective GPU topology did '
+            'not settle. The firmware policy may have changed, so do not '
+            'assume the requested mode is active. Check authoritative status '
+            'and restore Hybrid from a text console or reboot before '
+            'continuing.$technicalDetails',
+          );
+        case _:
+          throw DgpuRepositoryException(
+            'Could not request ${mode.label}. No authoritative confirmation '
+            'was received that the graphics policy changed.$technicalDetails',
+          );
+      }
+    }
   }
 
   Future<void> killGpuProcesses(List<int> expectedPids) async {

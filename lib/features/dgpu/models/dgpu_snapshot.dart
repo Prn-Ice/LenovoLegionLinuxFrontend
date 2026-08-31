@@ -1,14 +1,14 @@
 import 'package:equatable/equatable.dart';
 
 import 'dgpu_process.dart';
+import 'graphics_mode.dart';
 
 class DgpuSnapshot extends Equatable {
   const DgpuSnapshot({
     required this.isActive,
     required this.processes,
     required this.pciAddress,
-    required this.hybridModeEnabled,
-    required this.hybridModeSupported,
+    required this.graphicsModeStatus,
     this.name,
   });
 
@@ -21,11 +21,8 @@ class DgpuSnapshot extends Equatable {
   /// The discovered PCI address (e.g. "0000:01:00.0"), or null if not found.
   final String? pciAddress;
 
-  /// null if hybrid mode sysfs file is not present (unsupported).
-  final bool? hybridModeEnabled;
-
-  /// true when the hybrid mode sysfs file was found.
-  final bool hybridModeSupported;
+  /// Authoritative combined policy and observed topology, when supported.
+  final GraphicsModeStatus? graphicsModeStatus;
   final String? name;
 
   @override
@@ -33,8 +30,7 @@ class DgpuSnapshot extends Equatable {
     isActive,
     processes,
     pciAddress,
-    hybridModeEnabled,
-    hybridModeSupported,
+    graphicsModeStatus,
     name,
   ];
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../models/graphics_mode.dart';
 import '../repository/dgpu_repository.dart';
 import 'dgpu_event.dart';
 import 'dgpu_state.dart';
@@ -16,9 +17,9 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     on<DgpuStarted>(_onStarted);
     on<DgpuRefreshRequested>(_onRefreshRequested);
     on<DgpuTicked>(_onTicked);
+    on<DgpuGraphicsModeSetRequested>(_onGraphicsModeSetRequested);
     on<DgpuKillProcessesRequested>(_onKillProcessesRequested);
     on<DgpuRestartPciRequested>(_onRestartPciRequested);
-    on<HybridModeSetRequested>(_onHybridModeSetRequested);
   }
 
   final DgpuRepository _repository;
@@ -27,6 +28,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
   Timer? _pollTimer;
   bool _started = false;
   bool _refreshInFlight = false;
+  Completer<void>? _refreshCompleter;
 
   Future<void> _onStarted(DgpuStarted event, Emitter<DgpuState> emit) async {
     if (_started) return;
@@ -47,6 +49,35 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
   Future<void> _onTicked(DgpuTicked event, Emitter<DgpuState> emit) async {
     if (state.isApplying) return;
     await _reloadState(emit, showLoading: false);
+  }
+
+  Future<void> _onGraphicsModeSetRequested(
+    DgpuGraphicsModeSetRequested event,
+    Emitter<DgpuState> emit,
+  ) async {
+    if (state.isApplying || event.mode == GraphicsMode.hybridAuto) return;
+    emit(
+      state.copyWith(
+        isApplying: true,
+        applyingGraphicsMode: event.mode,
+        errorMessage: null,
+        noticeMessage: null,
+      ),
+    );
+
+    String? actionErrorMessage;
+    try {
+      await _repository.setGraphicsMode(event.mode);
+    } on DgpuRepositoryException catch (error) {
+      actionErrorMessage = error.message;
+    }
+    await _reloadState(
+      emit,
+      showLoading: false,
+      actionErrorMessage: actionErrorMessage,
+      requireGraphicsModeStatus: true,
+      force: true,
+    );
   }
 
   Future<void> _onKillProcessesRequested(
@@ -90,42 +121,28 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     }
   }
 
-  Future<void> _onHybridModeSetRequested(
-    HybridModeSetRequested event,
-    Emitter<DgpuState> emit,
-  ) async {
-    if (state.isApplying || !state.hybridModeSupported) return;
-    emit(
-      state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
-    );
-    try {
-      await _repository.setHybridMode(event.enabled);
-      emit(
-        state.copyWith(
-          isApplying: false,
-          hybridModeEnabled: event.enabled,
-          noticeMessage:
-              'Graphics mode configured. A reboot is required for it to take effect.',
-        ),
-      );
-    } on DgpuRepositoryException catch (e) {
-      emit(state.copyWith(isApplying: false, errorMessage: e.toString()));
-    }
-  }
-
   Future<void> _reloadState(
     Emitter<DgpuState> emit, {
     required bool showLoading,
     String? noticeMessage,
+    String? actionErrorMessage,
+    bool requireGraphicsModeStatus = false,
+    bool force = false,
   }) async {
-    if (_refreshInFlight) return;
+    if (_refreshInFlight) {
+      await _refreshCompleter?.future;
+      if (!force) return;
+    }
     _refreshInFlight = true;
+    _refreshCompleter = Completer<void>();
 
     if (showLoading) {
       emit(state.copyWith(isLoading: true, errorMessage: null));
     }
     try {
-      final snapshot = await _repository.loadSnapshot();
+      final snapshot = requireGraphicsModeStatus
+          ? await _repository.loadSnapshotAfterGraphicsWrite()
+          : await _repository.loadSnapshot();
       emit(
         state.copyWith(
           isActive: snapshot.isActive,
@@ -133,10 +150,11 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           pciAddress: snapshot.pciAddress,
           isLoading: false,
           isApplying: false,
+          applyingGraphicsMode: null,
           hasLoaded: true,
+          errorMessage: actionErrorMessage,
           noticeMessage: noticeMessage,
-          hybridModeEnabled: snapshot.hybridModeEnabled,
-          hybridModeSupported: snapshot.hybridModeSupported,
+          graphicsModeStatus: snapshot.graphicsModeStatus,
           name: snapshot.name,
         ),
       );
@@ -145,12 +163,18 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
         state.copyWith(
           isLoading: false,
           isApplying: false,
+          applyingGraphicsMode: null,
           hasLoaded: true,
-          errorMessage: 'Failed to load GPU status: $error',
+          errorMessage: actionErrorMessage == null
+              ? 'Failed to load GPU status: $error'
+              : '$actionErrorMessage\n\nAuthoritative graphics status also '
+                    'could not be reloaded: $error',
         ),
       );
     } finally {
       _refreshInFlight = false;
+      _refreshCompleter?.complete();
+      _refreshCompleter = null;
     }
   }
 

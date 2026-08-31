@@ -168,7 +168,22 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final isPrivilegeSetup = _isPrivilegeSetupError(widget.message);
+    final errorKind = _classifyAppError(widget.message);
+    final isPrivilegeSetup = errorKind == _AppErrorKind.privilegeSetup;
+    final title = switch (errorKind) {
+      _AppErrorKind.privilegeSetup => 'Privileged access needs setup',
+      _AppErrorKind.graphicsBlocked => 'Graphics change blocked',
+      _AppErrorKind.graphicsPending => 'Graphics policy did not settle',
+      _AppErrorKind.generic => 'Action could not be completed',
+    };
+    final consequence = switch (errorKind) {
+      _AppErrorKind.graphicsBlocked =>
+        'The protected preflight stopped this change before firmware was written.',
+      _AppErrorKind.graphicsPending =>
+        'Firmware accepted the selected policy, but the requested GPU topology was not confirmed.',
+      _ =>
+        'The requested action did not complete. No confirmation was received that the setting changed.',
+    };
 
     return AlertDialog(
       title: YaruDialogTitleBar(
@@ -177,13 +192,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
           children: [
             Icon(Icons.error_outline, size: 20, color: scheme.error),
             const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                isPrivilegeSetup
-                    ? 'Privileged access needs setup'
-                    : 'Action could not be completed',
-              ),
-            ),
+            Flexible(child: Text(title)),
           ],
         ),
       ),
@@ -198,9 +207,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
               children: isPrivilegeSetup
                   ? _buildPrivilegeSetupContent(context)
                   : [
-                      const Text(
-                        'The requested action did not complete. No confirmation was received that the setting changed.',
-                      ),
+                      Text(consequence),
                       const SizedBox(height: 16),
                       Text('Details', style: textTheme.titleSmall),
                       const SizedBox(height: 6),
@@ -334,6 +341,21 @@ bool _isPrivilegeSetupError(String message) {
       ) ||
       normalized.contains('legion-control service is not configured') ||
       normalized.contains('org.freedesktop.dbus.error.serviceunknown');
+}
+
+enum _AppErrorKind { generic, privilegeSetup, graphicsBlocked, graphicsPending }
+
+_AppErrorKind _classifyAppError(String message) {
+  if (_isPrivilegeSetupError(message)) return _AppErrorKind.privilegeSetup;
+  if (message.contains(
+    'firmware policy was not changed because the privileged preflight',
+  )) {
+    return _AppErrorKind.graphicsBlocked;
+  }
+  if (message.contains('effective GPU topology did not settle')) {
+    return _AppErrorKind.graphicsPending;
+  }
+  return _AppErrorKind.generic;
 }
 
 class AppSectionCard extends StatelessWidget {

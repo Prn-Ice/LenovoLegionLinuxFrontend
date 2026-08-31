@@ -20,7 +20,7 @@ constexpr char bus[] = "io.github.prnice.LegionControl1",
 constexpr gsize output_limit = 64 * 1024;
 constexpr size_t input_limit = 128;
 constexpr char xml[] =
-    R"(<node><interface name="io.github.prnice.LegionControl1"><method name="Authorize"/><method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method><method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method><method name="ApplyFanPreset"><arg type="s" direction="in"/></method><method name="ApplyCurrentFanPreset"/><method name="ApplyFanCurve"><arg type="ay" direction="in"/></method><method name="ApplyCustomConservation"><arg type="u" direction="in"/><arg type="u" direction="in"/></method><method name="SetBootLogo"><arg type="ay" direction="in"/></method><method name="RestoreBootLogo"/><method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method></interface></node>)";
+    R"(<node><interface name="io.github.prnice.LegionControl1"><method name="Authorize"/><method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method><method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method><method name="SetGraphicsMode"><arg type="s" direction="in"/></method><method name="ApplyFanPreset"><arg type="s" direction="in"/></method><method name="ApplyCurrentFanPreset"/><method name="ApplyFanCurve"><arg type="ay" direction="in"/></method><method name="ApplyCustomConservation"><arg type="u" direction="in"/><arg type="u" direction="in"/></method><method name="SetBootLogo"><arg type="ay" direction="in"/></method><method name="RestoreBootLogo"/><method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method></interface></node>)";
 struct Ctx {
   GMainLoop *loop;
   GDBusNodeInfo *info;
@@ -46,6 +46,8 @@ struct Ctx {
     bool output_exceeded = false;
     bool timed_out = false;
     bool disconnected = false;
+    bool graphics_operation = false;
+    int exit_status = -1;
     bool completed = false;
   };
   std::unique_ptr<ActiveOperation> active;
@@ -129,9 +131,23 @@ void maybe_finish_operation(Ctx::ActiveOperation *op) {
       reply_error(op->invocation, "CommandFailed", op->process_error);
     else if (!op->process_success) {
       const std::string output = valid_utf8(op->output_text);
-      reply_error(op->invocation, "CommandFailed",
-                  output.empty() ? "backend command failed"
-                                 : "backend command failed: " + output);
+      const auto graphics_exit =
+          legion_control::ClassifyGraphicsExit(op->exit_status);
+      if (op->graphics_operation &&
+          graphics_exit == legion_control::GraphicsExit::kBlocked)
+        reply_error(op->invocation, "GraphicsBlocked",
+                    output.empty() ? "graphics change was blocked before write"
+                                   : output);
+      else if (op->graphics_operation &&
+               graphics_exit == legion_control::GraphicsExit::kPending)
+        reply_error(op->invocation, "GraphicsPending",
+                    output.empty()
+                        ? "graphics policy changed but topology did not settle"
+                        : output);
+      else
+        reply_error(op->invocation, "CommandFailed",
+                    output.empty() ? "backend command failed"
+                                   : "backend command failed: " + output);
     } else
       done(op->invocation);
   }
@@ -186,7 +202,7 @@ void operation_timeout(gpointer data) {
 }
 void invoke(Ctx *c, GDBusMethodInvocation *i,
             const legion_control::Command &command, bool systemctl = false,
-            const std::string &temp_path = {}) {
+            const std::string &temp_path = {}, bool graphics = false) {
   if (c->active) {
     if (!temp_path.empty())
       unlink(temp_path.c_str());
@@ -221,6 +237,7 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
       g_object_ref(g_subprocess_get_stdout_pipe(p)));
   operation->temp_path = temp_path;
   operation->sender = g_dbus_method_invocation_get_sender(i);
+  operation->graphics_operation = graphics;
   Ctx::ActiveOperation *q = operation.get();
   c->active = std::move(operation);
   read_output(q);
@@ -232,15 +249,19 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
         if (!g_subprocess_wait_finish(G_SUBPROCESS(o), r, &e)) {
           op->process_error = e ? e->message : "backend failed";
           g_clear_error(&e);
-        } else
+        } else {
           op->process_success =
               g_subprocess_get_successful(G_SUBPROCESS(o));
+          if (g_subprocess_get_if_exited(G_SUBPROCESS(o)))
+            op->exit_status =
+                g_subprocess_get_exit_status(G_SUBPROCESS(o));
+        }
         op->process_finished = true;
         maybe_finish_operation(op);
       },
       q);
   q->timeout_source = g_timeout_add_seconds(
-      10,
+      graphics ? 35 : 10,
       [](gpointer d) -> gboolean {
         operation_timeout(d);
         return G_SOURCE_REMOVE;
@@ -301,7 +322,8 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
   const gchar *cap_raw = nullptr;
   const gchar *pre_raw = nullptr;
   const gchar *sid_raw = nullptr;
-  std::string f, val, cap, pre, sid;
+  const gchar *mode_raw = nullptr;
+  std::string f, val, cap, pre, sid, mode;
   gboolean en;
   if (!g_strcmp0(m, "SetFeature")) {
     g_variant_get(v, "(&s&s)", &f_raw, &val_raw);
@@ -329,6 +351,18 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
       return;
     }
     invoke(c, i, legion_control::ToggleCommand(cap, en));
+  } else if (!g_strcmp0(m, "SetGraphicsMode")) {
+    g_variant_get(v, "(&s)", &mode_raw);
+    if (!bounded(mode_raw, "graphics mode", &err)) {
+      reply_error(i, "InvalidArgs", err);
+      return;
+    }
+    mode = mode_raw;
+    if (!legion_control::ValidateGraphicsMode(mode, &err)) {
+      reply_error(i, "InvalidArgs", err);
+      return;
+    }
+    invoke(c, i, legion_control::GraphicsModeCommand(mode), false, {}, true);
   } else if (!g_strcmp0(m, "ApplyFanPreset")) {
     g_variant_get(v, "(&s)", &pre_raw);
     if (!bounded(pre_raw, "preset", &err)) {

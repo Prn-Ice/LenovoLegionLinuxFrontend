@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
+import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 
 const _proc = DgpuProcess(pid: 1234, name: 'Xorg', usedMemoryMib: 4);
 
@@ -89,6 +90,13 @@ void main() {
       expect(s.noticeMessage, isNull);
     });
 
+    test('copyWith(graphicsModeStatus: null) clears it', () {
+      final s = DgpuState.initial()
+          .copyWith(graphicsModeStatus: _graphicsStatus)
+          .copyWith(graphicsModeStatus: null);
+      expect(s.graphicsModeStatus, isNull);
+    });
+
     test('copyWith omitting all fields on populated state preserves all', () {
       final populated = DgpuState.initial().copyWith(
         isActive: true,
@@ -127,3 +135,14 @@ void main() {
     });
   });
 }
+
+const _graphicsStatus = GraphicsModeStatus(
+  selectedMode: GraphicsMode.hybrid,
+  effectiveState: DgpuTopology.attached,
+  expectedState: DgpuTopology.attached,
+  reconciliation: GraphicsReconciliation.settled,
+  clientInspectionComplete: false,
+  activeClients: [],
+  availableModes: [GraphicsMode.hybrid],
+  reconciliationAttempts: null,
+);

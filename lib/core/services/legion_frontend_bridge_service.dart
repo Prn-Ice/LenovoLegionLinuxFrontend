@@ -11,6 +11,8 @@ enum LegionBridgeErrorCode {
   unavailable,
   busy,
   timeout,
+  graphicsBlocked,
+  graphicsPending,
   commandFailed,
 }
 
@@ -43,6 +45,10 @@ class LegionBridgeException implements Exception {
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
         'The privileged command timed out. Retry and check system load or blocking prompts.',
+      LegionBridgeErrorCode.graphicsBlocked =>
+        'The graphics change was blocked before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
+      LegionBridgeErrorCode.graphicsPending =>
+        'The selected graphics policy may have changed, but effective topology did not settle. Restore Hybrid from a TTY or reboot before continuing.',
       LegionBridgeErrorCode.commandFailed => '',
     };
   }
@@ -272,6 +278,10 @@ class LegionFrontendBridgeService {
         LegionBridgeErrorCode.permissionDenied,
       LegionControlBusyException() => LegionBridgeErrorCode.busy,
       LegionControlTimeoutException() => LegionBridgeErrorCode.timeout,
+      LegionControlGraphicsBlockedException() =>
+        LegionBridgeErrorCode.graphicsBlocked,
+      LegionControlGraphicsPendingException() =>
+        LegionBridgeErrorCode.graphicsPending,
       LegionControlUnavailableException() ||
       LegionControlNotSupportedException() => LegionBridgeErrorCode.unavailable,
       _ => LegionBridgeErrorCode.commandFailed,
@@ -304,6 +314,10 @@ class LegionFrontendBridgeService {
         'Capability is unavailable for $method.',
       LegionBridgeErrorCode.busy => 'System is busy while running $method.',
       LegionBridgeErrorCode.timeout => 'Timed out while running $method.',
+      LegionBridgeErrorCode.graphicsBlocked =>
+        'Graphics clients blocked $method before firmware changed.',
+      LegionBridgeErrorCode.graphicsPending =>
+        'Graphics topology did not settle while running $method.',
       LegionBridgeErrorCode.commandFailed => 'Failed to run $method.',
     };
 

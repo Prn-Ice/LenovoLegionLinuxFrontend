@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   cfg = config.services.legionTelemetry;
@@ -37,6 +42,8 @@ in
       description = "Package providing legion_cli.";
       example = lib.literalExpression "pkgs.lenovo-legion";
     };
+
+    reconcileGraphicsAtBoot = lib.mkEnableOption "graphics-mode reconciliation before graphical login";
   };
 
   config = lib.mkMerge [
@@ -113,6 +120,42 @@ in
           ProtectHostname = true;
           ProtectKernelLogs = true;
           ProtectKernelModules = true;
+          RestrictAddressFamilies = [ "AF_UNIX" ];
+          RestrictNamespaces = true;
+          SystemCallArchitectures = "native";
+          SystemCallErrorNumber = "EPERM";
+          SystemCallFilter = [ "@system-service" ];
+        };
+      };
+    })
+    (lib.mkIf (control.enable && control.reconcileGraphicsAtBoot) {
+      boot.kernelModules = [ "legion_laptop" ];
+
+      systemd.services.legion-graphics-reconcile = {
+        description = "Reconcile Lenovo Legion graphics topology";
+        wantedBy = [ "graphical.target" ];
+        requiredBy = [ "display-manager.service" ];
+        before = [ "display-manager.service" ];
+        after = [
+          "local-fs.target"
+          "systemd-modules-load.service"
+        ];
+        requires = [ "systemd-modules-load.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${control.backendPackage}/bin/legion_cli --donotexpecthwmon graphics-mode reconcile --json";
+          TimeoutStartSec = 40;
+          RemainAfterExit = true;
+          User = "root";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+          ProtectClock = true;
+          ProtectControlGroups = true;
+          ProtectHome = true;
+          ProtectHostname = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = true;
+          ProtectSystem = "strict";
           RestrictAddressFamilies = [ "AF_UNIX" ];
           RestrictNamespaces = true;
           SystemCallArchitectures = "native";

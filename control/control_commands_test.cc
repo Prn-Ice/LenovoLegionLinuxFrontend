@@ -157,6 +157,30 @@ static void test_services() {
   }
 }
 
+static void test_graphics_modes() {
+  const std::array<const char *, 3> allowed = {
+      "hybrid", "hybrid-igpu-only", "discrete"};
+  for (const char *mode : allowed) {
+    std::string error;
+    g_assert_true(ValidateGraphicsMode(mode, &error));
+    const auto command = GraphicsModeCommand(mode).argv;
+    const std::vector<std::string> expected = {
+        "--donotexpecthwmon", "graphics-mode", "set", mode, "--json"};
+    g_assert_true(command == expected);
+  }
+
+  for (const char *mode : {"", "hybrid-auto", "integrated", "HYBRID"}) {
+    std::string error;
+    g_assert_false(ValidateGraphicsMode(mode, &error));
+    g_assert_cmpstr(error.c_str(), ==, "unsupported graphics mode");
+  }
+
+  g_assert_true(ClassifyGraphicsExit(0) == GraphicsExit::kSuccess);
+  g_assert_true(ClassifyGraphicsExit(2) == GraphicsExit::kBlocked);
+  g_assert_true(ClassifyGraphicsExit(3) == GraphicsExit::kPending);
+  g_assert_true(ClassifyGraphicsExit(1) == GraphicsExit::kFailed);
+}
+
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/control/profiles", test_profiles);
@@ -166,5 +190,6 @@ int main(int argc, char **argv) {
                   test_conservation_and_payloads);
   g_test_add_func("/control/commands", test_commands);
   g_test_add_func("/control/services", test_services);
+  g_test_add_func("/control/graphics-modes", test_graphics_modes);
   return g_test_run();
 }

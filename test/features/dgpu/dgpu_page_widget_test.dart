@@ -10,6 +10,7 @@ import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_snapshot.dart';
+import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/providers/dgpu_provider.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
 import 'package:legion_frontend/features/dgpu/view/dgpu_page.dart';
@@ -45,10 +46,18 @@ void main() {
     expect(find.text('P2'), findsOneWidget);
     expect(find.text('Usage %'), findsOneWidget);
     expect(find.text('Graphics mode'), findsOneWidget);
-    expect(find.text('Hybrid'), findsOneWidget);
-    expect(find.text('Configured: Hybrid'), findsOneWidget);
-    expect(find.text('Integrated only'), findsOneWidget);
-    expect(find.text('Discrete only'), findsOneWidget);
+    expect(find.text('Selected policy'), findsOneWidget);
+    expect(find.text('Effective dGPU'), findsOneWidget);
+    expect(find.text('Expected dGPU'), findsOneWidget);
+    expect(find.text('Reconciliation'), findsOneWidget);
+    expect(find.text('Settled'), findsNWidgets(2));
+    expect(find.textContaining('Hybrid iGPU-only'), findsNWidgets(2));
+    expect(find.textContaining('Hybrid Auto'), findsNWidgets(2));
+    expect(
+      find.byKey(const ValueKey('set-graphics-hybrid-igpu-only')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('set-graphics-discrete')), findsOneWidget);
     expect(find.text('GPU performance'), findsOneWidget);
     expect(find.text('Processes on the dGPU'), findsOneWidget);
     expect(find.text('Discrete GPU'), findsNothing);
@@ -80,45 +89,94 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('graphics modes expose only the supported backend choices', (
+  testWidgets(
+    'Hybrid Auto is reported with safety guidance and no Auto action',
+    (tester) async {
+      await _pumpPage(
+        tester,
+        width: 900,
+        processes: const [],
+        graphicsModeStatus: _autoStatus,
+      );
+
+      final graphicsCard = find.byKey(const ValueKey('graphics-mode-status'));
+      await tester.ensureVisible(graphicsCard);
+      expect(
+        find.textContaining(
+          'Hybrid Auto can eject the dGPU after AC is unplugged',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('set-graphics-hybrid-auto')),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('set-graphics-hybrid')), findsOneWidget);
+    },
+  );
+
+  testWidgets('graphics changes require confirmation before dispatch', (
     tester,
   ) async {
-    final dgpuRepository = await _pumpPage(
+    final repository = await _pumpPage(tester, width: 900, processes: const []);
+
+    final action = find.byKey(const ValueKey('set-graphics-hybrid-igpu-only'));
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Switch to Hybrid iGPU-only'), findsOneWidget);
+    expect(find.textContaining('Disconnect external displays'), findsOneWidget);
+    verifyNever(() => repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly));
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Switch mode'));
+    await tester.pumpAndSettle();
+    verify(
+      () => repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
+    ).called(1);
+  });
+
+  testWidgets('graphics status stays visible when NVIDIA is detached', (
+    tester,
+  ) async {
+    await _pumpPage(
       tester,
-      width: 900,
+      width: 420,
       processes: const [],
+      dgpuAvailable: false,
+      graphicsModeStatus: _igpuOnlyStatus,
     );
 
-    final hybrid = find.byKey(const ValueKey('graphics-mode-hybrid'));
-    await tester.ensureVisible(hybrid);
-    await tester.tap(hybrid);
-    await tester.pumpAndSettle();
-    expect(find.text('Configure Hybrid'), findsNothing);
-    verifyNever(() => dgpuRepository.setHybridMode(any()));
+    expect(find.text('Graphics mode'), findsOneWidget);
+    expect(find.text('Hybrid iGPU-only'), findsNWidgets(2));
+    expect(find.text('Detached'), findsNWidgets(2));
+    expect(find.text('Discrete GPU detached'), findsOneWidget);
+    expect(find.text('GPU unavailable'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
-    final integrated = find.byKey(
-      const ValueKey('graphics-mode-integratedOnly'),
+  testWidgets('graphics controls fail closed without authoritative status', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 420,
+      processes: const [],
+      graphicsModeStatus: null,
     );
-    await tester.ensureVisible(integrated);
-    final integratedControl = tester.widget<YaruRadio>(
-      find.byKey(const ValueKey('graphics-mode-integratedOnly-control')),
-    );
-    expect(integratedControl.onChanged, isNull);
-    await tester.tap(integrated, warnIfMissed: false);
-    await tester.pumpAndSettle();
-    expect(find.text('Configure Integrated only'), findsNothing);
-    verifyNever(() => dgpuRepository.setHybridMode(any()));
 
-    final discrete = find.byKey(const ValueKey('graphics-mode-discreteOnly'));
-    await tester.ensureVisible(discrete);
-    await tester.tap(discrete);
-    await tester.pumpAndSettle();
-    expect(find.text('Configure Discrete only'), findsOneWidget);
-    expect(find.textContaining('A reboot is required'), findsOneWidget);
-    await tester.tap(find.text('Configure mode'));
-    await tester.pumpAndSettle();
-    verify(() => dgpuRepository.setHybridMode(false)).called(1);
-    expect(find.textContaining('Graphics mode configured'), findsNothing);
+    expect(
+      find.textContaining(
+        'Authoritative combined graphics status is unavailable',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('set-graphics-hybrid')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('set-graphics-hybrid-igpu-only')),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('set-graphics-discrete')), findsNothing);
   });
 
   testWidgets('GPU identity uses the reported vendor mark', (tester) async {
@@ -178,6 +236,8 @@ Future<_MockDgpuRepository> _pumpPage(
   required double width,
   required List<DgpuProcess> processes,
   String gpuName = 'NVIDIA GeForce RTX 4060',
+  bool dgpuAvailable = true,
+  GraphicsModeStatus? graphicsModeStatus = _hybridStatus,
 }) async {
   tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 1;
@@ -187,21 +247,35 @@ Future<_MockDgpuRepository> _pumpPage(
   final dgpuRepository = _MockDgpuRepository();
   when(dgpuRepository.loadSnapshot).thenAnswer(
     (_) async => DgpuSnapshot(
-      isActive: true,
+      isActive: dgpuAvailable ? true : null,
       processes: processes,
-      pciAddress: '0000:01:00.0',
-      hybridModeEnabled: true,
-      hybridModeSupported: true,
+      pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
+      graphicsModeStatus: graphicsModeStatus,
       name: 'NVIDIA Corporation AD107M',
     ),
   );
-  when(() => dgpuRepository.setHybridMode(any())).thenAnswer((_) async {});
+  when(dgpuRepository.loadSnapshotAfterGraphicsWrite).thenAnswer(
+    (_) async => DgpuSnapshot(
+      isActive: dgpuAvailable ? true : null,
+      processes: processes,
+      pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
+      graphicsModeStatus: graphicsModeStatus,
+      name: 'NVIDIA Corporation AD107M',
+    ),
+  );
+  for (final mode in const [
+    GraphicsMode.hybrid,
+    GraphicsMode.hybridIgpuOnly,
+    GraphicsMode.discrete,
+  ]) {
+    when(() => dgpuRepository.setGraphicsMode(mode)).thenAnswer((_) async {});
+  }
   final dgpuBloc = DgpuBloc(
     repository: dgpuRepository,
     pollInterval: const Duration(days: 1),
   );
   final dgpuLoaded = dgpuBloc.stream.firstWhere(
-    (state) => !state.isLoading && state.isAvailable,
+    (state) => !state.isLoading && state.hasLoaded,
   );
   dgpuBloc.add(const DgpuStarted());
   await dgpuLoaded;
@@ -310,4 +384,37 @@ const _powerSnapshot = PowerSnapshot(
   powerLimits: [],
   cpuOverclockEnabled: null,
   gpuOverclockEnabled: false,
+);
+
+const _hybridStatus = GraphicsModeStatus(
+  selectedMode: GraphicsMode.hybrid,
+  effectiveState: DgpuTopology.attached,
+  expectedState: DgpuTopology.attached,
+  reconciliation: GraphicsReconciliation.settled,
+  clientInspectionComplete: false,
+  activeClients: [],
+  availableModes: GraphicsMode.values,
+  reconciliationAttempts: null,
+);
+
+const _autoStatus = GraphicsModeStatus(
+  selectedMode: GraphicsMode.hybridAuto,
+  effectiveState: DgpuTopology.attached,
+  expectedState: DgpuTopology.attached,
+  reconciliation: GraphicsReconciliation.settled,
+  clientInspectionComplete: false,
+  activeClients: [],
+  availableModes: GraphicsMode.values,
+  reconciliationAttempts: null,
+);
+
+const _igpuOnlyStatus = GraphicsModeStatus(
+  selectedMode: GraphicsMode.hybridIgpuOnly,
+  effectiveState: DgpuTopology.detached,
+  expectedState: DgpuTopology.detached,
+  reconciliation: GraphicsReconciliation.settled,
+  clientInspectionComplete: false,
+  activeClients: [],
+  availableModes: GraphicsMode.values,
+  reconciliationAttempts: null,
 );

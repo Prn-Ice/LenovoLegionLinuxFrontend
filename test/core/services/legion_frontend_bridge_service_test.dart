@@ -78,6 +78,10 @@ void main() {
       const LegionControlBusyException('busy'): LegionBridgeErrorCode.busy,
       const LegionControlTimeoutException('timeout'):
           LegionBridgeErrorCode.timeout,
+      const LegionControlGraphicsBlockedException('blocked'):
+          LegionBridgeErrorCode.graphicsBlocked,
+      const LegionControlGraphicsPendingException('pending'):
+          LegionBridgeErrorCode.graphicsPending,
     };
     for (final entry in cases.entries) {
       final transport = _Transport()..failure = entry.key;

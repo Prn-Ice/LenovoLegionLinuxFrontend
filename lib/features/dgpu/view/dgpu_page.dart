@@ -21,6 +21,7 @@ import '../bloc/dgpu_bloc.dart';
 import '../bloc/dgpu_event.dart';
 import '../bloc/dgpu_state.dart';
 import '../models/dgpu_process.dart';
+import '../models/graphics_mode.dart';
 import '../providers/dgpu_provider.dart';
 
 class DgpuPage extends ConsumerStatefulWidget {
@@ -62,14 +63,30 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           sensorState.errorMessage ??
           analytics.errorMessage,
       children: [
-        if (!state.isAvailable)
+        if (!state.isAvailable) ...[
+          _GraphicsModeCard(
+            state: state,
+            onModeSelected: (mode) =>
+                _setGraphicsMode(context, bloc, state, mode),
+          ),
+          const SizedBox(height: 16),
           AppControlCard(
-            icon: Icons.memory,
-            title: 'GPU unavailable',
+            icon: YaruIcons.video,
+            title:
+                state.graphicsModeStatus?.effectiveState ==
+                    DgpuTopology.detached
+                ? 'Discrete GPU detached'
+                : 'GPU unavailable',
             children: [
-              const Text(
-                'No NVIDIA display controller with runtime power management '
-                'was found. Hybrid mode and NVIDIA drivers are required.',
+              Text(
+                state.graphicsModeStatus?.effectiveState ==
+                        DgpuTopology.detached
+                    ? 'The selected graphics policy currently expects the '
+                          'NVIDIA dGPU to be absent. AMD graphics can continue '
+                          'driving the internal display.'
+                    : 'No NVIDIA display controller with runtime power '
+                          'management was found. Refresh after checking the '
+                          'driver and graphics policy.',
               ),
               const SizedBox(height: 12),
               AppRefreshButton(
@@ -77,8 +94,8 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                 onPressed: () => bloc.add(const DgpuRefreshRequested()),
               ),
             ],
-          )
-        else ...[
+          ),
+        ] else ...[
           _GpuOverview(state: state, sensor: sensorState.snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
@@ -113,8 +130,8 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           const SizedBox(height: 16),
           _GraphicsModeCard(
             state: state,
-            accent: accent,
-            onModeChanged: (mode) => _setGraphicsMode(context, bloc, mode),
+            onModeSelected: (mode) =>
+                _setGraphicsMode(context, bloc, state, mode),
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -169,20 +186,33 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
   Future<void> _setGraphicsMode(
     BuildContext context,
     DgpuBloc bloc,
-    _GraphicsMode mode,
+    DgpuState state,
+    GraphicsMode mode,
   ) async {
-    if (mode == _GraphicsMode.integratedOnly) return;
-    final hybridEnabled = mode == _GraphicsMode.hybrid;
+    final message = switch (mode) {
+      GraphicsMode.hybrid =>
+        'This restores normal Hybrid graphics and requests that the NVIDIA '
+            'dGPU is attached. A MUX policy change may require a reboot. Save '
+            'your work before continuing.',
+      GraphicsMode.hybridIgpuOnly =>
+        'This can remove the NVIDIA dGPU from the running system. Disconnect '
+            'external displays, save your work, and close GPU-accelerated '
+            'applications first. The privileged backend will inspect clients '
+            'again and block the write if detaching is unsafe.',
+      GraphicsMode.discrete =>
+        'This selects the NVIDIA dGPU as the discrete graphics path. The MUX '
+            'change requires a reboot. Save your work before continuing.',
+      GraphicsMode.hybridAuto => '',
+    };
+    if (mode == GraphicsMode.hybridAuto || state.isApplying) return;
     final confirmed = await confirmPrivilegedAction(
       context,
-      title: 'Configure ${mode.label}',
-      message:
-          '${mode.confirmation} A reboot is required before the new graphics '
-          'mode takes effect.',
-      confirmLabel: 'Configure mode',
+      title: 'Switch to ${mode.label}',
+      message: message,
+      confirmLabel: 'Switch mode',
     );
     if (!context.mounted || !confirmed) return;
-    bloc.add(HybridModeSetRequested(hybridEnabled));
+    bloc.add(DgpuGraphicsModeSetRequested(mode));
   }
 
   Future<void> _killProcesses(
@@ -275,11 +305,7 @@ class _GpuOverview extends StatelessWidget {
                     ),
                     Text(
                       'Discrete GPU · '
-                      '${state.hybridModeEnabled == true
-                          ? 'Hybrid configured'
-                          : state.hybridModeEnabled == false
-                          ? 'Discrete-only configured'
-                          : 'Graphics mode unknown'}',
+                      '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'} policy',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -531,58 +557,19 @@ class _ProcessesCard extends StatelessWidget {
   }
 }
 
-enum _GraphicsMode {
-  hybrid(
-    label: 'Hybrid',
-    description: 'The iGPU handles the desktop; the dGPU wakes when needed.',
-    confirmation:
-        'Hybrid mode lets the iGPU handle normal work and keeps the dGPU available on demand.',
-  ),
-  integratedOnly(
-    label: 'Integrated only',
-    description:
-        'Lowest-power mode. Driver support is required; dGPU-wired display ports may be unavailable.',
-    confirmation: '',
-  ),
-  discreteOnly(
-    label: 'Discrete only',
-    description:
-        'The dGPU remains primary for maximum compatibility and performance.',
-    confirmation:
-        'Discrete-only mode keeps the dGPU as the primary graphics device and increases power use.',
-  );
-
-  const _GraphicsMode({
-    required this.label,
-    required this.description,
-    required this.confirmation,
-  });
-
-  final String label;
-  final String description;
-  final String confirmation;
-}
-
 class _GraphicsModeCard extends StatelessWidget {
-  const _GraphicsModeCard({
-    required this.state,
-    required this.accent,
-    required this.onModeChanged,
-  });
+  const _GraphicsModeCard({required this.state, required this.onModeSelected});
 
   final DgpuState state;
-  final Color accent;
-  final ValueChanged<_GraphicsMode> onModeChanged;
+  final ValueChanged<GraphicsMode> onModeSelected;
 
   @override
   Widget build(BuildContext context) {
-    final configuredMode = state.hybridModeEnabled == null
-        ? null
-        : state.hybridModeEnabled!
-        ? _GraphicsMode.hybrid
-        : _GraphicsMode.discreteOnly;
+    final scheme = Theme.of(context).colorScheme;
+    final status = state.graphicsModeStatus;
 
     return SurfaceCard(
+      key: const ValueKey('graphics-mode-status'),
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,39 +584,178 @@ class _GraphicsModeCard extends StatelessWidget {
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              Text(
-                configuredMode == null
-                    ? 'Unavailable'
-                    : 'Configured: ${configuredMode.label}',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: configuredMode == null
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
-                      : accent,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              _ReconciliationBadge(status: status),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Choose the graphics configuration for the next boot.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            'Firmware policy and observed NVIDIA topology are reported '
+            'separately.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 10),
-          for (var index = 0; index < _GraphicsMode.values.length; index++) ...[
-            if (index > 0) const Divider(height: 1),
-            _GraphicsModeTile(
-              mode: _GraphicsMode.values[index],
-              configuredMode: configuredMode,
-              accent: accent,
-              enabled:
-                  _GraphicsMode.values[index] != _GraphicsMode.integratedOnly &&
-                  state.hybridModeSupported &&
-                  !state.isApplying,
-              onChanged: onModeChanged,
+          const SizedBox(height: 16),
+          if (status == null)
+            Text(
+              'Authoritative combined graphics status is unavailable. Legacy '
+              'Hybrid controls are disabled because they cannot distinguish '
+              'iGPU-only or Auto policy.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            )
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 620 ? 4 : 2;
+                final spacing = 16.0;
+                final width =
+                    (constraints.maxWidth - spacing * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: 14,
+                  children: [
+                    _GraphicsFact(
+                      width: width,
+                      label: 'Selected policy',
+                      value: status.selectedMode.label,
+                    ),
+                    _GraphicsFact(
+                      width: width,
+                      label: 'Effective dGPU',
+                      value: status.effectiveState.label,
+                    ),
+                    _GraphicsFact(
+                      width: width,
+                      label: 'Expected dGPU',
+                      value: status.expectedState.label,
+                    ),
+                    _GraphicsFact(
+                      width: width,
+                      label: 'Reconciliation',
+                      value: status.reconciliation.label,
+                    ),
+                  ],
+                );
+              },
             ),
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Text(
+              'Firmware reports',
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              status.availableModes.map((mode) => mode.label).join('  ·  '),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              status.clientInspectionComplete
+                  ? '${status.activeClients.length} dGPU device client(s) '
+                        'observed by the backend.'
+                  : 'Client inspection is limited in this desktop view. A '
+                        'privileged preflight is required before any detach.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            if (status.selectedMode == GraphicsMode.hybridAuto) ...[
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(YaruIcons.warning, size: 18, color: scheme.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Hybrid Auto can eject the dGPU after AC is unplugged, '
+                      'even while desktop applications are using it. Return to '
+                      'Hybrid from a TTY before normal use.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (status.reconciliation != GraphicsReconciliation.settled) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Selected policy and observed topology are not settled. Do not '
+                'treat the requested graphics mode as active.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.warning),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Text(
+              'Change policy',
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              'Every change uses privileged preflight and authoritative '
+              'readback. Hybrid Auto remains status-only.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final mode in const [
+                  GraphicsMode.hybrid,
+                  GraphicsMode.hybridIgpuOnly,
+                  GraphicsMode.discrete,
+                ])
+                  if (status.availableModes.contains(mode))
+                    OutlinedButton.icon(
+                      key: ValueKey('set-graphics-${mode.wireValue}'),
+                      onPressed:
+                          state.isApplying ||
+                              (mode == status.selectedMode &&
+                                  status.reconciliation ==
+                                      GraphicsReconciliation.settled)
+                          ? null
+                          : () => onModeSelected(mode),
+                      icon: Icon(
+                        mode == status.selectedMode
+                            ? YaruIcons.ok
+                            : YaruIcons.chip,
+                        size: 17,
+                      ),
+                      label: Text(mode.label),
+                    ),
+              ],
+            ),
+            if (state.applyingGraphicsMode != null) ...[
+              const SizedBox(height: 10),
+              const Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Applying policy and verifying GPU topology...',
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ],
       ),
@@ -637,52 +763,69 @@ class _GraphicsModeCard extends StatelessWidget {
   }
 }
 
-class _GraphicsModeTile extends StatelessWidget {
-  const _GraphicsModeTile({
-    required this.mode,
-    required this.configuredMode,
-    required this.accent,
-    required this.enabled,
-    required this.onChanged,
+class _GraphicsFact extends StatelessWidget {
+  const _GraphicsFact({
+    required this.width,
+    required this.label,
+    required this.value,
   });
 
-  final _GraphicsMode mode;
-  final _GraphicsMode? configuredMode;
-  final Color accent;
-  final bool enabled;
-  final ValueChanged<_GraphicsMode> onChanged;
+  final double width;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    final ValueChanged<_GraphicsMode?>? handleChanged = enabled
-        ? (value) {
-            if (value != null && value != configuredMode) onChanged(value);
-          }
-        : null;
-
-    return YaruRadioListTile<_GraphicsMode>(
-      key: ValueKey('graphics-mode-${mode.name}'),
-      value: mode,
-      groupValue: configuredMode,
-      onChanged: handleChanged,
-      control: YaruRadio<_GraphicsMode>(
-        key: ValueKey('graphics-mode-${mode.name}-control'),
-        value: mode,
-        groupValue: configuredMode,
-        onChanged: handleChanged,
-        selectedColor: accent,
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: width,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 2),
+          Text(value, style: Theme.of(context).textTheme.titleSmall),
+        ],
       ),
-      title: Text(mode.label),
-      subtitle: Text(mode.description),
-      secondary: mode == _GraphicsMode.integratedOnly
-          ? Text(
-              'Unavailable',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            )
-          : null,
-      contentPadding: EdgeInsets.zero,
+    );
+  }
+}
+
+class _ReconciliationBadge extends StatelessWidget {
+  const _ReconciliationBadge({required this.status});
+
+  final GraphicsModeStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final settled = status?.reconciliation == GraphicsReconciliation.settled;
+    final color = status == null
+        ? scheme.onSurfaceVariant
+        : settled
+        ? const Color(0xff3FBF6F)
+        : scheme.warning;
+    final label = status?.reconciliation.label ?? 'Unavailable';
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
     );
   }
 }
