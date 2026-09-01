@@ -179,6 +179,7 @@ in
       systemd.services.nvidia-container-toolkit-cdi-generator =
         lib.mkIf config.hardware.nvidia-container-toolkit.enable
           {
+            before = [ "docker.service" ];
             serviceConfig.ExecCondition = nvidiaPciPresent;
           };
     })
