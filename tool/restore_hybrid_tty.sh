@@ -68,6 +68,12 @@ journalctl -k -b --since "$STARTED_AT" --no-pager \
   | grep -Ei 'nvidia|drm|pcie|pci|acpi|legion|snd_hda' || true
 
 if [[ "$result" -eq 0 ]]; then
+  if systemctl cat nvidia-container-toolkit-cdi-generator.service >/dev/null 2>&1; then
+    printf '\nRegenerating NVIDIA container CDI state.\n'
+    if ! sudo systemctl restart nvidia-container-toolkit-cdi-generator.service; then
+      printf 'WARNING: NVIDIA CDI regeneration failed; desktop recovery can continue.\n' >&2
+    fi
+  fi
   printf '\nHybrid topology is settled. Starting the display manager.\n'
   transition_requested=0
   sudo systemctl start display-manager.service
