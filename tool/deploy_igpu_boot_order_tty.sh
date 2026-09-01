@@ -19,24 +19,11 @@ esac
 [[ $("$CLI" --donotexpecthwmon graphics-mode status) == "hybrid-igpu-only" ]] ||
   fail "Expected Hybrid iGPU-only to be selected before deployment."
 
-if systemctl is-active --quiet display-manager.service; then
-  fail "Stop the display manager before deploying the boot-order fix."
-fi
-
 sudo -v
-sudo nixos-rebuild switch --flake "$FLAKE"
-sudo systemctl restart legion-graphics-reconcile.service
-sudo systemctl restart nvidia-container-toolkit-cdi-generator.service
+sudo nixos-rebuild boot --flake "$FLAKE"
 
-printf '\nGraphics reconciliation:\n'
+printf '\nCurrent graphics state:\n'
 sudo "$CLI" --donotexpecthwmon graphics-mode status --json
-printf '\nService state:\n'
-systemctl --no-pager show \
-  legion-graphics-reconcile.service \
-  nvidia-container-toolkit-cdi-generator.service \
-  --property=Id \
-  --property=ActiveState \
-  --property=SubState \
-  --property=Result \
-  --property=ExecMainStatus \
-  --property=ConditionResult
+printf '\nInstalled boot system:\n'
+readlink -f /nix/var/nix/profiles/system
+printf '\nReboot to validate reconciliation before CDI and the display manager.\n'
