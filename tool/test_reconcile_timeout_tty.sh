@@ -79,6 +79,21 @@ trap cleanup EXIT
 
 sudo systemctl stop "$DISPLAY_UNIT"
 display_manager_stopped=1
+systemctl --user stop graphical-session.target plasma-workspace-wayland.target
+
+while read -r session_id _; do
+  session_type=$(loginctl show-session "$session_id" --property=Type --value 2>/dev/null || true)
+  if [[ "$session_type" == "wayland" || "$session_type" == "x11" ]]; then
+    sudo loginctl terminate-session "$session_id"
+  fi
+done < <(loginctl list-sessions --no-legend)
+
+sleep 5
+
+if systemctl --user is-active --quiet plasma-kwin_wayland.service; then
+  fail "The graphical session did not stop before the timeout probe."
+fi
+
 sudo systemctl stop "$RECONCILE_UNIT"
 
 printf '[Service]\nTimeoutStartSec=1ms\n' |
