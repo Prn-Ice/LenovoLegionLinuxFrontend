@@ -45,12 +45,34 @@ The evidence does not yet distinguish these phases:
 4. The final ACPI S5 transition stalled after all kernel callbacks completed.
 
 The root-port power-state refusal makes the PCI or firmware phases plausible,
-but it is not proof. Backend revision `dec5983` now requires every NVIDIA PCI
+but it is not proof. Backend revision `dec5983` requires every NVIDIA PCI
 function to disappear, checks NVIDIA HDMI-audio clients, reports final observed
 availability to firmware, and revalidates delayed WMI callbacks against driver
-removal. That revision is built and pinned for the next boot but has not yet
-been validated on hardware. Do not repeat the detached poweroff test on the
-currently booted generation.
+removal.
+
+## Hardened Retest Result
+
+Generation 465 validated backend revision `dec5983` on hardware on 2026-09-02.
+The guarded transition reached settled Hybrid iGPU-only state with complete root
+client inspection, no active clients, and no NVIDIA PCI functions. Both the
+pre-poweroff and final-target snapshots showed the NVIDIA root port suspended in
+`D3cold` rather than refusing `D0` to `D3hot`.
+
+The instrumented detached poweroff then completed normally. The final-target
+snapshot contained no failed units, active swaps, process locks, or persistent
+uninterruptible tasks. Its process listing briefly sampled one kworker in
+`synchronize_rcu_normal`, but the subsequent per-task scan found no task still
+in disk sleep and shutdown completed immediately afterward. NVIDIA modules and
+their sleeping kernel threads remained loaded, while the NVIDIA devices were
+absent.
+
+The next boot had no filesystem recovery, I/O errors, failed units, or pstore
+record. Early reconciliation restored the selected Hybrid iGPU-only policy and
+settled detached after six attempts. The original stall therefore did not
+reproduce after backend hardening and complete graphical/audio client
+quiescing. Its precise root cause remains unknown, so a future recurrence needs
+fresh console or pstore evidence rather than attribution to the transient
+kworker.
 
 ## Safe Evidence Capture
 
