@@ -108,6 +108,13 @@ user PipeWire/WirePlumber services and sockets after ending the graphical
 session. It restores audio after confirmed detach or a pre-write block, but
 leaves audio and the display manager stopped if topology becomes uncertain.
 
+After a confirmed detach, Plasma can reopen the persistent `/dev/nvidiactl`
+node even though every NVIDIA PCI function is absent. Detached diagnostic
+arming therefore stops the display manager, graphical login session, and user
+audio services before repeating the root client check. A failed arm restores
+the session automatically; a successful arm leaves it quiesced for poweroff.
+The `disarm` command now restores the session as well.
+
 To cancel the runtime instrumentation before poweroff:
 
 ```bash

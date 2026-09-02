@@ -6,6 +6,31 @@ RUNTIME_SCRIPT="/run/legion-shutdown-diagnostics.sh"
 RUNTIME_UNIT="/run/systemd/system/legion-shutdown-diagnostics.service"
 RUNTIME_WANTS="/run/systemd/system/final.target.wants/legion-shutdown-diagnostics.service"
 EVIDENCE_ROOT="/var/log/legion-shutdown-diagnostics"
+display_manager_stopped=0
+audio_services_stopped=0
+diagnostics_armed=0
+
+restart_user_audio() {
+  systemctl --user start \
+    pipewire.socket pipewire-pulse.socket \
+    pipewire.service wireplumber.service pipewire-pulse.service
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ "$display_manager_stopped" -eq 1 && "$diagnostics_armed" -eq 0 ]]; then
+    printf '\nArming did not complete; restoring the user session.\n' >&2
+    sudo rm -f "$RUNTIME_WANTS" "$RUNTIME_UNIT" "$RUNTIME_SCRIPT" || true
+    sudo systemctl daemon-reload || true
+    if [[ "$audio_services_stopped" -eq 1 ]]; then
+      restart_user_audio || true
+    fi
+    sudo systemctl start display-manager.service || true
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
 
 fail() {
   printf 'ERROR: %s\n' "$1" >&2
@@ -107,7 +132,9 @@ esac
 if [[ ${1:-} == "disarm" ]]; then
   sudo rm -f "$RUNTIME_WANTS" "$RUNTIME_UNIT" "$RUNTIME_SCRIPT"
   sudo systemctl daemon-reload
-  printf 'Late shutdown diagnostics disarmed. Existing evidence was retained in %s.\n' "$EVIDENCE_ROOT"
+  restart_user_audio
+  sudo systemctl start display-manager.service
+  printf 'Late shutdown diagnostics disarmed and the user session restored. Existing evidence was retained in %s.\n' "$EVIDENCE_ROOT"
   exit 0
 fi
 
@@ -141,10 +168,37 @@ else
     fail "The detached capture requires Hybrid iGPU-only policy."
   [[ "$graphics_state" == *'"effective_dgpu_state": "detached"'* ]] ||
     fail "The detached capture requires a detached dGPU."
+
+  printf 'Stopping the graphical session and user audio before the final root client check.\n'
+  display_manager_stopped=1
+  sudo systemctl stop display-manager.service
+  systemctl --user stop graphical-session.target
+  while read -r session_id _; do
+    session_type=$(loginctl show-session "$session_id" --property=Type --value 2>/dev/null || true)
+    if [[ "$session_type" == "wayland" || "$session_type" == "x11" ]]; then
+      sudo loginctl terminate-session "$session_id"
+    fi
+  done < <(loginctl list-sessions --no-legend)
+
+  audio_services_stopped=1
+  systemctl --user stop \
+    pipewire-pulse.socket pipewire.socket \
+    wireplumber.service pipewire-pulse.service pipewire.service
+  sleep 5
+
+  graphics_state=$(sudo "$CLI" --donotexpecthwmon graphics-mode status --json)
+  [[ "$graphics_state" == *'"reconciliation": "settled"'* ]] ||
+    fail "Graphics topology changed while quiescing the user session."
+  [[ "$graphics_state" == *'"selected_mode": "hybrid-igpu-only"'* ]] ||
+    fail "Graphics policy changed while quiescing the user session."
+  [[ "$graphics_state" == *'"effective_dgpu_state": "detached"'* ]] ||
+    fail "The dGPU is no longer fully detached after quiescing the user session."
   [[ "$graphics_state" == *'"client_inspection_complete": true'* ]] ||
     fail "Root dGPU client inspection must be complete."
-  [[ "$graphics_state" == *'"active_clients": []'* ]] ||
-    fail "The detached capture requires zero active dGPU clients."
+  if [[ "$graphics_state" != *'"active_clients": []'* ]]; then
+    printf 'Root graphics status after stopping the user session:\n%s\n' "$graphics_state" >&2
+    fail "The detached capture still has active dGPU clients."
+  fi
 fi
 
 started_at=$(date --iso-8601=seconds)
@@ -184,6 +238,7 @@ if ! sudo systemctl start "${RUNTIME_UNIT##*/}" ||
   fail "The runtime final.target snapshot smoke test failed; diagnostics were disarmed."
 fi
 sudo rm -rf "$evidence_dir/final-target"
+diagnostics_armed=1
 
 printf '\n============================================================\n'
 printf 'DIAGNOSTICS ARMED. SHUTDOWN HAS NOT STARTED.\n'
@@ -193,6 +248,9 @@ printf 'Pre-poweroff evidence: %s/pre-poweroff\n' "$evidence_dir"
 printf 'The late snapshot will be written to: %s/final-target\n' "$evidence_dir"
 printf 'The exact runtime unit invocation passed a non-disruptive smoke test.\n'
 printf 'This script did not change graphics policy and will not power off the system.\n'
+if [[ "$mode" == "detached" ]]; then
+  printf 'The graphical session and user audio remain stopped for shutdown.\n'
+fi
 printf '\nNEXT STEP: Film the TTY, then run exactly:\n'
 printf '  sudo systemctl poweroff\n\n'
 printf 'To cancel before poweroff, run: %s disarm\n' "$script_path"
