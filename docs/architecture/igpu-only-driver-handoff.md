@@ -316,13 +316,43 @@ Do not hibernate while Hybrid iGPU-only is selected. Two attempts on
   policy to detached in six attempts before starting SDDM, with no failed units
   or pstore record.
 
-The kernel's pre-image `pm_wakeup_pending()` check is the path that can return
-successfully without writing an image, which matches the observed silent
-rollback. ACPI wake for `GPP0` / PCI root port `0000:00:01.1` is enabled, and
-NVIDIA hotplug coincides with that rollback. This makes the root-port wake path
-the leading hypothesis, not a proven cause. Do not repeat the test or toggle
-the wake source until diagnostics can survive the failed S4 path and an aborted
-hibernate can reconcile topology before the graphical session thaws.
+The firmware tables establish why the detached dGPU returns during platform
+hibernation. The captured DSDT header (`LENOVO CB-01`, length `0x1CE26`) matches
+the table reported by both failed boots and the current BIOS:
+
+- `\_SB.PCI0.GPP0._PRW` declares GPE `0x08` as an S4 wake source when firmware
+  field `WKPM` is enabled. `/proc/acpi/wakeup` confirms that this method maps to
+  enabled PCI root port `0000:00:01.1` on the running system.
+- The global ACPI `_PTS` method handles S4 (`Arg0 == 0x04`) by calling
+  `DGHP(One)` before marking the embedded-controller S4 state.
+- `DGHP(One)` sets the firmware dGPU-present state, calls
+  `\_SB.PCI0.GPP0.PG00._ON()`, waits 100 ms, and issues a bus-check notification
+  for `GPP0.PEGP`.
+- `PG00._ON()` performs the physical dGPU power-on sequence and waits until the
+  endpoint reports NVIDIA vendor ID `0x10de`.
+
+Linux platform hibernation invokes ACPI preparation from
+`acpi_hibernation_ops.pre_snapshot` before `create_image()` checks
+`pm_wakeup_pending()`. The firmware-induced power-on and bus check therefore
+explain the immediate `Card present`, `Link Up`, and PME messages in both failed
+boots. No other enabled S4 wake device logged an event in either failure window.
+The exact kernel wakeup-source object or IRQ was not printed because
+`pm_debug_messages` was disabled, but the firmware action and resulting GPP0
+hotplug are established as the trigger for the pre-image rollback.
+
+The first evidence-backed workaround candidate is systemd
+`HibernateMode=shutdown`. Linux shutdown-mode hibernation bypasses the ACPI
+platform pre-snapshot callbacks, writes the image, and powers off through the
+normal shutdown path, so `_PTS(4)` should not reattach the dGPU. This remains
+unvalidated. Disabling `GPP0` wake is not the preferred first experiment:
+firmware would still power on the dGPU while the kernel device topology is
+frozen.
+
+Do not retry platform-mode hibernation. Before any shutdown-mode validation,
+enable `pm_debug_messages` and `pm_print_times`, preserve the preflight state,
+and prepare immediate root capture of `/sys/kernel/debug/wakeup_sources`,
+`/sys/power/pm_wakeup_irq`, graphics topology, and the kernel journal if the
+operation returns instead of powering off.
 
 The following acceptance items remain open:
 
