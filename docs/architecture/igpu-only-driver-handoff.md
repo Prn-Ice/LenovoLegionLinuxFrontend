@@ -292,12 +292,51 @@ The tests establish these safety constraints:
    `00:08.1` spurious PME interrupts did not prevent tested transitions, but
    remain residual warnings rather than validated harmless behavior.
 
+### Hibernate failure on generation 465
+
+Do not hibernate while Hybrid iGPU-only is selected. Two attempts on
+2026-09-02 failed with the same sequence:
+
+- Boot `1b5154c8` requested hibernation at 09:10:57. The kernel entered the
+  hibernation path at monotonic 2962.114, but rolled back during S4 snapshot
+  preparation before creating an image or reaching platform power-down. At
+  monotonic 2973.482 the NVIDIA root port reported `Card present` and `Link
+  Up`; systemd reported that hibernation had returned after 12.647 seconds of
+  monotonic wall time.
+- Boot `bc895c16` requested hibernation at 09:20:10. The pre-image S4 path
+  rolled back again. The NVIDIA slot became present at monotonic 148.093, and
+  systemd reported a return after 9.786 seconds.
+- Both returns re-enumerated the NVIDIA VGA and audio functions and loaded
+  NVIDIA DRM into the thawed AMD-only Wayland session. KWin then logged failed
+  DRM lessee queries, output configuration, EGL initialization, and `card0`
+  access before the display became unusable.
+- Both attempts required forced shutdown. The first subsequent boot attempt
+  visibly stalled at GRUB or kernel text before persistent journaling; the
+  second boot succeeded. Boot `76d2cb91` then reconciled the selected iGPU-only
+  policy to detached in six attempts before starting SDDM, with no failed units
+  or pstore record.
+
+The kernel's pre-image `pm_wakeup_pending()` check is the path that can return
+successfully without writing an image, which matches the observed silent
+rollback. ACPI wake for `GPP0` / PCI root port `0000:00:01.1` is enabled, and
+NVIDIA hotplug coincides with that rollback. This makes the root-port wake path
+the leading hypothesis, not a proven cause. Do not repeat the test or toggle
+the wake source until diagnostics can survive the failed S4 path and an aborted
+hibernate can reconcile topology before the graphical session thaws.
+
+The NixOS module can install a post-sleep reconciliation hook with
+`services.legionControl.reconcileGraphicsAfterSleep`. It defaults to the value
+of `reconcileGraphicsAtBoot`. The hook runs while systemd still has user
+sessions frozen, has a fixed 40-second timeout, and uses the same root-complete
+client safety gates as boot reconciliation. This limits damage after an abort;
+it does not fix or authorize another hibernate test.
+
 The following acceptance items remain open:
 
-- early-boot reconciliation before graphical login;
 - external HDMI and USB-C routing with physical displays;
-- X11 and hibernate behavior;
-- cold-boot persistence and exercised BIOS/UEFI recovery;
+- X11 behavior;
+- safe resolution of the detached hibernate failure;
+- exercised BIOS/UEFI recovery;
 - comparable idle-power measurements before making battery-life claims.
 
 ## Completion gate
