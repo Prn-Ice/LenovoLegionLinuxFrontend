@@ -16,6 +16,26 @@ let
     done
     exit 1
   '';
+  graphicsHibernateReconcile = pkgs.writeShellScript "legion-graphics-hibernate-reconcile" ''
+    if [[ "''${1:-}" != "post" || "''${SYSTEMD_SLEEP_ACTION:-}" != "hibernate" ]]; then
+      exit 0
+    fi
+
+    export PATH=${
+      lib.makeBinPath [
+        pkgs.bashNonInteractive
+        pkgs.coreutils
+        pkgs.e2fsprogs
+        pkgs.systemd
+        pkgs.util-linux
+      ]
+    }
+
+    ${pkgs.systemd}/bin/udevadm settle --timeout=10 || true
+    exec ${pkgs.coreutils}/bin/timeout --foreground --kill-after=5s 40s \
+      ${control.backendPackage}/bin/legion_cli \
+      --donotexpecthwmon graphics-mode reconcile --json
+  '';
 in
 {
   options.services.legionTelemetry = {
@@ -52,6 +72,16 @@ in
     };
 
     reconcileGraphicsAtBoot = lib.mkEnableOption "graphics-mode reconciliation before graphical login";
+
+    reconcileGraphicsAfterHibernate = lib.mkOption {
+      type = lib.types.bool;
+      default = control.reconcileGraphicsAtBoot;
+      defaultText = lib.literalExpression "config.services.legionControl.reconcileGraphicsAtBoot";
+      description = ''
+        Reconcile graphics topology after hibernate, before systemd thaws user
+        sessions. Ordinary suspend is not affected.
+      '';
+    };
   };
 
   config = lib.mkMerge [
@@ -182,6 +212,10 @@ in
             before = [ "docker.service" ];
             serviceConfig.ExecCondition = nvidiaPciPresent;
           };
+    })
+    (lib.mkIf (control.enable && control.reconcileGraphicsAfterHibernate) {
+      environment.etc."systemd/system-sleep/legion-graphics-hibernate-reconcile".source =
+        graphicsHibernateReconcile;
     })
   ];
 }

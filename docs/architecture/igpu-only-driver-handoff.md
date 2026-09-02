@@ -39,7 +39,8 @@ Plasma Wayland, suspend/resume, live rollback, and Auto AC/battery behavior. A
 guarded iGPU-only transition and rollback both succeeded. Auto also followed AC
 state, but its autonomous delayed eject creates a safety race that prevents it
 from being exposed as a normal frontend action. External displays, X11,
-hibernate, cold boot, and BIOS recovery remain unverified.
+safe post-hibernate graphics reconciliation, cold boot, and BIOS recovery remain
+unverified. Shutdown-mode image creation and same-kernel restoration succeeded.
 
 The hardened kernel and combined CLI implementation is in the driver repository
 at `78f33ee`. The machine was returned to plain Hybrid mode after testing.
@@ -292,7 +293,7 @@ The tests establish these safety constraints:
    `00:08.1` spurious PME interrupts did not prevent tested transitions, but
    remain residual warnings rather than validated harmless behavior.
 
-### Hibernate failure on generation 465
+### Hibernate behavior on generation 465
 
 Do not hibernate while Hybrid iGPU-only is selected. Two attempts on
 2026-09-02 failed with the same sequence:
@@ -342,11 +343,10 @@ hotplug are established as the trigger for the pre-image rollback.
 
 Systemd `HibernateMode=shutdown` was the first evidence-backed workaround
 candidate because Linux bypasses the ACPI platform pre-snapshot callbacks in
-that mode. The controlled test below confirmed that shutdown mode bypasses the
-known `_PTS(4)` path, but a different wakeup-pending condition still prevented
-image creation. Disabling `GPP0` wake is not supported by the evidence from that
-test: `GPP0` recorded no wakeup-source event and the dGPU appeared only after
-the kernel had begun rolling back.
+that mode. The controlled test below confirmed that shutdown mode both bypasses
+the known `_PTS(4)` path and completes image restoration. The remaining failure
+is post-resume graphics topology: the NVIDIA device reappears during kernel
+device restoration and must be reconciled before frozen user sessions resume.
 
 Do not retry platform-mode hibernation. Before any shutdown-mode validation,
 enable `pm_debug_messages` and `pm_print_times`, preserve the preflight state,
@@ -386,26 +386,27 @@ topology.
 The controlled attempt ran in boot `76d2cb91` from 12:40:25 to 12:42:17. The
 frozen pre-hook snapshot proves `/sys/power/disk` selected `[shutdown]`, so ACPI
 platform preparation and `_PTS(4)` were not used. The kernel preallocated
-12,595,068 KiB for the snapshot, froze devices, disabled secondary CPUs, and
-entered `create_image()`, but never logged `Writing hibernation image` and never
-reached `swsusp_write()`. It took the pre-image rollback path after
-`syscore_suspend()`, consistent with the remaining `pm_wakeup_pending()` branch.
+12,595,068 KiB for the snapshot, froze devices, disabled secondary CPUs, passed
+the `pm_wakeup_pending()` check, and entered `swsusp_save()`. The
+`Normal pages needed` message can only be emitted after that check. Systemd's
+write to `/sys/power/state` returned successfully; in shutdown mode the original
+kernel cannot return after `power_down()`, so the successful return with the
+same boot ID is the restored-image path.
 
-The frozen wakeup-source tables show no counter change and specifically no
-event from `0000:00:01.1`. A pre-hook read of `pm_wakeup_irq` returned IRQ `7`,
-but this value existed before the kernel hibernation entry and the post-hook
-reported no data, so it cannot be attributed as the trigger. Diagnostics had
-already been reset by a runner defect and the kernel therefore did not print
-the active or last-active source. The exact wakeup-pending source remains open.
+Wall clock advanced about 93 seconds between the kernel entry and return while
+kernel monotonic time advanced only 11.212 seconds. The roughly 82-second gap is
+the powered-off interval. The missing `Writing hibernation image` and
+`Hibernation image restored successfully` messages are not contrary evidence:
+both are PM-debug messages, and a runner race had restored
+`pm_debug_messages=0` before kernel entry. The pre-existing `pm_wakeup_irq=7`
+record maps to the AMD GPIO parent IRQ and was cleared during the transition; it
+did not abort this hibernate operation.
 
-The NVIDIA card appeared only after interrupts and secondary CPUs were restored:
+The NVIDIA card appeared after interrupts and secondary CPUs were restored:
 `GPP0 Card present`, `Link Up`, and PME were followed by VGA/audio enumeration.
-In shutdown mode this hotplug is a consequence of rollback, not evidence that
-`GPP0` initiated it. MediaTek device `0000:03:00.0` then failed its asynchronous
-`mt7921e` restore with `-ETIMEDOUT` and was recorded in
-`suspend_stats/last_failed_dev`; kernel control flow shows that this recovery
-error occurs after `create_image()` has returned and is not the pre-image
-rollback trigger.
+This is hibernation resume re-enumeration, not a rollback trigger. MediaTek
+device `0000:03:00.0` then failed its asynchronous `mt7921e` restore with
+`-ETIMEDOUT`; that is a separate device-resume defect.
 
 Two instrumentation defects were also established. `systemctl hibernate` is
 asynchronous, so the first runner version checked for post evidence and restored
@@ -420,18 +421,24 @@ CLI execution while user sessions are frozen, and avoids
 because the initial capture runtime-resumed `0000:00:01.1` to D0 and could
 perturb the experiment. Graphical recovery additionally requires complete
 evidence, a successful root graphics inspection, complete client inspection,
-zero clients, and detached/settled topology. These corrections passed formatting,
-syntax, ShellCheck, diff checks, and a full NixOS host build, but have not been
-used for another hibernate attempt.
+zero clients, and detached/settled topology.
 
-The operation returned to the same boot with NVIDIA attached and the graphical
-session intentionally stopped. No hibernation image or poweroff occurred. The
-user manually powered off at 12:49:11 after the unusable return. Current boot
-`eb9dea5f` reconciled back to detached/settled before login and has zero failed
-units. Evidence is preserved at
+The production fix installs a second system-sleep hook when
+`services.legionControl.reconcileGraphicsAfterHibernate` is enabled. It keys on
+`SYSTEMD_SLEEP_ACTION=hibernate`, waits up to 10 seconds for udev, and runs the
+hardened graphics reconciliation with a 40-second timeout during the post phase,
+before systemd thaws `user.slice`. It applies to direct hibernate and the final
+hibernate phase of suspend-then-hibernate while excluding ordinary suspend. The
+option defaults to the existing `reconcileGraphicsAtBoot` setting.
+
+The first successful shutdown-mode resume returned with NVIDIA attached and the
+graphical session intentionally stopped by the test runner. The user manually
+powered off at 12:49:11. Current boot `eb9dea5f` reconciled back to
+detached/settled before login and has zero failed units. Evidence is preserved at
 `/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
-Do not retry either platform or shutdown-mode hibernation while iGPU-only is
-selected.
+The hibernate-only reconciliation fix passes Nix formatting/parsing, option
+evaluation, no-op dispatch checks, and a full NixOS host build. It still requires
+deployment and a controlled resume validation.
 
 The following acceptance items remain open:
 
