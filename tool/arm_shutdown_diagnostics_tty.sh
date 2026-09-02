@@ -117,6 +117,11 @@ case "$1" in
   *) fail "Usage: $0 baseline|detached|disarm" ;;
 esac
 
+sysrq_value=$(< /proc/sys/kernel/sysrq)
+if [[ "$mode" == "detached" && "$sysrq_value" != "1" ]]; then
+  fail "Detached diagnostics require kernel.sysrq=1. Run 'sudo sysctl -w kernel.sysrq=1', then retry."
+fi
+
 [[ -x "$CLI" ]] || fail "Validated CLI is unavailable at $CLI."
 [[ ! -e "$RUNTIME_UNIT" && ! -e "$RUNTIME_SCRIPT" && ! -e "$RUNTIME_WANTS" ]] ||
   fail "Shutdown diagnostics are already armed. Run '$0 disarm' before replacing them."
@@ -192,7 +197,6 @@ printf '\nNEXT STEP: Film the TTY, then run exactly:\n'
 printf '  sudo systemctl poweroff\n\n'
 printf 'To cancel before poweroff, run: %s disarm\n' "$script_path"
 
-sysrq_value=$(< /proc/sys/kernel/sysrq)
 if [[ "$sysrq_value" != "1" ]]; then
   printf 'WARNING: kernel.sysrq=%s; blocked-task keys may be unavailable during a stall.\n' "$sysrq_value" >&2
 fi

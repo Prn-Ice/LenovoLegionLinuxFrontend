@@ -118,7 +118,14 @@ To cancel the runtime instrumentation before poweroff:
 
 For a controlled diagnostic boot, configure full Magic SysRq support before
 testing. The current host value `kernel.sysrq=16` generally permits emergency
-sync but not task dumps. If the console remains responsive during a stall:
+sync but not task dumps. The detached diagnostic guard therefore requires this
+temporary runtime setting before it will arm:
+
+```bash
+sudo sysctl -w kernel.sysrq=1
+```
+
+If the console remains responsive during a stall:
 
 1. Use `Alt+SysRq+w` to show uninterruptible tasks.
 2. Use `Alt+SysRq+t` and `Alt+SysRq+l` if more task and CPU context is needed.
