@@ -354,6 +354,38 @@ and prepare immediate root capture of `/sys/kernel/debug/wakeup_sources`,
 `/sys/power/pm_wakeup_irq`, graphics topology, and the kernel journal if the
 operation returns instead of powering off.
 
+#### Prepared shutdown-mode validation
+
+On 2026-09-02, a hibernate-only diagnostic path was prepared but not activated
+or hardware-tested. The NixOS configuration in
+`Dotfiles/nixos-flaky-tests/hosts/nixos/hardware/hibernate.nix` sets the sole
+systemd `HibernateMode` to `shutdown` and installs
+`scripts/legion-hibernate-diagnostics.sh` as a direct-hibernate-only
+`system-sleep` hook. No lid-switch or ordinary suspend setting was changed.
+
+The configuration is fail-closed at systemd's kernel entrypoint. In systemd
+261.2, each `HibernateMode` assignment replaces the parsed mode list;
+`systemd-sleep` writes the configured mode to `/sys/power/disk` before running
+pre hooks and returns without writing `disk` to `/sys/power/state` if that write
+fails. With only `shutdown` configured, there is no fallback to `platform`.
+
+The hook captures initial, frozen pre-hibernate, and frozen post-hibernate state
+under `/var/log/legion-hibernate-diagnostics`, including authoritative graphics
+status, PCI/root-port state, wakeup sources, wake IRQ, suspend counters,
+processes, failed units, and journals. The guarded runner at
+`tool/test_igpu_only_hibernate_tty.sh` additionally requires a Linux virtual
+console, no external connector, detached/settled iGPU-only topology, complete
+root client inspection with zero dGPU clients, effective
+`HibernateMode=shutdown`, verified `[shutdown]` sysfs selection, and explicit
+`HIBERNATE-SHUTDOWN` confirmation. It quiesces the graphical/audio session and
+restarts it only after a returned operation still reports detached, settled
+topology.
+
+The scripts pass Bash syntax, `shfmt`, and ShellCheck; the NixOS configuration
+passes formatting, evaluation, and a complete host build. Activation requires
+an interactive sudo credential and remains pending. Do not interpret this as a
+successful shutdown-mode hibernate result.
+
 The following acceptance items remain open:
 
 - external HDMI and USB-C routing with physical displays;
