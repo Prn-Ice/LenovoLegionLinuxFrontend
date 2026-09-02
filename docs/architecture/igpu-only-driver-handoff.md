@@ -340,13 +340,13 @@ The exact kernel wakeup-source object or IRQ was not printed because
 `pm_debug_messages` was disabled, but the firmware action and resulting GPP0
 hotplug are established as the trigger for the pre-image rollback.
 
-The first evidence-backed workaround candidate is systemd
-`HibernateMode=shutdown`. Linux shutdown-mode hibernation bypasses the ACPI
-platform pre-snapshot callbacks, writes the image, and powers off through the
-normal shutdown path, so `_PTS(4)` should not reattach the dGPU. This remains
-unvalidated. Disabling `GPP0` wake is not the preferred first experiment:
-firmware would still power on the dGPU while the kernel device topology is
-frozen.
+Systemd `HibernateMode=shutdown` was the first evidence-backed workaround
+candidate because Linux bypasses the ACPI platform pre-snapshot callbacks in
+that mode. The controlled test below confirmed that shutdown mode bypasses the
+known `_PTS(4)` path, but a different wakeup-pending condition still prevented
+image creation. Disabling `GPP0` wake is not supported by the evidence from that
+test: `GPP0` recorded no wakeup-source event and the dGPU appeared only after
+the kernel had begun rolling back.
 
 Do not retry platform-mode hibernation. Before any shutdown-mode validation,
 enable `pm_debug_messages` and `pm_print_times`, preserve the preflight state,
@@ -354,10 +354,10 @@ and prepare immediate root capture of `/sys/kernel/debug/wakeup_sources`,
 `/sys/power/pm_wakeup_irq`, graphics topology, and the kernel journal if the
 operation returns instead of powering off.
 
-#### Prepared shutdown-mode validation
+#### Shutdown-mode validation
 
-On 2026-09-02, a hibernate-only diagnostic path was prepared but not activated
-or hardware-tested. The NixOS configuration in
+On 2026-09-02, a hibernate-only diagnostic path was installed and tested. The
+NixOS configuration in
 `Dotfiles/nixos-flaky-tests/hosts/nixos/hardware/hibernate.nix` sets the sole
 systemd `HibernateMode` to `shutdown` and installs
 `scripts/legion-hibernate-diagnostics.sh` as a direct-hibernate-only
@@ -370,9 +370,11 @@ pre hooks and returns without writing `disk` to `/sys/power/state` if that write
 fails. With only `shutdown` configured, there is no fallback to `platform`.
 
 The hook captures initial, frozen pre-hibernate, and frozen post-hibernate state
-under `/var/log/legion-hibernate-diagnostics`, including authoritative graphics
-status, PCI/root-port state, wakeup sources, wake IRQ, suspend counters,
-processes, failed units, and journals. The guarded runner at
+under `/var/log/legion-hibernate-diagnostics`. The initial capture includes
+authoritative graphics status; the frozen captures use fixed-device presence,
+driver binding, runtime power, wakeup sources, wake IRQ, suspend counters,
+processes, failed units, and journals without probing PCI configuration space.
+The guarded runner at
 `tool/test_igpu_only_hibernate_tty.sh` additionally requires a Linux virtual
 console, no external connector, detached/settled iGPU-only topology, complete
 root client inspection with zero dGPU clients, effective
@@ -381,10 +383,55 @@ root client inspection with zero dGPU clients, effective
 restarts it only after a returned operation still reports detached, settled
 topology.
 
-The scripts pass Bash syntax, `shfmt`, and ShellCheck; the NixOS configuration
-passes formatting, evaluation, and a complete host build. Activation requires
-an interactive sudo credential and remains pending. Do not interpret this as a
-successful shutdown-mode hibernate result.
+The controlled attempt ran in boot `76d2cb91` from 12:40:25 to 12:42:17. The
+frozen pre-hook snapshot proves `/sys/power/disk` selected `[shutdown]`, so ACPI
+platform preparation and `_PTS(4)` were not used. The kernel preallocated
+12,595,068 KiB for the snapshot, froze devices, disabled secondary CPUs, and
+entered `create_image()`, but never logged `Writing hibernation image` and never
+reached `swsusp_write()`. It took the pre-image rollback path after
+`syscore_suspend()`, consistent with the remaining `pm_wakeup_pending()` branch.
+
+The frozen wakeup-source tables show no counter change and specifically no
+event from `0000:00:01.1`. A pre-hook read of `pm_wakeup_irq` returned IRQ `7`,
+but this value existed before the kernel hibernation entry and the post-hook
+reported no data, so it cannot be attributed as the trigger. Diagnostics had
+already been reset by a runner defect and the kernel therefore did not print
+the active or last-active source. The exact wakeup-pending source remains open.
+
+The NVIDIA card appeared only after interrupts and secondary CPUs were restored:
+`GPP0 Card present`, `Link Up`, and PME were followed by VGA/audio enumeration.
+In shutdown mode this hotplug is a consequence of rollback, not evidence that
+`GPP0` initiated it. MediaTek device `0000:03:00.0` then failed its asynchronous
+`mt7921e` restore with `-ETIMEDOUT` and was recorded in
+`suspend_stats/last_failed_dev`; kernel control flow shows that this recovery
+error occurs after `create_image()` has returned and is not the pre-image
+rollback trigger.
+
+Two instrumentation defects were also established. `systemctl hibernate` is
+asynchronous, so the first runner version checked for post evidence and restored
+`pm_debug_messages`/`pm_print_times` immediately after the job was queued. The
+system-sleep hook lacked `bash` in its runtime `PATH`, preventing the privileged
+graphics CLI snapshot. The corrected code requires an initially inactive
+`systemd-hibernate.service`, observes a new nonzero service start timestamp, and
+tracks that invocation until it finishes; `--wait` does not make the normal
+logind hibernate request synchronous. It adds Bash to the hook runtime, skips
+CLI execution while user sessions are frozen, and avoids
+`lspci`, broad PCI sysfs scans, power-state reads, and PCI link attributes
+because the initial capture runtime-resumed `0000:00:01.1` to D0 and could
+perturb the experiment. Graphical recovery additionally requires complete
+evidence, a successful root graphics inspection, complete client inspection,
+zero clients, and detached/settled topology. These corrections passed formatting,
+syntax, ShellCheck, diff checks, and a full NixOS host build, but have not been
+used for another hibernate attempt.
+
+The operation returned to the same boot with NVIDIA attached and the graphical
+session intentionally stopped. No hibernation image or poweroff occurred. The
+user manually powered off at 12:49:11 after the unusable return. Current boot
+`eb9dea5f` reconciled back to detached/settled before login and has zero failed
+units. Evidence is preserved at
+`/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
+Do not retry either platform or shutdown-mode hibernation while iGPU-only is
+selected.
 
 The following acceptance items remain open:
 

@@ -36,6 +36,41 @@ restore_pm_diagnostics() {
 	fi
 }
 
+wait_for_hibernate_cycle() {
+	local previous_start=$1
+	local active_state current_start service_result
+	local observed=0
+
+	for ((attempt = 0; attempt < 600; attempt++)); do
+		current_start=$(systemctl show systemd-hibernate.service \
+			--property=ExecMainStartTimestampMonotonic --value) || return 1
+		if [[ -n "$current_start" && "$current_start" != "0" &&
+			"$current_start" != "$previous_start" ]]; then
+			observed=1
+			break
+		fi
+		sleep 0.2
+	done
+
+	[[ "$observed" -eq 1 ]] || return 1
+	for ((attempt = 0; attempt < 1500; attempt++)); do
+		active_state=$(systemctl show systemd-hibernate.service \
+			--property=ActiveState --value) || return 1
+		case "$active_state" in
+		inactive) break ;;
+		failed) return 1 ;;
+		activating | active | deactivating) ;;
+		*) return 1 ;;
+		esac
+		sleep 0.2
+	done
+	[[ "$active_state" == "inactive" ]] || return 1
+
+	service_result=$(systemctl show systemd-hibernate.service \
+		--property=Result --value) || return 1
+	[[ "$service_result" == "success" ]]
+}
+
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
 	local status=$?
@@ -176,10 +211,20 @@ read -r confirmation
 
 journalctl --sync
 sync
-hibernate_requested=1
+hibernate_service_state=$(systemctl show systemd-hibernate.service \
+	--property=ActiveState --value)
+[[ "$hibernate_service_state" == "inactive" ]] ||
+	fail "systemd-hibernate.service must be inactive before the request."
+previous_hibernate_start=$(systemctl show systemd-hibernate.service \
+	--property=ExecMainStartTimestampMonotonic --value)
 set +e
 sudo systemctl hibernate
 result=$?
+if [[ "$result" -eq 0 ]]; then
+	hibernate_requested=1
+	wait_for_hibernate_cycle "$previous_hibernate_start"
+	result=$?
+fi
 set -e
 
 printf '\nHibernate command returned with exit %d at %s.\n' "$result" "$(date --iso-8601=ns)"
@@ -190,11 +235,28 @@ if sudo test -r "$RUNTIME_LATEST"; then
 		printf 'ERROR: The hibernate hook observed a mode other than shutdown.\n' >&2
 		[[ "$result" -ne 0 ]] || result=1
 	fi
-	if ! sudo test -s "$evidence_dir/pre-hibernate/summary.txt" ||
-		! sudo test -s "$evidence_dir/post-hibernate/summary.txt"; then
-		printf 'ERROR: The hibernate hook did not complete both frozen-state captures.\n' >&2
+	if sudo test -e "$evidence_dir/CAPTURE-FAILED"; then
+		printf 'ERROR: The hibernate hook recorded a capture failure.\n' >&2
 		[[ "$result" -ne 0 ]] || result=1
 	fi
+	for required_capture in \
+		pre-hibernate/summary.txt \
+		pre-hibernate/pci-and-graphics.txt \
+		pre-hibernate/power-and-firmware.txt \
+		pre-hibernate/sys-kernel-debug-wakeup_sources.txt \
+		pre-hibernate/sys-power-pm_wakeup_irq.txt \
+		pre-hibernate/kernel-journal.txt \
+		post-hibernate/summary.txt \
+		post-hibernate/pci-and-graphics.txt \
+		post-hibernate/power-and-firmware.txt \
+		post-hibernate/sys-kernel-debug-wakeup_sources.txt \
+		post-hibernate/sys-power-pm_wakeup_irq.txt \
+		post-hibernate/kernel-journal.txt; do
+		if ! sudo test -e "$evidence_dir/$required_capture"; then
+			printf 'ERROR: Missing hibernate evidence: %s\n' "$required_capture" >&2
+			[[ "$result" -ne 0 ]] || result=1
+		fi
+	done
 else
 	printf 'ERROR: The diagnostic hook did not publish an evidence path.\n' >&2
 	[[ "$result" -ne 0 ]] || result=1
@@ -205,12 +267,21 @@ if ! restore_pm_diagnostics; then
 	[[ "$result" -ne 0 ]] || result=1
 fi
 
-graphics_state=$(sudo "$CLI" --donotexpecthwmon graphics-mode status --json || true)
+set +e
+graphics_state=$(sudo "$CLI" --donotexpecthwmon graphics-mode status --json)
+graphics_result=$?
+set -e
+if [[ "$graphics_result" -ne 0 ]]; then
+	printf 'ERROR: Returned root graphics inspection failed.\n' >&2
+	[[ "$result" -ne 0 ]] || result=1
+fi
 printf '\nReturned root graphics status:\n%s\n' "$graphics_state"
 if [[ "$result" -eq 0 &&
 	"$graphics_state" == *'"selected_mode": "hybrid-igpu-only"'* &&
 	"$graphics_state" == *'"effective_dgpu_state": "detached"'* &&
-	"$graphics_state" == *'"reconciliation": "settled"'* ]]; then
+	"$graphics_state" == *'"reconciliation": "settled"'* &&
+	"$graphics_state" == *'"client_inspection_complete": true'* &&
+	"$graphics_state" == *'"active_clients": []'* ]]; then
 	printf '\nDetached topology is settled; restarting user audio and the display manager.\n'
 	restart_user_audio
 	sudo systemctl start display-manager.service
