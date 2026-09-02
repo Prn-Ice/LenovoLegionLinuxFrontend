@@ -324,13 +324,6 @@ the leading hypothesis, not a proven cause. Do not repeat the test or toggle
 the wake source until diagnostics can survive the failed S4 path and an aborted
 hibernate can reconcile topology before the graphical session thaws.
 
-The NixOS module can install a post-sleep reconciliation hook with
-`services.legionControl.reconcileGraphicsAfterSleep`. It defaults to the value
-of `reconcileGraphicsAtBoot`. The hook runs while systemd still has user
-sessions frozen, has a fixed 40-second timeout, and uses the same root-complete
-client safety gates as boot reconciliation. This limits damage after an abort;
-it does not fix or authorize another hibernate test.
-
 The following acceptance items remain open:
 
 - external HDMI and USB-C routing with physical displays;

@@ -16,15 +16,6 @@ let
     done
     exit 1
   '';
-  graphicsSleepReconcile = pkgs.writeShellScript "legion-graphics-sleep-reconcile" ''
-    if [[ "$1" != "post" ]]; then
-      exit 0
-    fi
-
-    exec ${pkgs.coreutils}/bin/timeout --foreground --kill-after=5s 40s \
-      ${control.backendPackage}/bin/legion_cli \
-      --donotexpecthwmon graphics-mode reconcile --json
-  '';
 in
 {
   options.services.legionTelemetry = {
@@ -61,16 +52,6 @@ in
     };
 
     reconcileGraphicsAtBoot = lib.mkEnableOption "graphics-mode reconciliation before graphical login";
-
-    reconcileGraphicsAfterSleep = lib.mkOption {
-      type = lib.types.bool;
-      default = control.reconcileGraphicsAtBoot;
-      defaultText = lib.literalExpression "config.services.legionControl.reconcileGraphicsAtBoot";
-      description = ''
-        Reconcile the selected graphics topology after the system returns from
-        suspend or hibernate, before systemd thaws user sessions.
-      '';
-    };
   };
 
   config = lib.mkMerge [
@@ -201,9 +182,6 @@ in
             before = [ "docker.service" ];
             serviceConfig.ExecCondition = nvidiaPciPresent;
           };
-    })
-    (lib.mkIf (control.enable && control.reconcileGraphicsAfterSleep) {
-      environment.etc."systemd/system-sleep/legion-graphics-reconcile".source = graphicsSleepReconcile;
     })
   ];
 }
