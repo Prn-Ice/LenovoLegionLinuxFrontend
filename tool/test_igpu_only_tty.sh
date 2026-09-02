@@ -6,9 +6,19 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 STARTED_AT=$(date --iso-8601=seconds)
 LOG="/tmp/lllf-igpu-only-${STARTED_AT//:/-}.log"
 display_manager_stopped=0
+audio_services_stopped=0
 transition_requested=0
 
 exec > >(tee -a "$LOG") 2>&1
+
+restart_user_audio() {
+  if [[ "$audio_services_stopped" -eq 1 ]]; then
+    systemctl --user start \
+      pipewire.socket pipewire-pulse.socket \
+      pipewire.service wireplumber.service pipewire-pulse.service
+    audio_services_stopped=0
+  fi
+}
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
@@ -16,9 +26,10 @@ cleanup() {
   trap - EXIT
   if [[ "$display_manager_stopped" -eq 1 && "$transition_requested" -eq 0 ]]; then
     printf '\nRestarting the display manager after an interrupted preflight.\n' >&2
+    restart_user_audio || true
     sudo systemctl start display-manager.service || true
   elif [[ "$display_manager_stopped" -eq 1 ]]; then
-    printf '\nGraphics state is uncertain; keep the display manager stopped and run:\n  %s/restore_hybrid_tty.sh\n' "$SCRIPT_DIR" >&2
+    printf '\nGraphics state is uncertain; keep the display manager and user audio stopped and run:\n  %s/restore_hybrid_tty.sh\n' "$SCRIPT_DIR" >&2
   fi
   exit "$status"
 }
@@ -69,6 +80,13 @@ done < <(loginctl list-sessions --no-legend)
 pkill -TERM -x code 2>/dev/null || true
 sleep 5
 
+# PipeWire and WirePlumber outlive graphical-session.target and can retain the
+# NVIDIA HDMI-audio control node. Stop their sockets too to prevent reactivation.
+audio_services_stopped=1
+systemctl --user stop \
+  pipewire-pulse.socket pipewire.socket \
+  wireplumber.service pipewire-pulse.service pipewire.service
+
 printf '\nRoot-observed dGPU clients before the write:\n'
 sudo "$CLI" --donotexpecthwmon graphics-mode status --json
 
@@ -89,6 +107,7 @@ case "$result" in
     printf '\nThe backend confirmed detached, settled iGPU-only topology.\n'
     printf 'Starting the display manager. Log in and reopen the development session.\n'
     transition_requested=0
+    restart_user_audio
     sudo systemctl start display-manager.service
     display_manager_stopped=0
     ;;
@@ -96,6 +115,7 @@ case "$result" in
     printf '\nThe backend blocked the transition before changing firmware.\n'
     printf 'Close every client listed above, then retry this script.\n'
     transition_requested=0
+    restart_user_audio
     sudo systemctl start display-manager.service
     display_manager_stopped=0
     ;;

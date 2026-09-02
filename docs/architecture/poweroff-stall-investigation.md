@@ -102,6 +102,12 @@ guarded and settled iGPU-only transition:
 That mode additionally requires complete root client inspection and zero dGPU
 clients. It does not perform the transition itself.
 
+Use `tool/test_igpu_only_tty.sh` for the guarded transition. The hardened
+preflight treats NVIDIA HDMI-audio handles as blockers, so the helper stops the
+user PipeWire/WirePlumber services and sockets after ending the graphical
+session. It restores audio after confirmed detach or a pre-write block, but
+leaves audio and the display manager stopped if topology becomes uncertain.
+
 To cancel the runtime instrumentation before poweroff:
 
 ```bash

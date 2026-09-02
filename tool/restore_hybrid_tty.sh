@@ -9,12 +9,19 @@ transition_requested=0
 
 exec > >(tee -a "$LOG") 2>&1
 
+restart_user_audio() {
+  systemctl --user start \
+    pipewire.socket pipewire-pulse.socket \
+    pipewire.service wireplumber.service pipewire-pulse.service
+}
+
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
   local status=$?
   trap - EXIT
   if [[ "$display_manager_stopped" -eq 1 && "$transition_requested" -eq 0 ]]; then
     printf '\nRestarting the display manager after an interrupted preflight.\n' >&2
+    restart_user_audio || true
     sudo systemctl start display-manager.service || true
   elif [[ "$display_manager_stopped" -eq 1 ]]; then
     printf '\nHybrid was not confirmed. Keep the display manager stopped; reboot or restore Hybrid in BIOS.\n' >&2
@@ -76,6 +83,7 @@ if [[ "$result" -eq 0 ]]; then
   fi
   printf '\nHybrid topology is settled. Starting the display manager.\n'
   transition_requested=0
+  restart_user_audio
   sudo systemctl start display-manager.service
   display_manager_stopped=0
 else
