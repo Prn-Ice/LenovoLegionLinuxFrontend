@@ -480,7 +480,10 @@ powered off at 12:49:11. Current boot `eb9dea5f` reconciled back to
 detached/settled before login and has zero failed units. Evidence is preserved at
 `/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
 The initial hibernate-only reconciliation fix exposed the readiness race above.
-The bounded-retry revision is deployed and passed controlled resume validation.
+The bounded-retry revision is deployed and passed its before-thaw graphics
+validation. End-to-end return to an existing graphical/audio session remains
+open because the guarded runner intentionally stopped both services and required
+manual restart after its false-negative result.
 
 The following acceptance items remain open:
 
