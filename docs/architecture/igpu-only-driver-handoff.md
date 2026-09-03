@@ -425,20 +425,44 @@ zero clients, and detached/settled topology.
 
 The production fix installs a second system-sleep hook when
 `services.legionControl.reconcileGraphicsAfterHibernate` is enabled. It keys on
-`SYSTEMD_SLEEP_ACTION=hibernate`, waits up to 10 seconds for udev, and runs the
-hardened graphics reconciliation with a 40-second timeout during the post phase,
-before systemd thaws `user.slice`. It applies to direct hibernate and the final
-hibernate phase of suspend-then-hibernate while excluding ordinary suspend. The
-option defaults to the existing `reconcileGraphicsAtBoot` setting.
+`SYSTEMD_SLEEP_ACTION=hibernate` and runs during the post phase before systemd
+thaws `user.slice`. It applies to direct hibernate and the final hibernate phase
+of suspend-then-hibernate while excluding ordinary suspend. The option defaults
+to the existing `reconcileGraphicsAtBoot` setting.
+
+The first deployed validation ran in boot
+`fafd892b-38b4-4062-98ee-ffe47e352e62` on 2026-09-03. The kernel explicitly
+reported `Hibernation image restored successfully`. The post hook ran about
+180 ms after hibernation exit, while NVIDIA hotplug was still incomplete. Its
+root CLI result was `partial`, `blocked`, `client_inspection_complete=false`,
+and `reconciliation_attempts=0`, so the original one-shot hook safely exited 2.
+NVIDIA DRM and audio finished attaching roughly 1.3 seconds later. The runner
+kept the display manager stopped, while the restored system remained healthy
+with no failed units. This established a topology-readiness race: `udevadm
+settle` can empty the event queue before driver binding and device-node creation
+are inspectable.
+
+The revised hook keeps the backend's fail-closed client inspection unchanged. It
+replaces the insufficient one-shot udev wait with authoritative retries every
+two seconds under one 60-second deadline.
+It immediately rejects confirmed clients, malformed or unsupported JSON, and an
+inconsistent successful result. Success requires schema version 1, complete
+client inspection, no clients, settled reconciliation, and effective topology
+equal to the expected attached or detached state. Focused tests cover the
+observed partial/incomplete/zero-attempt result followed by attached and then
+detached topology, confirmed clients, malformed and unknown-schema output,
+already-settled attached policy, and a persistent-state timeout. ShellCheck,
+Nix formatting, generated-hook no-op dispatch tests, and a full local-input host
+build pass; deployment and another controlled resume remain pending.
 
 The first successful shutdown-mode resume returned with NVIDIA attached and the
 graphical session intentionally stopped by the test runner. The user manually
 powered off at 12:49:11. Current boot `eb9dea5f` reconciled back to
 detached/settled before login and has zero failed units. Evidence is preserved at
 `/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
-The hibernate-only reconciliation fix passes Nix formatting/parsing, option
-evaluation, no-op dispatch checks, and a full NixOS host build. It still requires
-deployment and a controlled resume validation.
+The initial hibernate-only reconciliation fix was deployed and exposed the
+readiness race above. The bounded-retry revision still requires deployment and a
+controlled resume validation.
 
 The following acceptance items remain open:
 

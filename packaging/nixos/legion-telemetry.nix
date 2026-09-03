@@ -16,6 +16,17 @@ let
     done
     exit 1
   '';
+  graphicsHibernateReconcileLoop = pkgs.writeShellApplication {
+    name = "legion-graphics-hibernate-reconcile-loop";
+    runtimeInputs = [
+      pkgs.bashNonInteractive
+      pkgs.coreutils
+      pkgs.e2fsprogs
+      pkgs.jq
+      pkgs.util-linux
+    ];
+    text = builtins.readFile ./legion-graphics-hibernate-reconcile-loop.sh;
+  };
   graphicsHibernateReconcile = pkgs.writeShellScript "legion-graphics-hibernate-reconcile" ''
     if [[ "''${1:-}" != "post" || "''${SYSTEMD_SLEEP_ACTION:-}" != "hibernate" ]]; then
       exit 0
@@ -31,10 +42,9 @@ let
       ]
     }
 
-    ${pkgs.systemd}/bin/udevadm settle --timeout=10 || true
-    exec ${pkgs.coreutils}/bin/timeout --foreground --kill-after=5s 40s \
-      ${control.backendPackage}/bin/legion_cli \
-      --donotexpecthwmon graphics-mode reconcile --json
+    exec ${pkgs.coreutils}/bin/timeout --kill-after=5s 60s \
+      ${graphicsHibernateReconcileLoop}/bin/legion-graphics-hibernate-reconcile-loop \
+      ${control.backendPackage}/bin/legion_cli 2
   '';
 in
 {
@@ -166,8 +176,13 @@ in
         };
       };
     })
+    (lib.mkIf
+      (control.enable && (control.reconcileGraphicsAtBoot || control.reconcileGraphicsAfterHibernate))
+      {
+        boot.kernelModules = [ "legion_laptop" ];
+      }
+    )
     (lib.mkIf (control.enable && control.reconcileGraphicsAtBoot) {
-      boot.kernelModules = [ "legion_laptop" ];
 
       systemd.services.legion-graphics-reconcile = {
         description = "Reconcile Lenovo Legion graphics topology";
