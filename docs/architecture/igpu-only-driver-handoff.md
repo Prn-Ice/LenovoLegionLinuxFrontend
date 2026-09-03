@@ -453,7 +453,8 @@ observed partial/incomplete/zero-attempt result followed by attached and then
 detached topology, confirmed clients, malformed and unknown-schema output,
 already-settled attached policy, and a persistent-state timeout. ShellCheck,
 Nix formatting, generated-hook no-op dispatch tests, and a full local-input host
-build pass; deployment and another controlled resume remain pending.
+build pass. The revision is deployed in NixOS generation 471; another controlled
+resume remains pending.
 
 The first successful shutdown-mode resume returned with NVIDIA attached and the
 graphical session intentionally stopped by the test runner. The user manually
@@ -461,8 +462,8 @@ powered off at 12:49:11. Current boot `eb9dea5f` reconciled back to
 detached/settled before login and has zero failed units. Evidence is preserved at
 `/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
 The initial hibernate-only reconciliation fix was deployed and exposed the
-readiness race above. The bounded-retry revision still requires deployment and a
-controlled resume validation.
+readiness race above. The bounded-retry revision is now deployed and still
+requires controlled resume validation.
 
 The following acceptance items remain open:
 
