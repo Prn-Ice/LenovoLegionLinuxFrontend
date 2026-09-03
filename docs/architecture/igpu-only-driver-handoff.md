@@ -453,23 +453,39 @@ observed partial/incomplete/zero-attempt result followed by attached and then
 detached topology, confirmed clients, malformed and unknown-schema output,
 already-settled attached policy, and a persistent-state timeout. ShellCheck,
 Nix formatting, generated-hook no-op dispatch tests, and a full local-input host
-build pass. The revision is deployed in NixOS generation 471; another controlled
-resume remains pending.
+build pass. The revision is deployed in NixOS generation 471.
+
+The controlled validation in boot `fe05b2d8-bedb-4bf0-97ad-25f9b14d79f8`
+completed shutdown-mode hibernation and restored the same image. The hook first
+observed the expected transient `partial`, incomplete, blocked state at
+monotonic 466.586. It retried while NVIDIA initialized, then reported
+detached/settled topology, complete client inspection, zero clients, and six
+reconciliation attempts at 493.858. `user.slice` thawed at 493.862, after the
+authoritative detached result. The running system retained detached topology,
+an operational internal display, and zero failed units. Evidence is preserved at
+`/var/log/legion-hibernate-diagnostics/2026-09-03T21-49-22+01-00-fe05b2d8`.
+
+The guarded runner returned a false failure after this successful operation
+because systemd's completed transient-service start timestamp disappeared and
+the sudo credential expired during the powered-off interval. Manual audio and
+display-manager restart recovered the UI; no forced shutdown was needed. The
+runner now scopes journal checks with a cursor captured immediately before the
+request, requires the kernel's restored-image message plus inactive
+`Result=success` service state, allows bounded journal-ingestion grace, and
+explicitly renews sudo before privileged evidence validation.
 
 The first successful shutdown-mode resume returned with NVIDIA attached and the
 graphical session intentionally stopped by the test runner. The user manually
 powered off at 12:49:11. Current boot `eb9dea5f` reconciled back to
 detached/settled before login and has zero failed units. Evidence is preserved at
 `/var/log/legion-hibernate-diagnostics/2026-09-02T12-40-01+01-00-76d2cb91`.
-The initial hibernate-only reconciliation fix was deployed and exposed the
-readiness race above. The bounded-retry revision is now deployed and still
-requires controlled resume validation.
+The initial hibernate-only reconciliation fix exposed the readiness race above.
+The bounded-retry revision is deployed and passed controlled resume validation.
 
 The following acceptance items remain open:
 
 - external HDMI and USB-C routing with physical displays;
 - X11 behavior;
-- safe resolution of the detached hibernate failure;
 - exercised BIOS/UEFI recovery;
 - comparable idle-power measurements before making battery-life claims.
 

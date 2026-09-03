@@ -36,39 +36,54 @@ restore_pm_diagnostics() {
 	fi
 }
 
-wait_for_hibernate_cycle() {
-	local previous_start=$1
-	local active_state current_start service_result
-	local observed=0
+wait_for_hibernate_restore() {
+	local journal_cursor=$1
+	local active_state lifecycle_message restore_message service_result
+	local inactive_without_restore=0
 
 	for ((attempt = 0; attempt < 600; attempt++)); do
-		current_start=$(systemctl show systemd-hibernate.service \
-			--property=ExecMainStartTimestampMonotonic --value) || return 1
-		if [[ -n "$current_start" && "$current_start" != "0" &&
-			"$current_start" != "$previous_start" ]]; then
-			observed=1
-			break
-		fi
-		sleep 0.2
-	done
-
-	[[ "$observed" -eq 1 ]] || return 1
-	for ((attempt = 0; attempt < 1500; attempt++)); do
 		active_state=$(systemctl show systemd-hibernate.service \
 			--property=ActiveState --value) || return 1
 		case "$active_state" in
-		inactive) break ;;
 		failed) return 1 ;;
-		activating | active | deactivating) ;;
+		inactive | activating | active | deactivating) ;;
 		*) return 1 ;;
 		esac
+
+		if ! restore_message=$(journalctl -k -b --after-cursor="$journal_cursor" \
+			--grep='Hibernation image restored successfully' \
+			--lines=1 --output=cat --no-pager 2>/dev/null); then
+			printf 'Could not query the kernel journal for restored-image evidence.\n' >&2
+			return 1
+		fi
+
+		if [[ "$active_state" == "inactive" &&
+			"$restore_message" == *"Hibernation image restored successfully"* ]]; then
+			service_result=$(systemctl show systemd-hibernate.service \
+				--property=Result --value) || return 1
+			[[ "$service_result" == "success" ]]
+			return
+		fi
+
+		if [[ "$active_state" == "inactive" ]]; then
+			if ! lifecycle_message=$(journalctl -b -u systemd-hibernate.service \
+				--after-cursor="$journal_cursor" \
+				--lines=1 --output=cat --no-pager 2>/dev/null); then
+				printf 'Could not query the system journal for the hibernate cycle.\n' >&2
+				return 1
+			fi
+			if [[ -n "$lifecycle_message" ]]; then
+				inactive_without_restore=$((inactive_without_restore + 1))
+				if [[ $inactive_without_restore -eq 1 ]]; then
+					journalctl --sync || return 1
+				elif [[ $inactive_without_restore -ge 50 ]]; then
+					return 1
+				fi
+			fi
+		fi
 		sleep 0.2
 	done
-	[[ "$active_state" == "inactive" ]] || return 1
-
-	service_result=$(systemctl show systemd-hibernate.service \
-		--property=Result --value) || return 1
-	[[ "$service_result" == "success" ]]
+	return 1
 }
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
@@ -211,23 +226,32 @@ read -r confirmation
 
 journalctl --sync
 sync
+journal_cursor_output=$(journalctl -b --lines=0 --show-cursor --no-pager) ||
+	fail "Could not record the pre-hibernate journal cursor."
+journal_cursor=${journal_cursor_output##*-- cursor: }
+[[ "$journal_cursor" == s=* ]] || fail "The pre-hibernate journal cursor is invalid."
 hibernate_service_state=$(systemctl show systemd-hibernate.service \
 	--property=ActiveState --value)
 [[ "$hibernate_service_state" == "inactive" ]] ||
 	fail "systemd-hibernate.service must be inactive before the request."
-previous_hibernate_start=$(systemctl show systemd-hibernate.service \
-	--property=ExecMainStartTimestampMonotonic --value)
 set +e
 sudo systemctl hibernate
 result=$?
 if [[ "$result" -eq 0 ]]; then
 	hibernate_requested=1
-	wait_for_hibernate_cycle "$previous_hibernate_start"
+	wait_for_hibernate_restore "$journal_cursor"
 	result=$?
 fi
 set -e
 
 printf '\nHibernate command returned with exit %d at %s.\n' "$result" "$(date --iso-8601=ns)"
+if ! sudo -n true; then
+	printf 'Sudo authentication expired while powered off; authenticate to validate recovery.\n'
+	if ! sudo -v; then
+		printf 'ERROR: Could not renew sudo authentication for recovery validation.\n' >&2
+		[[ "$result" -ne 0 ]] || result=1
+	fi
+fi
 if sudo test -r "$RUNTIME_LATEST"; then
 	evidence_dir=$(sudo cat "$RUNTIME_LATEST")
 	printf 'Persistent diagnostic evidence: %s\n' "$evidence_dir"
