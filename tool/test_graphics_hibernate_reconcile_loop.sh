@@ -70,6 +70,16 @@ exit 2
 assert_status 2 run_loop
 [[ $(<"$count_file") == 1 ]]
 
+printf '0\n' >"$count_file"
+# shellcheck disable=SC2016 # Written verbatim to the fake CLI.
+write_fake_cli '
+count=$(<"$COUNT_FILE")
+printf "%d\n" "$((count + 1))" >"$COUNT_FILE"
+printf "%s\n" '\''{"schema_version":1,"effective_dgpu_state":"detached","expected_dgpu_state":"detached","reconciliation":"settled","client_inspection_complete":true,"active_clients":[{"pid":4242,"comm":"kwin_wayland","devices":["/dev/nvidiactl"]}]}'\''
+'
+assert_status 2 run_loop
+[[ $(<"$count_file") == 1 ]]
+
 write_fake_cli 'printf "%s\n" "not-json"; exit 2'
 assert_status 1 run_loop
 

@@ -27,6 +27,15 @@ let
     ];
     text = builtins.readFile ./legion-graphics-hibernate-reconcile-loop.sh;
   };
+  graphicsDetachedLifecycle = pkgs.writeShellApplication {
+    name = "legion-graphics-detached-lifecycle";
+    runtimeInputs = [
+      pkgs.bashNonInteractive
+      pkgs.coreutils
+      pkgs.jq
+    ];
+    text = builtins.readFile ./legion-graphics-detached-lifecycle.sh;
+  };
   graphicsHibernateReconcile = pkgs.writeShellScript "legion-graphics-hibernate-reconcile" ''
     if [[ "''${1:-}" != "post" || "''${SYSTEMD_SLEEP_ACTION:-}" != "hibernate" ]]; then
       exit 0
@@ -42,9 +51,13 @@ let
       ]
     }
 
-    exec ${pkgs.coreutils}/bin/timeout --kill-after=5s 60s \
+    ${pkgs.coreutils}/bin/timeout --kill-after=5s 60s \
       ${graphicsHibernateReconcileLoop}/bin/legion-graphics-hibernate-reconcile-loop \
-      ${control.backendPackage}/bin/legion_cli 2
+      ${control.backendPackage}/bin/legion_cli 2 || exit "$?"
+
+    exec ${pkgs.coreutils}/bin/timeout --kill-after=5s 20s \
+      ${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle \
+      ${control.backendPackage}/bin/legion_cli cleanup ${pkgs.kmod}/bin/modprobe
   '';
 in
 {
@@ -201,8 +214,49 @@ in
         serviceConfig = {
           Type = "oneshot";
           ExecStart = "${control.backendPackage}/bin/legion_cli --donotexpecthwmon graphics-mode reconcile --json";
+          ExecStartPost = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle ${control.backendPackage}/bin/legion_cli cleanup ${pkgs.kmod}/bin/modprobe";
           TimeoutStartSec = 40;
           RemainAfterExit = true;
+          User = "root";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+          ProtectClock = true;
+          ProtectControlGroups = true;
+          ProtectHome = true;
+          ProtectHostname = true;
+          ProtectKernelLogs = true;
+          ProtectKernelModules = false;
+          ProtectSystem = "strict";
+          RestrictAddressFamilies = [ "AF_UNIX" ];
+          RestrictNamespaces = true;
+          SystemCallArchitectures = "native";
+          SystemCallErrorNumber = "EPERM";
+          SystemCallFilter = [
+            "@system-service"
+            "@module"
+          ];
+        };
+      };
+
+      systemd.services.nvidia-container-toolkit-cdi-generator =
+        lib.mkIf config.hardware.nvidia-container-toolkit.enable
+          {
+            before = [ "docker.service" ];
+            serviceConfig.ExecCondition = nvidiaPciPresent;
+          };
+    })
+    (lib.mkIf (control.enable && control.reconcileGraphicsAfterHibernate) {
+      environment.etc."systemd/system-sleep/legion-graphics-hibernate-reconcile".source =
+        graphicsHibernateReconcile;
+
+      systemd.services.legion-graphics-hibernate-preflight = {
+        description = "Validate Lenovo Legion graphics topology before hibernation";
+        requiredBy = [ "systemd-hibernate.service" ];
+        before = [ "systemd-hibernate.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle ${control.backendPackage}/bin/legion_cli preflight ${pkgs.kmod}/bin/modprobe";
+          TimeoutStartSec = 20;
           User = "root";
           NoNewPrivileges = true;
           PrivateTmp = true;
@@ -220,17 +274,6 @@ in
           SystemCallFilter = [ "@system-service" ];
         };
       };
-
-      systemd.services.nvidia-container-toolkit-cdi-generator =
-        lib.mkIf config.hardware.nvidia-container-toolkit.enable
-          {
-            before = [ "docker.service" ];
-            serviceConfig.ExecCondition = nvidiaPciPresent;
-          };
-    })
-    (lib.mkIf (control.enable && control.reconcileGraphicsAfterHibernate) {
-      environment.etc."systemd/system-sleep/legion-graphics-hibernate-reconcile".source =
-        graphicsHibernateReconcile;
     })
   ];
 }

@@ -492,6 +492,40 @@ The following acceptance items remain open:
 - exercised BIOS/UEFI recovery;
 - comparable idle-power measurements before making battery-life claims.
 
+## Detached graphics lifecycle preparation (2026-09-07)
+
+The pending lifecycle work is tracked in `lllf-j9t.6.2`. The NixOS module now
+checks authoritative graphics status before direct hibernation and refuses a
+detached-policy transition if topology is unsettled, client inspection is
+incomplete, or NVIDIA clients are present. Attached policy is left alone.
+
+After successful boot or post-hibernate reconciliation, the helper verifies
+detached/settled topology and complete zero-client inspection, unloads the
+remaining NVIDIA module stack, and removes stale NVIDIA device nodes. It stops
+on module-removal failure and checks graphics status again afterward. Boot
+cleanup completes before the display manager starts; resume cleanup runs in the
+post hook before user sessions thaw. A reconciliation error or timeout is
+preserved, and cleanup is skipped in that case. A failing post hook does not
+itself guarantee that systemd will keep user sessions frozen.
+
+The generated-hook regression test replaces hardware operations with controlled
+exit codes and checks failure propagation, cleanup ordering, and no-op dispatch
+for suspend and pre-hibernate invocations. Run it with the built artifact:
+
+```bash
+bash tool/test_graphics_hibernate_hook.sh \
+  /tmp/legion-lifecycle-system/etc/systemd/system-sleep/legion-graphics-hibernate-reconcile
+```
+
+The preflight currently guards `systemd-hibernate.service` only.
+Suspend-then-hibernate needs a separate guard near its actual hibernate
+transition (`lllf-j9t.6.3`); the configured lid path is not covered by the direct
+hibernate preflight. Hybrid Auto remains outside the validated scope.
+
+Privileged deployment and normal graphical-session resume validation remain
+pending. The user runs all sudo commands. Do not close `lllf-j9t.6` based on
+script tests or a successful build.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
