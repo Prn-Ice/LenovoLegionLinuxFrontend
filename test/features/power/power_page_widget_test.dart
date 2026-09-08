@@ -268,6 +268,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('additional limit action does not crowd values', (tester) async {
+    await _pumpPage(
+      tester,
+      width: 570,
+      snapshot: _snapshot(currentMode: const PowerMode('custom')),
+    );
+
+    final additionalLimits = find.text('Additional limits');
+    await tester.ensureVisible(additionalLimits);
+    await tester.pumpAndSettle();
+    await tester.tap(additionalLimits);
+    await tester.pumpAndSettle();
+
+    final baseline = find.byKey(
+      const ValueKey('power-limit-default-gpu_temperature'),
+    );
+    final change = find.byKey(
+      const ValueKey('power-limit-change-gpu_temperature'),
+    );
+    await tester.ensureVisible(change);
+    await tester.pumpAndSettle();
+
+    final baselineRect = tester.getRect(baseline);
+    final changeRect = tester.getRect(change);
+    expect(changeRect.width, 92);
+    expect(baselineRect.right, lessThanOrEqualTo(changeRect.left - 12));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('unknown hardware keeps the default baseline truthful', (
     tester,
   ) async {

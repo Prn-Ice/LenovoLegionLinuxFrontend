@@ -767,6 +767,14 @@ class _AdditionalLimitRow extends StatelessWidget {
       value: _hardwareDefaultValue(reading),
       valueKey: ValueKey('power-limit-default-${reading.spec.id}'),
     );
+    final changeButton = SizedBox(
+      width: 92,
+      child: OutlinedButton(
+        key: ValueKey('power-limit-change-${reading.spec.id}'),
+        onPressed: onChange,
+        child: const Text('Change'),
+      ),
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -778,17 +786,26 @@ class _AdditionalLimitRow extends StatelessWidget {
               children: [
                 Text(reading.spec.label),
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(child: current),
-                    Expanded(child: baseline),
-                    OutlinedButton(
-                      key: ValueKey('power-limit-change-${reading.spec.id}'),
-                      onPressed: onChange,
-                      child: const Text('Change'),
-                    ),
-                  ],
-                ),
+                if (constraints.maxWidth < 360) ...[
+                  Row(
+                    children: [
+                      Expanded(child: current),
+                      const SizedBox(width: 12),
+                      Expanded(child: baseline),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: changeButton),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(child: current),
+                      const SizedBox(width: 12),
+                      Expanded(child: baseline),
+                      const SizedBox(width: 12),
+                      changeButton,
+                    ],
+                  ),
               ],
             );
           }
@@ -798,14 +815,7 @@ class _AdditionalLimitRow extends StatelessWidget {
               Expanded(child: Text(reading.spec.label)),
               SizedBox(width: 112, child: current),
               SizedBox(width: 112, child: baseline),
-              SizedBox(
-                width: 92,
-                child: OutlinedButton(
-                  key: ValueKey('power-limit-change-${reading.spec.id}'),
-                  onPressed: onChange,
-                  child: const Text('Change'),
-                ),
-              ),
+              changeButton,
             ],
           );
         },
