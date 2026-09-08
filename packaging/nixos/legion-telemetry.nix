@@ -8,14 +8,14 @@
 let
   cfg = config.services.legionTelemetry;
   control = config.services.legionControl;
-  nvidiaPciPresent = pkgs.writeShellScript "nvidia-pci-present" ''
-    for vendor in /sys/bus/pci/devices/*/vendor; do
-      if [[ -r "$vendor" ]] && [[ "$(<"$vendor")" == "0x10de" ]]; then
-        exit 0
-      fi
-    done
-    exit 1
-  '';
+  graphicsCdiCondition = pkgs.writeShellApplication {
+    name = "legion-graphics-cdi-condition";
+    runtimeInputs = [
+      pkgs.bashNonInteractive
+      pkgs.jq
+    ];
+    text = builtins.readFile ./legion-graphics-cdi-condition.sh;
+  };
   graphicsHibernateReconcileLoop = pkgs.writeShellApplication {
     name = "legion-graphics-hibernate-reconcile-loop";
     runtimeInputs = [
@@ -193,6 +193,12 @@ in
       (control.enable && (control.reconcileGraphicsAtBoot || control.reconcileGraphicsAfterHibernate))
       {
         boot.kernelModules = [ "legion_laptop" ];
+        systemd.services.nvidia-container-toolkit-cdi-generator =
+          lib.mkIf config.hardware.nvidia-container-toolkit.enable
+            {
+              before = [ "docker.service" ];
+              serviceConfig.ExecCondition = "${graphicsCdiCondition}/bin/legion-graphics-cdi-condition ${control.backendPackage}/bin/legion_cli";
+            };
       }
     )
     (lib.mkIf (control.enable && control.reconcileGraphicsAtBoot) {
@@ -238,12 +244,6 @@ in
         };
       };
 
-      systemd.services.nvidia-container-toolkit-cdi-generator =
-        lib.mkIf config.hardware.nvidia-container-toolkit.enable
-          {
-            before = [ "docker.service" ];
-            serviceConfig.ExecCondition = nvidiaPciPresent;
-          };
     })
     (lib.mkIf (control.enable && control.reconcileGraphicsAfterHibernate) {
       environment.etc."systemd/system-sleep/legion-graphics-hibernate-reconcile".source =

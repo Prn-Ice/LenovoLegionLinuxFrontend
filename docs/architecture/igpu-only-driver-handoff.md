@@ -526,6 +526,48 @@ Privileged deployment and normal graphical-session resume validation remain
 pending. The user runs all sudo commands. Do not close `lllf-j9t.6` based on
 script tests or a successful build.
 
+## Graphical hibernate result and CDI race (2026-09-08)
+
+Boot `0629cb97-e0f0-468e-8871-44f10d49dd95` on kernel `7.2.3` passed the
+new boot cleanup: authoritative status was detached/settled with complete
+inspection and no clients, and the NVIDIA module and control device node were
+absent. The booted host generation had advanced to
+`qnjm2iqha53g75y70sxwandflj3q1x57`, but its graphics hook matched the tested
+generation byte for byte.
+
+Direct hibernation restored the same image and the user confirmed automatic
+desktop and audio return. However, the dGPU remained attached, so the graphics
+acceptance criterion failed. The journal establishes this sequence:
+
+| Monotonic time | Event |
+|---|---|
+| 5271.967 | Direct-hibernate preflight: detached/settled, complete inspection, no clients. |
+| 5272.022 | `user.slice` frozen. |
+| 5291.887 | Kernel reports the hibernation image restored successfully. |
+| 5292.140 | First reconciliation: attached, incomplete inspection, no clients; retry. |
+| 5294.514 | Second reconciliation: `nvidia-ctk` PID 214799 holds NVIDIA device nodes; reject. |
+| 5294.528 | `user.slice` thawed with NVIDIA still attached. |
+
+The installed NVIDIA udev rule restarts
+`nvidia-container-toolkit-cdi-generator.service` when the NVIDIA module appears.
+That service runs in `system.slice`, so freezing user sessions does not stop it.
+Its PCI-presence-only condition passed during transient resume re-enumeration.
+The generator then opened NVIDIA before reconciliation could detach it. After
+thaw, the desktop, logind, audio, and browser acquired NVIDIA handles too.
+There were no failed systemd units; that does not establish successful graphics
+reconciliation because post-hook failure does not prevent thaw.
+
+The fix in `lllf-j9t.6.4` requires authoritative expected **attached** policy
+as well as physical NVIDIA presence before CDI generation. Detached policy,
+unknown schema, malformed output, and unavailable status skip the generator.
+The condition applies when either boot or hibernate reconciliation is enabled.
+Confirmed clients still cause immediate rejection by the reconciliation loop.
+Hardware validation of this fix remains pending; the successful desktop/audio
+return alone does not close `lllf-j9t.6`.
+
+The same restore logged an `mt7921e` timeout (`-110`) at monotonic 5291.883.
+Wi-Fi recovery is a separate follow-up in `lllf-j9t.6.5`.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
