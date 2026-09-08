@@ -593,9 +593,10 @@ The booted generation was `apamxr0l412hbbrkwm45dwli26ysjw4r`; the running
 generation at inspection was `dsjnmxm036km926wzadyakc39mlfp83c`. The latter
 contains the identical graphics hook and the same validated CDI helper.
 
-Broader hibernate acceptance remains open. Confirmation that the existing
-desktop, audio, and Wi-Fi all returned without manual recovery is pending for
-this specific test. The kernel repeated the `mt7921e` restore timeout and
+The user confirmed that desktop, audio, and Wi-Fi work after this resume,
+completing functional validation of this direct-hibernate cycle. Broader
+hibernate acceptance remains open: the kernel repeated the `mt7921e` restore
+timeout and
 NVIDIA target-temperature/platform-power-mode firmware-query assertions. The
 NVIDIA assertions also occurred at boot; they are tracked in `lllf-j9t.6.6`,
 separately from the successful CDI fix. Suspend-then-hibernate preflight remains
