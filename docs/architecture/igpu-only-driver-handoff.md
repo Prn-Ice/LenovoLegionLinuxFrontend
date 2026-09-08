@@ -593,15 +593,18 @@ The booted generation was `apamxr0l412hbbrkwm45dwli26ysjw4r`; the running
 generation at inspection was `dsjnmxm036km926wzadyakc39mlfp83c`. The latter
 contains the identical graphics hook and the same validated CDI helper.
 
+The user supplied the persistent evidence directory:
+`/var/log/legion-hibernate-diagnostics/2026-09-08T11-00-32+01-00-a4af09f3`.
+Both `pm_debug_messages` and `pm_print_times` were subsequently verified restored
+to their original value of `0`.
+
 The user confirmed that desktop, audio, and Wi-Fi work after this resume,
 completing functional validation of this direct-hibernate cycle. Broader
 hibernate acceptance remains open: the kernel repeated the `mt7921e` restore
-timeout and
-NVIDIA target-temperature/platform-power-mode firmware-query assertions. The
+timeout and NVIDIA target-temperature/platform-power-mode firmware-query assertions. The
 NVIDIA assertions also occurred at boot; they are tracked in `lllf-j9t.6.6`,
 separately from the successful CDI fix. Suspend-then-hibernate preflight remains
-tracked in `lllf-j9t.6.3`. PM diagnostic flags must be restored to their original
-zero values by the user after evidence capture.
+tracked in `lllf-j9t.6.3`.
 
 ## Completion gate
 
