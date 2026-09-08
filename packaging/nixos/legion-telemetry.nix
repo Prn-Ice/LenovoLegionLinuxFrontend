@@ -59,6 +59,15 @@ let
       ${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle \
       ${control.backendPackage}/bin/legion_cli cleanup ${pkgs.kmod}/bin/modprobe
   '';
+  graphicsS2hPreflight = pkgs.writeShellScript "legion-graphics-s2h-preflight" ''
+    exec ${pkgs.coreutils}/bin/timeout --kill-after=5s 20s \
+      ${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle \
+      ${control.backendPackage}/bin/legion_cli preflight ${pkgs.kmod}/bin/modprobe
+  '';
+  graphicsS2hSleep = pkgs.callPackage ./legion-graphics-s2h-sleep.nix {
+    systemd = config.systemd.package;
+    preflight = graphicsS2hPreflight;
+  };
 in
 {
   options.services.legionTelemetry = {
@@ -102,7 +111,10 @@ in
       defaultText = lib.literalExpression "config.services.legionControl.reconcileGraphicsAtBoot";
       description = ''
         Reconcile graphics topology after hibernate, before systemd thaws user
-        sessions. Ordinary suspend is not affected.
+        sessions. Validate graphics before direct hibernate and both at entry
+        and immediately before the hibernate phase of suspend-then-hibernate.
+        The latter uses a patched systemd sleep executable to propagate guard
+        failures and fall back to suspend. Ordinary suspend is not affected.
       '';
     };
   };
@@ -251,8 +263,14 @@ in
 
       systemd.services.legion-graphics-hibernate-preflight = {
         description = "Validate Lenovo Legion graphics topology before hibernation";
-        requiredBy = [ "systemd-hibernate.service" ];
-        before = [ "systemd-hibernate.service" ];
+        requiredBy = [
+          "systemd-hibernate.service"
+          "systemd-suspend-then-hibernate.service"
+        ];
+        before = [
+          "systemd-hibernate.service"
+          "systemd-suspend-then-hibernate.service"
+        ];
         serviceConfig = {
           Type = "oneshot";
           ExecStart = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle ${control.backendPackage}/bin/legion_cli preflight ${pkgs.kmod}/bin/modprobe";
@@ -274,6 +292,11 @@ in
           SystemCallFilter = [ "@system-service" ];
         };
       };
+
+      systemd.services.systemd-suspend-then-hibernate.serviceConfig.ExecStart = [
+        ""
+        "${graphicsS2hSleep}/lib/systemd/systemd-sleep suspend-then-hibernate"
+      ];
     })
   ];
 }

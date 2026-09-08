@@ -1,0 +1,46 @@
+diff --git a/src/sleep/sleep.c b/src/sleep/sleep.c
+--- a/src/sleep/sleep.c
++++ b/src/sleep/sleep.c
+@@ -40,6 +40,7 @@
+ #include "options.h"
+ #include "os-util.h"
+ #include "pretty-print.h"
++#include "process-util.h"
+ #include "sleep-config.h"
+ #include "special.h"
+ #include "strv.h"
+@@ -323,6 +324,26 @@
+                         EXEC_DIR_PARALLEL | EXEC_DIR_IGNORE_ERRORS);
+         (void) lock_all_homes();
+ 
++        /* The entry unit check predates suspend. Recheck after all preparation
++         * hooks, while users are still frozen and before writing the image.
++         * Ordinary system-sleep hooks cannot veto sleep: their errors are ignored. */
++        if (main_operation == SLEEP_SUSPEND_THEN_HIBERNATE && operation == SLEEP_HIBERNATE) {
++                r = pidref_safe_fork("(legion-preflight)",
++                                     FORK_RESET_SIGNALS | FORK_DEATHSIG_SIGTERM |
++                                     FORK_CLOSE_ALL_FDS | FORK_LOG | FORK_WAIT, NULL);
++                if (r == 0) {
++                        execl("@legionHibernatePreflight@", "legion-graphics-s2h-preflight", (char *) NULL);
++                        log_error_errno(errno, "Failed to execute Legion hibernate preflight: %m");
++                        _exit(EXIT_FAILURE);
++                }
++                if (r < 0) {
++                        log_error_errno(r, "Legion graphics preflight rejected hibernation: %m");
++                        /* Pair the preparation hooks with recovery, clear resume
++                         * metadata, and let execute_s2h() fall back to suspend. */
++                        goto post;
++                }
++        }
++
+         log_struct(LOG_INFO,
+                    LOG_MESSAGE_ID(SD_MESSAGE_SLEEP_START_STR),
+                    LOG_MESSAGE("Performing sleep operation '%s'...", sleep_operation_to_string(operation)),
+@@ -340,6 +361,7 @@
+                            LOG_MESSAGE("System returned from sleep operation '%s'.", sleep_operation_to_string(main_operation)),
+                            LOG_ITEM("SLEEP=%s", sleep_operation_to_string(main_operation)));
+ 
++post:
+         arguments[1] = "post";
+         (void) execute_directories(
+                         "system-sleep",

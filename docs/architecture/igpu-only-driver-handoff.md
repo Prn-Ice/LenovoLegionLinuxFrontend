@@ -606,6 +606,74 @@ NVIDIA assertions also occurred at boot; they are tracked in `lllf-j9t.6.6`,
 separately from the successful CDI fix. Suspend-then-hibernate preflight remains
 tracked in `lllf-j9t.6.3`.
 
+## Suspend-then-hibernate transition guard (2026-09-08)
+
+Implementation for `lllf-j9t.6.3` adds the existing required entry preflight to
+`systemd-suspend-then-hibernate.service` and rechecks authoritative graphics state
+at the actual hibernate transition. Hardware validation remains pending.
+
+Systemd 261.2 handles suspend, timer/battery wakeups, hibernate, and fallback
+inside one sleep process. Ordinary `system-sleep` hooks run with
+`EXEC_DIR_IGNORE_ERRORS`; adding a failing pre-hook cannot veto hibernation.
+The relevant upstream flow is
+[`execute()` and `execute_s2h()`](https://github.com/systemd/systemd/blob/v261.2/src/sleep/sleep.c).
+
+The module builds the sleep executable and shared library from the configured
+systemd package with a small local patch, and uses that executable only for
+`systemd-suspend-then-hibernate.service`.
+The system manager and ordinary suspend/direct-hibernate executables retain
+their existing packages. The patch runs the existing read-only lifecycle
+preflight after all normal pre-hooks and home locking, immediately before
+the hibernate state write, while user sessions are still frozen. The helper
+has a 20-second timeout with a five-second forced termination grace period.
+
+A rejected inspection, helper execution failure, timeout, or fork failure skips
+the hibernate state write. Systemd still runs the matching post-hooks, clears
+EFI hibernate metadata on its error path, and uses its existing
+`suspend-after-failed-hibernate` fallback. That fallback is ordinary suspend;
+it does not retry hibernation indefinitely. Attached-policy behavior remains
+the existing lifecycle contract. Confirmed dGPU clients under detached policy
+are never killed to make the check pass.
+
+`tool/test_graphics_s2h_guard.py` compiles the actual upstream/patched
+`execute()` and `execute_s2h()` bodies with simulated kernel I/O and a real
+child helper. Upstream reproduces an unsafe hibernate write when state changes
+after entry; the patched flow rejects it and falls back. Cases also cover a
+safe transition, inspection failure, timeout exit, fork failure, a missing
+helper, manual wakeup, and unchanged direct hibernate/ordinary suspend.
+The test runs during the patched package build so upstream source changes
+must continue to satisfy the transition contract. The rendered wrapper has
+a separate test that exercises its real timeout without touching hardware.
+
+The complete host build passed with the local input override. The resulting
+generation was `mavarfdzhfwicw9wmg610jfb4x7c40ka`; its suspend-then-hibernate
+override invokes `f7sif91nk1vk3zfial5j13km478i7hbp-legion-systemd-sleep-261.2`
+and requires the entry preflight. The system manager remains the original
+`sm8d6jpilwdy3bw3yq2lv8rr8jld26pb-systemd-261.2`. All nine source regression
+cases and the installed executable smoke check passed inside the Nix build.
+Existing lifecycle, CDI, reconciliation-loop, and rendered post-hook tests
+also passed, as did ShellCheck and Nix formatting checks.
+
+Deployment and hardware validation:
+
+1. Update only the host's `legion-frontend` input to the committed revision and
+   build the normal host flake. The user runs `sudo nixos-rebuild switch --flake
+   .#nixos`; this sleep-service change does not require a reboot by itself.
+2. Verify the rendered suspend-then-hibernate unit uses the patched executable
+   and requires the entry preflight. Confirm detached/settled authoritative
+   graphics status with complete inspection and zero clients before testing.
+3. Test a manual wake before the hibernate delay, then a timer-driven transition
+   through `sudo systemctl suspend-then-hibernate`. The configured delay is
+   30 minutes. A temporary shorter test delay must be removed afterward.
+4. Capture the sleep service journal and persistent hibernate diagnostics;
+   confirm the second preflight occurs after suspend return and before the
+   hibernate write. After image restore, require detached/settled status with
+   complete inspection and zero clients, plus working desktop, audio, and Wi-Fi.
+
+The user runs all sudo commands. Automated tests and a successful build do not
+close this hardware validation item or extend the direct-hibernate result to
+the lid-close path.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
