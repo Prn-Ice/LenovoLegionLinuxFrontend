@@ -562,11 +562,45 @@ as well as physical NVIDIA presence before CDI generation. Detached policy,
 unknown schema, malformed output, and unavailable status skip the generator.
 The condition applies when either boot or hibernate reconciliation is enabled.
 Confirmed clients still cause immediate rejection by the reconciliation loop.
-Hardware validation of this fix remains pending; the successful desktop/audio
+Hardware validation of this fix is recorded below; the successful desktop/audio
 return alone does not close `lllf-j9t.6`.
 
 The same restore logged an `mt7921e` timeout (`-110`) at monotonic 5291.883.
 Wi-Fi recovery is a separate follow-up in `lllf-j9t.6.5`.
+
+## CDI guard and lifecycle validation (2026-09-08)
+
+A fresh direct hibernate in boot `a4af09f3-0ca1-41d3-b18d-f06e3e69305d`
+restored the same image and validated the CDI guard:
+
+| Monotonic time | Event |
+|---|---|
+| 1075.865 | Preflight: detached/settled, complete inspection, no clients. |
+| 1076.141 | Kernel enters hibernation. |
+| 1095.411 | Kernel confirms successful image restore. |
+| 1097.039 | CDI condition skips generation because policy requires detached NVIDIA. |
+| 1123.535 | Reconciliation: detached/settled, complete inspection, no clients, six attempts. |
+| 1124.481 | Final lifecycle inspection after cleanup confirms the same safe state. |
+| 1124.494 | `user.slice` thawed. |
+
+The user's subsequent privileged status remained detached/settled with complete
+inspection and no clients. NVIDIA's module, control node, and PCI function were
+absent; the hibernate service completed successfully and there were zero failed
+units. This closes the specific CDI race (`lllf-j9t.6.4`) and lifecycle
+implementation/validation (`lllf-j9t.6.2`).
+
+The booted generation was `apamxr0l412hbbrkwm45dwli26ysjw4r`; the running
+generation at inspection was `dsjnmxm036km926wzadyakc39mlfp83c`. The latter
+contains the identical graphics hook and the same validated CDI helper.
+
+Broader hibernate acceptance remains open. Confirmation that the existing
+desktop, audio, and Wi-Fi all returned without manual recovery is pending for
+this specific test. The kernel repeated the `mt7921e` restore timeout and
+NVIDIA target-temperature/platform-power-mode firmware-query assertions. The
+NVIDIA assertions also occurred at boot; they are tracked in `lllf-j9t.6.6`,
+separately from the successful CDI fix. Suspend-then-hibernate preflight remains
+tracked in `lllf-j9t.6.3`. PM diagnostic flags must be restored to their original
+zero values by the user after evidence capture.
 
 ## Completion gate
 
