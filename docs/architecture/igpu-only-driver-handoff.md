@@ -603,14 +603,14 @@ completing functional validation of this direct-hibernate cycle. Broader
 hibernate acceptance remains open: the kernel repeated the `mt7921e` restore
 timeout and NVIDIA target-temperature/platform-power-mode firmware-query assertions. The
 NVIDIA assertions also occurred at boot; they are tracked in `lllf-j9t.6.6`,
-separately from the successful CDI fix. Suspend-then-hibernate preflight remains
-tracked in `lllf-j9t.6.3`.
+separately from the successful CDI fix. Suspend-then-hibernate preflight was
+validated and closed in `lllf-j9t.6.3`.
 
 ## Suspend-then-hibernate transition guard (2026-09-08)
 
 Implementation for `lllf-j9t.6.3` adds the existing required entry preflight to
 `systemd-suspend-then-hibernate.service` and rechecks authoritative graphics state
-at the actual hibernate transition. Hardware validation remains pending.
+at the actual hibernate transition. Hardware validation is complete and passed.
 
 Systemd 261.2 handles suspend, timer/battery wakeups, hibernate, and fallback
 inside one sleep process. Ordinary `system-sleep` hooks run with
@@ -670,9 +670,24 @@ Deployment and hardware validation:
    hibernate write. After image restore, require detached/settled status with
    complete inspection and zero clients, plus working desktop, audio, and Wi-Fi.
 
-The user runs all sudo commands. Automated tests and a successful build do not
-close this hardware validation item or extend the direct-hibernate result to
-the lid-close path.
+Hardware validation completed on 2026-09-09. The initial s2h attempts never
+suspended: `hosts/nixos/hardware/hibernate.nix` defined empty
+`nvidia-suspend`/`nvidia-resume` ordering shims with `requiredBy` on the
+suspend-then-hibernate service, and systemd 261.2 refuses services without an
+`ExecStart`. Both units are now valid no-op `Type=oneshot` units because the
+driver uses kernel suspend notifiers (`NVreg_UseKernelSuspendNotifiers=1`);
+direct suspend and hibernate were never affected. After the switch, the
+manual-wake test suspended normally and returned without attempting hibernation
+(monotonic 129776-129782), and the timer-driven transition (monotonic
+130099-130170) ran the patched second preflight at 130106.853 between suspend
+return and the hibernate write, restored the same image in boot `a4af09f3`
+(kernel hibernation entry/exit with NVIDIA re-enumeration), reconciled NVIDIA
+to detached/settled with complete zero-client inspection before `user.slice`
+thawed at 130170.724, and returned desktop, audio, and Wi-Fi automatically with
+zero failed units. Sleep configuration and PM diagnostics were restored to
+their original values. The recurring `mt7921e` restore timeout and NVIDIA
+firmware-query assertions are tracked separately in `lllf-j9t.6.5` and
+`lllf-j9t.6.6`.
 
 ## Completion gate
 
