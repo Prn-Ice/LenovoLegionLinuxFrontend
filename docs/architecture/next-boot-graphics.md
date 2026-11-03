@@ -154,3 +154,33 @@ Deployment, real Polkit authentication, and real next-boot graphics/recovery
 tests remain unperformed. Follow-up is `lllf-j9t.7.1`; later sleep validation
 remains `lllf-j9t.6.7`. No generation was activated, no firmware was changed, and
 no reboot was requested while implementing and testing this flow.
+
+### Runtime incident before deployment
+
+The user subsequently reported a perceived hang, a power-button shutdown attempt,
+and return to the previous session. Deployment is paused while clarifying that
+event (`lllf-p4q`). The running system is still generation `lkvqlww...`, not the
+built opt-in generation above.
+The user confirms keyboard and power-button lights were still on. Those LEDs
+alone do not distinguish sleep, image preparation, or a hang; screen state and
+whether a held power press actually extinguished the LEDs remain unknown.
+
+Read-only logs for boot `3a1b0a31-b6fc-4954-9318-b5a38ddb8ae3` show PowerDevil
+requesting suspend-then-hibernate at 22:12 on 2026-11-03, a timer wake after the
+configured 30 minutes, hibernate entry at 22:42:11, and return at 22:45:56.
+Hibernation entry-to-return advances realtime about 225.166 seconds but monotonic
+time only 23.947 seconds. The approximately 201-second difference, unchanged boot
+ID, snapshot-save messages, and restore callbacks strongly support same-image
+hibernation recovery. No explicit restored-image message was captured; this is
+not proof that no hang occurred or that the power button forced a cold shutdown.
+
+The root status logged around that cycle is Hybrid/attached/settled/complete with
+normal desktop clients. It is not an iGPU-only validation. The Wi-Fi restore
+timeout recurs under `lllf-j9t.6.5`. The post-resume loop also incorrectly rejects
+normal Hybrid clients (`lllf-esn`); the sleep service can report success despite
+that hook failure. Only the pre-existing DrKonqi failed unit remains. Neither
+warning has been established as the cause of the user's perceived hang.
+
+No new graphics request, deployment, sleep, or reboot was initiated while
+collecting this evidence. Obtain the user's screen/power-button details before
+choosing the next deployment or hardware test step.
