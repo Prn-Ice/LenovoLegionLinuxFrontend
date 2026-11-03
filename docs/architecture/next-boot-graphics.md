@@ -222,4 +222,37 @@ The exact committed host configuration for this launcher built successfully as
 `/nix/store/4wbf4plndc06pzbyg63iifqqclvigzzg-nixos-system-nixos-26.11.20261101.0bb2eed`.
 Its rendered startup graph passed the same materialized-unit verification, with
 only the existing CUPS path warning. This build excludes the unrelated working
-lock edit; it is the setup candidate, not a running/installed generation.
+lock edit. At that point it was only a setup candidate, not an installed or
+running generation.
+
+### First setup boot validated
+
+The user ran the installer and restarted normally. The log
+`~/.local/state/legion-graphics-setup/setup-20261103-230526-mySEqj.log`
+records exit 0, successful boot-only installation of the reviewed `4wbf4...`
+generation, and unchanged running generation/boot before the user's restart.
+Boot-loader probing emitted warnings, but the installer completed and its
+profile checks passed.
+
+On 2026-11-03 at 23:07, boot ID changed from `3a1b0a31...` to
+`4c417bfb-648d-4eb8-9cab-775b81cc77f9`. Both `/run/current-system` and the
+installed system profile resolve to the exact reviewed `4wbf4...` generation.
+This was a new setup boot, not return to the prior hibernated session.
+
+The boot helper logged `starting`, complete zero-client
+Hybrid/attached/settled status, successful cleanup, and `phase: none` (no queued
+mode request). It finished at monotonic 9.102467 seconds. The control service
+started at 9.104487, user-session admission at 9.106614, display manager at
+9.121842, and user manager at 22.390164 seconds, confirming the observed startup
+ordering. The installed client is available and the control service is active
+with the fixed next-boot helper argument.
+
+Current system and user failed-unit lists are both empty. The user journal also
+contains historical crash-report replay and a transient KSplash timeout; these
+are not evidence that a new graphics transition occurred or new crashes matching
+the replayed records. The prior wake incident remains unresolved separately.
+
+Next validate the real desktop Polkit/status round trip without queuing a mode.
+Only after it passes should an explicit iGPU-only request and its separate
+user-triggered reboot be attempted. No iGPU-only transition or sleep validation
+is claimed by this successful Hybrid setup boot.
