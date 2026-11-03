@@ -723,14 +723,26 @@ For users who cannot copy output from a virtual console, use
 `bash ~/Projects/personal/LenovoLegionLinuxFrontend/tool/check_graphics_tty.sh`
 as the normal user after saving work, logging out of Plasma, and logging into
 Ctrl+Alt+F3. The script asks for confirmation, captures sleep configuration and
-loaded guard details, briefly stops the display manager, and records root
-graphics status. It restores the display manager if it was active on entry,
-including on capture failure. It does not terminate lingering clients, change
+loaded guard details, briefly stops the display manager and active user audio
+units (including activation sockets), and records root graphics status. It
+restores previously active audio units before restoring the display manager if
+it was active on entry, including on capture failure. It does not terminate lingering clients, change
 graphics policy, or request sleep. Logs are private timestamped files under
 `${XDG_STATE_HOME:-$HOME/.local/state}/legion-graphics-check/`; return to the
 desktop and have the agent read the latest log instead of pasting from the TTY.
 If automatic login-screen recovery fails, the script prints
 `sudo systemctl start display-manager.service` as the recovery command.
+
+The first user-run capture is
+`~/.local/state/legion-graphics-check/check-20261103-175521-6GCjIt.log`.
+It confirms shutdown mode and the deployed guard, but complete root inspection
+still reports WirePlumber holding `/dev/snd/controlC0` after desktop logout and
+display-manager stop. No detach was attempted. The script now pauses user audio
+as well and awaits a second capture. The capture also records one failed
+DrKonqi forwarding unit: PipeWire 1.6.9 had already crashed during logout at
+17:54:29, before the script began. The X11-bell disconnect stack and secondary
+`Connection refused` forwarding failure are tracked separately in `lllf-04d`;
+they are not hibernate results.
 
 ## Completion gate
 

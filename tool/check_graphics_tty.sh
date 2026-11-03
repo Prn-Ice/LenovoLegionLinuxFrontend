@@ -20,11 +20,22 @@ mkdir -p "$LOG_DIR"
 LOG=$(mktemp "$LOG_DIR/check-$(date +%Y%m%d-%H%M%S)-XXXXXX.log")
 exec > >(tee -a "$LOG") 2>&1
 restore_display=0
+restore_audio=0
+audio_units=()
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup() {
   local result=$?
   trap - EXIT
+  if [[ $restore_audio -eq 1 ]]; then
+    printf '\nRestoring previously active user audio units.\n'
+    if ! systemctl --user start "${audio_units[@]}"; then
+      printf 'Audio recovery failed. Run: systemctl --user start' >&2
+      printf ' %q' "${audio_units[@]}" >&2
+      printf '\n' >&2
+      result=1
+    fi
+  fi
   if [[ $restore_display -eq 1 ]]; then
     printf '\nRestoring the graphical login screen.\n'
     if ! sudo systemctl start display-manager.service; then
@@ -41,7 +52,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 printf 'Graphics check: %s\nConsole: %s\nLog: %s\n' "$(date --iso-8601=seconds)" "$console" "$LOG"
-printf 'This briefly stops the login screen, records status, then starts it again.\n'
+printf 'This briefly stops the login screen and user audio, records status, then restores them.\n'
 printf 'Your Plasma session should already be logged out. Continue? [y/N] '
 read -r answer
 [[ $answer == y || $answer == Y ]] || exit 0
@@ -65,8 +76,23 @@ case "$display_state" in
   inactive) ;;
   *) printf 'Unexpected display manager state: %s; stopping check.\n' "$display_state" >&2; exit 1 ;;
 esac
+printf '\nRecording user audio state before pausing it:\n'
+for unit in pipewire.socket pipewire-pulse.socket pipewire.service wireplumber.service pipewire-pulse.service; do
+  audio_state=$(systemctl --user show "$unit" --property=ActiveState --value)
+  printf '%s: %s\n' "$unit" "$audio_state"
+  case "$audio_state" in
+    active) audio_units+=("$unit") ;;
+    inactive|failed) ;;
+    *) printf 'Unexpected audio state; stopping check without pausing audio.\n' >&2; exit 1 ;;
+  esac
+done
+if [[ ${#audio_units[@]} -gt 0 ]]; then
+  # Stop sockets and services together to avoid immediate socket reactivation.
+  restore_audio=1
+  systemctl --user stop "${audio_units[@]}"
+fi
 sleep 3
-printf '\nAuthoritative graphics status with display manager stopped:\n'
+printf '\nAuthoritative graphics status with display manager and user audio stopped:\n'
 sudo "$CLI" --donotexpecthwmon graphics-mode status --json
 printf '\nFailed services:\n'
 systemctl --failed --no-pager
