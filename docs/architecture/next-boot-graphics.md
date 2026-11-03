@@ -158,12 +158,14 @@ no reboot was requested while implementing and testing this flow.
 ### Runtime incident before deployment
 
 The user subsequently reported a perceived hang, a power-button shutdown attempt,
-and return to the previous session. Deployment is paused while clarifying that
+and return to the previous session. Deployment was paused while clarifying that
 event (`lllf-p4q`). The running system is still generation `lkvqlww...`, not the
 built opt-in generation above.
-The user confirms keyboard and power-button lights were still on. Those LEDs
-alone do not distinguish sleep, image preparation, or a hang; screen state and
-whether a held power press actually extinguished the LEDs remain unknown.
+The user confirms a dark screen with keyboard and power-button lights still on.
+That is consistent with sleep/image preparation, but does not rule out a wake
+problem. Whether a held power press actually extinguished the LEDs remains
+unknown. With user approval, preparation resumed for boot-only setup, not a live
+graphics change, and without treating the reported hang as resolved.
 
 Read-only logs for boot `3a1b0a31-b6fc-4954-9318-b5a38ddb8ae3` show PowerDevil
 requesting suspend-then-hibernate at 22:12 on 2026-11-03, a timer wake after the
@@ -182,5 +184,42 @@ that hook failure. Only the pre-existing DrKonqi failed unit remains. Neither
 warning has been established as the cause of the user's perceived hang.
 
 No new graphics request, deployment, sleep, or reboot was initiated while
-collecting this evidence. Obtain the user's screen/power-button details before
-choosing the next deployment or hardware test step.
+collecting this evidence. Preserve the unresolved power-button/wake context for
+the subsequent hardware validation.
+
+### Initial setup launcher
+
+The host configuration now enables the option and pins the implementation in
+host commit `384070f2ec75d95bee958f0f33545b5ecd73a23b` (frontend input
+`9b8724919942ddac8018afb1c71e2fdecacda1d7`). The pre-existing unrelated
+`view-beads` lock edit was not included in that commit and remains untouched in
+the working tree.
+
+`tool/setup_next_boot_graphics.sh` uses that immutable committed Git flake,
+rather than deploying unrelated working-tree changes. Run it as your normal
+user from a desktop terminal. It blocks automatic sleep/shutdown for its
+lifetime, asks for confirmation, validates the ordinary enabled configuration,
+builds the reviewed generation, and asks for sudo to install it using
+`nixos-rebuild boot`. It refuses pre-existing request state and checks that the
+installed profile matches the build and the running generation/boot are
+unchanged. It does not activate, select a graphics mode, log out, or reboot.
+Errors stop the launcher and retain the log; there is no automatic rollback of
+an ambiguous failed boot-loader installation.
+
+Logs are private files in
+`${XDG_STATE_HOME:-$HOME/.local/state}/legion-graphics-setup/`. Ten mocked setup
+cases, Bash syntax, ShellCheck, and diff checks pass. No real installation was
+performed by those tests. The local convenience link `~/legion-setup` points to
+the launcher; use `bash ~/legion-setup`.
+
+After a successful installation, save work and choose **Restart** from the
+desktop menu when ready. Waking a saved hibernation session is not a setup boot.
+The first boot should remain Hybrid: no iGPU-only request is queued by setup.
+Verify its boot ID, running generation and reconciliation log before testing
+the new authorization or requesting an actual mode change.
+
+The exact committed host configuration for this launcher built successfully as
+`/nix/store/4wbf4plndc06pzbyg63iifqqclvigzzg-nixos-system-nixos-26.11.20261101.0bb2eed`.
+Its rendered startup graph passed the same materialized-unit verification, with
+only the existing CUPS path warning. This build excludes the unrelated working
+lock edit; it is the setup candidate, not a running/installed generation.
