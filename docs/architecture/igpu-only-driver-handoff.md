@@ -744,6 +744,60 @@ DrKonqi forwarding unit: PipeWire 1.6.9 had already crashed during logout at
 `Connection refused` forwarding failure are tracked separately in `lllf-04d`;
 they are not hibernate results.
 
+The second capture,
+`~/.local/state/legion-graphics-check/check-20261103-205745-SPH4X3.log`,
+records complete root inspection with zero NVIDIA clients after pausing desktop
+and audio. It remains Hybrid/attached/settled. All five audio units were active
+before the pause, and audio plus display-manager restoration completed. The
+same pre-existing DrKonqi unit remains failed. This proves the managed clients
+can be stopped; it is not a reservation preventing future opens, and it does
+not authorize a later detach based on this old snapshot.
+
+### Boot-path audit (2026-11-03)
+
+The user requested a more predictable alternative to repeated live-session
+checks. Read-only inspection of source, deployed PID1 properties, and this boot's
+journal found:
+
+- `packaging/nixos/legion-telemetry.nix` defines
+  `legion-graphics-reconcile.service`. The display manager has both `Requires`
+  and `After` dependencies on it. Its cleanup runs as `ExecStartPost`, so the
+  display manager waits for reconciliation and cleanup, and their startup
+  failure blocks display-manager startup.
+- NVIDIA CDI generation is ordered after reconciliation and has a policy-aware
+  condition. Docker requires and follows CDI generation. These are specific
+  managed consumers, not a global GPU-access barrier.
+- There is no explicit reconciliation gate on `systemd-user-sessions.service`
+  or `user@.service`. The current user's `Linger=no` reduces one startup source
+  but is not an ordering guarantee. Early console logins, other users, or new
+  system GPU consumers must not be assumed excluded.
+- The reconciler restores the firmware policy already selected. It does not
+  accept a desired mode for the next boot. This boot's journal at
+  16:59:34-16:59:36 records complete zero-client Hybrid/attached/settled status;
+  it does not prove an iGPU-only boot transition. `RemainAfterExit=yes` also
+  means restarting the display manager does not normally rerun reconciliation.
+- `tool/deploy_igpu_boot_order_tty.sh` requires iGPU-only already selected, so
+  it cannot solve initial selection without a live transition.
+- The host's `hosts/nixos/hardware/nvidia.nix` loads NVIDIA in the initrd. Its
+  existing `no-nvidia` specialisation uses PCI-removal udev rules, while
+  `hosts/nixos/hardware/legion_slim.nix` uses a legacy activation-time Hybrid
+  write. Neither is a substitute for the guarded firmware iGPU-only contract;
+  do not use that specialisation as this test's shortcut.
+
+Next work is `lllf-j9t.7`: agree an opt-in next-boot policy request and a startup
+gate covering the intended clients, with bounded failure, persistent evidence,
+and a recovery path. Apply a request only during boot, not during a live NixOS
+activation. Preserve root inspection and the existing guarded backend, and
+verify topology plus module cleanup before allowing the desktop to start.
+Define request consumption/retry behavior so a failed request cannot silently
+repeat on every boot. Ordering and repeated scans alone still cannot guarantee
+exclusion of arbitrary device opens; an enforced access barrier would need its
+own design and proof if that stronger guarantee is required.
+
+No startup behavior was changed, no configuration was deployed, and no graphics
+write or reboot was requested during this audit. Rendered-graph cycle checks,
+builds, and hardware tests of the proposed flow remain unperformed.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
