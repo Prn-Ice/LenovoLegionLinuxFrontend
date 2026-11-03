@@ -719,6 +719,19 @@ user-run `sudo legion_cli graphics-mode status --json` and
 safe configuration and preparing detached iGPU-only state should the user run
 the manual-wake and timer-driven hardware checks described above.
 
+For users who cannot copy output from a virtual console, use
+`bash ~/Projects/personal/LenovoLegionLinuxFrontend/tool/check_graphics_tty.sh`
+as the normal user after saving work, logging out of Plasma, and logging into
+Ctrl+Alt+F3. The script asks for confirmation, captures sleep configuration and
+loaded guard details, briefly stops the display manager, and records root
+graphics status. It restores the display manager if it was active on entry,
+including on capture failure. It does not terminate lingering clients, change
+graphics policy, or request sleep. Logs are private timestamped files under
+`${XDG_STATE_HOME:-$HOME/.local/state}/legion-graphics-check/`; return to the
+desktop and have the agent read the latest log instead of pasting from the TTY.
+If automatic login-screen recovery fails, the script prints
+`sudo systemctl start display-manager.service` as the recovery command.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
