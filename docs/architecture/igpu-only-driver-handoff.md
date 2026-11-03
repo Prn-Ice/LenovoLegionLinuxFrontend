@@ -689,6 +689,36 @@ their original values. The recurring `mt7921e` restore timeout and NVIDIA
 firmware-query assertions are tracked separately in `lllf-j9t.6.5` and
 `lllf-j9t.6.6`.
 
+### systemd 262 deployment checkpoint (2026-11-03)
+
+Follow-up hardware validation is tracked in `lllf-j9t.6.7`; the successful
+systemd 261.2 cycles above do not establish hardware coverage for 262.
+
+- PID1 reports the guarded 262 executable deployed at
+  `/nix/store/mg3r55lhcwjllaj38wqjwc0njc220i2m-legion-systemd-sleep-262/lib/systemd/systemd-sleep`,
+  with the entry preflight required and ordered before s2h. The NVIDIA ordering
+  shims retain valid `true` commands. There are zero failed units.
+- The deployed package's build log records all nine transition regression cases
+  passing. The installed executable help smoke test and its embedded wrapper's
+  exit propagation and real 20-second timeout tests pass. Detached lifecycle,
+  hibernate reconciliation-loop, and CDI condition tests also pass with `jq`
+  supplied through `nix shell nixpkgs#jq`.
+- Boot `3a1b0a31-b6fc-4954-9318-b5a38ddb8ae3` currently reports selected
+  Hybrid, attached/settled NVIDIA, and VS Code holding NVIDIA handles. This is
+  non-root inspection and is incomplete; it cannot authorize detachment.
+- `/sys/power/disk` currently selects `platform`. This is not evidence of the
+  mode systemd will select at sleep time: verify the host's effective
+  `HibernateMode=shutdown` configuration before testing. Do not retry detached
+  platform-mode hibernation. The agent's filesystem view cannot see host sleep
+  configuration or base unit fragments despite PID1 reporting loaded units;
+  obtain host-side output rather than diagnosing those files as missing.
+
+No privileged command, graphics transition, or sleep was initiated. Next obtain
+user-run `sudo legion_cli graphics-mode status --json` and
+`systemd-analyze cat-config systemd/sleep.conf` output. Only after confirming
+safe configuration and preparing detached iGPU-only state should the user run
+the manual-wake and timer-driven hardware checks described above.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live
