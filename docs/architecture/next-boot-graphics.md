@@ -256,3 +256,44 @@ Next validate the real desktop Polkit/status round trip without queuing a mode.
 Only after it passes should an explicit iGPU-only request and its separate
 user-triggered reboot be attempted. No iGPU-only transition or sleep validation
 is claimed by this successful Hybrid setup boot.
+
+### First requested iGPU-only boot validated
+
+The real desktop status/authentication check returned `phase: none`. The user
+then queued Hybrid iGPU-only using the typed client. The saved request in
+`~/.local/state/legion-graphics-setup/request.log` records `phase: pending`,
+originating boot `4c417bfb-648d-4eb8-9cab-775b81cc77f9`, and timestamp
+`1793744498.93623`. No immediate mode change occurred.
+
+After the user's next restart, boot ID is
+`cfd9d39f-da60-46f3-9bfe-83db970b007d`, still on reviewed generation `4wbf4...`.
+The 2026-11-03 23:24 journal records initial Hybrid/attached/settled status with
+complete zero-client root inspection, followed by the guarded selection of
+Hybrid iGPU-only. The backend settled detached after six recorded reconciliation
+attempts (about 25 seconds), then reconciliation, cleanup, and fresh root
+verification passed. The persisted result printed in the journal is
+`phase: completed`, with the correct originating/attempted boot IDs and final
+detached/settled/complete/zero-client status.
+
+The boot helper finished at monotonic 34.966591 seconds; the control service,
+user-session admission, and display manager began afterward at 34.968626,
+34.971531, and 34.982289 seconds. The user manager began at 47.432017 seconds.
+CDI generation was skipped by its condition, as intended for detached policy.
+Both current system and user failed-unit lists are empty.
+
+Read-only checks after desktop startup find no NVIDIA PCI functions, no
+`/dev/nvidia*` nodes, and none of the NVIDIA GPU-driver modules
+(`nvidia`, `nvidia_drm`, `nvidia_modeset`, `nvidia_uvm`). The distinct
+`nvidia_wmi_ec_backlight` platform/backlight module remains loaded; it is not the
+GPU driver stack and is not part of cleanup. The internal eDP-2 panel is
+connected. Root port `0000:00:01.1` reports runtime `suspended` and `D3cold`.
+Unprivileged CLI status agrees on detached/settled iGPU-only but reports
+incomplete process inspection; do not mislabel that as a fresh root scan.
+
+Two known NVIDIA SBIOS query assertions appear at 23:24:04, before the boot
+helper started and before the mode transition. They remain under
+`lllf-j9t.6.6`; do not claim a warning-free kernel or attribute them to the new
+selection without evidence. Desktop return is user-confirmed. Audio/Wi-Fi
+confirmation for this boot, real Hybrid return/recovery, live cancellation, and
+subsequent sleep coverage remain pending. No further mode write or sleep was
+initiated by the agent during evidence capture.
