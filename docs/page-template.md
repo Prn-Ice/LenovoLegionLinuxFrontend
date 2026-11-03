@@ -236,8 +236,9 @@ commands extend
 
 ## 9. Tooling & process
 
-- **Flutter is not on PATH** — run via the nix flake:
-  `nix develop /home/prnice/Projects/personal/nix_flakes/flutter_flake --command bash -c "cd <repo> && flutter test"`.
+- `.envrc` selects the shared flake's `#linux` shell. Use `direnv exec . flutter test`
+  from the repo when your terminal has not loaded that environment. See
+  [dependency notes](dependencies.md) for the SDK and package constraints.
 - **`dart format` only the files you edited** — never `dart format lib` (the
   flake's formatter churns unrelated files).
 - **TDD for logic** (red→green). Declarative styling/config is exempt, but lock

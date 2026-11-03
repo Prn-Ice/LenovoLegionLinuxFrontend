@@ -72,7 +72,12 @@ bd ready                       # find issues with no unresolved blockers
 
 ## Adding a new feature
 
-Follow these steps to add a new hardware feature page. Use an existing feature (e.g. `lib/features/dgpu/`) as a reference.
+Follow these steps to add a new hardware feature page. Read the
+[Riverbloc usage guide](.agents/skills/code-patterns/references/riverbloc.md),
+[examples](.agents/skills/code-patterns/references/riverbloc-patterns.md),
+[testing guide](.agents/skills/code-patterns/references/testing.md), and
+[Flutter UI guide](.agents/skills/code-patterns/references/flutter-ui.md) as relevant.
+Use existing features as context, not proof that every older pattern is current.
 
 ### 1. Plan
 
@@ -80,12 +85,13 @@ Describe the intended behavior, affected layers, and useful tests in the live
 Beads issue. Historical plans under `docs/plans/` provide context, not current
 instructions. Add only the layers the feature actually needs.
 
-### 2. Implement (TDD, layer by layer)
+### 2. Implement and test the behavior
 
-Work bottom-up through the stack. Write tests before implementation for each layer.
+Work bottom-up where the feature needs those layers. Write useful logic tests
+before implementation; do not create empty layers or tests of framework guarantees.
 
 **Models** (`lib/features/<name>/models/`)
-- `<name>_snapshot.dart` — plain data class, extends `Equatable`, constructor + `props`
+- `<name>_snapshot.dart` — plain immutable data; use `Equatable` when value equality is part of the contract, not as a mandatory wrapper
 - Any parser models (e.g. `DgpuProcess.parseNvidiaSmiOutput`) — write tests first
 
 **State + Event** (`lib/features/<name>/bloc/`)
@@ -99,21 +105,26 @@ Work bottom-up through the stack. Write tests before implementation for each lay
 
 **BLoC** (`lib/features/<name>/bloc/<name>_bloc.dart`)
 - Extends `Bloc<Event, State>`; uses `riverbloc` import
-- Register one `on<>` handler per event
-- Guard `isApplying` in write handlers; reload state after successful writes
+- Keep handlers focused; choose and test concurrency deliberately. Separate `on<>` registrations do not share a queue
+- Guard repeated writes and reload authoritative state after success. An `isApplying` flag alone does not order writes against refresh/poll handlers
 
 **Provider** (`lib/features/<name>/providers/<name>_provider.dart`)
 ```dart
-final <name>RepositoryProvider = Provider<...>((ref) {
-  final bridge = ref.watch(legionBridgeServiceProvider);
-  return <Name>Repository(bridgeService: bridge);
+final featureRepositoryProvider = Provider<FeatureRepository>((ref) {
+  final controlClient = ref.watch(legionControlClientProvider);
+  return FeatureRepository(controlClient: controlClient);
 });
 
-final <name>BlocProvider = BlocProvider.autoDispose<...>((ref) {
-  final repository = ref.watch(<name>RepositoryProvider);
-  return <Name>Bloc(repository: repository)..add(const <Name>Started());
+final featureBlocProvider = BlocProvider.autoDispose<FeatureBloc, FeatureState>((ref) {
+  final repository = ref.watch(featureRepositoryProvider);
+  return FeatureBloc(repository: repository)..add(const FeatureStarted());
 });
 ```
+
+This is a naming template; inject the dependencies the feature really uses.
+Initialize once per instance. Widgets watch `featureBlocProvider` for state and
+read `featureBlocProvider.bloc` inside action callbacks. The provider owns its
+Bloc's disposal; do not close it again from a widget.
 
 **Navigation** (`lib/features/navigation/`)
 - Add entry to `AppSection` enum in `models/app_section.dart`
@@ -121,10 +132,10 @@ final <name>BlocProvider = BlocProvider.autoDispose<...>((ref) {
 - Add `case AppSection.<name>: return const <Name>Page();` in `NavigationShell._buildPage`
 
 **View** (`lib/features/<name>/view/<name>_page.dart`)
-- `ConsumerWidget`; watch the bloc provider; use `AppPageBody`, `AppSectionCard`, `AppRefreshButton`
+- `ConsumerWidget` or `ConsumerStatefulWidget`; watch state and compose visible regions in `AppPageBody`. Use `SurfaceCard` and the page template's shared primitives; the shell owns page titles and refresh actions
 - Privileged action buttons must call `confirmPrivilegedAction()` before dispatching events
 - Show `PrivilegedActionNotice` widget near any privileged action buttons
-- Gate deactivation sections with `if (state.isAvailable)`
+- Gate controls on actual backend capabilities, including partial/unavailable support; do not invent values or require a uniform state field solely to match a template
 
 ### 3. Verify
 
@@ -133,19 +144,20 @@ flutter test
 flutter analyze
 ```
 
-All existing tests must still pass. New tests should cover state/copyWith, model parsing, and BLoC handlers.
+All existing tests must still pass. Add meaningful parser/state/handler tests,
+provider lifetime checks, and UI journeys for the behavior changed. See the
+testing guide rather than imposing a test-per-getter or coverage quota.
 
 ### 4. Commit
 
-Commit per layer with conventional commit messages:
+Use conventional commit messages for cohesive, reviewable changes. Split by
+layer when it helps a larger change, not to create empty layers or require a
+series of incomplete commits. For example:
 
 ```
-feat(<name>): add <Name>Process model with parser
-feat(<name>): add <Name>State and <Name>Event
-feat(<name>): add <Name>Repository
-feat(<name>): add <Name>Bloc
-feat(<name>): register provider and add nav section
-feat(<name>): add <Name>Page view
+feat(fans): validate and apply a fan curve with readback
+fix(power): preserve edited limits when refresh completes
+test(settings): cover provider replacement during confirmation
 ```
 
 ## Privileged commands
@@ -162,7 +174,11 @@ Two strategies are used depending on the feature (see `docs/architecture/sysfs-v
 | Named subcommand | `batteryconservation-enable` |
 | Grouped subcommand | `boot-logo enable /path/to/image` |
 
-Use `bridgeService.runPrivilegedCommand(method: '...', args: [...])` — do not call `LegionCliService` directly from a repository.
+Prefer typed `LegionControlClient` methods for new operations. Existing bridge
+callers may retain `bridgeService.runPrivilegedCommand(method: '...', args: [...])`
+as a compatibility vocabulary that maps to the allow-listed D-Bus API; it is not
+permission to execute arbitrary commands. Do not launch privileged CLI writes
+directly from a repository or add another privilege-elevation path.
 
 When adding a writable feature, extend and test both the Dart mapping and the C++ allow-list. Do not add a generic command method or a privilege-elevation fallback.
 

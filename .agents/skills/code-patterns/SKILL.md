@@ -6,9 +6,29 @@ description: Project-owned guidance for readable Dart, repeatable Riverbloc patt
 # Code the next maintainer can follow
 
 Read `AGENTS.md` and the relevant existing feature before changing code. These
-patterns adapt [Ester's working agreement](https://github.com/Prn-Ice/ester/blob/1d73e16481ce73aa16e3764053530f0a6980d7fe/AGENTS.md)
+patterns adapt [Ester's working agreement](https://github.com/Prn-Ice/ester/blob/6964c5bce2628cc7a6b0f0a5c0af0332926d3ee2/AGENTS.md)
 and its project-owned code-patterns skill. They are tool-neutral guidance, not
 another agent workflow or a requirement to install external skills.
+
+## Read the reference for the work
+
+Load the relevant guides before implementing or reviewing, not every reference
+on every task. They apply to existing code encountered as well as new code.
+
+| Work | Reference |
+| --- | --- |
+| Bloc/Cubit, provider wiring, listeners, async work, concurrency, disposal | [Riverbloc](references/riverbloc.md) |
+| Concrete provider, callback, and test shapes | [Riverbloc examples](references/riverbloc-patterns.md) |
+| Version-sensitive API claims or stale upstream examples | [Resolved API source map](references/riverbloc-api.md) |
+| Tests, races, hardware boundaries, responsive evidence | [Testing](references/testing.md) |
+| Flutter pages, Yaru components, dialogs, theme, accessibility | [Flutter UI](references/flutter-ui.md), then `docs/page-template.md` and `docs/error-and-feedback-standard.md` |
+| SDK/package upgrades | `docs/dependencies.md` and the upgrade section below |
+
+These references adapt
+[Ester's focused code-patterns guides](https://github.com/Prn-Ice/ester/tree/6964c5bce2628cc7a6b0f0a5c0af0332926d3ee2/.agents/skills/code-patterns/references).
+They deliberately exclude its estate model, Supabase/RLS, Jaspr,
+AutoRoute, monorepo, design system, and Git policy. This project's architecture,
+UI standards, and completion rules remain authoritative.
 
 ## Keep the behavior visible
 
