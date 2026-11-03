@@ -293,7 +293,7 @@ incomplete process inspection; do not mislabel that as a fresh root scan.
 Two known NVIDIA SBIOS query assertions appear at 23:24:04, before the boot
 helper started and before the mode transition. They remain under
 `lllf-j9t.6.6`; do not claim a warning-free kernel or attribute them to the new
-selection without evidence. Desktop return is user-confirmed. Audio/Wi-Fi
-confirmation for this boot, real Hybrid return/recovery, live cancellation, and
+selection without evidence. The user confirms desktop, sound, and Wi-Fi all
+work normally on this boot. Real Hybrid return/recovery, live cancellation, and
 subsequent sleep coverage remain pending. No further mode write or sleep was
 initiated by the agent during evidence capture.
