@@ -297,3 +297,32 @@ selection without evidence. The user confirms desktop, sound, and Wi-Fi all
 work normally on this boot. Real Hybrid return/recovery, live cancellation, and
 subsequent sleep coverage remain pending. No further mode write or sleep was
 initiated by the agent during evidence capture.
+
+### Requested return to Hybrid validated
+
+The user queued Hybrid in
+`~/.local/state/legion-graphics-setup/hybrid-request.log`: `phase: pending`,
+timestamp `1793745347.3212276`, and originating boot `cfd9d39f...`. After the
+user's restart, boot ID is `b4c098f2-8822-4116-8114-5b3edec9e3b4`, still on
+reviewed generation `4wbf4...`.
+
+The 23:37:51 root boot log initially shows the persisted iGPU-only policy with
+NVIDIA re-enumerated and attached, complete zero-client inspection, and
+reconciliation needed. The queued Hybrid selection succeeds, followed by
+settled attached topology, cleanup's attached-policy path, and final complete
+zero-client root verification. The request is recorded as `completed` with the
+correct originating and attempted boot IDs.
+
+Reconciliation finishes at monotonic 9.583447 seconds, before control startup
+(9.585930), session admission (9.588526), display-manager startup (9.606987), and
+the user manager (26.398326). CDI generation now runs successfully, as expected
+for Hybrid. NVIDIA VGA `0000:01:00.0` binds `nvidia`, audio `0000:01:00.1` binds
+`snd_hda_intel`, and the NVIDIA GPU module stack is loaded again. After desktop
+startup, Code opening NVIDIA handles is expected and is not a failed guard.
+
+Both current system/user failed-unit lists are empty and the user is back on
+the desktop. Audio and Wi-Fi confirmation for this return boot remains pending.
+This validates a requested boot-time return to Hybrid, not live hot-attach or
+recovery after an actually failed/interrupted hardware transition. Live pending
+request cancellation and subsequent sleep coverage remain separate unperformed
+checks; no further mode or sleep operation was initiated by the agent.
