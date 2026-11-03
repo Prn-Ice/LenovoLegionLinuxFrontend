@@ -320,8 +320,8 @@ for Hybrid. NVIDIA VGA `0000:01:00.0` binds `nvidia`, audio `0000:01:00.1` binds
 `snd_hda_intel`, and the NVIDIA GPU module stack is loaded again. After desktop
 startup, Code opening NVIDIA handles is expected and is not a failed guard.
 
-Both current system/user failed-unit lists are empty and the user is back on
-the desktop. Audio and Wi-Fi confirmation for this return boot remains pending.
+Both current system/user failed-unit lists are empty. The user confirms the
+desktop, sound, and Wi-Fi all work normally after this return boot.
 This validates a requested boot-time return to Hybrid, not live hot-attach or
 recovery after an actually failed/interrupted hardware transition. Live pending
 request cancellation and subsequent sleep coverage remain separate unperformed
