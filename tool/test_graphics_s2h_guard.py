@@ -40,9 +40,11 @@ typedef uint64_t usec_t;
 typedef enum { SLEEP_SUSPEND, SLEEP_HIBERNATE, SLEEP_HYBRID_SLEEP,
                _SLEEP_OPERATION_CONFIG_MAX, SLEEP_SUSPEND_THEN_HIBERNATE } SleepOperation;
 typedef struct {
+    bool allow[5];
     char **states[3], **modes[3], **mem_modes;
     usec_t hibernate_delay_usec;
     bool hibernate_on_ac_power;
+    usec_t suspend_estimation_usec;
 } SleepConfig;
 typedef struct { int devno; uint64_t offset; char *path; } HibernationDevice;
 #define _cleanup_(x)
