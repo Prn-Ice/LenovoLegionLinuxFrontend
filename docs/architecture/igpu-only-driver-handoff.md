@@ -798,6 +798,12 @@ No startup behavior was changed, no configuration was deployed, and no graphics
 write or reboot was requested during this audit. Rendered-graph cycle checks,
 builds, and hardware tests of the proposed flow remain unperformed.
 
+The opt-in implementation is now described in
+[Next-boot graphics requests](next-boot-graphics.md). It adds typed authorized
+request/cancel/status operations, private one-shot state, and boot startup gates.
+It is not enabled on the running host; deployment and real boot validation remain
+separate from the audit and hardware-free tests above.
+
 ## Completion gate
 
 Firmware semantics, the guarded driver/CLI contract, internal-panel live

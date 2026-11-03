@@ -44,10 +44,10 @@ const std::map<std::string, std::string> toggles = {
 const std::map<std::string, std::vector<std::string>> services = {
     {"power_profiles_daemon", {"power-profiles-daemon.service"}},
     {"legiond_stack",
-      {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
-       "legiond-cpuset.timer"}}};
-const std::set<std::string> graphics_modes = {
-    "hybrid", "hybrid-igpu-only", "discrete"};
+     {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
+      "legiond-cpuset.timer"}}};
+const std::set<std::string> graphics_modes = {"hybrid", "hybrid-igpu-only",
+                                              "discrete"};
 bool decimal(const std::string &s) {
   return !s.empty() && std::regex_match(s, std::regex("(0|[1-9][0-9]*)"));
 }
@@ -162,5 +162,14 @@ GraphicsExit ClassifyGraphicsExit(int exit_status) {
   if (exit_status == 3)
     return GraphicsExit::kPending;
   return GraphicsExit::kFailed;
+}
+bool ValidateBootGraphicsMode(const std::string &mode, std::string *error) {
+  if (mode == "hybrid" || mode == "hybrid-igpu-only")
+    return true;
+  *error = "only hybrid and hybrid-igpu-only can be requested for next boot";
+  return false;
+}
+Command BootGraphicsRequestCommand(const std::string &mode) {
+  return {{"request", mode}};
 }
 } // namespace legion_control

@@ -158,8 +158,8 @@ static void test_services() {
 }
 
 static void test_graphics_modes() {
-  const std::array<const char *, 3> allowed = {
-      "hybrid", "hybrid-igpu-only", "discrete"};
+  const std::array<const char *, 3> allowed = {"hybrid", "hybrid-igpu-only",
+                                               "discrete"};
   for (const char *mode : allowed) {
     std::string error;
     g_assert_true(ValidateGraphicsMode(mode, &error));
@@ -181,6 +181,19 @@ static void test_graphics_modes() {
   g_assert_true(ClassifyGraphicsExit(1) == GraphicsExit::kFailed);
 }
 
+static void test_boot_graphics_modes() {
+  for (const char *mode : {"hybrid", "hybrid-igpu-only"}) {
+    std::string error;
+    g_assert_true(ValidateBootGraphicsMode(mode, &error));
+    const std::vector<std::string> expected = {"request", mode};
+    g_assert_true(BootGraphicsRequestCommand(mode).argv == expected);
+  }
+  for (const char *mode : {"", "discrete", "hybrid-auto", "hybrid;reboot"}) {
+    std::string error;
+    g_assert_false(ValidateBootGraphicsMode(mode, &error));
+  }
+}
+
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/control/profiles", test_profiles);
@@ -191,5 +204,6 @@ int main(int argc, char **argv) {
   g_test_add_func("/control/commands", test_commands);
   g_test_add_func("/control/services", test_services);
   g_test_add_func("/control/graphics-modes", test_graphics_modes);
+  g_test_add_func("/control/boot-graphics-modes", test_boot_graphics_modes);
   return g_test_run();
 }

@@ -5,6 +5,7 @@
   pkg-config,
   glib,
   polkit,
+  dbus,
 }:
 
 stdenv.mkDerivation {
@@ -24,7 +25,10 @@ stdenv.mkDerivation {
     cmake
     pkg-config
   ];
-  buildInputs = [ glib polkit ];
+  buildInputs = [
+    glib
+    polkit
+  ];
 
   preConfigure = ''
     cd telemetry
@@ -35,9 +39,10 @@ stdenv.mkDerivation {
   ];
 
   doCheck = true;
+  nativeCheckInputs = [ dbus ];
   checkPhase = ''
     runHook preCheck
-    cmake --build . --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test
+    cmake --build . --target legion_telemetry_service legion_control_service graphics_next_boot package_power_sampler_test control_commands_test graphics_boot_service_test
     ctest --output-on-failure
     runHook postCheck
   '';

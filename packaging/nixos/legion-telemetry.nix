@@ -68,6 +68,22 @@ let
     systemd = config.systemd.package;
     preflight = graphicsS2hPreflight;
   };
+  graphicsBootSource = pkgs.replaceVars ./legion-graphics-boot.py {
+    cli = "${control.backendPackage}/bin/legion_cli";
+    lifecycle = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle";
+    modprobe = "${pkgs.kmod}/bin/modprobe";
+    systemctl = "${pkgs.systemd}/bin/systemctl";
+  };
+  graphicsBoot = pkgs.writeShellScript "legion-graphics-boot" ''
+    export PATH=${
+      lib.makeBinPath [
+        pkgs.bashNonInteractive
+        pkgs.e2fsprogs
+        pkgs.util-linux
+      ]
+    }
+    exec ${pkgs.python3}/bin/python3 ${graphicsBootSource} "$@"
+  '';
 in
 {
   options.services.legionTelemetry = {
@@ -104,6 +120,12 @@ in
     };
 
     reconcileGraphicsAtBoot = lib.mkEnableOption "graphics-mode reconciliation before graphical login";
+
+    nextBootGraphics = lib.mkEnableOption ''
+      authorized one-shot Hybrid/iGPU-only requests for a later boot.
+      Requires boot reconciliation; does not apply requests during live activation.
+      Failed transitions block graphical login until an explicit recovery request
+    '';
 
     reconcileGraphicsAfterHibernate = lib.mkOption {
       type = lib.types.bool;
@@ -180,7 +202,9 @@ in
         serviceConfig = {
           Type = "dbus";
           BusName = "io.github.prnice.LegionControl1";
-          ExecStart = "${control.package}/libexec/legion-control-service --cli ${control.backendPackage}/bin/legion_cli --systemctl ${pkgs.systemd}/bin/systemctl";
+          ExecStart =
+            "${control.package}/libexec/legion-control-service --cli ${control.backendPackage}/bin/legion_cli --systemctl ${pkgs.systemd}/bin/systemctl"
+            + lib.optionalString control.nextBootGraphics " --graphics-boot-helper ${graphicsBoot}";
           User = "root";
           Restart = "on-failure";
           RestartSec = 2;
@@ -231,9 +255,15 @@ in
         requires = [ "systemd-modules-load.service" ];
         serviceConfig = {
           Type = "oneshot";
-          ExecStart = "${control.backendPackage}/bin/legion_cli --donotexpecthwmon graphics-mode reconcile --json";
-          ExecStartPost = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle ${control.backendPackage}/bin/legion_cli cleanup ${pkgs.kmod}/bin/modprobe";
-          TimeoutStartSec = 40;
+          ExecStart =
+            if control.nextBootGraphics then
+              "${graphicsBoot} boot"
+            else
+              "${control.backendPackage}/bin/legion_cli --donotexpecthwmon graphics-mode reconcile --json";
+          ExecStartPost =
+            lib.mkIf (!control.nextBootGraphics)
+              "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle ${control.backendPackage}/bin/legion_cli cleanup ${pkgs.kmod}/bin/modprobe";
+          TimeoutStartSec = if control.nextBootGraphics then 210 else 40;
           RemainAfterExit = true;
           User = "root";
           NoNewPrivileges = true;
@@ -256,6 +286,46 @@ in
         };
       };
 
+    })
+    (lib.mkIf (control.enable && control.nextBootGraphics) {
+      assertions = [
+        {
+          assertion = control.reconcileGraphicsAtBoot;
+          message = "services.legionControl.nextBootGraphics requires reconcileGraphicsAtBoot";
+        }
+      ];
+      systemd.services.legion-control.serviceConfig = {
+        StateDirectory = "legion-graphics-boot";
+        StateDirectoryMode = "0700";
+      };
+      systemd.services.legion-graphics-reconcile = {
+        # Do not restart this required display-manager dependency during a live
+        # rebuild. New boot logic takes effect at the next real boot instead.
+        restartIfChanged = false;
+        wantedBy = [ "multi-user.target" ];
+        before = [
+          "systemd-user-sessions.service"
+          "legion-control.service"
+          "containerd.service"
+          "docker.service"
+          "nvidia-persistenced.service"
+          "nvidia-powerd.service"
+        ];
+        serviceConfig = {
+          StateDirectory = "legion-graphics-boot";
+          StateDirectoryMode = "0700";
+        };
+      };
+      # Only ordering for console/user-manager startup: a failed transition must
+      # leave text login usable for recovery. The display manager remains required.
+      systemd.services.systemd-user-sessions.after = [ "legion-graphics-reconcile.service" ];
+      systemd.services."user@".after = [ "legion-graphics-reconcile.service" ];
+      systemd.services.legion-control.after = [ "legion-graphics-reconcile.service" ];
+      systemd.services.nvidia-container-toolkit-cdi-generator =
+        lib.mkIf config.hardware.nvidia-container-toolkit.enable
+          {
+            requires = [ "legion-graphics-reconcile.service" ];
+          };
     })
     (lib.mkIf (control.enable && control.reconcileGraphicsAfterHibernate) {
       environment.etc."systemd/system-sleep/legion-graphics-hibernate-reconcile".source =

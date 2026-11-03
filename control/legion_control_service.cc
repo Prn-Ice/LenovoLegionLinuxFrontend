@@ -20,13 +20,28 @@ constexpr char bus[] = "io.github.prnice.LegionControl1",
 constexpr gsize output_limit = 64 * 1024;
 constexpr size_t input_limit = 128;
 constexpr char xml[] =
-    R"(<node><interface name="io.github.prnice.LegionControl1"><method name="Authorize"/><method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method><method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method><method name="SetGraphicsMode"><arg type="s" direction="in"/></method><method name="ApplyFanPreset"><arg type="s" direction="in"/></method><method name="ApplyCurrentFanPreset"/><method name="ApplyFanCurve"><arg type="ay" direction="in"/></method><method name="ApplyCustomConservation"><arg type="u" direction="in"/><arg type="u" direction="in"/></method><method name="SetBootLogo"><arg type="ay" direction="in"/></method><method name="RestoreBootLogo"/><method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method></interface></node>)";
+    R"(<node><interface name="io.github.prnice.LegionControl1">
+      <method name="Authorize"/>
+      <method name="RequestGraphicsModeAtBoot"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
+      <method name="CancelGraphicsModeAtBoot"><arg type="s" direction="out"/></method>
+      <method name="GetGraphicsBootRequest"><arg type="s" direction="out"/></method>
+      <method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method>
+      <method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
+      <method name="SetGraphicsMode"><arg type="s" direction="in"/></method>
+      <method name="ApplyFanPreset"><arg type="s" direction="in"/></method>
+      <method name="ApplyCurrentFanPreset"/>
+      <method name="ApplyFanCurve"><arg type="ay" direction="in"/></method>
+      <method name="ApplyCustomConservation"><arg type="u" direction="in"/><arg type="u" direction="in"/></method>
+      <method name="SetBootLogo"><arg type="ay" direction="in"/></method>
+      <method name="RestoreBootLogo"/>
+      <method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
+    </interface></node>)";
 struct Ctx {
   GMainLoop *loop;
   GDBusNodeInfo *info;
   GDBusConnection *conn = nullptr;
   guint reg = 0, owner = 0, names = 0;
-  std::string cli, systemctl;
+  std::string cli, systemctl, graphics_boot;
   std::map<std::string, bool> auth;
   std::map<std::string, GCancellable *> pending;
   PolkitAuthority *authority = nullptr;
@@ -47,6 +62,7 @@ struct Ctx {
     bool timed_out = false;
     bool disconnected = false;
     bool graphics_operation = false;
+    bool return_output = false;
     int exit_status = -1;
     bool completed = false;
   };
@@ -148,7 +164,11 @@ void maybe_finish_operation(Ctx::ActiveOperation *op) {
         reply_error(op->invocation, "CommandFailed",
                     output.empty() ? "backend command failed"
                                    : "backend command failed: " + output);
-    } else
+    } else if (op->return_output)
+      g_dbus_method_invocation_return_value(
+          op->invocation,
+          g_variant_new("(s)", valid_utf8(op->output_text).c_str()));
+    else
       done(op->invocation);
   }
   op->completed = true;
@@ -158,8 +178,8 @@ void read_output(Ctx::ActiveOperation *op);
 void output_read_done(GObject *source, GAsyncResult *result, gpointer data) {
   auto *op = static_cast<Ctx::ActiveOperation *>(data);
   GError *error = nullptr;
-  GBytes *bytes = g_input_stream_read_bytes_finish(
-      G_INPUT_STREAM(source), result, &error);
+  GBytes *bytes =
+      g_input_stream_read_bytes_finish(G_INPUT_STREAM(source), result, &error);
   if (!bytes) {
     op->process_error =
         error ? "could not read backend output: " + std::string(error->message)
@@ -200,9 +220,12 @@ void operation_timeout(gpointer data) {
     reply_error(op->invocation, "Timeout", "control operation timed out");
   g_subprocess_force_exit(op->subprocess);
 }
+enum class CommandBackend { kCli, kSystemctl, kGraphicsBoot };
 void invoke(Ctx *c, GDBusMethodInvocation *i,
-            const legion_control::Command &command, bool systemctl = false,
-            const std::string &temp_path = {}, bool graphics = false) {
+            const legion_control::Command &command,
+            CommandBackend backend = CommandBackend::kCli,
+            const std::string &temp_path = {}, bool graphics = false,
+            bool return_output = false) {
   if (c->active) {
     if (!temp_path.empty())
       unlink(temp_path.c_str());
@@ -214,8 +237,12 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
       G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_MERGE);
   GSubprocessLauncher *l = g_subprocess_launcher_new(flags);
   std::vector<const char *> a;
-  const std::string &executable = systemctl ? c->systemctl : c->cli;
-  a.push_back(executable.c_str());
+  const std::string *executable = &c->cli;
+  if (backend == CommandBackend::kGraphicsBoot)
+    executable = &c->graphics_boot;
+  else if (backend == CommandBackend::kSystemctl)
+    executable = &c->systemctl;
+  a.push_back(executable->c_str());
   for (const auto &x : command.argv)
     a.push_back(x.c_str());
   a.push_back(nullptr);
@@ -233,11 +260,12 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
   operation->ctx = c;
   operation->invocation = G_DBUS_METHOD_INVOCATION(g_object_ref(i));
   operation->subprocess = p;
-  operation->output = G_INPUT_STREAM(
-      g_object_ref(g_subprocess_get_stdout_pipe(p)));
+  operation->output =
+      G_INPUT_STREAM(g_object_ref(g_subprocess_get_stdout_pipe(p)));
   operation->temp_path = temp_path;
   operation->sender = g_dbus_method_invocation_get_sender(i);
   operation->graphics_operation = graphics;
+  operation->return_output = return_output;
   Ctx::ActiveOperation *q = operation.get();
   c->active = std::move(operation);
   read_output(q);
@@ -250,11 +278,9 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
           op->process_error = e ? e->message : "backend failed";
           g_clear_error(&e);
         } else {
-          op->process_success =
-              g_subprocess_get_successful(G_SUBPROCESS(o));
+          op->process_success = g_subprocess_get_successful(G_SUBPROCESS(o));
           if (g_subprocess_get_if_exited(G_SUBPROCESS(o)))
-            op->exit_status =
-                g_subprocess_get_exit_status(G_SUBPROCESS(o));
+            op->exit_status = g_subprocess_get_exit_status(G_SUBPROCESS(o));
         }
         op->process_finished = true;
         maybe_finish_operation(op);
@@ -327,8 +353,7 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
   gboolean en;
   if (!g_strcmp0(m, "SetFeature")) {
     g_variant_get(v, "(&s&s)", &f_raw, &val_raw);
-    if (!bounded(f_raw, "feature", &err) ||
-        !bounded(val_raw, "value", &err)) {
+    if (!bounded(f_raw, "feature", &err) || !bounded(val_raw, "value", &err)) {
       reply_error(i, "InvalidArgs", err);
       return;
     }
@@ -362,7 +387,30 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
       reply_error(i, "InvalidArgs", err);
       return;
     }
-    invoke(c, i, legion_control::GraphicsModeCommand(mode), false, {}, true);
+    invoke(c, i, legion_control::GraphicsModeCommand(mode),
+           CommandBackend::kCli, {}, true);
+  } else if (!g_strcmp0(m, "RequestGraphicsModeAtBoot") ||
+             !g_strcmp0(m, "CancelGraphicsModeAtBoot") ||
+             !g_strcmp0(m, "GetGraphicsBootRequest")) {
+    if (c->graphics_boot.empty()) {
+      reply_error(i, "Unavailable",
+                  "next-boot graphics switching is not enabled");
+      return;
+    }
+    legion_control::Command command;
+    if (!g_strcmp0(m, "RequestGraphicsModeAtBoot")) {
+      g_variant_get(v, "(&s)", &mode_raw);
+      if (!bounded(mode_raw, "graphics mode", &err) ||
+          !legion_control::ValidateBootGraphicsMode(mode_raw, &err)) {
+        reply_error(i, "InvalidArgs", err);
+        return;
+      }
+      command = legion_control::BootGraphicsRequestCommand(mode_raw);
+    } else {
+      command.argv = {!g_strcmp0(m, "CancelGraphicsModeAtBoot") ? "cancel"
+                                                                : "status"};
+    }
+    invoke(c, i, command, CommandBackend::kGraphicsBoot, {}, false, true);
   } else if (!g_strcmp0(m, "ApplyFanPreset")) {
     g_variant_get(v, "(&s)", &pre_raw);
     if (!bounded(pre_raw, "preset", &err)) {
@@ -431,7 +479,7 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
     invoke(c, i,
            !g_strcmp0(m, "ApplyFanCurve") ? legion_control::FileCommand(t)
                                           : legion_control::BootLogoCommand(t),
-           false, t);
+           CommandBackend::kCli, t);
     g_variant_unref(b);
   } else if (!g_strcmp0(m, "RestoreBootLogo"))
     invoke(c, i, legion_control::RestoreBootLogoCommand());
@@ -446,7 +494,8 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
       reply_error(i, "InvalidArgs", err);
       return;
     }
-    invoke(c, i, legion_control::ServiceCommand(sid, en), true);
+    invoke(c, i, legion_control::ServiceCommand(sid, en),
+           CommandBackend::kSystemctl);
   } else
     reply_error(i, "InvalidArgs", "unknown method");
 }
@@ -455,7 +504,7 @@ bool trusted_executable(const std::string &input, std::string *resolved) {
   char canonical[PATH_MAX];
   if (!realpath(input.c_str(), canonical))
     return false;
-  struct stat file_stat {};
+  struct stat file_stat{};
   if (stat(canonical, &file_stat) != 0 || file_stat.st_uid != 0 ||
       !S_ISREG(file_stat.st_mode) ||
       (file_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0 ||
@@ -465,7 +514,7 @@ bool trusted_executable(const std::string &input, std::string *resolved) {
   while (true) {
     const auto slash = parent.rfind('/');
     parent = slash == 0 ? "/" : parent.substr(0, slash);
-    struct stat directory_stat {};
+    struct stat directory_stat{};
     if (stat(parent.c_str(), &directory_stat) != 0 ||
         directory_stat.st_uid != 0 || !S_ISDIR(directory_stat.st_mode) ||
         (directory_stat.st_mode & S_IWOTH) != 0 ||
@@ -480,22 +529,29 @@ bool trusted_executable(const std::string &input, std::string *resolved) {
 }
 } // namespace
 int main(int argc, char **argv) {
-  std::string cli, sys;
+  std::string cli, sys, graphics_boot;
   for (int n = 1; n < argc; n++) {
     if (n + 1 < argc && std::string(argv[n]) == "--cli")
       cli = argv[++n];
     else if (n + 1 < argc && std::string(argv[n]) == "--systemctl")
       sys = argv[++n];
+    else if (n + 1 < argc && std::string(argv[n]) == "--graphics-boot-helper")
+      graphics_boot = argv[++n];
     else
       return 2;
   }
   if (cli.empty() || sys.empty() || cli[0] != '/' || sys[0] != '/' ||
       !trusted_executable(cli, &cli) || !trusted_executable(sys, &sys))
     return 2;
+  if (!graphics_boot.empty() &&
+      (graphics_boot[0] != '/' ||
+       !trusted_executable(graphics_boot, &graphics_boot)))
+    return 2;
   Ctx c{};
   c.loop = g_main_loop_new(nullptr, FALSE);
   c.cli = cli;
   c.systemctl = sys;
+  c.graphics_boot = graphics_boot;
   GError *e = nullptr;
   c.authority = polkit_authority_get_sync(nullptr, &e);
   if (!c.authority) {
@@ -512,19 +568,19 @@ int main(int argc, char **argv) {
   }
   c.owner = g_bus_own_name(
       G_BUS_TYPE_SYSTEM, bus, G_BUS_NAME_OWNER_FLAGS_NONE,
-       [](GDBusConnection *x, const gchar *, gpointer d) {
-         auto *c = static_cast<Ctx *>(d);
-         g_set_object(&c->conn, x);
-         GError *error = nullptr;
-         c->reg = g_dbus_connection_register_object(
-             x, path, c->info->interfaces[0], &vt, c, nullptr, &error);
-         if (c->reg == 0) {
-           g_warning("Could not export LegionControl1: %s",
-                     error ? error->message : "unknown error");
-           g_clear_error(&error);
-           g_main_loop_quit(c->loop);
-           return;
-         }
+      [](GDBusConnection *x, const gchar *, gpointer d) {
+        auto *c = static_cast<Ctx *>(d);
+        g_set_object(&c->conn, x);
+        GError *error = nullptr;
+        c->reg = g_dbus_connection_register_object(
+            x, path, c->info->interfaces[0], &vt, c, nullptr, &error);
+        if (c->reg == 0) {
+          g_warning("Could not export LegionControl1: %s",
+                    error ? error->message : "unknown error");
+          g_clear_error(&error);
+          g_main_loop_quit(c->loop);
+          return;
+        }
         c->names = g_dbus_connection_signal_subscribe(
             x, "org.freedesktop.DBus", "org.freedesktop.DBus",
             "NameOwnerChanged", "/org/freedesktop/DBus", nullptr,
@@ -551,12 +607,12 @@ int main(int argc, char **argv) {
                 }
               }
             },
-             c, nullptr);
-         if (c->names == 0) {
-           g_warning("Could not subscribe to D-Bus owner changes");
-           g_main_loop_quit(c->loop);
-         }
-       },
+            c, nullptr);
+        if (c->names == 0) {
+          g_warning("Could not subscribe to D-Bus owner changes");
+          g_main_loop_quit(c->loop);
+        }
+      },
       nullptr,
       [](GDBusConnection *, const gchar *, gpointer d) {
         g_main_loop_quit(static_cast<Ctx *>(d)->loop);

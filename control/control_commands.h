@@ -31,5 +31,7 @@ Command ServiceCommand(const std::string &, bool);
 bool ValidateGraphicsMode(const std::string &, std::string *);
 Command GraphicsModeCommand(const std::string &);
 GraphicsExit ClassifyGraphicsExit(int);
+bool ValidateBootGraphicsMode(const std::string &, std::string *);
+Command BootGraphicsRequestCommand(const std::string &);
 } // namespace legion_control
 #endif

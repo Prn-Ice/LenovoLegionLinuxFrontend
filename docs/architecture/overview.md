@@ -24,6 +24,13 @@ The frontend is a Flutter desktop application for Linux. It does **not** contain
 
 **Writes** go through `io.github.prnice.LegionControl1`, a root system-bus service. The service exposes typed, allow-listed methods and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. On the first write, Polkit authenticates the frontend's unique D-Bus sender; authorization remains valid for that connection and is revoked when it disconnects.
 
+Opt-in [next-boot graphics requests](next-boot-graphics.md) use the same service
+and authorization through three additional fixed methods: request, cancel, and
+status. They invoke an immutable request helper, not arbitrary caller-supplied
+commands. Requests only save state; the guarded boot service applies the mode
+before normal graphical/user startup. The small desktop terminal client is
+`legion-graphics-next-boot`; no new Flutter page is included.
+
 The frontend never writes directly to sysfs. It never calls `sudo` or `pkexec`, and the control service never accepts arbitrary commands or paths. The optional user-defined automation step is unprivileged and runs as the desktop user.
 
 ---
