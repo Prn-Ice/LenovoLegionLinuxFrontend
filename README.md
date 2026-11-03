@@ -46,6 +46,12 @@ flutter build linux --release
 
 ## Development
 
+Use Flutter **3.47.9** or newer on the stable channel. On this machine, `.envrc`
+loads `/home/prnice/Projects/personal/nix_flakes/flutter_flake#linux`; there is no flake
+in this repository. See [dependency notes](docs/dependencies.md) for SDK updates,
+retained package constraints, and verification commands, and
+[Contributing](CONTRIBUTING.md) for setup and code patterns.
+
 ```bash
 flutter test
 flutter analyze

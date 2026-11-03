@@ -10,7 +10,17 @@
 
 ### NixOS / direnv
 
-If you use NixOS with direnv, a `shell.nix` or flake that provides Flutter and the required system libraries will be needed. The project does not include one — add to your own environment configuration.
+The project has no local flake. `.envrc` uses the shared flake at
+`/home/prnice/Projects/personal/nix_flakes/flutter_flake#linux`. It supplies Flutter,
+Dart, and Linux build dependencies without the default shell's Android SDK and
+emulator downloads. If your checkout lives elsewhere, adjust
+that path to your own environment. SDK changes in the shared flake affect other
+projects using it; update it deliberately rather than running `flutter upgrade`
+against the read-only Nix store.
+
+See [dependency notes](docs/dependencies.md) for retained constraints and the
+upgrade procedure. Read the [project code patterns](.agents/skills/code-patterns/SKILL.md)
+before implementation or review; prefer existing, readable patterns to new layers.
 
 ## Dev environment setup
 
@@ -39,6 +49,17 @@ flutter analyze                 # static analysis
 
 Tests run without a connected device or kernel module — all I/O is unit-tested with mocks.
 
+The shared Linux shell also includes Polkit headers for native service checks:
+
+```bash
+cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test
+ctest --test-dir build/native --output-on-failure
+```
+
+These compile both services and test telemetry parsing and the control-command
+allow-list. They do not install services or authorize real hardware writes.
+
 ## Issue tracking
 
 This project uses `bd` (beads) for issue tracking.
@@ -55,7 +76,9 @@ Follow these steps to add a new hardware feature page. Use an existing feature (
 
 ### 1. Plan
 
-Write a plan document in `docs/plans/YYYY-MM-DD-<feature>.md` describing the layers, files, and test cases before writing code. See existing plan documents for the expected format.
+Describe the intended behavior, affected layers, and useful tests in the live
+Beads issue. Historical plans under `docs/plans/` provide context, not current
+instructions. Add only the layers the feature actually needs.
 
 ### 2. Implement (TDD, layer by layer)
 
@@ -70,8 +93,8 @@ Work bottom-up through the stack. Write tests before implementation for each lay
 - `<name>_event.dart` — `sealed class <Name>Event extends Equatable`; `final class` for each event
 
 **Repository** (`lib/features/<name>/repository/`)
-- `<name>_repository.dart` — depends on `LegionFrontendBridgeService`; unprivileged reads via `dart:io File`; privileged writes via `bridgeService.runPrivilegedCommand`
-- Define a `<Name>RepositoryException` to wrap bridge errors
+- `<name>_repository.dart` — follow the closest current feature; inject read services and the typed `LegionControlClient` for privileged writes
+- Wrap errors when doing so adds useful feature context; do not add a forwarding layer solely to rename an exception
 - See `docs/architecture/sysfs-vs-cli-access-audit.md` for which sysfs path and `legion_cli` subcommand to use for each feature
 
 **BLoC** (`lib/features/<name>/bloc/<name>_bloc.dart`)

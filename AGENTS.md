@@ -2,6 +2,29 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+
+## Simple code and repeatable patterns
+
+Read [the project code patterns](.agents/skills/code-patterns/SKILL.md) before
+implementation, review, or test work. These adapt Ester's working agreement to
+this Linux hardware frontend; Ester's product and deployment rules do not apply.
+
+- Prefer plain names, direct control flow, focused functions, and a visible happy
+  path. Optimize for the next reader, not the fewest lines.
+- Add an abstraction only when it clarifies a responsibility, isolates an external
+  boundary, or centralizes a repeated contract. No empty layers or forwarding
+  providers for their own sake.
+- Improve relevant code encountered in the task. Discuss behavior changes and
+  wider migrations first; record exact paths and proposed fixes in linked Beads
+  work rather than expanding scope silently.
+- Keep Riverbloc with Bloc/Cubit for feature behavior; Riverpod supplies
+  dependencies and lifetime. Reuse existing feature and shared-widget patterns.
+- Prefer the latest mutually compatible stable dependencies. Do not force
+  prereleases or incompatible overrides to erase constraints. Document retained
+  versions in [docs/dependencies.md](docs/dependencies.md).
+- Write documentation and handoffs in plain language. Separate what changed,
+  what was tested, and what remains unverified.
+
 ## UI Standards
 
 Follow [`docs/page-template.md`](docs/page-template.md) for page work. Errors,
