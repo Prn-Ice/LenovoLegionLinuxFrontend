@@ -2,8 +2,8 @@
 
 Development and hardware testing currently use one physical laptop: the project
 owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every feature has
-been verified on it. Other models and BIOS versions are unverified, even when
-the upstream driver supports them. See [feature readiness](../README.md#features-and-readiness)
+been verified on it. Other models and BIOS versions have not been tested.
+See [feature readiness](../README.md#features-and-readiness)
 and the [community backlog](../BACKLOG.md) for current limits and work.
 
 Diagnostics help identify available readings and missing support; they do not

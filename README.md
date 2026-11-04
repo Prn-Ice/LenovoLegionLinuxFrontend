@@ -5,8 +5,7 @@ A Linux desktop app for controlling Lenovo Legion laptops with [LenovoLegionLinu
 **In development, with only one physical device used for development and testing:**
 the project owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every
 feature has been verified even on that laptop. Other models and BIOS versions
-are unverified; upstream driver support does not mean this frontend has been
-tested on them. See [model support and recorded checks](docs/model-support.md).
+have not been tested. See [model support and recorded checks](docs/model-support.md).
 
 ## Features and readiness
 
