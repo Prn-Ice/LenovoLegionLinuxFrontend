@@ -219,7 +219,7 @@ class _LightingPageState extends ConsumerState<LightingPage> {
               nativeAvailabilityError: rgb.nativeAvailabilityError,
             ),
           const SizedBox(height: 16),
-          _BacklightSection(state: lighting, bloc: lightingBloc),
+          BacklightSection(state: lighting, bloc: lightingBloc),
         ],
       ),
     );
@@ -1038,8 +1038,8 @@ class _UnavailableCard extends StatelessWidget {
 
 /// The coarse sysfs backlight zones (white keyboard / Y-logo / IO-port),
 /// complementary to the per-key RGB above. Hidden when none are supported.
-class _BacklightSection extends StatelessWidget {
-  const _BacklightSection({required this.state, required this.bloc});
+class BacklightSection extends StatelessWidget {
+  const BacklightSection({super.key, required this.state, required this.bloc});
 
   final LightingState state;
   final LightingBloc bloc;

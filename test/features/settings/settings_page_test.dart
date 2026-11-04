@@ -423,4 +423,80 @@ void main() {
       },
     );
   }
+
+  for (final cameraEnabled in [true, false]) {
+    testWidgets(
+      'Settings shows readable camera value as read-only (${cameraEnabled ? 'on' : 'off'})',
+      (tester) async {
+        final settings = SettingsRepo();
+        when(
+          settings.loadSnapshot,
+        ).thenAnswer((_) async => const SettingsSnapshot(services: [service]));
+        final boot = BootRepo();
+        when(boot.loadSnapshot).thenAnswer(
+          (_) async => const BootLogoSnapshot(
+            status: BootLogoStatus(
+              isCustomEnabled: false,
+              requiredWidth: 0,
+              requiredHeight: 0,
+            ),
+          ),
+        );
+        final about = AboutRepo();
+        when(about.loadSnapshot).thenThrow(Exception('unavailable'));
+        final devices = DevicesRepo();
+        when(devices.loadSnapshot).thenAnswer(
+          (_) async => DevicesSnapshot(
+            touchpadEnabled: null,
+            touchpadSupported: false,
+            winKeyEnabled: null,
+            winKeySupported: false,
+            fnLockEnabled: null,
+            fnLockSupported: false,
+            cameraEnabled: cameraEnabled,
+            cameraSupported: true,
+          ),
+        );
+        final display = DisplayRepo();
+        when(display.loadSnapshot).thenAnswer(
+          (_) async => const DisplaySnapshot(
+            overdriveEnabled: false,
+            overdriveSupported: false,
+            xrandrOutputName: null,
+            availableRefreshRates: null,
+            currentRefreshRate: null,
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            settingsRepositoryProvider.overrideWithValue(settings),
+            bootLogoRepositoryProvider.overrideWithValue(boot),
+            aboutRepositoryProvider.overrideWithValue(about),
+            devicesRepositoryProvider.overrideWithValue(devices),
+            displayRepositoryProvider.overrideWithValue(display),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: Scaffold(body: SettingsPage())),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('${cameraEnabled ? 'Enabled' : 'Disabled'} (Read-only)'),
+          findsOneWidget,
+        );
+        final cameraTile = tester.widget<YaruSwitchListTile>(
+          find.widgetWithText(YaruSwitchListTile, 'Camera'),
+        );
+        expect(cameraTile.onChanged, isNull);
+        verifyNever(() => devices.setCamera(any()));
+        container.dispose();
+      },
+    );
+  }
 }

@@ -68,12 +68,10 @@ class DevicesPage extends ConsumerWidget {
           children: [
             AppSwitchTile(
               value: state.cameraEnabled ?? false,
-              onChanged:
-                  state.cameraSupported &&
-                      state.cameraWriteSupported &&
-                      !state.isApplying
-                  ? (enabled) => bloc.add(CameraSetRequested(enabled))
-                  : null,
+              // Camera writes are not exposed by the backend yet. Keep this
+              // action disabled even if a future snapshot reports write
+              // capability until the repository operation exists.
+              onChanged: null,
               title: 'Camera',
               subtitle: state.cameraSupported
                   ? state.cameraWriteSupported
