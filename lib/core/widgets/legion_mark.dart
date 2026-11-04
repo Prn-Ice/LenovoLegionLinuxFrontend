@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 /// The circular emblem from the Lenovo Legion wordmark.
 class LegionMark extends StatelessWidget {
@@ -9,11 +10,11 @@ class LegionMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/branding/legion_mark.png',
+    return SvgPicture.asset(
+      'assets/branding/legion_mark.svg',
       width: size,
       height: size,
-      color: color,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
       excludeFromSemantics: true,
     );
   }

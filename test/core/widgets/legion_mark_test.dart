@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:legion_frontend/core/widgets/legion_mark.dart';
 
 void main() {
@@ -16,12 +17,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.getSize(find.byType(LegionMark)), const Size(40, 40));
-    final image = tester.widget<Image>(find.byType(Image));
-    expect(
-      (image.image as AssetImage).assetName,
-      'assets/branding/legion_mark.png',
-    );
-    expect(image.color, color);
+    final image = tester.widget<SvgPicture>(find.byType(SvgPicture));
+    expect(image.colorFilter, const ColorFilter.mode(color, BlendMode.srcIn));
     expect(tester.takeException(), isNull);
   });
 }
