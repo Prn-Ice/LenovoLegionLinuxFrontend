@@ -23,6 +23,7 @@ import 'package:legion_frontend/features/settings/providers/settings_provider.da
 import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:legion_frontend/features/settings/view/settings_page.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:yaru/yaru.dart';
 
 import '../boot_logo/boot_logo_page_test.dart'
     show ControlledPicker, MockPlatformFile;
