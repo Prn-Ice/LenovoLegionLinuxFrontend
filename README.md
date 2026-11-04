@@ -85,4 +85,4 @@ version (`GPL-2.0-or-later`). It is distributed WITHOUT ANY WARRANTY, including
 the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 See [LICENSE](LICENSE) for the full terms and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for OpenRGB attribution,
-separately licensed materials, and remaining provenance gaps.
+and separately licensed materials.

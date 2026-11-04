@@ -2,7 +2,7 @@
 // Adapted from OpenRGB, Controllers/LenovoControllers/LenovoDevices.h.
 // Upstream header credit: Cooper Hall (geobot19), 17 Apr 2022.
 // Modified for Legion Linux Frontend: ported ANSI/neon tables to a Dart map
-// on 2026-06-22; attribution added 2026-11-04. This is not the upstream file.
+// on 2026-06-22; attribution added 2026-11-04.
 // See THIRD_PARTY_NOTICES.md for pinned sources and LICENSE for terms.
 
 /// Maps OpenRGB LED names (as reported by `openrgb --list-devices`, the

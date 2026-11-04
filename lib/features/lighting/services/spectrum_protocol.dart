@@ -3,7 +3,6 @@
 // Modified for Legion Linux Frontend: Gen 7/8 Dart packet encoder port
 // on 2026-06-22; local power limiting, white balance, and protocol updates
 // through 2026-08-29; attribution added 2026-11-04.
-// This is not the upstream driver. Its headers name no individual author.
 // See THIRD_PARTY_NOTICES.md for pinned sources and LICENSE for terms.
 
 import 'dart:typed_data';
