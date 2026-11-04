@@ -56,8 +56,8 @@ class RgbLightingState extends Equatable {
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
   final bool nativeAvailable;
 
-  /// The native profile's geometry, or the existing approximate OpenRGB preview.
-  /// Preview geometry alone never enables native hardware support.
+  /// Key positions from the keyboard's profile. OpenRGB uses the app's existing
+  /// approximate Legion layout.
   final KeyboardLayout keyboardLayout;
 
   /// A probe failure is distinct from a missing native device. This lets the

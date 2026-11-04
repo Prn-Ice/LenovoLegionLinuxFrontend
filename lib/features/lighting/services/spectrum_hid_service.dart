@@ -20,8 +20,8 @@ const int _oRdwr = 2;
 /// `ioctl(HIDIOCSFEATURE/HIDIOCGFEATURE)` — no libhidapi. Real-time: a full
 /// per-key frame is one direct-mode enable + one frame write.
 ///
-/// Frame bytes come from `spectrum_protocol.dart`. Discovery is read-only and
-/// accepts fixture roots; only open/write methods access the native transport.
+/// Frame bytes come from `spectrum_protocol.dart`. Discovery reads Linux's
+/// hidraw device files; tests supply directories containing sample uevents.
 class SpectrumHidService {
   SpectrumHidService({
     this.vendorId = kSpectrumVendorId,

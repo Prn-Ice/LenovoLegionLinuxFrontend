@@ -1,4 +1,4 @@
-/// Preview geometry, independent of a rendering widget or hardware protocol.
+/// Key positions, row widths, and accent LEDs used to draw the keyboard preview.
 class KeyboardLayout {
   const KeyboardLayout({
     required this.rows,

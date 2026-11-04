@@ -3,10 +3,11 @@ import '../services/spectrum_protocol.dart'
 import 'keyboard_layout.dart';
 import 'spectrum_led_map.dart';
 
-/// Only this wire protocol has an implemented native transport.
+/// Packet format used to send colors to the keyboard. We support Gen 7/8.
 enum SpectrumProtocol { gen7And8 }
 
-/// Measurements belong to a verified keyboard, not to every ITE controller.
+/// Numbers used to adjust green brightness and limit each LED's total RGB
+/// output, based on measurements from the keyboard.
 class SpectrumCalibration {
   const SpectrumCalibration({
     required this.maxLedSum,
@@ -35,7 +36,8 @@ class SpectrumCalibration {
   }
 }
 
-/// Reviewed, built-in hardware data. There is no fallback for unknown IDs.
+/// USB IDs select the keyboard. The map says which LED each key controls;
+/// the layout places keys in the preview, and calibration adjusts their colors.
 class SpectrumKeyboardProfile {
   const SpectrumKeyboardProfile({
     required this.vendorId,
@@ -57,8 +59,10 @@ class SpectrumKeyboardProfile {
 const kSpectrumVendorId = 0x048D;
 const kSpectrumC987ProductId = 0xC987;
 
-/// Existing ANSI/neon map and hardware-measured calibration, unchanged.
-/// The map's upstream provenance is recorded in spectrum_led_map.dart.
+/// LED addresses came from OpenRGB's Gen 7/8 ANSI and neon tables; see
+/// spectrum_led_map.dart. Measurements on the c987 keyboard supplied the green
+/// brightness adjustments (0.94 when dim, 0.88 at full brightness) and the
+/// 720 total RGB limit. We use these numbers to keep white neutral and lit.
 const kSpectrumC987Profile = SpectrumKeyboardProfile(
   vendorId: kSpectrumVendorId,
   productId: kSpectrumC987ProductId,
@@ -76,6 +80,7 @@ const kSpectrumC987Profile = SpectrumKeyboardProfile(
 
 const kSupportedSpectrumKeyboards = [kSpectrumC987Profile];
 
+/// Looks up the keyboard by its USB IDs. Unsupported IDs return null.
 SpectrumKeyboardProfile? spectrumKeyboardProfile(int vendorId, int productId) {
   for (final profile in kSupportedSpectrumKeyboards) {
     if (profile.vendorId == vendorId && profile.productId == productId) {
@@ -85,7 +90,7 @@ SpectrumKeyboardProfile? spectrumKeyboardProfile(int vendorId, int productId) {
   return null;
 }
 
-/// Match the entire HID_ID line; device names never establish native support.
+/// Reads the USB IDs from Linux's HID_ID line and looks up the keyboard.
 SpectrumKeyboardProfile? spectrumKeyboardProfileFromUevent(String uevent) {
   final match = RegExp(
     r'^HID_ID=[0-9A-Fa-f]+:([0-9A-Fa-f]+):([0-9A-Fa-f]+)\r?$',
