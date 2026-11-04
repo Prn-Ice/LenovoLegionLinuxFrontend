@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
@@ -22,7 +23,7 @@ void main() {
     tester,
   ) async {
     final control = _Control();
-    when(() => control.setToggle('touchpad', true)).thenThrow(
+    when(() => control.setToggle(ControlToggle.touchpad, true)).thenThrow(
       const LegionControlSetupException('Service diagnostic wording changed'),
     );
     final bloc = DevicesBloc(
@@ -62,6 +63,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Privileged access needs setup'), findsOneWidget);
-    verify(() => control.setToggle('touchpad', true)).called(1);
+    verify(() => control.setToggle(ControlToggle.touchpad, true)).called(1);
   });
 }

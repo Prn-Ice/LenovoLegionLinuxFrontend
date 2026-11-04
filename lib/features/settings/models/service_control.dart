@@ -1,8 +1,10 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/control_selectors.dart';
+
 class ServiceControl extends Equatable {
   const ServiceControl({
-    required this.id,
+    required this.service,
     required this.label,
     required this.units,
     required this.supported,
@@ -10,7 +12,7 @@ class ServiceControl extends Equatable {
     required this.enabled,
   });
 
-  final String id;
+  final ControlService service;
   final String label;
   final List<String> units;
   final bool supported;
@@ -21,7 +23,7 @@ class ServiceControl extends Equatable {
 
   ServiceControl copyWith({bool? supported, bool? active, bool? enabled}) {
     return ServiceControl(
-      id: id,
+      service: service,
       label: label,
       units: units,
       supported: supported ?? this.supported,
@@ -31,5 +33,5 @@ class ServiceControl extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, label, units, supported, active, enabled];
+  List<Object?> get props => [service, label, units, supported, active, enabled];
 }

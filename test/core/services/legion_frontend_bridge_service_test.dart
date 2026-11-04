@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:mocktail/mocktail.dart';
@@ -171,7 +172,7 @@ void main() {
       await expectLater(
         bridge.runControlOperation(
           operation: (client) =>
-              client.setFeature('PlatformProfileFeature', 'custom'),
+              client.setFeature(ControlFeature.platformProfile, 'custom'),
           method: 'feature.set',
           args: const ['PlatformProfileFeature', 'custom'],
           retries: 0,
@@ -199,7 +200,7 @@ void main() {
 
       await bridge.runControlOperation(
         operation: (client) =>
-            client.setFeature('PlatformProfileFeature', 'custom'),
+            client.setFeature(ControlFeature.platformProfile, 'custom'),
         method: 'feature.set',
         args: const ['PlatformProfileFeature', 'custom'],
       );
@@ -233,7 +234,7 @@ void main() {
       );
       await expectLater(
         bridge.runControlOperation(
-          operation: (client) => client.setToggle('hybrid-mode', true),
+          operation: (client) => client.setToggle(ControlToggle.hybridMode, true),
           method: 'toggle',
           args: const ['true'],
         ),
@@ -259,7 +260,7 @@ void main() {
     );
     await expectLater(
       bridge.runControlOperation(
-        operation: (client) => client.setToggle('hybrid-mode', true),
+        operation: (client) => client.setToggle(ControlToggle.hybridMode, true),
         method: 'toggle',
         args: const ['true'],
       ),

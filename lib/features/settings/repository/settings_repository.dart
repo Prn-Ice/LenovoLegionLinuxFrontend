@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_control_client.dart';
 import '../models/service_control.dart';
 import '../models/settings_snapshot.dart';
@@ -17,7 +18,7 @@ class SettingsRepository {
 
   static final List<ServiceControl> _serviceDefinitions = [
     const ServiceControl(
-      id: 'power_profiles_daemon',
+      service: ControlService.powerProfilesDaemon,
       label: 'power-profiles-daemon',
       units: ['power-profiles-daemon'],
       supported: false,
@@ -25,7 +26,7 @@ class SettingsRepository {
       enabled: false,
     ),
     const ServiceControl(
-      id: 'legiond_stack',
+      service: ControlService.legiondStack,
       label: 'legiond services',
       units: [
         'legiond.service',
@@ -80,7 +81,7 @@ class SettingsRepository {
     }
 
     try {
-      await _controlClient.setServiceEnabled(service.id, enabled);
+      await _controlClient.setServiceEnabled(service.service, enabled);
     } on LegionControlException catch (error) {
       final failure = AppFailure.from(error);
       throw SettingsRepositoryException(

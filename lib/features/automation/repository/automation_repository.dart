@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';
@@ -93,7 +94,7 @@ class AutomationRepository extends PrivilegedRepository {
 
   Future<void> setRapidChargingEnabled(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('rapid-charging', enabled),
+      (client) => client.setToggle(ControlToggle.rapidCharging, enabled),
       args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:

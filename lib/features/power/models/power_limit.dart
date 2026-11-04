@@ -1,10 +1,12 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/control_selectors.dart';
+
 class PowerLimitSpec extends Equatable {
   const PowerLimitSpec({
     required this.id,
     required this.label,
-    this.featureName,
+    this.feature,
     required this.sysfsAttribute,
     this.unit = 'W',
     required this.min,
@@ -13,7 +15,7 @@ class PowerLimitSpec extends Equatable {
 
   final String id;
   final String label;
-  final String? featureName;
+  final ControlFeature? feature;
   final String sysfsAttribute;
   final String unit;
   final int min;
@@ -21,13 +23,13 @@ class PowerLimitSpec extends Equatable {
 
   int get effectiveMin => min > 0 ? min : 1;
 
-  bool get isWritable => featureName != null;
+  bool get isWritable => feature != null;
 
   @override
   List<Object?> get props => [
     id,
     label,
-    featureName,
+    feature,
     sysfsAttribute,
     unit,
     min,

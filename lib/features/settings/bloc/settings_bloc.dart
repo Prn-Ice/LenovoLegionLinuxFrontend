@@ -164,7 +164,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   ServiceControl? _findServiceById(String id, List<ServiceControl> services) {
     for (final service in services) {
-      if (service.id == id) {
+      if (service.service.wireValue == id) {
         return service;
       }
     }

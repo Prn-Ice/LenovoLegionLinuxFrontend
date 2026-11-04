@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';
@@ -72,7 +73,7 @@ class FansRepository extends PrivilegedRepository {
 
   Future<void> applyPreset(String presetName) async {
     await runControlOperation(
-      (client) => client.applyFanPreset(presetName),
+      (client) => client.applyFanPreset(ControlFanPreset.parse(presetName)),
       args: [presetName],
       method: 'fan_curve.apply_preset',
       failurePrefix: 'Failed to apply fan preset "$presetName"',
@@ -81,7 +82,7 @@ class FansRepository extends PrivilegedRepository {
 
   Future<void> setMiniFanCurve(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('mini-fan-curve', enabled),
+      (client) => client.setToggle(ControlToggle.miniFanCurve, enabled),
       args: ['$enabled'],
       method: 'mini_fan_curve.set',
       failurePrefix:
@@ -91,7 +92,7 @@ class FansRepository extends PrivilegedRepository {
 
   Future<void> setLockFanController(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('lock-fan-controller', enabled),
+      (client) => client.setToggle(ControlToggle.lockFanController, enabled),
       args: ['$enabled'],
       method: 'lock_fan_controller.set',
       failurePrefix:
@@ -101,7 +102,7 @@ class FansRepository extends PrivilegedRepository {
 
   Future<void> setMaximumFanSpeed(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('maximum-fan-speed', enabled),
+      (client) => client.setToggle(ControlToggle.maximumFanSpeed, enabled),
       args: ['$enabled'],
       method: 'maximum_fan_speed.set',
       failurePrefix:

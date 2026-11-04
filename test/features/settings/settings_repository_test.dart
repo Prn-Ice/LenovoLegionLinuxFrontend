@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:dbus/dbus.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
@@ -30,7 +31,7 @@ void main() {
       controlClient: LegionControlClient(transport: transport),
     );
     const service = ServiceControl(
-      id: 'legiond_stack',
+      service: ControlService.legiondStack,
       label: 'legiond services',
       units: ['legiond.service'],
       supported: true,
@@ -53,7 +54,7 @@ void main() {
       controlClient: LegionControlClient(transport: transport),
     );
     const service = ServiceControl(
-      id: 'legiond_stack',
+      service: ControlService.legiondStack,
       label: 'legiond services',
       units: ['legiond.service'],
       supported: true,

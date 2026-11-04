@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
+import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 
 class _FakeTransport implements LegionControlTransport {
   final calls = <(String, List<Object>)>[];
@@ -31,9 +33,9 @@ void main() {
       final transport = _FakeTransport();
       final client = LegionControlClient(transport: transport);
 
-      await client.setFeature('OverdriveFeature', '1');
-      await client.setToggle('hybrid-mode', false);
-      await client.applyFanPreset('quiet-ac');
+      await client.setFeature(ControlFeature.overdrive, '1');
+      await client.setToggle(ControlToggle.hybridMode, false);
+      await client.applyFanPreset(ControlFanPreset.quietAc);
       await client.applyCustomConservation(40, 80);
       await client.restoreBootLogo();
 
@@ -52,16 +54,8 @@ void main() {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
 
-    await expectLater(
-      () => client.setToggle('camera', true),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
-    await expectLater(
-      () => client.setFeature('WhiteKeyboardBacklightFeature', '1'),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
     expect(
-      () => client.setFeature('CPUDefaultPowerLimit', '45'),
+      () => client.setFeature(ControlFeature.cpuLongtermPowerLimit, '01'),
       throwsA(isA<LegionControlNotSupportedException>()),
     );
     expect(transport.authorizationCalls, 0);
@@ -71,17 +65,7 @@ void main() {
   test('supports every allow-listed toggle', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
-    const commands = [
-      'hybrid-mode',
-      'battery-conservation',
-      'rapid-charging',
-      'mini-fan-curve',
-      'lock-fan-controller',
-      'maximum-fan-speed',
-      'always-on-usb-charging',
-      'touchpad',
-      'fn-lock',
-    ];
+    const commands = ControlToggle.values;
 
     for (final command in commands) {
       await client.setToggle(command, true);
@@ -94,7 +78,11 @@ void main() {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
 
-    for (final mode in const ['hybrid', 'hybrid-igpu-only', 'discrete']) {
+    for (final mode in const [
+      GraphicsMode.hybrid,
+      GraphicsMode.hybridIgpuOnly,
+      GraphicsMode.discrete,
+    ]) {
       await client.setGraphicsMode(mode);
     }
 
@@ -109,7 +97,7 @@ void main() {
       'discrete',
     ]);
     await expectLater(
-      () => client.setGraphicsMode('hybrid-auto'),
+      () => client.setGraphicsMode(GraphicsMode.hybridAuto),
       throwsA(isA<LegionControlNotSupportedException>()),
     );
   });
@@ -117,12 +105,8 @@ void main() {
   test('validates service IDs and byte payload boundaries', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
-    await client.setServiceEnabled('power_profiles_daemon', true);
-    await client.setServiceEnabled('legiond_stack', false);
-    expect(
-      () => client.setServiceEnabled('other', true),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
+    await client.setServiceEnabled(ControlService.powerProfilesDaemon, true);
+    await client.setServiceEnabled(ControlService.legiondStack, false);
     await client.applyFanCurve([0, 255]);
     expect(
       () => client.applyFanCurve([-1]),
@@ -149,7 +133,7 @@ void main() {
       final response = entry.key;
       transport.callFailure = DBusMethodResponseException(response);
       await expectLater(
-        client.setToggle('hybrid-mode', true),
+        client.setToggle(ControlToggle.hybridMode, true),
         throwsA(
           isA<LegionControlException>().having(
             (error) => error.runtimeType,
@@ -177,7 +161,7 @@ void main() {
         DBusMethodErrorResponse(entry.key),
       );
       await expectLater(
-        client.setGraphicsMode('hybrid-igpu-only'),
+        client.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
         throwsA(
           isA<LegionControlException>().having(
             (error) => error.runtimeType,
@@ -195,15 +179,15 @@ void main() {
       final transport = _FakeTransport();
       final client = LegionControlClient(transport: transport);
       const ranges = {
-        'CPULongtermPowerLimit': (5, 200),
-        'CPUShorttermPowerLimit': (5, 200),
-        'CPUPeakPowerLimit': (1, 200),
-        'CPUCrossLoadingPowerLimit': (1, 100),
-        'CPUAPUSPPTPowerLimit': (1, 100),
-        'GPUCTGPPowerLimit': (1, 200),
-        'GPUPPABPowerLimit': (1, 200),
-        'GPUBoostClock': (1, 10000),
-        'GPUTemperatureLimit': (1, 120),
+        ControlFeature.cpuLongtermPowerLimit: (5, 200),
+        ControlFeature.cpuShorttermPowerLimit: (5, 200),
+        ControlFeature.cpuPeakPowerLimit: (1, 200),
+        ControlFeature.cpuCrossLoadingPowerLimit: (1, 100),
+        ControlFeature.cpuApusPptPowerLimit: (1, 100),
+        ControlFeature.gpuCtgPowerLimit: (1, 200),
+        ControlFeature.gpuPpabPowerLimit: (1, 200),
+        ControlFeature.gpuBoostClock: (1, 10000),
+        ControlFeature.gpuTemperatureLimit: (1, 120),
       };
       for (final entry in ranges.entries) {
         await client.setFeature(entry.key, '${entry.value.$1}');
@@ -226,7 +210,7 @@ void main() {
       final transport = _AuthorizationLossTransport();
       final client = LegionControlClient(transport: transport);
 
-      await client.setToggle('hybrid-mode', true);
+      await client.setToggle(ControlToggle.hybridMode, true);
 
       expect(transport.authorizationCalls, 2);
       expect(transport.calls, hasLength(1));
@@ -241,11 +225,11 @@ void main() {
     transport.callFailure = StateError('connection lost');
 
     await expectLater(
-      client.setToggle('hybrid-mode', true),
+      client.setToggle(ControlToggle.hybridMode, true),
       throwsA(isA<StateError>()),
     );
     transport.callFailure = null;
-    await client.setToggle('hybrid-mode', false);
+    await client.setToggle(ControlToggle.hybridMode, false);
 
     expect(transport.authorizationCalls, 2);
     expect(transport.calls, hasLength(1));
@@ -281,8 +265,8 @@ void main() {
       final transport = _RetryTransport();
       final client = LegionControlClient(transport: transport);
       final first = Future.wait<void>([
-        client.setFeature('OverdriveFeature', '1'),
-        client.setToggle('hybrid-mode', true),
+        client.setFeature(ControlFeature.overdrive, '1'),
+        client.setToggle(ControlToggle.hybridMode, true),
       ]);
       await Future<void>.delayed(Duration.zero);
       transport.releaseFirstAuthorization();
@@ -290,7 +274,7 @@ void main() {
         first,
         throwsA(isA<LegionControlPermissionDeniedException>()),
       );
-      await client.setFeature('OverdriveFeature', '0');
+      await client.setFeature(ControlFeature.overdrive, '0');
       expect(transport.calls.length, 1);
       expect(transport.authorizationCalls, 2);
     },

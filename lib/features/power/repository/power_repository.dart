@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
 import '../models/power_limit.dart';
@@ -40,8 +41,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_longterm',
       label: 'CPU sustained (PL1)',
-      featureName:
-          'CPULongtermPowerLimit', // legion_linux/legion.py:CPULongtermPowerLimit
+      feature: ControlFeature.cpuLongtermPowerLimit,
       sysfsAttribute: 'cpu_longterm_powerlimit',
       min: 5,
       max: 200,
@@ -49,8 +49,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_shortterm',
       label: 'CPU boost (PL2)',
-      featureName:
-          'CPUShorttermPowerLimit', // legion_linux/legion.py:CPUShorttermPowerLimit
+      feature: ControlFeature.cpuShorttermPowerLimit, // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsAttribute: 'cpu_shortterm_powerlimit',
       min: 5,
       max: 200,
@@ -58,8 +57,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_peak',
       label: 'CPU Peak Power Limit',
-      featureName:
-          'CPUPeakPowerLimit', // legion_linux/legion.py:CPUPeakPowerLimit
+      feature: ControlFeature.cpuPeakPowerLimit, // legion_linux/legion.py:CPUPeakPowerLimit
       sysfsAttribute: 'cpu_peak_powerlimit',
       min: 0,
       max: 200,
@@ -67,8 +65,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_cross_loading',
       label: 'CPU Cross Loading Power Limit',
-      featureName:
-          'CPUCrossLoadingPowerLimit', // legion_linux/legion.py:CPUCrossLoadingPowerLimit
+      feature: ControlFeature.cpuCrossLoadingPowerLimit, // legion_linux/legion.py:CPUCrossLoadingPowerLimit
       sysfsAttribute: 'cpu_cross_loading_powerlimit',
       min: 0,
       max: 100,
@@ -84,8 +81,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_apu_sppt',
       label: 'CPU APU SPPT Power Limit',
-      featureName:
-          'CPUAPUSPPTPowerLimit', // legion_linux/legion.py:CPUAPUSPPTPowerLimit
+      feature: ControlFeature.cpuApusPptPowerLimit, // legion_linux/legion.py:CPUAPUSPPTPowerLimit
       sysfsAttribute: 'cpu_apu_sppt_powerlimit',
       min: 0,
       max: 100,
@@ -101,8 +97,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_ctgp',
       label: 'GPU total power (cTGP)',
-      featureName:
-          'GPUCTGPPowerLimit', // legion_linux/legion.py:GPUCTGPPowerLimit
+      feature: ControlFeature.gpuCtgPowerLimit, // legion_linux/legion.py:GPUCTGPPowerLimit
       sysfsAttribute: 'gpu_ctgp_powerlimit',
       min: 0,
       max: 200,
@@ -117,8 +112,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_ppab',
       label: 'GPU PPAB Power Limit',
-      featureName:
-          'GPUPPABPowerLimit', // legion_linux/legion.py:GPUPPABPowerLimit
+      feature: ControlFeature.gpuPpabPowerLimit, // legion_linux/legion.py:GPUPPABPowerLimit
       sysfsAttribute: 'gpu_ppab_powerlimit',
       min: 0,
       max: 200,
@@ -126,7 +120,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_boost_clock',
       label: 'GPU Boost Clock',
-      featureName: 'GPUBoostClock', // legion_linux/legion.py:GPUBoostClock
+      feature: ControlFeature.gpuBoostClock, // legion_linux/legion.py:GPUBoostClock
       sysfsAttribute: 'gpu_boost_clock',
       unit: 'MHz',
       min: 0,
@@ -135,8 +129,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_temperature',
       label: 'GPU Temperature Limit',
-      featureName:
-          'GPUTemperatureLimit', // legion_linux/legion.py:GPUTemperatureLimit
+      feature: ControlFeature.gpuTemperatureLimit, // legion_linux/legion.py:GPUTemperatureLimit
       sysfsAttribute: 'gpu_temperature_limit',
       unit: '°C',
       min: 0,
@@ -218,16 +211,16 @@ class PowerRepository extends PrivilegedRepository {
 
   Future<void> _setPlatformProfile(String profile) async {
     await runControlOperation(
-      (client) => client.setFeature('PlatformProfileFeature', profile),
-      args: ['PlatformProfileFeature', profile],
+      (client) => client.setFeature(ControlFeature.platformProfile, profile),
+      args: [ControlFeature.platformProfile.wireValue, profile],
       method: 'feature.set',
       failurePrefix: 'Failed to set platform power mode to "$profile"',
     );
   }
 
   Future<void> setPowerLimit(PowerLimitSpec limit, int value) async {
-    final featureName = limit.featureName;
-    if (featureName == null) {
+    final feature = limit.feature;
+    if (feature == null) {
       throw PowerRepositoryException('${limit.label} is read-only.');
     }
     if (value < limit.effectiveMin || value > limit.max) {
@@ -239,8 +232,8 @@ class PowerRepository extends PrivilegedRepository {
     await _requireLimitWriteContext();
 
     await runControlOperation(
-      (client) => client.setFeature(featureName, '$value'),
-      args: [featureName, '$value'],
+      (client) => client.setFeature(feature, '$value'),
+      args: [feature.wireValue, '$value'],
       method: 'feature.set',
       failurePrefix: 'Failed to set ${limit.label}',
     );
@@ -279,8 +272,8 @@ class PowerRepository extends PrivilegedRepository {
       for (final reading in readings) {
         await runControlOperation(
           (client) =>
-              client.setFeature(reading.spec.featureName!, '${reading.value}'),
-          args: [reading.spec.featureName!, '${reading.value}'],
+              client.setFeature(reading.spec.feature!, '${reading.value}'),
+          args: [reading.spec.feature!.wireValue, '${reading.value}'],
           method: 'feature.set',
           failurePrefix: 'Failed to set ${reading.spec.label}',
         );
@@ -292,10 +285,13 @@ class PowerRepository extends PrivilegedRepository {
         try {
           await runControlOperation(
             (client) => client.setFeature(
-              reading.spec.featureName!,
+              reading.spec.feature!,
               '${originals[reading.spec.id]}',
             ),
-            args: [reading.spec.featureName!, '${originals[reading.spec.id]}'],
+            args: [
+              reading.spec.feature!.wireValue,
+              '${originals[reading.spec.id]}',
+            ],
             method: 'feature.set',
             failurePrefix: 'Failed to restore ${reading.spec.label}',
           );
@@ -342,7 +338,7 @@ class PowerRepository extends PrivilegedRepository {
 
   Future<void> setCpuOverclock(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'CPUOverclock', // legion_linux/legion.py:CPUOverclock
+      feature: ControlFeature.cpuOverclock,
       enabled: enabled,
       settingLabel: 'CPU overclock',
     );
@@ -350,19 +346,19 @@ class PowerRepository extends PrivilegedRepository {
 
   Future<void> setGpuOverclock(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'GPUOverclock', // legion_linux/legion.py:GPUOverclock
+      feature: ControlFeature.gpuOverclock,
       enabled: enabled,
       settingLabel: 'GPU overclock',
     );
   }
 
   Future<void> _runFeatureToggle({
-    required String featureName,
+    required ControlFeature feature,
     required bool enabled,
     required String settingLabel,
   }) => runControlOperation(
-    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
-    args: [featureName, '$enabled'],
+    (client) => client.setFeature(feature, enabled ? '1' : '0'),
+    args: [feature.wireValue, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
   );

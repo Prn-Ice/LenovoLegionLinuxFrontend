@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 
+import '../models/control_selectors.dart';
+import '../../features/dgpu/models/graphics_mode.dart';
+
 abstract class LegionControlTransport {
   Future<void> authorize();
   Future<void> call(String method, List<Object> arguments);
@@ -155,65 +158,24 @@ class LegionControlClient {
 
   Future<void>? _authorization;
 
-  static const _features = <String>{
-    'PlatformProfileFeature',
-    'OverdriveFeature',
-    'WinkeyFeature',
-    'CPULongtermPowerLimit',
-    'CPUShorttermPowerLimit',
-    'CPUPeakPowerLimit',
-    'CPUCrossLoadingPowerLimit',
-    'CPUAPUSPPTPowerLimit',
-    'GPUCTGPPowerLimit',
-    'GPUPPABPowerLimit',
-    'GPUBoostClock',
-    'GPUTemperatureLimit',
-    'CPUOverclock',
-    'GPUOverclock',
-    'YLogoLight',
-    'IOPortLight',
-  };
-  static const _booleanFeatures = {
-    'OverdriveFeature',
-    'WinkeyFeature',
-    'CPUOverclock',
-    'GPUOverclock',
-    'YLogoLight',
-    'IOPortLight',
-  };
-  static const _presets = {
-    'quiet-battery',
-    'balanced-battery',
-    'performance-battery',
-    'balanced-performance-battery',
-    'quiet-ac',
-    'balanced-ac',
-    'performance-ac',
-    'balanced-performance-ac',
-  };
-  static const _serviceIds = {'power_profiles_daemon', 'legiond_stack'};
-  static const _graphicsModes = {'hybrid', 'hybrid-igpu-only', 'discrete'};
-
-  Future<void> setFeature(String feature, String value) {
+  Future<void> setFeature(ControlFeature feature, String value) {
     _validateFeature(feature, value);
-    return _call('SetFeature', [feature, value]);
+    return _call('SetFeature', [feature.wireValue, value]);
   }
 
-  Future<void> setToggle(String id, bool enabled) {
-    if (!_toggleIds.contains(id)) _unsupported('Unsupported toggle.');
-    return _call('SetToggle', [id, enabled]);
+  Future<void> setToggle(ControlToggle toggle, bool enabled) {
+    return _call('SetToggle', [toggle.wireValue, enabled]);
   }
 
-  Future<void> setGraphicsMode(String mode) {
-    if (!_graphicsModes.contains(mode)) {
+  Future<void> setGraphicsMode(GraphicsMode mode) {
+    if (mode == GraphicsMode.hybridAuto) {
       _unsupported('Unsupported graphics mode.');
     }
-    return _call('SetGraphicsMode', [mode]);
+    return _call('SetGraphicsMode', [mode.wireValue]);
   }
 
-  Future<void> applyFanPreset(String preset) {
-    if (!_presets.contains(preset)) _unsupported('Unsupported fan preset.');
-    return _call('ApplyFanPreset', [preset]);
+  Future<void> applyFanPreset(ControlFanPreset preset) {
+    return _call('ApplyFanPreset', [preset.wireValue]);
   }
 
   Future<void> applyCurrentFanPreset() =>
@@ -236,28 +198,13 @@ class LegionControlClient {
   }
 
   Future<void> restoreBootLogo() => _call('RestoreBootLogo', const []);
-  Future<void> setServiceEnabled(String id, bool enabled) =>
-      _serviceIds.contains(id)
-      ? _call('SetServiceEnabled', [id, enabled])
-      : _unsupported('Unsupported service.');
+  Future<void> setServiceEnabled(ControlService service, bool enabled) =>
+      _call('SetServiceEnabled', [service.wireValue, enabled]);
 
   Future<void> close() => _transport.close();
 
-  static const _toggleIds = {
-    'hybrid-mode',
-    'battery-conservation',
-    'rapid-charging',
-    'always-on-usb-charging',
-    'touchpad',
-    'fn-lock',
-    'mini-fan-curve',
-    'lock-fan-controller',
-    'maximum-fan-speed',
-  };
-
-  void _validateFeature(String feature, String value) {
-    if (!_features.contains(feature)) _unsupported('Unsupported feature.');
-    final valid = feature == 'PlatformProfileFeature'
+  void _validateFeature(ControlFeature feature, String value) {
+    final valid = feature == ControlFeature.platformProfile
         ? const {
             'quiet',
             'low-power',
@@ -268,23 +215,30 @@ class LegionControlClient {
             'custom',
             'max-power',
           }.contains(value)
-        : _booleanFeatures.contains(feature)
+        : {
+            ControlFeature.overdrive,
+            ControlFeature.winkey,
+            ControlFeature.cpuOverclock,
+            ControlFeature.gpuOverclock,
+            ControlFeature.yLogoLight,
+            ControlFeature.ioPortLight,
+          }.contains(feature)
         ? value == '0' || value == '1'
         : _integerRanges[feature]?.contains(int.tryParse(value), value) ??
               false;
     if (!valid) _unsupported('Unsupported or malformed feature value.');
   }
 
-  static const _integerRanges = <String, _IntRange>{
-    'CPULongtermPowerLimit': _IntRange(5, 200),
-    'CPUShorttermPowerLimit': _IntRange(5, 200),
-    'CPUPeakPowerLimit': _IntRange(1, 200),
-    'CPUCrossLoadingPowerLimit': _IntRange(1, 100),
-    'CPUAPUSPPTPowerLimit': _IntRange(1, 100),
-    'GPUCTGPPowerLimit': _IntRange(1, 200),
-    'GPUPPABPowerLimit': _IntRange(1, 200),
-    'GPUBoostClock': _IntRange(1, 10000),
-    'GPUTemperatureLimit': _IntRange(1, 120),
+  static const _integerRanges = <ControlFeature, _IntRange>{
+    ControlFeature.cpuLongtermPowerLimit: _IntRange(5, 200),
+    ControlFeature.cpuShorttermPowerLimit: _IntRange(5, 200),
+    ControlFeature.cpuPeakPowerLimit: _IntRange(1, 200),
+    ControlFeature.cpuCrossLoadingPowerLimit: _IntRange(1, 100),
+    ControlFeature.cpuApusPptPowerLimit: _IntRange(1, 100),
+    ControlFeature.gpuCtgPowerLimit: _IntRange(1, 200),
+    ControlFeature.gpuPpabPowerLimit: _IntRange(1, 200),
+    ControlFeature.gpuBoostClock: _IntRange(1, 10000),
+    ControlFeature.gpuTemperatureLimit: _IntRange(1, 120),
   };
 
   void _validateBytes(List<int> bytes, int max, String label) {

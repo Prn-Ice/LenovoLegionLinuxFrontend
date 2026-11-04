@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/xrandr_service.dart';
 import '../models/display_snapshot.dart';
@@ -41,8 +42,7 @@ class DisplayRepository extends PrivilegedRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await _runFeatureToggle(
-      featureName:
-          'OverdriveFeature', // legion_linux/legion.py:OverdriveFeature
+      feature: ControlFeature.overdrive,
       enabled: enabled,
       settingLabel: 'Overdrive',
     );
@@ -57,12 +57,12 @@ class DisplayRepository extends PrivilegedRepository {
   }
 
   Future<void> _runFeatureToggle({
-    required String featureName,
+    required ControlFeature feature,
     required bool enabled,
     required String settingLabel,
   }) => runControlOperation(
-    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
-    args: [featureName, '$enabled'],
+    (client) => client.setFeature(feature, enabled ? '1' : '0'),
+    args: [feature.wireValue, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
   );

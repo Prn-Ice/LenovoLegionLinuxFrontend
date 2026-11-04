@@ -195,7 +195,7 @@ void main() {
       () => bridge.runControlOperation(
         operation: any(named: 'operation'),
         method: 'feature.set',
-        args: [reading.spec.featureName!, '60'],
+        args: [reading.spec.feature!.wireValue, '60'],
         timeout: const Duration(seconds: 5),
       ),
     ).thenAnswer((_) async {});
@@ -206,7 +206,7 @@ void main() {
       () => bridge.runControlOperation(
         operation: any(named: 'operation'),
         method: 'feature.set',
-        args: [reading.spec.featureName!, '60'],
+        args: [reading.spec.feature!.wireValue, '60'],
         timeout: const Duration(seconds: 5),
       ),
     ).called(1);
@@ -234,7 +234,7 @@ void main() {
           () => bridge.runControlOperation(
             operation: any(named: 'operation'),
             method: 'feature.set',
-            args: [reading.spec.featureName!, '60'],
+            args: [reading.spec.feature!.wireValue, '60'],
             timeout: const Duration(seconds: 5),
           ),
         ).thenAnswer((_) async {});
@@ -242,7 +242,7 @@ void main() {
           () => bridge.runControlOperation(
             operation: any(named: 'operation'),
             method: 'feature.set',
-            args: [second.spec.featureName!, '80'],
+            args: [second.spec.feature!.wireValue, '80'],
             timeout: const Duration(seconds: 5),
           ),
         ).thenThrow(
@@ -257,7 +257,7 @@ void main() {
           () => bridge.runControlOperation(
             operation: any(named: 'operation'),
             method: 'feature.set',
-            args: [reading.spec.featureName!, '55'],
+            args: [reading.spec.feature!.wireValue, '55'],
             timeout: const Duration(seconds: 5),
           ),
         ).thenAnswer((_) async {
@@ -297,7 +297,7 @@ void main() {
           () => bridge.runControlOperation(
             operation: any(named: 'operation'),
             method: 'feature.set',
-            args: [reading.spec.featureName!, '55'],
+            args: [reading.spec.feature!.wireValue, '55'],
             timeout: const Duration(seconds: 5),
           ),
         ).called(1);

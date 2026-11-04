@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
 import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
@@ -12,7 +13,7 @@ import 'package:riverbloc/riverbloc.dart';
 class MockSettingsRepository extends Mock implements SettingsRepository {}
 
 const service = ServiceControl(
-  id: 'power_profiles_daemon',
+  service: ControlService.powerProfilesDaemon,
   label: 'power-profiles-daemon',
   units: ['power-profiles-daemon'],
   supported: true,

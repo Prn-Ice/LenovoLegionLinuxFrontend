@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/devices_snapshot.dart';
 
@@ -42,7 +43,7 @@ class DevicesRepository extends PrivilegedRepository {
 
   Future<void> setTouchpad(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('touchpad', enabled),
+      (client) => client.setToggle(ControlToggle.touchpad, enabled),
       args: ['$enabled'],
       method: 'touchpad.set',
       failurePrefix: 'Failed to set touchpad to ${enabled ? 'on' : 'off'}',
@@ -51,8 +52,8 @@ class DevicesRepository extends PrivilegedRepository {
 
   Future<void> setWinKey(bool enabled) async {
     await runControlOperation(
-      (client) => client.setFeature('WinkeyFeature', enabled ? '1' : '0'),
-      args: ['WinkeyFeature', '$enabled'],
+      (client) => client.setFeature(ControlFeature.winkey, enabled ? '1' : '0'),
+      args: [ControlFeature.winkey.wireValue, '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
     );
@@ -60,7 +61,7 @@ class DevicesRepository extends PrivilegedRepository {
 
   Future<void> setFnLock(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('fn-lock', enabled),
+      (client) => client.setToggle(ControlToggle.fnLock, enabled),
       args: ['$enabled'],
       method: 'fn_lock.set',
       failurePrefix: 'Failed to set Fn lock to ${enabled ? 'on' : 'off'}',

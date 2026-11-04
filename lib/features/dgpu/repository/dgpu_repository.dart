@@ -104,7 +104,7 @@ class DgpuRepository extends PrivilegedRepository {
 
     try {
       await bridgeService.runControlOperation(
-        operation: (client) => client.setGraphicsMode(mode.wireValue),
+        operation: (client) => client.setGraphicsMode(mode),
         method: 'graphics_mode.set',
         args: [mode.wireValue],
         timeout: const Duration(seconds: 45),

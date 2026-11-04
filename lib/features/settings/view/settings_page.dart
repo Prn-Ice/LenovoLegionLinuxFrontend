@@ -191,7 +191,7 @@ class SettingsPage extends ConsumerWidget {
                       final current = ref.read(settingsBlocProvider);
                       if (current.isApplying ||
                           !current.services.any(
-                            (item) => item.id == service.id && item.supported,
+                            (item) => item.service == service.service && item.supported,
                           )) {
                         return;
                       }
@@ -199,7 +199,7 @@ class SettingsPage extends ConsumerWidget {
                           .read(settingsBlocProvider.bloc)
                           .add(
                             SettingsServiceToggled(
-                              serviceId: service.id,
+                              serviceId: service.service.wireValue,
                               enabled: enabled,
                             ),
                           );

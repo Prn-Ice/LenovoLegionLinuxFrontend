@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/lighting_snapshot.dart';
 
@@ -39,17 +40,15 @@ class LightingRepository extends PrivilegedRepository {
   }
 
   Future<void> setWhiteKeyboardBacklight(bool enabled) async {
-    await _runFeatureToggle(
-      featureName:
-          'WhiteKeyboardBacklightFeature', // legion_linux/legion.py:WhiteKeyboardBacklightFeature
-      enabled: enabled,
-      settingLabel: 'White keyboard backlight',
+    throw const LightingRepositoryException(
+      'White keyboard backlight control is not supported by the control service.',
+      kind: AppFailureKind.unavailable,
     );
   }
 
   Future<void> setYLogoLight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'YLogoLight', // legion_linux/legion.py:YLogoLight
+      feature: ControlFeature.yLogoLight,
       enabled: enabled,
       settingLabel: 'Y-logo light',
     );
@@ -57,19 +56,19 @@ class LightingRepository extends PrivilegedRepository {
 
   Future<void> setIoPortLight(bool enabled) async {
     await _runFeatureToggle(
-      featureName: 'IOPortLight', // legion_linux/legion.py:IOPortLight
+      feature: ControlFeature.ioPortLight,
       enabled: enabled,
       settingLabel: 'IO-port light',
     );
   }
 
   Future<void> _runFeatureToggle({
-    required String featureName,
+    required ControlFeature feature,
     required bool enabled,
     required String settingLabel,
   }) => runControlOperation(
-    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
-    args: [featureName, '$enabled'],
+    (client) => client.setFeature(feature, enabled ? '1' : '0'),
+    args: [feature.wireValue, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
   );

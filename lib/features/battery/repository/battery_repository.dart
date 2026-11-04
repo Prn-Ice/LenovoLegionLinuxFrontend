@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/battery_snapshot.dart';
 
@@ -82,7 +83,7 @@ class BatteryRepository extends PrivilegedRepository {
 
   Future<void> setBatteryConservation(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('battery-conservation', enabled),
+      (client) => client.setToggle(ControlToggle.batteryConservation, enabled),
       args: ['$enabled'],
       method: 'battery_conservation.set',
       failurePrefix:
@@ -92,7 +93,7 @@ class BatteryRepository extends PrivilegedRepository {
 
   Future<void> setRapidCharging(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('rapid-charging', enabled),
+      (client) => client.setToggle(ControlToggle.rapidCharging, enabled),
       args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:
@@ -108,7 +109,7 @@ class BatteryRepository extends PrivilegedRepository {
     }
 
     await runControlOperation(
-      (client) => client.setToggle('always-on-usb-charging', enabled),
+      (client) => client.setToggle(ControlToggle.alwaysOnUsbCharging, enabled),
       args: ['$enabled'],
       method: 'always_on_usb.set',
       failurePrefix:

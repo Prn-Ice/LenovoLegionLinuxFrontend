@@ -1,5 +1,6 @@
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
 import '../models/dashboard_snapshot.dart';
@@ -121,8 +122,8 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> _setPlatformProfile(String mode) async {
     await runControlOperation(
-      (client) => client.setFeature('PlatformProfileFeature', mode),
-      args: ['PlatformProfileFeature', mode],
+      (client) => client.setFeature(ControlFeature.platformProfile, mode),
+      args: [ControlFeature.platformProfile.wireValue, mode],
       method: 'feature.set',
       failurePrefix: 'Failed to set power mode to "$mode"',
     );
@@ -130,7 +131,7 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> setHybridMode(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('hybrid-mode', enabled),
+      (client) => client.setToggle(ControlToggle.hybridMode, enabled),
       args: ['$enabled'],
       method: 'hybrid_mode.set',
       failurePrefix: 'Failed to set Hybrid mode',
@@ -147,8 +148,8 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await runControlOperation(
-      (client) => client.setFeature('OverdriveFeature', enabled ? '1' : '0'),
-      args: ['OverdriveFeature', '$enabled'],
+      (client) => client.setFeature(ControlFeature.overdrive, enabled ? '1' : '0'),
+      args: [ControlFeature.overdrive.wireValue, '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
     );
@@ -156,7 +157,7 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> setBatteryConservation(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('battery-conservation', enabled),
+      (client) => client.setToggle(ControlToggle.batteryConservation, enabled),
       args: ['$enabled'],
       method: 'battery_conservation.set',
       failurePrefix:
@@ -166,7 +167,7 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> setRapidCharging(bool enabled) async {
     await runControlOperation(
-      (client) => client.setToggle('rapid-charging', enabled),
+      (client) => client.setToggle(ControlToggle.rapidCharging, enabled),
       args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:

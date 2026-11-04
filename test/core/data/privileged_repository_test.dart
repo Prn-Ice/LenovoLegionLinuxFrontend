@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/data/privileged_repository.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
@@ -30,7 +31,7 @@ class _TestRepository extends PrivilegedRepository {
     List<String> args, {
     Duration timeout = const Duration(seconds: 5),
   }) => runControlOperation(
-    (client) => client.setFeature('OverdriveFeature', '1'),
+    (client) => client.setFeature(ControlFeature.overdrive, '1'),
     args: args,
     method: 'feature.set',
     failurePrefix: 'Failed to apply',
