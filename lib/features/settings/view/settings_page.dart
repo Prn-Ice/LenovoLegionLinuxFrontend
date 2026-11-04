@@ -159,7 +159,9 @@ class SettingsPage extends ConsumerWidget {
             title: 'Camera',
             value: devices.cameraEnabled ?? false,
             subtitle: devices.cameraSupported
-                ? '${boolEnabledLabel(devices.cameraEnabled)} (read-only)'
+                ? devices.cameraWriteSupported
+                      ? boolEnabledLabel(devices.cameraEnabled)
+                      : '${boolEnabledLabel(devices.cameraEnabled)} (Read-only)'
                 : 'Not supported on this device',
             onChanged: null,
           ),

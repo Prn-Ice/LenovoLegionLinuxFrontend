@@ -12,6 +12,7 @@ class DevicesState extends Equatable {
     required this.fnLockSupported,
     required this.cameraEnabled,
     required this.cameraSupported,
+    this.cameraWriteSupported = false,
     required this.isLoading,
     required this.isApplying,
     required this.errorMessage,
@@ -43,6 +44,7 @@ class DevicesState extends Equatable {
   final bool fnLockSupported;
   final bool? cameraEnabled;
   final bool cameraSupported;
+  final bool cameraWriteSupported;
   final bool isLoading;
   final bool isApplying;
   final AppFailure? errorMessage;
@@ -63,6 +65,7 @@ class DevicesState extends Equatable {
     bool? fnLockSupported,
     Object? cameraEnabled = _unset,
     bool? cameraSupported,
+    bool? cameraWriteSupported,
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
@@ -85,6 +88,7 @@ class DevicesState extends Equatable {
           ? this.cameraEnabled
           : cameraEnabled as bool?,
       cameraSupported: cameraSupported ?? this.cameraSupported,
+      cameraWriteSupported: cameraWriteSupported ?? this.cameraWriteSupported,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
@@ -106,6 +110,7 @@ class DevicesState extends Equatable {
     fnLockSupported,
     cameraEnabled,
     cameraSupported,
+    cameraWriteSupported,
     isLoading,
     isApplying,
     errorMessage,

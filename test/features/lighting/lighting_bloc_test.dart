@@ -47,4 +47,17 @@ void main() {
       ),
     ],
   );
+
+  blocTest<LightingBloc, LightingState>(
+    'does not dispatch a backlight write when the readable value is read-only',
+    build: () => LightingBloc(repository: repo),
+    seed: () => LightingState.initial().copyWith(
+      whiteKeyboardBacklightEnabled: true,
+      whiteKeyboardBacklightSupported: true,
+      whiteKeyboardBacklightWriteSupported: false,
+    ),
+    act: (bloc) => bloc.add(const WhiteKeyboardBacklightSetRequested(false)),
+    expect: () => isEmpty,
+    verify: (_) => verifyNever(() => repo.setWhiteKeyboardBacklight(any())),
+  );
 }

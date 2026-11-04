@@ -6,6 +6,7 @@ class LightingState extends Equatable {
   const LightingState({
     required this.whiteKeyboardBacklightEnabled,
     required this.whiteKeyboardBacklightSupported,
+    this.whiteKeyboardBacklightWriteSupported = false,
     required this.yLogoLightEnabled,
     required this.yLogoLightSupported,
     required this.ioPortLightEnabled,
@@ -33,6 +34,7 @@ class LightingState extends Equatable {
 
   final bool? whiteKeyboardBacklightEnabled;
   final bool whiteKeyboardBacklightSupported;
+  final bool whiteKeyboardBacklightWriteSupported;
   final bool? yLogoLightEnabled;
   final bool yLogoLightSupported;
   final bool? ioPortLightEnabled;
@@ -53,6 +55,7 @@ class LightingState extends Equatable {
   LightingState copyWith({
     Object? whiteKeyboardBacklightEnabled = _unset,
     bool? whiteKeyboardBacklightSupported,
+    bool? whiteKeyboardBacklightWriteSupported,
     Object? yLogoLightEnabled = _unset,
     bool? yLogoLightSupported,
     Object? ioPortLightEnabled = _unset,
@@ -69,6 +72,9 @@ class LightingState extends Equatable {
       whiteKeyboardBacklightSupported:
           whiteKeyboardBacklightSupported ??
           this.whiteKeyboardBacklightSupported,
+      whiteKeyboardBacklightWriteSupported:
+          whiteKeyboardBacklightWriteSupported ??
+          this.whiteKeyboardBacklightWriteSupported,
       yLogoLightEnabled: yLogoLightEnabled == _unset
           ? this.yLogoLightEnabled
           : yLogoLightEnabled as bool?,
@@ -92,6 +98,7 @@ class LightingState extends Equatable {
   List<Object?> get props => [
     whiteKeyboardBacklightEnabled,
     whiteKeyboardBacklightSupported,
+    whiteKeyboardBacklightWriteSupported,
     yLogoLightEnabled,
     yLogoLightSupported,
     ioPortLightEnabled,

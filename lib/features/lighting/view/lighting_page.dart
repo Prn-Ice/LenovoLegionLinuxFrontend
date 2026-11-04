@@ -1055,7 +1055,7 @@ class _BacklightSection extends StatelessWidget {
           enabled: state.whiteKeyboardBacklightEnabled,
           confirmTitle: 'Toggle keyboard backlight',
           onApply: (v) => bloc.add(WhiteKeyboardBacklightSetRequested(v)),
-          writable: false,
+          writable: state.whiteKeyboardBacklightWriteSupported,
         ),
       if (state.yLogoLightSupported)
         _toggle(

@@ -106,4 +106,17 @@ void main() {
       expect: () => isEmpty,
     );
   });
+
+  blocTest<DevicesBloc, DevicesState>(
+    'does not dispatch a camera write when the readable value is read-only',
+    build: () => DevicesBloc(repository: repo),
+    seed: () => DevicesState.initial().copyWith(
+      cameraEnabled: true,
+      cameraSupported: true,
+      cameraWriteSupported: false,
+    ),
+    act: (bloc) => bloc.add(const CameraSetRequested(false)),
+    expect: () => isEmpty,
+    verify: (_) => verifyNever(() => repo.setCamera(any())),
+  );
 }

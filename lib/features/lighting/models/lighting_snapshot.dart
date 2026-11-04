@@ -4,6 +4,7 @@ class LightingSnapshot extends Equatable {
   const LightingSnapshot({
     required this.whiteKeyboardBacklightEnabled,
     required this.whiteKeyboardBacklightSupported,
+    this.whiteKeyboardBacklightWriteSupported = false,
     required this.yLogoLightEnabled,
     required this.yLogoLightSupported,
     required this.ioPortLightEnabled,
@@ -12,6 +13,7 @@ class LightingSnapshot extends Equatable {
 
   final bool? whiteKeyboardBacklightEnabled;
   final bool whiteKeyboardBacklightSupported;
+  final bool whiteKeyboardBacklightWriteSupported;
   final bool? yLogoLightEnabled;
   final bool yLogoLightSupported;
   final bool? ioPortLightEnabled;
@@ -21,6 +23,7 @@ class LightingSnapshot extends Equatable {
   List<Object?> get props => [
     whiteKeyboardBacklightEnabled,
     whiteKeyboardBacklightSupported,
+    whiteKeyboardBacklightWriteSupported,
     yLogoLightEnabled,
     yLogoLightSupported,
     ioPortLightEnabled,

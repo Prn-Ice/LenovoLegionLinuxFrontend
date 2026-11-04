@@ -38,6 +38,7 @@ class DevicesRepository extends PrivilegedRepository {
       fnLockSupported: fnLock != null,
       cameraEnabled: camera,
       cameraSupported: camera != null,
+      cameraWriteSupported: false,
     );
   }
 

@@ -133,6 +133,11 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
     CameraSetRequested event,
     Emitter<DevicesState> emit,
   ) async {
+    if (state.isApplying ||
+        !state.cameraSupported ||
+        !state.cameraWriteSupported) {
+      return;
+    }
     await _apply(
       emit,
       action: () => _repository.setCamera(event.enabled),
@@ -195,6 +200,7 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
           fnLockSupported: snapshot.fnLockSupported,
           cameraEnabled: snapshot.cameraEnabled,
           cameraSupported: snapshot.cameraSupported,
+          cameraWriteSupported: snapshot.cameraWriteSupported,
           isLoading: false,
           errorMessage: null,
         ),

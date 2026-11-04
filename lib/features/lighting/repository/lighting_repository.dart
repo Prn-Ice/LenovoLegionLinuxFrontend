@@ -32,6 +32,7 @@ class LightingRepository extends PrivilegedRepository {
     return LightingSnapshot(
       whiteKeyboardBacklightEnabled: whiteKeyboardBacklight,
       whiteKeyboardBacklightSupported: whiteKeyboardBacklight != null,
+      whiteKeyboardBacklightWriteSupported: false,
       yLogoLightEnabled: yLogoLight,
       yLogoLightSupported: yLogoLight != null,
       ioPortLightEnabled: ioPortLight,

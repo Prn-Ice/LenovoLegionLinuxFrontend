@@ -68,10 +68,17 @@ class DevicesPage extends ConsumerWidget {
           children: [
             AppSwitchTile(
               value: state.cameraEnabled ?? false,
-              onChanged: null,
+              onChanged:
+                  state.cameraSupported &&
+                      state.cameraWriteSupported &&
+                      !state.isApplying
+                  ? (enabled) => bloc.add(CameraSetRequested(enabled))
+                  : null,
               title: 'Camera',
               subtitle: state.cameraSupported
-                  ? '${boolEnabledLabel(state.cameraEnabled)} (read-only)'
+                  ? state.cameraWriteSupported
+                        ? boolEnabledLabel(state.cameraEnabled)
+                        : '${boolEnabledLabel(state.cameraEnabled)} (Read-only)'
                   : 'Not supported on this device',
             ),
           ],

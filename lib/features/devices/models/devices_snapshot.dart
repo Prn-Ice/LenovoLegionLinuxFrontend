@@ -10,6 +10,7 @@ class DevicesSnapshot extends Equatable {
     required this.fnLockSupported,
     required this.cameraEnabled,
     required this.cameraSupported,
+    this.cameraWriteSupported = false,
   });
 
   final bool? touchpadEnabled;
@@ -21,6 +22,10 @@ class DevicesSnapshot extends Equatable {
   final bool? cameraEnabled;
   final bool cameraSupported;
 
+  /// Camera power can be read from sysfs, but the control service does not
+  /// currently expose a write operation for it.
+  final bool cameraWriteSupported;
+
   @override
   List<Object?> get props => [
     touchpadEnabled,
@@ -31,5 +36,6 @@ class DevicesSnapshot extends Equatable {
     fnLockSupported,
     cameraEnabled,
     cameraSupported,
+    cameraWriteSupported,
   ];
 }

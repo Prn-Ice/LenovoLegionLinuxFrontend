@@ -91,7 +91,9 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
     WhiteKeyboardBacklightSetRequested event,
     Emitter<LightingState> emit,
   ) async {
-    if (state.isApplying || !state.whiteKeyboardBacklightSupported) {
+    if (state.isApplying ||
+        !state.whiteKeyboardBacklightSupported ||
+        !state.whiteKeyboardBacklightWriteSupported) {
       return;
     }
 
@@ -217,6 +219,8 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
           whiteKeyboardBacklightEnabled: snapshot.whiteKeyboardBacklightEnabled,
           whiteKeyboardBacklightSupported:
               snapshot.whiteKeyboardBacklightSupported,
+          whiteKeyboardBacklightWriteSupported:
+              snapshot.whiteKeyboardBacklightWriteSupported,
           yLogoLightEnabled: snapshot.yLogoLightEnabled,
           yLogoLightSupported: snapshot.yLogoLightSupported,
           ioPortLightEnabled: snapshot.ioPortLightEnabled,
