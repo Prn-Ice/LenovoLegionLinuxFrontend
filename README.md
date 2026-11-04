@@ -26,7 +26,7 @@ complete across Lenovo Legion models.
 | Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device, not a multi-model test matrix. |
 
 See the **[public backlog](BACKLOG.md)** for work in progress, known gaps, and
-ways to help. No issue-tracker setup is needed to read it.
+ways to help.
 
 ## Requirements
 

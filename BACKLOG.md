@@ -61,7 +61,3 @@ The [model-support guide](docs/model-support.md) explains how to copy a read-onl
 diagnostic report and remove personal information. Report readings separately
 from changes you applied and checked on the hardware. A diagnostic report alone
 does not verify writes; you do not need to perform risky changes to contribute.
-
-Maintainers use Beads for detailed tasks and investigation notes. This backlog
-and the README are the public summary; community members do not need Beads to
-follow progress or report problems.
