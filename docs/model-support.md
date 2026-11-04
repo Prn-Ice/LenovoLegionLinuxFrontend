@@ -1,9 +1,7 @@
 # Model support and testing
 
-Model support is a collection of feature-specific observations, not a promise
-that every control works. Use diagnostics to identify whether a gap belongs to
-the kernel module/backend, frontend discovery, or keyboard HID support. A
-frontend profile cannot add missing driver support.
+Track support per feature. Use diagnostics to identify whether a gap belongs to
+the kernel module/backend, frontend discovery, or keyboard HID support.
 
 ## Add or correct support
 
@@ -28,7 +26,7 @@ features, distinguish a readable value from a verified writable capability.
 ## Worked example: missing fan reading
 
 Suppose an owner's diagnostics show a Legion fan provider that the frontend
-does not select. This is a hypothetical discovery fix, not a support claim.
+does not select.
 
 1. Inspect `lib/core/services/legion_sysfs_service.dart`, starting with
    `readFan1Rpm` and its discovery helpers. Compare the reported provider name,
@@ -53,15 +51,14 @@ does not select. This is a hypothetical discovery fix, not a support claim.
 
 Use the `sysRoot` and `procRoot` constructor inputs for broader discovery fixtures:
 `LegionSysfsService(sysRoot: '${root.path}/sys', procRoot: '${root.path}/proc')`.
-For example, hypothetical fixture files under `sys/class/hwmon/` belong inside
+Fixture files under `sys/class/hwmon/` belong inside
 that temporary `sys` directory, not the host `/sys`. The narrower fan tests can
 also use `hwmonRoot` and `fanHwmonRoot`. Keep all fixture writes and symlink
 targets inside the test tree.
 
 ## Tested-model entry template
 
-Copy this template for an actual test report. Do not fill unknown fields by
-inference, and do not claim untested features work.
+Use `unknown` or `not tested` for fields you cannot verify.
 
 ```markdown
 ### <manufacturer and model identifier>

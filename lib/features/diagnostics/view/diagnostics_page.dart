@@ -186,7 +186,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         if (snapshot != null && snapshot.diagnostics.isNotEmpty) ...[
           AppControlCard(
             icon: Icons.checklist_outlined,
-            title: 'Backend Capability Probes',
+            title: 'Hardware support checks',
             children: snapshot.diagnostics
                 .map(
                   (item) => _StatusLine(

@@ -16,19 +16,23 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 
 ## Requirements
 
-For development and hardware-free tests, install Flutter (stable; this project
-currently requires Flutter 3.47.9 or newer) and the Linux desktop build tools
-required by Flutter: CMake, Ninja, a C/C++ compiler, pkg-config, GTK 3
-development headers, and C++ standard-library development files. Native service
-checks additionally need GLib/GIO development files; building the control service
-also needs Polkit development files. Package names vary by distribution. See
-[Contributing](CONTRIBUTING.md) for commands and a hardware-free workflow.
+### Build and test
 
-To use hardware features, separately install and configure the supported
-`legion_linux` module and `legion_cli` backend. Privileged writes require the
-`legion-control` service, its system D-Bus policy and Polkit action, plus a
-desktop Polkit authentication agent. These are not required to build or run the
-test suite. NVIDIA drivers are optional for dGPU features.
+- Flutter stable 3.47.9 or newer
+- CMake, Ninja, a C/C++ compiler, and pkg-config
+- GTK 3 and C++ standard-library development files
+- GLib/GIO development files for native services
+- Polkit development files for the control service
+
+See [Contributing](CONTRIBUTING.md) for installation commands.
+
+### Hardware features
+
+- Supported `legion_linux` kernel module
+- `legion_cli` backend in `PATH`
+- `legion-control` service with its D-Bus policy and Polkit action
+- Desktop Polkit authentication agent
+- NVIDIA drivers for NVIDIA dGPU features
 
 On NixOS, import `packaging/nixos/legion-telemetry.nix` and enable the control service:
 
@@ -84,5 +88,5 @@ Foundation, either version 2 of the License, or (at your option) any later
 version (`GPL-2.0-or-later`). It is distributed WITHOUT ANY WARRANTY, including
 the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 See [LICENSE](LICENSE) for the full terms and
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for OpenRGB attribution,
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for OpenRGB attribution
 and separately licensed materials.

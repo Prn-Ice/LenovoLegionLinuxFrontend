@@ -120,7 +120,7 @@ class _FansPageState extends ConsumerState<FansPage> {
       context,
       title: 'Apply ${_presetDisplayName(preset)} preset',
       message:
-          'Applying the ${_presetDisplayName(preset)} preset for ${_presetContext(preset).toLowerCase()} requires privileged access.',
+          'Apply this preset for ${_presetContext(preset).toLowerCase()}? You may be asked to authenticate.',
       confirmLabel: 'Apply preset',
     );
     if (!context.mounted || !confirmed) return;
@@ -148,7 +148,7 @@ class _FansPageState extends ConsumerState<FansPage> {
       context,
       title: 'Apply fan curve',
       message:
-          'Writing the complete custom fan curve requires privileged access and may prompt for authentication.',
+          'Apply this fan curve? You may be asked to authenticate.',
       confirmLabel: 'Apply curve',
     );
     if (!context.mounted || !confirmed) return;

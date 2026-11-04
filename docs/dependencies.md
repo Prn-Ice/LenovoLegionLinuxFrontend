@@ -1,8 +1,6 @@
 # Stable dependencies
 
-Use stable packages that work together, not the largest version numbers at any
-cost. The application keeps its resolved graph in `pubspec.lock`; do not add
-dependency overrides to force incompatible versions.
+Use compatible stable packages and commit the resolved graph in `pubspec.lock`.
 
 ## Flutter and development environments
 
@@ -12,14 +10,8 @@ pkg-config, GTK development headers, and native development libraries required
 by Flutter. Native service builds additionally need GLib/GIO, and control-service
 builds need Polkit development files. Package names depend on the distribution.
 
-Nix and direnv are optional. `.envrc` only activates a development shell when
-`LLLF_DEV_FLAKE` is set to a flake reference by the contributor. There is no
-project flake or required shared SDK, and the repository does not update or
-install a system-wide SDK for you.
-
-Manage SDK changes in the environment that supplies Flutter. Do not run
-`flutter upgrade` against a read-only Nix SDK. See [contributor setup](../CONTRIBUTING.md)
-for the official Linux setup link and a Debian/Ubuntu dependency example.
+See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
+Nix/direnv configuration.
 
 ## Retained compatibility boundaries
 
@@ -74,8 +66,8 @@ to direct dependencies merely to make the output look current.
 
 ## Repeatable upgrade checks
 
-Read current release notes and use Context7 for version-sensitive APIs. Inspect
-the exact resolved implementation when documentation is stale. Probe major
+Read current release notes. Inspect the resolved implementation when
+documentation is stale. Probe major
 version conflicts in a disposable directory before editing the working graph.
 Update the manifest and lock together, preserving unrelated work.
 

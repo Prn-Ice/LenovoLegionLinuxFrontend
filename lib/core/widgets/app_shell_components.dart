@@ -247,13 +247,13 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
     return [
       const Text(
-        'The app could not reach its privileged control service, so the requested system change was not made.',
+        'The action could not be completed because legion-control is unavailable or not configured.',
       ),
       const SizedBox(height: 16),
       Text('What this means', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       const Text(
-        'legion-control is a narrowly scoped system service that applies supported hardware changes after Polkit authorizes this app. The service or its policy is not available in this installation.',
+        'legion-control applies supported hardware settings after Polkit authentication. Check that the service and its policy are installed.',
       ),
       const SizedBox(height: 16),
       Text('NixOS', style: textTheme.titleSmall),

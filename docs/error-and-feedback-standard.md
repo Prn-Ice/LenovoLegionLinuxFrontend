@@ -86,8 +86,8 @@ The explanation must make these facts clear:
   runner.
 - Polkit authorizes the frontend's unique D-Bus sender before writes are
   accepted.
-- The command did not run, so the requested hardware or system setting did not
-  change.
+- A setup failure before dispatch means that command did not run. Do not claim
+  that nothing changed if earlier steps in a multi-step action may have run.
 - NixOS users must import the supplied module and enable both Polkit and
   `services.legionControl`.
 - Other distributions must install the supplied systemd unit, D-Bus policy, and

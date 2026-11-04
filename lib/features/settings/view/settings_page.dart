@@ -154,8 +154,7 @@ class SettingsPage extends ConsumerWidget {
             _SettingsSection(
               icon: YaruIcons.settings,
               title: 'Backend',
-              description:
-                  'Enable or disable Linux service dependencies used by Legion tooling.',
+              description: 'Manage Legion services.',
               children: [
                 if (about.snapshot case final snapshot?) ...[
                   ListTile(
@@ -184,7 +183,7 @@ class SettingsPage extends ConsumerWidget {
                         context,
                         title: 'Update ${service.label}',
                         message:
-                            'Changing Linux services uses privileged access and may prompt for authentication.',
+                            'Changing services may ask you to authenticate.',
                         confirmLabel: 'Apply',
                       );
                       if (!context.mounted || !confirmed) {

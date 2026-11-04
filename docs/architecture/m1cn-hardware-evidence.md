@@ -2,7 +2,7 @@
 
 These observations apply to Lenovo `82Y4`, BIOS `M1CN48WW`, and the driver
 revisions recorded below. They are not a support claim for other firmware or
-models. Full captures and investigation history are pinned in Git; temporary
+models. Retained investigation reports are pinned in Git; temporary
 DSDT/MMIO files from those investigations are no longer available.
 
 ## Driver binding and fan data

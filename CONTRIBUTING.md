@@ -7,13 +7,14 @@ services are not needed for ordinary documentation, UI, parser, or test work.
 
 ## Set up
 
-Install Flutter stable (3.47.9 or newer; see [dependency notes](docs/dependencies.md))
-and the Linux desktop prerequisites for Flutter: CMake, Ninja, a C/C++ compiler,
-pkg-config, GTK 3 development headers, and Linux desktop development libraries.
-For native service tests, also install GLib/GIO development files; control-service
-builds need Polkit development files. Follow the official
-[Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
-For Debian/Ubuntu, a dependency example including native service headers is:
+- Flutter stable 3.47.9 or newer ([dependency notes](docs/dependencies.md))
+- CMake, Ninja, a C/C++ compiler, and pkg-config
+- GTK 3 and C++ standard-library development files
+- GLib/GIO development files for native service tests
+- Polkit development files for control-service builds
+
+Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
+On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
 sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev
@@ -29,10 +30,8 @@ flutter --version
 flutter pub get
 ```
 
-The repository does not require Nix or direnv. Optionally, set
-`LLLF_DEV_FLAKE` to a flake reference that provides Flutter and Linux build tools,
-then run `direnv allow`. `.envrc` does not select a maintainer-specific path or
-update a shared SDK.
+For an optional Nix/direnv setup, set `LLLF_DEV_FLAKE` to a flake reference that
+provides Flutter and Linux build tools, then run `direnv allow`.
 
 ## Test without hardware
 
@@ -52,15 +51,13 @@ cmake --build build/native --target legion_telemetry_service legion_control_serv
 ctest --test-dir build/native --output-on-failure
 ```
 
-These commands compile and test native code; they do not install services or
-authorize hardware writes. An opt-in rendered review is available with:
+To capture screenshots for visual review:
 
 ```bash
 flutter test test/visual_handoff_review_test.dart --dart-define=VISUAL_REVIEW=true
 ```
 
-Inspect its captured images; a passing capture test alone does not prove visual
-quality or hardware behavior.
+Inspect the captured images before submitting UI changes.
 
 ## Hardware and model support
 
@@ -72,11 +69,9 @@ installed, launch the application with:
 flutter run -d linux
 ```
 
-Install the kernel module, backend, D-Bus/Polkit policy, and service only when
-you intentionally want to test on supported hardware. Read the
-[model-support guide](docs/model-support.md) first. Keep unknown features marked
-unknown until there is evidence, and never describe a model as fully supported
-based on its name alone.
+Hardware testing also requires the kernel module, backend, D-Bus/Polkit policy,
+and service. See the [model-support guide](docs/model-support.md) for collecting
+diagnostics and reporting tested features.
 
 ## Make a change
 
@@ -89,8 +84,8 @@ tests that reproduce behavior without a device. For UI work, follow
 Before opening a pull request, run relevant tests and `flutter analyze`; run the
 native checks above when native files changed. In the pull request, describe the
 behavior changed, commands run and their results, and any hardware checks not
-performed. Never claim a real device check that you did not do. If the change
-adds or corrects model support, include the evidence and a tested-model entry.
+performed. For model support changes, include the evidence and a tested-model
+entry.
 
 ## Privileged operations
 
