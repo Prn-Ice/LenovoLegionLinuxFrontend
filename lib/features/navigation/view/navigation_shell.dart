@@ -141,10 +141,12 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     }
 
     final VoidCallback? onRefresh = switch (section) {
-      AppSection.dashboard =>
-        () => ref
+      AppSection.dashboard => () {
+        ref
             .read(dashboardBlocProvider.bloc)
-            .add(const DashboardRefreshRequested()),
+            .add(const DashboardRefreshRequested());
+        ref.read(batteryBlocProvider.bloc).add(const BatteryRefreshRequested());
+      },
       AppSection.power => () {
         ref.read(powerBlocProvider.bloc).add(const PowerRefreshRequested());
         ref.read(batteryBlocProvider.bloc).add(const BatteryRefreshRequested());

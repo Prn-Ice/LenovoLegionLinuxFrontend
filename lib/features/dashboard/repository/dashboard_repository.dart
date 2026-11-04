@@ -44,9 +44,6 @@ class DashboardRepository extends PrivilegedRepository {
     final choicesRaw = await _sysfsService.readPlatformProfileChoices();
     final hybridMode = await _sysfsService.readHybridMode();
     final overdriveMode = await _sysfsService.readOverdriveMode();
-    final batteryConservationMode = await _sysfsService
-        .readBatteryConservationMode();
-    final rapidChargingMode = await _sysfsService.readRapidChargingMode();
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
     final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
 
@@ -79,8 +76,6 @@ class DashboardRepository extends PrivilegedRepository {
       availablePowerModes: values,
       hybridModeEnabled: hybridMode,
       overdriveEnabled: overdriveMode,
-      batteryConservationEnabled: batteryConservationMode,
-      rapidChargingEnabled: rapidChargingMode,
       onPowerSupply: onPowerSupply,
       recommendedFanPreset: _computeRecommendedPreset(
         profile: current,
@@ -148,30 +143,11 @@ class DashboardRepository extends PrivilegedRepository {
 
   Future<void> setOverdriveMode(bool enabled) async {
     await runControlOperation(
-      (client) => client.setFeature(ControlFeature.overdrive, enabled ? '1' : '0'),
+      (client) =>
+          client.setFeature(ControlFeature.overdrive, enabled ? '1' : '0'),
       args: [ControlFeature.overdrive.wireValue, '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
-    );
-  }
-
-  Future<void> setBatteryConservation(bool enabled) async {
-    await runControlOperation(
-      (client) => client.setToggle(ControlToggle.batteryConservation, enabled),
-      args: ['$enabled'],
-      method: 'battery_conservation.set',
-      failurePrefix:
-          'Failed to set battery conservation to ${enabled ? 'on' : 'off'}',
-    );
-  }
-
-  Future<void> setRapidCharging(bool enabled) async {
-    await runControlOperation(
-      (client) => client.setToggle(ControlToggle.rapidCharging, enabled),
-      args: ['$enabled'],
-      method: 'rapid_charging.set',
-      failurePrefix:
-          'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
     );
   }
 

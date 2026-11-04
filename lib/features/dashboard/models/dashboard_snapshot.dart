@@ -9,8 +9,6 @@ class DashboardSnapshot extends Equatable {
     required this.availablePowerModes,
     required this.hybridModeEnabled,
     required this.overdriveEnabled,
-    required this.batteryConservationEnabled,
-    required this.rapidChargingEnabled,
     required this.onPowerSupply,
     required this.recommendedFanPreset,
     required this.deviceIdentity,
@@ -21,8 +19,6 @@ class DashboardSnapshot extends Equatable {
     availablePowerModes: const [],
     hybridModeEnabled: null,
     overdriveEnabled: null,
-    batteryConservationEnabled: null,
-    rapidChargingEnabled: null,
     onPowerSupply: null,
     recommendedFanPreset: null,
     deviceIdentity: DeviceIdentitySnapshot.initial(),
@@ -32,8 +28,6 @@ class DashboardSnapshot extends Equatable {
   final List<String> availablePowerModes;
   final bool? hybridModeEnabled;
   final bool? overdriveEnabled;
-  final bool? batteryConservationEnabled;
-  final bool? rapidChargingEnabled;
   final bool? onPowerSupply;
   final String? recommendedFanPreset;
   final DeviceIdentitySnapshot deviceIdentity;
@@ -43,8 +37,6 @@ class DashboardSnapshot extends Equatable {
     List<String>? availablePowerModes,
     bool? hybridModeEnabled,
     bool? overdriveEnabled,
-    bool? batteryConservationEnabled,
-    bool? rapidChargingEnabled,
     bool? onPowerSupply,
     String? recommendedFanPreset,
     DeviceIdentitySnapshot? deviceIdentity,
@@ -54,9 +46,6 @@ class DashboardSnapshot extends Equatable {
       availablePowerModes: availablePowerModes ?? this.availablePowerModes,
       hybridModeEnabled: hybridModeEnabled ?? this.hybridModeEnabled,
       overdriveEnabled: overdriveEnabled ?? this.overdriveEnabled,
-      batteryConservationEnabled:
-          batteryConservationEnabled ?? this.batteryConservationEnabled,
-      rapidChargingEnabled: rapidChargingEnabled ?? this.rapidChargingEnabled,
       onPowerSupply: onPowerSupply ?? this.onPowerSupply,
       recommendedFanPreset: recommendedFanPreset ?? this.recommendedFanPreset,
       deviceIdentity: deviceIdentity ?? this.deviceIdentity,
@@ -69,8 +58,6 @@ class DashboardSnapshot extends Equatable {
     availablePowerModes,
     hybridModeEnabled,
     overdriveEnabled,
-    batteryConservationEnabled,
-    rapidChargingEnabled,
     onPowerSupply,
     recommendedFanPreset,
     deviceIdentity,

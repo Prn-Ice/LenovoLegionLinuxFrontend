@@ -5,7 +5,9 @@ import 'package:yaru/yaru.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
-import '../models/dashboard_snapshot.dart';
+import '../../battery/bloc/battery_event.dart';
+import '../../battery/bloc/battery_state.dart';
+import '../../battery/providers/battery_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/device_identity_card.dart';
 import '../widgets/mode_hero.dart';
@@ -16,7 +18,6 @@ import '../../devices/bloc/devices_state.dart';
 import '../../devices/providers/devices_provider.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
-import '../bloc/dashboard_state.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -39,6 +40,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final state = ref.watch(dashboardBlocProvider);
     final sensorState = ref.watch(liveSensorBlocProvider);
     final devicesState = ref.watch(devicesBlocProvider);
+    final batteryState = ref.watch(batteryBlocProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
 
@@ -56,7 +58,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
 
     return AppPageBody(
-      errorMessage: state.errorMessage ?? sensorState.errorMessage,
+      errorMessage:
+          state.errorMessage ??
+          batteryState.errorMessage ??
+          devicesState.errorMessage ??
+          sensorState.errorMessage,
       children: [
         ModeHero(
           accent: accent,
@@ -78,28 +84,23 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         const SizedBox(height: 16),
         SensorStrip(snapshot: sensors, accent: accent),
         const SizedBox(height: 16),
-        _buildQuickControls(context, snapshot, state, devicesState, accent),
+        _buildQuickControls(context, batteryState, devicesState, accent),
       ],
     );
   }
 
   Widget _buildQuickControls(
     BuildContext context,
-    DashboardSnapshot snapshot,
-    DashboardState state,
+    BatteryState batteryState,
     DevicesState devicesState,
     Color accent,
   ) {
-    final dashboardBloc = ref.read(dashboardBlocProvider.bloc);
-    final devicesBloc = ref.read(devicesBlocProvider.bloc);
-
     ValueChanged<bool>? guard({
-      required bool supported,
-      required bool applying,
+      required bool Function() canApply,
       required String title,
       required void Function(bool) apply,
     }) {
-      if (!supported || applying) return null;
+      if (!canApply()) return null;
       return (enabled) async {
         final confirmed = await confirmPrivilegedAction(
           context,
@@ -108,7 +109,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               'This action uses privileged access and may require authentication.',
           confirmLabel: 'Apply',
         );
-        if (!context.mounted || !confirmed) return;
+        if (!context.mounted || !confirmed || !canApply()) return;
         apply(enabled);
       };
     }
@@ -120,26 +121,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           icon: YaruIcons.thunderbolt,
           title: 'Rapid charge',
           subtitle: 'Charge to full as fast as possible',
-          value: snapshot.rapidChargingEnabled ?? false,
+          value: batteryState.rapidChargingEnabled ?? false,
           onChanged: guard(
-            supported: snapshot.rapidChargingEnabled != null,
-            applying: state.isApplying,
+            canApply: () {
+              final current = ref.read(batteryBlocProvider);
+              return current.rapidChargingSupported && !current.isApplying;
+            },
             title: 'Set rapid charging',
-            apply: (v) =>
-                dashboardBloc.add(DashboardRapidChargingSetRequested(v)),
+            apply: (v) => ref
+                .read(batteryBlocProvider.bloc)
+                .add(RapidChargingSetRequested(v)),
           ),
         ),
         QuickControl(
           icon: YaruIcons.health,
           title: 'Battery health',
           subtitle: 'Stop charging near 80% to extend lifespan',
-          value: snapshot.batteryConservationEnabled ?? false,
+          value: batteryState.batteryConservationEnabled ?? false,
           onChanged: guard(
-            supported: snapshot.batteryConservationEnabled != null,
-            applying: state.isApplying,
+            canApply: () {
+              final current = ref.read(batteryBlocProvider);
+              return current.batteryConservationSupported &&
+                  !current.isApplying;
+            },
             title: 'Set battery conservation',
-            apply: (v) =>
-                dashboardBloc.add(DashboardBatteryConservationSetRequested(v)),
+            apply: (v) => ref
+                .read(batteryBlocProvider.bloc)
+                .add(BatteryConservationSetRequested(v)),
           ),
         ),
         QuickControl(
@@ -148,10 +156,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           subtitle: 'F-keys act as F1–F12 directly',
           value: devicesState.fnLockEnabled ?? false,
           onChanged: guard(
-            supported: devicesState.fnLockSupported,
-            applying: devicesState.isApplying,
+            canApply: () {
+              final current = ref.read(devicesBlocProvider);
+              return current.fnLockSupported && !current.isApplying;
+            },
             title: 'Set Fn lock',
-            apply: (v) => devicesBloc.add(FnLockSetRequested(v)),
+            apply: (v) =>
+                ref.read(devicesBlocProvider.bloc).add(FnLockSetRequested(v)),
           ),
         ),
         QuickControl(
@@ -160,10 +171,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           subtitle: 'Tap and click enabled',
           value: devicesState.touchpadEnabled ?? false,
           onChanged: guard(
-            supported: devicesState.touchpadSupported,
-            applying: devicesState.isApplying,
+            canApply: () {
+              final current = ref.read(devicesBlocProvider);
+              return current.touchpadSupported && !current.isApplying;
+            },
             title: 'Set touchpad',
-            apply: (v) => devicesBloc.add(TouchpadSetRequested(v)),
+            apply: (v) =>
+                ref.read(devicesBlocProvider.bloc).add(TouchpadSetRequested(v)),
           ),
         ),
       ],

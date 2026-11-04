@@ -29,9 +29,6 @@ not establish real-device support.
 
 ## Next work
 
-- **Reliable battery feedback:** refresh Battery state after conservation changes
-  on the Dashboard. Until fixed, use the Battery page's Refresh action if it
-  shows the previous value.
 - **Safe power defaults:** obtain complete firmware-backed defaults before
   offering restoration. Current readings and recorded reference values are not
   factory defaults; the GPU power-boost default is still unresolved.

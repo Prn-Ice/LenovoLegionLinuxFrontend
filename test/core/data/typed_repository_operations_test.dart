@@ -135,12 +135,12 @@ void main() {
         ['OverdriveFeature', '1'],
       ),
       (
-        () => dashboard.setBatteryConservation(false),
+        () => battery.setBatteryConservation(false),
         'SetToggle',
         ['battery-conservation', false],
       ),
       (
-        () => dashboard.setRapidCharging(true),
+        () => battery.setRapidCharging(true),
         'SetToggle',
         ['rapid-charging', true],
       ),

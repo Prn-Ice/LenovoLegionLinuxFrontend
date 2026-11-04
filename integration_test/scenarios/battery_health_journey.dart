@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/features/battery/bloc/battery_bloc.dart';
+import 'package:legion_frontend/features/battery/bloc/battery_event.dart';
+import 'package:legion_frontend/features/battery/providers/battery_provider.dart';
 import 'package:legion_frontend/features/battery/view/battery_page.dart';
+import 'package:legion_frontend/features/dashboard/view/dashboard_page.dart';
 import 'package:yaru/yaru.dart';
 
 import '../support/safe_app.dart';
@@ -15,7 +19,17 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await app.dispose();
     });
-    await app.launch();
+    await app.launch(
+      additionalOverrides: [
+        // Keep polling from hiding stale state during navigation.
+        batteryBlocProvider.overrideWith(
+          (ref) => BatteryBloc(
+            repository: ref.watch(batteryRepositoryProvider),
+            pollInterval: const Duration(days: 1),
+          )..add(const BatteryStarted()),
+        ),
+      ],
+    );
 
     final healthSwitch = switchInCard('Battery health');
     await waitFor(
@@ -70,16 +84,33 @@ void main() {
     );
     await tester.ensureVisible(conservationSwitch);
     await tester.pumpAndSettle();
-    // The sidebar keeps Battery's earlier snapshot alive. Explicit refresh is
-    // the current cross-page readback path; automatic invalidation is lllf-kmd.
-    await tester.tap(find.byTooltip('Refresh'));
-    await waitFor(
-      tester,
-      () => tester.widget<YaruSwitch>(conservationSwitch).value,
-      description: 'refreshed Battery conservation readback',
-    );
     expect(tester.widget<YaruSwitch>(conservationSwitch).value, isTrue);
     expect(app.writes, [true]);
+
+    await tester.tap(conservationSwitch);
+    await waitFor(
+      tester,
+      () => !tester.widget<YaruSwitch>(conservationSwitch).value,
+      description: 'Battery conservation disabled readback',
+    );
+    expect(app.writes, [true, false]);
+    expect(await app.conservationFile.readAsString(), '0\n');
+    final dashboardNavigation = find.text('Dashboard').hitTestable();
+    await tester.tap(
+      dashboardNavigation.evaluate().isNotEmpty
+          ? dashboardNavigation.first
+          : find.byTooltip('Dashboard'),
+    );
+    await waitFor(
+      tester,
+      () =>
+          find.byType(DashboardPage).evaluate().isNotEmpty &&
+          healthSwitch.evaluate().isNotEmpty,
+      description: 'Dashboard navigation after Battery write',
+    );
+    await tester.ensureVisible(healthSwitch);
+    await tester.pumpAndSettle();
+    expect(tester.widget<YaruSwitch>(healthSwitch).value, isFalse);
     expect(tester.takeException(), isNull);
   });
 }

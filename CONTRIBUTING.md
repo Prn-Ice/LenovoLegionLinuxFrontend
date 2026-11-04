@@ -52,7 +52,9 @@ bash tool/test_linux_journeys.sh
 
 The `app_test.dart` entrypoint registers nine scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
-to Battery, presses Refresh, and checks Conservation mode. The recovery journey
+to Battery and checks Conservation mode without refreshing. It then disables
+conservation on Battery and verifies Dashboard readback. Polling is paused for
+this journey so it cannot hide stale state. The recovery journey
 checks retry after permission-denied, unavailable-service, and failed-command
 responses, plus verifies that the switch stays disabled and unchanged until a
 controlled pending write completes.

@@ -46,24 +46,6 @@ final class DashboardOverdriveModeSetRequested extends DashboardEvent {
   List<Object?> get props => [enabled];
 }
 
-final class DashboardBatteryConservationSetRequested extends DashboardEvent {
-  const DashboardBatteryConservationSetRequested(this.enabled);
-
-  final bool enabled;
-
-  @override
-  List<Object?> get props => [enabled];
-}
-
-final class DashboardRapidChargingSetRequested extends DashboardEvent {
-  const DashboardRapidChargingSetRequested(this.enabled);
-
-  final bool enabled;
-
-  @override
-  List<Object?> get props => [enabled];
-}
-
 final class DashboardApplyContextFanPresetRequested extends DashboardEvent {
   const DashboardApplyContextFanPresetRequested();
 }

@@ -20,10 +20,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     on<DashboardPowerModeSetRequested>(_onPowerModeSetRequested);
     on<DashboardHybridModeSetRequested>(_onHybridModeSetRequested);
     on<DashboardOverdriveModeSetRequested>(_onOverdriveModeSetRequested);
-    on<DashboardBatteryConservationSetRequested>(
-      _onBatteryConservationSetRequested,
-    );
-    on<DashboardRapidChargingSetRequested>(_onRapidChargingSetRequested);
     on<DashboardApplyContextFanPresetRequested>(
       _onApplyContextFanPresetRequested,
     );
@@ -110,30 +106,6 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       emit,
       action: () => _repository.setOverdriveMode(event.enabled),
       successMessage: 'Overdrive ${event.enabled ? 'enabled' : 'disabled'}.',
-    );
-  }
-
-  Future<void> _onBatteryConservationSetRequested(
-    DashboardBatteryConservationSetRequested event,
-    Emitter<DashboardState> emit,
-  ) async {
-    await _apply(
-      emit,
-      action: () => _repository.setBatteryConservation(event.enabled),
-      successMessage:
-          'Battery conservation ${event.enabled ? 'enabled' : 'disabled'}.',
-    );
-  }
-
-  Future<void> _onRapidChargingSetRequested(
-    DashboardRapidChargingSetRequested event,
-    Emitter<DashboardState> emit,
-  ) async {
-    await _apply(
-      emit,
-      action: () => _repository.setRapidCharging(event.enabled),
-      successMessage:
-          'Rapid charging ${event.enabled ? 'enabled' : 'disabled'}.',
     );
   }
 
