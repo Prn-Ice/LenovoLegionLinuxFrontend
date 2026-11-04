@@ -155,9 +155,9 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
 
         if (snapshot != null) ...[
           AppControlCard(
-            icon: Icons.keyboard_outlined,
-            title: 'Spectrum keyboard discovery',
-            description: 'Read-only HID identity and protocol detection.',
+            icon: YaruIcons.keyboard,
+            title: 'Spectrum keyboard',
+            description: 'Reads USB IDs to find a matching keyboard profile.',
             children: [
               _StatusLine(
                 label: 'Result',

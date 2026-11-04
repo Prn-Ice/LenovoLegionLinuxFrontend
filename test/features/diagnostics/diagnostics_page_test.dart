@@ -16,6 +16,8 @@ import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/analytics/providers/analytics_provider.dart';
 import 'package:legion_frontend/features/analytics/repository/analytics_repository.dart';
 import 'package:legion_frontend/features/diagnostics/view/diagnostics_page.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_hid_discovery.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_keyboard_profile.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:yaru/yaru.dart';
 
@@ -75,6 +77,14 @@ void main() {
         moduleVersion: null,
         cliVersion: null,
         commandHistory: const [],
+        spectrumHid: const SpectrumHidDiscovery(
+          outcome: SpectrumHidDiscoveryOutcome.supported,
+          vendorId: 0x048d,
+          productId: 0xc987,
+          selectedHidrawPath:
+              '/private/user/long-fixture-directory/dev/hidraw5',
+          profile: kSpectrumC987Profile,
+        ),
         diagnostics: [
           AboutDiagnosticItem.fromProbe(
             id: 'battery_conservation',
@@ -143,6 +153,7 @@ void main() {
       await tester.tap(copy);
       await tester.pumpAndSettle();
       expect(jsonDecode(copied!), snapshot.toJson());
+      expect(copied, isNot(contains('/private/user')));
       expect(find.text('Copied'), findsOneWidget);
       clipboardFails = true;
       await tester.ensureVisible(find.text('Copied'));
@@ -159,6 +170,11 @@ void main() {
         find.textContaining('The app has a write control'),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Keyboard profile found'));
+      await tester.pumpAndSettle();
+      expect(find.text('0x048d:0xc987'), findsOneWidget);
+      expect(find.text('Spectrum / gen7And8'), findsOneWidget);
       expect(tester.takeException(), isNull);
       if (visualReview) {
         final boundary =
