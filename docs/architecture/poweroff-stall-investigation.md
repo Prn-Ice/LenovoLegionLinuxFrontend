@@ -1,6 +1,6 @@
-# Poweroff Stall After Live dGPU Detach
+# Poweroff diagnostics after live dGPU detach
 
-## Scope
+## Recorded failure
 
 This investigation covers the generation-464 poweroff that followed a guarded
 Hybrid to Hybrid iGPU-only live transition on 2026-09-01. Normal systemd
@@ -13,6 +13,12 @@ systemd-shutdown[1]: Sending SIGTERM to remaining processes...
 ```
 
 Power was removed after about ten minutes. The next cold boot was healthy.
+
+This was a Lenovo Legion Slim 7 16APH8 (`82Y4`, BIOS `M1CN48WW`). Exact
+generation details and the original investigation are retained in the
+[pinned report](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/blob/b83540b6c1ee81e820c479a51b12955ec23a66dc/docs/architecture/poweroff-stall-investigation.md).
+The commands below describe the repository's diagnostic tooling, not a
+requirement to reproduce that machine's live detach.
 
 ## What The Journal Proves
 
@@ -35,7 +41,7 @@ The roughly ten-minute gap matches systemd's default `RebootWatchdogSec`, but
 the SP5100 watchdog reported `bootstatus=0`. The next boot's reset reason was an
 ACPI power-state transition. This does not prove that the watchdog fired.
 
-## Current Hypotheses
+## Unresolved failure boundary
 
 The evidence does not yet distinguish these phases:
 
@@ -146,7 +152,7 @@ To cancel the runtime instrumentation before poweroff:
 ## Stall Response
 
 For a controlled diagnostic boot, configure full Magic SysRq support before
-testing. The current host value `kernel.sysrq=16` generally permits emergency
+testing. The captured host value `kernel.sysrq=16` generally permits emergency
 sync but not task dumps. The detached diagnostic guard therefore requires this
 temporary runtime setting before it will arm:
 

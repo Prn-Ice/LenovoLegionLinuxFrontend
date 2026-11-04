@@ -1,59 +1,22 @@
-# Platform surfaces integration
+# Platform surfaces
 
-Phase 7 provides an isolated `PlatformOsd` and typed `PlatformEvent` values.
-Neither is wired to feature transitions or a native window. They do not emit
-notifications or change hardware. The follow-ups below are open, not promises
-of current functionality.
+`lib/features/platform_surfaces/` contains presentation components and native
+adapters. They are **not connected to app-lifetime feature producers or user
+preferences**. They do not currently enable a tray, automatic OSD, or desktop
+notifications.
 
-The next implementation pass added tested integration components:
+| Component | Implemented boundary | Limits |
+| --- | --- | --- |
+| `PlatformEvent` / `PlatformOsd` | Typed confirmed-change values and a Flutter OSD widget | No automatic feature-state connection |
+| [Native OSD](platform-osd.md) | MethodChannel and lazy X11 GTK popup | Channel registered; Wayland unavailable; not Flutter visual parity |
+| [Tray](platform-tray.md) | StatusNotifierItem and partial DBusMenu transport | No app registration, state menu, or actions wired |
+| [Notifications](platform-notifications.md) | Session-bus transport and confirmed-state observers | No global listeners or persisted preference wired |
 
-- [Native OSD bridge](platform-osd.md): an X11 GTK host and typed method channel;
-  Wayland hosting and Flutter visual parity remain outstanding.
-- [Native tray adapter](platform-tray.md): StatusNotifierItem registration and a
-  partial DBusMenu implementation, tested on a private bus.
-- [Desktop notifications](platform-notifications.md): a session-bus transport
-  and confirmed-state change detectors, with hardware-free lifecycle tests.
+Adapters present confirmed results; they do not authorize hardware changes.
+Any caller must preserve the existing confirmation, Polkit, backend validation,
+and readback flow. Initial loads, attempted writes, and unknown values must not
+be reported as successful changes. Errors follow the
+[error and feedback standard](error-and-feedback-standard.md).
 
-These components are not enabled by app preferences or connected to app-lifetime
-event producers yet. The native OSD channel is registered, but no popup is shown
-automatically. Native desktop verification remains required before closing the
-integration follow-ups.
-
-## OSD — lllf-cqn.7.1
-
-Use `lib/features/platform_surfaces/widgets/platform_osd.dart` for confirmed
-power mode, keyboard brightness, fan boost and automation changes. A future
-owner must connect actual feature transitions and preferences, and implement
-the transparent, non-activating desktop window in `linux/runner/my_application.cc`
-or a suitable native integration. Define placement, timeout (the handoff suggests
-about two seconds), replacement, lifecycle and reduced motion; test X11 and
-Wayland separately. Do not confuse an attempted command with readback. OSD is
-for desktop/hotkey feedback, not a substitute for the app's modal error policy.
-
-## Tray — lllf-cqn.7.2
-
-Expose a StatusNotifierItem and native desktop menu, not a Flutter imitation of
-Plasma chrome. The handoff calls for a Legion icon and a status summary followed
-by a radio group for supported power modes; fan boost and battery health toggles;
-a keyboard-light submenu; then Open Legion and Quit. Derive checked/enabled
-states from existing feature snapshots and capabilities, show unknown honestly,
-and disable unavailable or busy actions. Preserve the existing authorization,
-confirmation and readback flows; a tray click must not bypass Polkit or the
-backend allow-list. Determine how confirmation works when the main window is
-hidden before enabling a privileged action. Let the desktop theme menu selection
-and chrome; app accent belongs only in suitable icon artwork. Account for absent
-watchers, reconnection, startup and teardown. No tray is currently registered.
-
-## Notifications — lllf-cqn.7.3
-
-`lib/features/platform_surfaces/models/platform_event.dart` describes confirmed
-changes without coupling the producer to a transport. A future adapter can map
-these to `org.freedesktop.Notifications` on the session bus. Handle unavailable
-servers and reconnect/disposal, escape untrusted strings as required by the
-protocol, respect preferences and avoid duplicate routine success notices when
-the result is already visible. Keep error recovery in the app's established
-modal dialog, not a desktop notification. Notification actions such as Undo
-must not be offered unless a safe, confirmed operation exists. No event producer
-or desktop notification transport is currently wired.
-
-Widget tests are not evidence of native desktop behavior or visual review.
+Hardware-free tests cover adapter contracts and lifecycle. They do not prove
+desktop focus, placement, menu appearance, accessibility, or compositor behavior.

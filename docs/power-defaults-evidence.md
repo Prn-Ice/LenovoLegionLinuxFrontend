@@ -1,4 +1,4 @@
-# Authoritative power defaults: evidence and backend handoff
+# Authoritative power defaults: firmware evidence
 
 Investigation: 2026-11-04. Frontend task: `lllf-zfg`. Blocking backend work:
 `lllf-dok` (tracked here; implementation belongs in LenovoLegionLinux).
@@ -41,14 +41,13 @@ branch's `doc/POWER_DEFAULTS.md` and `lllf-dok` for the contract and next checks
   `kernel_module/legion-laptop.c` at that revision.
 - Upstream backend main resolved through GitHub on the investigation date to
   `7f04d9dde1bb4c85cc4136f127ae6fc0296b10e0` (2026-10-30).
-  [Pinned source][upstream-driver] was retrieved directly, after Context7
-  `/johnfanv2/lenovolegionlinux` identified the newer default attributes.
+  [Pinned source][upstream-driver] provides the default attributes described below.
 - Nearby LenovoLegionToolkit HEAD:
   `31d0db273535a6f12e1122e23d397cd840ac9b58`. Its WMI readers provide an
   independent implementation of explicit defaults, not proof that a particular
   machine supplies all those records.
 - Historical local evidence:
-  [firmware and boot handoff](architecture/legion-driver-issues-handoff.md),
+  [firmware and boot evidence](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/blob/b83540b6c1ee81e820c479a51b12955ec23a66dc/docs/architecture/legion-driver-issues-handoff.md),
   especially lines 116-155 and 188-223, plus `lllf-zfg`'s 2026-08-30 comment.
   `/tmp/opencode/DSDT.dsl` and `/tmp/opencode/phase0/` are **absent** now. No
   matching DSDT/capture artifacts were found in the personal-projects tree.
@@ -150,7 +149,7 @@ semantics for PPAB.
   getter fails or returns zero. Only AC power-target offset is exempt. Thus a
   hidden PPAB file is consistent with the recorded zero, **not independent
   proof that firmware declares PPAB unsupported**.
-- The earlier handoff's statement that captured power values "match the DSDT
+- The earlier report's statement that captured power values "match the DSDT
   lazy-init defaults exactly" must be read narrowly: its own table includes
   `CGDB 0`, contradicting its later `CGDB 20 W` initializer claim. It cannot be
   used as evidence that PPAB matched.
@@ -195,15 +194,12 @@ review under this blocker: retain it only with recoverable authoritative evidenc
 or stop labeling unverified entries as hardware defaults in a separately
 approved production change. This investigation does not authorize that edit.
 
-## Verification and remaining limits
+## Evidence limits
 
-Changed only this document and frontend Beads records. Inspected local code,
-prior reports, and pinned upstream source. No production edits, backend-repository
-edits, hardware reads/writes, privileged commands, power transitions or GPU
-operations were performed. No application tests were needed for this evidence-only
-change. Original firmware bytes, actual per-model capability rows, complete
-defaults coverage and restore behavior remain unverified. Parent session owns
-final issue status, commit and push.
+This analysis compares code, retained reports, and pinned upstream source.
+Original firmware bytes, actual per-model capability rows, complete defaults
+coverage, and restore behavior remain unverified. The historical live-value
+captures do not replace an authoritative defaults query.
 
 [upstream-driver]: https://github.com/johnfanv2/LenovoLegionLinux/blob/7f04d9dde1bb4c85cc4136f127ae6fc0296b10e0/kernel_module/legion-laptop.c
 [upstream-features]: https://github.com/johnfanv2/LenovoLegionLinux/blob/7f04d9dde1bb4c85cc4136f127ae6fc0296b10e0/doc/FEATURES_AND_TESTING.md

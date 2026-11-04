@@ -1,11 +1,10 @@
-# Page template (Yaru redesign)
+# Page template
 
 The **Dashboard** ([lib/features/dashboard/](../lib/features/dashboard/)) is the
 reference implementation. Every new page (Power, Fans, Battery, Lighting, …)
 should follow the patterns below so the app stays consistent and the shared
-primitives keep paying off. The design source of truth is
-[docs/Legion Yaru Redesign.dc.html](Legion%20Yaru%20Redesign.dc.html) — read the
-exact CSS values from it rather than eyeballing.
+primitives keep paying off. Use the current shared components and theme values
+as the implementation reference.
 
 ---
 
@@ -96,9 +95,8 @@ Use the slot directly; override **only** `color` for the muted hierarchy.
 | Subtitle / secondary | `bodySmall` | `onSurface @ 0.56` |
 | Stat / micro label | `labelSmall` | `onSurface @ 0.5` |
 
-> Yaru's title slots are w400/w500 — lighter than the design's w700. We accept
-> Yaru weight by default; re-bold a specific role only on request with
-> `.copyWith(fontWeight: FontWeight.w700)`.
+> Use Yaru's default title weights (w400/w500); re-bold a specific role only
+> when needed with `.copyWith(fontWeight: FontWeight.w700)`.
 
 ### Mono → `metric_text.dart` roles
 
@@ -243,18 +241,13 @@ commands extend
   flake's formatter churns unrelated files).
 - **TDD for logic** (red→green). Declarative styling/config is exempt, but lock
   real invariants (e.g. the mono-font test).
-- Treat the visual handoff as the starting authority, then reconcile it with
-  established shell behaviour, proven backend capability, and direct review.
-  Reuse an app-wide accent or native control rather than preserving an isolated
-  mockup detail that makes one page disagree with the rest of the application.
+- Reconcile visual changes with established shell behaviour, proven backend
+  capability, and direct review. Reuse app-wide accents and native controls.
 - Verify each change: `flutter analyze` clean + `flutter test` green before
   committing.
 
-## 10. Known data gaps (dev machine)
+## 10. Hardware-specific data gaps
 
-Fans and power-limit facts are absent because the active NixOS configuration
-pins a pre-Kernel-7 `legion_laptop`; this is a known deployment problem rather
-than a reason to fabricate UI data. See
-[the Kernel 7 fan-controller handoff](architecture/fan-controller-kernel-7-handoff.md).
-CPU temp falls back to `acpitz` (no k10temp), while amdgpu telemetry works.
-Guard for null and render `—`.
+Support depends on the model, firmware, and deployed driver. Guard for null and
+render `—`; do not infer support from one development machine. See the
+[model-support guide](model-support.md) and [M1CN evidence](architecture/m1cn-hardware-evidence.md).

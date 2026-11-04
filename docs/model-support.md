@@ -51,13 +51,12 @@ does not select. This is a hypothetical discovery fix, not a support claim.
    Record fan readings as tested; fan writes and other features remain untested
    unless separately checked.
 
-The broader discovery work adds `sysfsRoot` and `procRoot` constructor inputs.
-After that change is integrated, the same fixture pattern can use
-`LegionSysfsService(sysfsRoot: '${root.path}/sys', procRoot: '${root.path}/proc')`.
+Use the `sysRoot` and `procRoot` constructor inputs for broader discovery fixtures:
+`LegionSysfsService(sysRoot: '${root.path}/sys', procRoot: '${root.path}/proc')`.
 For example, hypothetical fixture files under `sys/class/hwmon/` belong inside
-that temporary `sys` directory, not the host `/sys`. Use the constructor inputs
-available in your checkout; the existing fan tests use `hwmonRoot` and
-`fanHwmonRoot`. Keep all fixture writes and symlink targets inside the test tree.
+that temporary `sys` directory, not the host `/sys`. The narrower fan tests can
+also use `hwmonRoot` and `fanHwmonRoot`. Keep all fixture writes and symlink
+targets inside the test tree.
 
 ## Tested-model entry template
 

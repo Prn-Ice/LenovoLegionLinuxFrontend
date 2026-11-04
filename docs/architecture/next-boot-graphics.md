@@ -124,7 +124,7 @@ an error would restore the old topology.
 - Native service/package builds, rendered NixOS ordering, full host builds, and
   real boot tests are separate gates. Deployment and successful hardware boot
   must not be inferred from unit tests or a build. Record their actual results
-  in the linked issue and the handoff.
+  in the linked issue, with model, firmware, and deployed revision.
 
 ### Results on 2026-11-03
 

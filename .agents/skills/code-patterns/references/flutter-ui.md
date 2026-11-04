@@ -2,7 +2,7 @@
 
 Apply the parent skill during implementation and review. Start with the current
 `docs/page-template.md` and `docs/error-and-feedback-standard.md`; they govern the
-visual and feedback contract. The approved Yaru handoff supplements that contract.
+visual and feedback contract, together with the current shared components.
 Do not import Ester's themes, dialogs, mobile dashboard, routes, or component API.
 
 ## Compose visible regions

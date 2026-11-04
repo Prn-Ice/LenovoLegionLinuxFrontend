@@ -1,4 +1,4 @@
-# Native OSD boundary — lllf-cqn.7.1 (not integrated acceptance)
+# Native OSD boundary
 
 `NativeOsd` is a presentation-only typed MethodChannel client. The Linux runner
 registers its handler beside (not instead of) the existing plugin registration.
@@ -30,22 +30,14 @@ cancels it. The view owns the channel/host; destruction removes its handler,
 cancels the timer, destroys the popup and releases the channel. The popup is not
 an application window and cannot keep the app alive after the main window closes.
 
-## Explicit producer hook (root integration still required)
+## Caller contract (not integrated)
 
-An app-level owner should create one `NativeOsd`, dispose it when its listeners
-are disposed, and call `hide()` immediately when disabling the preference or
-revealing the main window. Do not create one bridge per page.
+`NativeOsd.showConfirmed` accepts an event, `enabled`, and `mainWindowVisible`.
+No app preference or visibility source is connected to those inputs. One
+app-lifetime owner must dispose the adapter and call `hide()` when disabling
+feedback or revealing the main window.
 
-```dart
-final result = await osd.showConfirmed(
-  PowerModeChanged(label: confirmedLabel, powerModeValue: confirmedMode),
-  enabled: currentSettings.osdEnabled,
-  mainWindowVisible: mainWindowVisible,
-);
-```
-
-The names in this example are integration inputs, not newly added settings APIs.
-Wire only a **changed**, completed authoritative snapshot, not initial load,
+Only a **changed**, completed authoritative snapshot is valid, not initial load,
 refresh, an attempted command or a failed write. Supported event inputs are
 power mode, keyboard brightness (0–1), fan boost and completed automation.
 Unknown values are suppressed. The caller owns deduplication and the live
@@ -53,7 +45,7 @@ preference/visibility sources. Keep ordinary visible-page success in its updated
 control; errors still use the existing modal error flow. An unavailable OSD is
 not a failed hardware operation and must not manufacture a success notification.
 
-## Evidence and remaining acceptance
+## Verification limits
 
 Fake-channel tests cover content, preferences/foreground suppression, unknown
 values, bounded duration, replacement calls, missing/failed transports, native
@@ -61,8 +53,6 @@ unsupported response and idempotent disposal. Native compilation is a separate
 gate. These tests cannot prove window-manager focus, placement, timer replacement
 or screen-reader behavior. No popup was launched on the development host.
 
-Before closing the issue: connect real confirmed producers and preferences;
-verify X11 focus, click-through, timer/replacement and shutdown on a real desktop;
-verify Wayland returns unavailable without mapping a popup; review native visuals
-and accessibility. Transparent Flutter visual parity and Wayland hosting remain
-explicitly unimplemented, not claimed as completed work.
+App producers and preferences remain unconnected. Real-desktop X11 focus,
+click-through, timer/replacement, shutdown, and accessibility remain unverified.
+Transparent Flutter visual parity and Wayland hosting are unimplemented.

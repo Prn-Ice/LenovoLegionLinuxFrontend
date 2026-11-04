@@ -1,27 +1,16 @@
-# Desktop notifications (lllf-cqn.7.3)
+# Desktop notifications
 
 The native adapter is implemented, but is **not wired globally**. Construction is
 lazy: it does not contact the host. Tests inject a fake `DBusClient`; they never
 notify the developer's desktop or access hardware.
 
-## Integration hook for the app owner
+## Caller contract
 
-Own one `DesktopNotifications` and one `ConfirmedPlatformChanges` for the app
-lifetime. Register explicit `ref.listen(powerBlocProvider, ...)` and
-`ref.listen(fansBlocProvider, ...)` listeners in the app Consumer. Feed their
-states to `observePower` / `observeFans`. For a returned event, call:
-
-```dart
-await notifications.show(
-  event,
-  enabled: appearance.desktopNotifications, // persisted, default false
-  resultVisible: affectedPageIsVisible,
-);
-```
-
-The preference field above is illustrative: the appearance owner supplies the
-actual settings field. Until preferences finish loading, pass false. Visibility
-must include both the current route and whether the window is visible; if
+`ConfirmedPlatformChanges.observePower` and `observeFans` accept feature states
+and return confirmed change events. `DesktopNotifications.show` accepts an
+event plus `enabled` and `resultVisible` inputs; no appearance setting is wired
+to these inputs. Until preferences finish loading, callers must pass false.
+Visibility must include both the current route and whether the window is visible; if
 unknown, conservatively pass true. Keep feeding baseline observers even when
 notifications are disabled or the page is visible, so enabling notifications
 does not replay old changes. Dispose the service once using `close()`; providers
@@ -47,8 +36,7 @@ app's established modal error flow.
   including arbitrary external commands. It is not a safe blanket confirmed
   event source. A future producer must emit specific verified outcomes.
 
-No listener or persisted preference is installed by these files. The parent
-integration must add and test those before closing the issue.
+No app listener or persisted preference currently connects these adapters.
 
 ## Protocol and ownership
 
@@ -69,7 +57,5 @@ closes the socket but does not complete outstanding method completers; no remote
 reply is needed to dispose this adapter. Late transport errors remain observed,
 and the detached client is not closed twice by the failure handler.
 
-Context7 lookup failed (`fetch failed`). API syntax was checked against resolved
-`dbus 0.8.0` source (`DBusClient.getNameOwner`, `callMethod`, `close`, and value
-constructors). Unit tests verify the wire mapping, not a real notification daemon,
+Unit tests verify the wire mapping, not a real notification daemon,
 desktop appearance, Wayland/X11 behavior or packaged app identity.

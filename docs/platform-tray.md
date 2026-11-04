@@ -1,4 +1,4 @@
-# Native tray adapter handoff
+# Native tray adapter
 
 This is an unwired foundation, not an enabled application feature. The adapter
 exports `org.kde.StatusNotifierItem` at `/StatusNotifierItem` and a
@@ -27,11 +27,11 @@ Callbacks must not expose privileged writes before hidden-window confirmation
 is designed. The initial menu contains only a disabled unavailable status;
 no Open, Quit, hide, hardware action, or settings toggle is wired here.
 
-Before shipping, complete the DBusMenu protocol and introspection coverage for
-the desktops being supported, package the icon, connect state and safe actions,
-define window recovery/teardown and retry/reconnect policy, and validate actual
-watchers, hosts and menus on both X11 and Wayland. The private-bus tests are not
-desktop, hardware, Polkit, or lifecycle validation.
+DBusMenu protocol/introspection coverage is partial. A packaged Legion icon,
+app state/actions, window recovery, and automatic transport reconnection are
+not implemented. Actual watchers, hosts, and menus on X11 and Wayland remain
+unverified. Private-bus tests do not establish desktop, hardware, Polkit, or
+application-lifecycle behavior.
 
 References: [Status Notifier Item specification](https://specifications.freedesktop.org/status-notifier-item/latest-single),
 [DBusMenu interface](https://github.com/Alexays/Waybar/blob/master/protocol/dbus-menu.xml).
