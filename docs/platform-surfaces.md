@@ -5,6 +5,20 @@ Neither is wired to feature transitions or a native window. They do not emit
 notifications or change hardware. The follow-ups below are open, not promises
 of current functionality.
 
+The next implementation pass added tested integration components:
+
+- [Native OSD bridge](platform-osd.md): an X11 GTK host and typed method channel;
+  Wayland hosting and Flutter visual parity remain outstanding.
+- [Native tray adapter](platform-tray.md): StatusNotifierItem registration and a
+  partial DBusMenu implementation, tested on a private bus.
+- [Desktop notifications](platform-notifications.md): a session-bus transport
+  and confirmed-state change detectors, with hardware-free lifecycle tests.
+
+These components are not enabled by app preferences or connected to app-lifetime
+event producers yet. The native OSD channel is registered, but no popup is shown
+automatically. Native desktop verification remains required before closing the
+integration follow-ups.
+
 ## OSD — lllf-cqn.7.1
 
 Use `lib/features/platform_surfaces/widgets/platform_osd.dart` for confirmed
