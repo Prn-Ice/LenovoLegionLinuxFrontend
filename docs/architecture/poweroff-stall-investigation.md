@@ -1,4 +1,7 @@
-# Poweroff diagnostics after live dGPU detach
+# Investigating a shutdown hang after disabling the dGPU
+
+A shutdown hung after a live switch to iGPU-only. It did not recur after backend
+fixes. The original cause remains unknown.
 
 ## Recorded failure
 
@@ -17,17 +20,15 @@ Power was removed after about ten minutes. The next cold boot was healthy.
 This was a Lenovo Legion Slim 7 16APH8 (`82Y4`, BIOS `M1CN48WW`). Exact
 generation details and the original investigation are retained in the
 [pinned report](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/blob/b83540b6c1ee81e820c479a51b12955ec23a66dc/docs/architecture/poweroff-stall-investigation.md).
-The commands below describe the repository's diagnostic tooling, not a
-requirement to reproduce that machine's live detach.
 
-## What The Journal Proves
+## What the logs show
 
 The persisted journal does not identify a remaining process. Several known-good
 reboots also end at `Sending SIGTERM to remaining processes` because
 systemd-shutdown terminates journald during that step. Messages emitted later
 in shutdown are console output and are not guaranteed to reach the journal.
 
-The affected boot did establish these boundaries:
+The logs show:
 
 - Userspace services stopped normally in about two seconds.
 - Swap and non-root filesystems were cleanly deactivated or unmounted.
@@ -41,9 +42,9 @@ The roughly ten-minute gap matches systemd's default `RebootWatchdogSec`, but
 the SP5100 watchdog reported `bootstatus=0`. The next boot's reset reason was an
 ACPI power-state transition. This does not prove that the watchdog fired.
 
-## Unresolved failure boundary
+## Where shutdown may have stopped
 
-The evidence does not yet distinguish these phases:
+The evidence does not yet distinguish these possible stopping points:
 
 1. A userspace process remained after systemd's SIGTERM broadcast.
 2. Exitrd, unmount, loop, device-mapper, or final sync cleanup stalled.
@@ -56,7 +57,7 @@ function to disappear, checks NVIDIA HDMI-audio clients, reports final observed
 availability to firmware, and revalidates delayed WMI callbacks against driver
 removal.
 
-## Hardened Retest Result
+## Retest after backend fixes
 
 Generation 465 validated backend revision `dec5983` on hardware on 2026-09-02.
 The guarded transition reached settled Hybrid iGPU-only state with complete root
@@ -74,13 +75,12 @@ absent.
 
 The next boot had no filesystem recovery, I/O errors, failed units, or pstore
 record. Early reconciliation restored the selected Hybrid iGPU-only policy and
-settled detached after six attempts. The original stall therefore did not
-reproduce after backend hardening and complete graphical/audio client
-quiescing. Its precise root cause remains unknown, so a future recurrence needs
-fresh console or pstore evidence rather than attribution to the transient
-kworker.
+settled detached after six attempts. The hang did not recur after the backend
+fixes and after closing graphics and audio clients. The cause remains unknown.
+If it happens again, capture console or pstore logs; the brief kworker observation
+does not identify the cause.
 
-## Safe Evidence Capture
+## Capture diagnostic logs
 
 Do not repeat a live detach only to reproduce this issue. Establish an ordinary
 Hybrid poweroff baseline first. From a Linux virtual console:
@@ -117,8 +117,8 @@ itself if that smoke test cannot create a snapshot.
 
 After the next boot, verify that the `final-target` directory exists and note
 the last console message. A missing final snapshot narrows the failure to the
-first systemd shutdown phase. A complete final snapshot moves suspicion to
-systemd-shutdown, kernel device shutdown, or ACPI S5.
+first systemd shutdown phase. If the final snapshot is complete, investigate
+later steps: systemd-shutdown, kernel device shutdown, or ACPI S5 poweroff.
 
 Only after a clean baseline should the same tool be armed following an already
 guarded and settled iGPU-only transition:
@@ -139,8 +139,8 @@ leaves audio and the display manager stopped if topology becomes uncertain.
 After a confirmed detach, Plasma can reopen the persistent `/dev/nvidiactl`
 node even though every NVIDIA PCI function is absent. Detached diagnostic
 arming therefore stops the display manager, graphical login session, and user
-audio services before repeating the root client check. A failed arm restores
-the session automatically; a successful arm leaves it quiesced for poweroff.
+audio services before repeating the root client check. If setup fails, the tool
+restores the session. If it succeeds, the session stays stopped for shutdown.
 The `disarm` command now restores the session as well.
 
 To cancel the runtime instrumentation before poweroff:
@@ -149,7 +149,7 @@ To cancel the runtime instrumentation before poweroff:
 ./tool/arm_shutdown_diagnostics_tty.sh disarm
 ```
 
-## Stall Response
+## If shutdown hangs
 
 For a controlled diagnostic boot, configure full Magic SysRq support before
 testing. The captured host value `kernel.sysrq=16` generally permits emergency
@@ -167,7 +167,7 @@ If the console remains responsive during a stall:
 3. Before physical power removal, use `Alt+SysRq+s`, then `Alt+SysRq+u`.
 4. Do not use `Alt+SysRq+b` or `Alt+SysRq+c` for this investigation.
 
-For a later instrumented NixOS generation, console markers in both the root
+For deeper debugging on NixOS, console markers in both the root
 `system-shutdown` path and shutdown ramfs, `initcall_debug`, and temporary
 `printk.always_kmsg_dump=Y` can distinguish the exitrd, device-shutdown, and
 final ACPI phases. Do not enable EFI shutdown dumps permanently because each

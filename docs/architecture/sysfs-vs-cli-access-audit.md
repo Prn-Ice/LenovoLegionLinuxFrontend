@@ -1,24 +1,20 @@
-# sysfs vs legion_cli Access Audit
+# Hardware reads and writes
 
 **Date:** 2026-03-07
 **Scope:** `LegionSysfsService` (direct sysfs reads) vs `LegionFrontendBridgeService` (`LegionControl1` writes) across all feature repositories.
 
 ---
 
-## Access Strategy
-
-The frontend uses a consistent, principled split:
+## Read and write methods
 
 | Direction | Mechanism | Why |
 |---|---|---|
 | **Reads** | `LegionSysfsService` — direct file I/O | No privilege needed; avoids process spawn overhead |
 | **Writes** | `LegionFrontendBridgeService` → typed `LegionControl1` D-Bus methods | Kernel writes require root; both client and service validate a narrow allow-list |
 
-This is correct and should be maintained.
-
 ---
 
-## Read Surface (`LegionSysfsService`)
+## Reads (`LegionSysfsService`)
 
 | Feature | Sysfs path | Notes |
 |---|---|---|
@@ -48,11 +44,13 @@ This is correct and should be maintained.
 
 ---
 
-## Write Surface (`LegionControl1`)
+## Writes (`LegionControl1`)
 
-Repositories retain the CLI command vocabulary, but `LegionControlClient` maps it to typed D-Bus methods. The root service independently validates each request before constructing a fixed backend argument vector.
+Repositories pass commands to `LegionControlClient`, which maps them to typed
+D-Bus methods. The root service validates each request and runs a fixed backend
+command.
 
-### Strategy A: Named subcommands
+### Named CLI commands
 
 Used for features that have dedicated `enable/disable` subcommands in legion_cli:
 
@@ -73,9 +71,10 @@ Used for features that have dedicated `enable/disable` subcommands in legion_cli
 | `conservation` (custom) | `custom-conservation-mode-apply <lower> <upper>` | automation |
 | `boot_logo` | `boot-logo enable <path>` / `boot-logo restore` | boot_logo |
 
-### Strategy B: Generic `set-feature <FeatureName> <value>`
+### `set-feature` commands
 
-Used for features registered in `Feature.features` in `legion.py` but without dedicated CLI subcommands:
+`set-feature <FeatureName> <value>` is used for features registered in
+`Feature.features` in `legion.py` but without dedicated CLI subcommands:
 
 | Feature | `featureName` string | Repository |
 |---|---|---|
@@ -99,7 +98,7 @@ Used for features registered in `Feature.features` in `legion.py` but without de
 
 ---
 
-## Read-Only Features (no write path — by design)
+## Read-only features
 
 | Feature | Reason |
 |---|---|
@@ -110,16 +109,14 @@ Used for features registered in `Feature.features` in `legion.py` but without de
 | `white_kbd_backlight` | Not included in the privileged service allow-list until a validated backend contract exists |
 | `dgpu` deactivation | Process killing and PCI restart are intentionally outside the privileged service allow-list |
 
-The Power page shows an authoritative hardware-default baseline when one is
-known for the exact product and BIOS. The current model table is intentionally
-limited to Lenovo product `82Y4` with BIOS `M1CN48WW`, whose defaults were
-verified from firmware and repeated live captures. Other systems show
-`Hardware default unavailable`; the frontend does not infer defaults from
-slider bounds or current values.
+The Power page shows reference defaults only for an exact product and BIOS
+match. The current table contains only Lenovo `82Y4` with BIOS `M1CN48WW`. See
+the [power-defaults investigation](../power-defaults-evidence.md) for gaps in the
+supporting evidence. Other systems show `Hardware default unavailable`.
 
 ---
 
-## CLI Commands Available But Unused by Frontend
+## Unused CLI commands
 
 | Command | What it does | Relevance |
 |---|---|---|
@@ -130,32 +127,22 @@ slider bounds or current values.
 
 ---
 
-## Findings
+## Maintenance notes
 
-### ✅ What's working well
-
-1. **Read/write separation is clean and consistent.** Reads are unprivileged; writes cross the typed, Polkit-authorized D-Bus boundary. Dart does not write sysfs or launch an elevation helper.
-
-2. **Dual write strategy is intentional, not accidental.** Named subcommands exist for the features most commonly toggled. `set-feature` is the generic escape hatch for the full Feature registry. Both routes are stable.
-
-3. **Fan curve read goes direct to sysfs** (not via `fancurve-write-hw-to-file`). This avoids spawning a privileged process just to read state, and is the correct approach.
-
-4. **The root surface is deliberately smaller than the UI's historical command vocabulary.** Unsupported white-keyboard, camera, and dGPU mutations fail closed until a reviewed contract is added.
-
-### ⚠️ Items to note
-
-1. **`set-feature` `featureName` strings are magic constants.** They must match Python `Feature` subclass names in `legion.py` exactly. They are hardcoded in the Dart repositories (e.g. `'CPULongtermPowerLimit'`). If a Python feature is renamed, the Dart side silently breaks. Consider adding a comment linking to the Python source for each.
-
-2. **`monitor` command is a significant unused capability.** The CLI's `monitor` command polls all hardware state on a configurable interval and outputs structured JSON. This is the natural backend for `okf.18` (reactive refresh for external state changes) — e.g. detecting when another tool changes the power profile externally. Worth investigating as part of that task.
-
-3. **Fan curve: 100 sysfs reads per load cycle.** 10 points × 10 files each. This is fine in practice (sysfs reads are fast) but worth noting. The CLI's `fancurve-write-hw-to-file` + read could reduce this to one process call if latency ever becomes an issue.
+1. Feature names passed to `set-feature` must exactly match the Python class
+   names in `legion.py`. Link each name to its backend definition.
+2. Consider `legion_cli monitor` for detecting changes made by other tools. It
+   polls hardware state and returns JSON. Tracked in `okf.18`.
+3. Fan curves require 100 sysfs reads per load: 10 points × 10 files each.
+4. The app maps `CPUDefaultPowerLimit` as writable, but the inspected driver
+   exposes `cpu_default_powerlimit` read-only. This mismatch is tracked in
+   `lllf-9g8`; see the [backend evidence](../power-defaults-evidence.md#where-to-add-backend-support).
 
 ---
 
-## Recommendation: Access Strategy Going Forward
+## Adding a feature
 
-Continue with:
-
-- **New read-only features:** Add to `LegionSysfsService`.
-- **New writable features:** Add a typed D-Bus method or extend an existing allow-list only after documenting ranges, payload limits, and backend argument construction; update both Dart and C++ tests.
-- **Reactive state changes (okf.18):** Investigate `monitor` command as the notification source.
+- For reads, add to `LegionSysfsService`.
+- For writes, document accepted values and ranges, payload limits, and backend
+  arguments. Add the typed D-Bus method or allow-list entry, then update Dart and
+  C++ tests.

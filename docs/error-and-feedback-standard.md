@@ -1,17 +1,14 @@
 # Error and Feedback Standard
 
-This document defines the required quality level for errors, recovery guidance,
-copy feedback, and routine success states. The privilege-setup dialog in
+Use these rules for errors, recovery instructions, copy buttons, and success
+feedback. The privilege-setup dialog in
 [`app_shell_components.dart`](../lib/core/widgets/app_shell_components.dart) is
 the reference implementation.
 
-The goal is not merely to display an exception. A user who encounters an error
-must understand what failed, whether anything changed, why it failed when that
-is known, and what to do next.
+Explain what failed, whether anything changed, and what to do next. Include the
+cause when known.
 
-## Interaction Policy
-
-Use interruption in proportion to the consequence:
+## When to show feedback
 
 | Situation | Presentation |
 |---|---|
@@ -22,26 +19,23 @@ Use interruption in proportion to the consequence:
 | A save/export dialog completed | Let the platform dialog communicate the destination |
 | A background value is unavailable | Explain it in place near the affected value |
 
-Do not use snackbars, floating banners, toast-like overlays, or page content
-that shifts when an error appears. They are easy to miss, compete with the task,
-and do not provide enough room for useful recovery guidance.
+Do not use snackbars, floating banners, toast overlays, or errors that shift the
+page layout.
 
-## Error Message Hierarchy
+## What an error should say
 
 Every error dialog should answer these questions in order:
 
 1. **What failed?** Use a specific, human-readable title.
 2. **What was the consequence?** State whether the requested change happened.
-3. **What does the error mean?** Explain the relevant system concept without
-   assuming specialist knowledge.
+3. **Why did it fail?** Give the known cause in plain language.
 4. **How can the user recover?** Give concrete, verified steps.
-5. **Does recovery differ by platform?** Separate platform-specific guidance.
+5. Show platform-specific steps only when needed.
 6. **What did the system report?** Put selectable raw output under
    `Technical details`; never make it the primary message.
 
-Do not expose an exception string as the heading. Do not claim a cause that the
-service did not classify. Do not imply success without readback from the
-authoritative state source.
+Do not use raw exceptions as titles, guess the cause, or claim success before
+reading back the result from the authoritative state source.
 
 ## Dialog Behavior
 
@@ -71,21 +65,17 @@ await showAppErrorDialog(
 );
 ```
 
-Do not build feature-specific generic error dialogs. Extend the shared dialog
-only when a classified failure has genuinely different recovery instructions.
+Reuse the shared dialog. Add custom guidance only when a known failure needs
+different recovery steps.
 
-## Known Failure Guidance
+## Recovery for known errors
 
-Known failures deserve structured, domain-specific content. The current
-reference is `LegionBridgeErrorCode.privilegeSetup`, returned when the
+Use the privilege-setup error as the example for known failures:
+`LegionBridgeErrorCode.privilegeSetup`, returned when the
 `legion-control` D-Bus service or its authorization policy is not configured.
 
-The explanation must make these facts clear:
+### Setup recovery
 
-- `legion-control` is a narrowly scoped root service, not a generic command
-  runner.
-- Polkit authorizes the frontend's unique D-Bus sender before writes are
-  accepted.
 - A setup failure before dispatch means that command did not run. Do not claim
   that nothing changed if earlier steps in a multi-step action may have run.
 - NixOS users must import the supplied module and enable both Polkit and
@@ -93,7 +83,7 @@ The explanation must make these facts clear:
 - Other distributions must install the supplied systemd unit, D-Bus policy, and
   Polkit action.
 
-The NixOS recovery block is canonical:
+Use this configuration for NixOS recovery:
 
 ```nix
 security.polkit.enable = true;
@@ -103,30 +93,34 @@ services.legionControl = {
 };
 ```
 
+### Developer notes
+
+- `legion-control` is a narrowly scoped root service, not a generic command
+  runner.
+- Polkit authorizes the frontend's unique D-Bus sender before writes are
+  accepted.
+
 When adding another known failure:
 
-1. Classify it in the service layer from stable evidence such as an exit code or
-   exact tool output.
+1. Identify the error in the service using an exit code or other reliable result.
 2. State whether the attempted operation could have partially completed.
-3. Verify every recovery instruction against the relevant platform behavior.
-4. Keep generic fallback details available for diagnostics.
+3. Check that the recovery steps work on the target platform.
+4. Keep the raw error details available.
 5. Add focused dialog and service-classification tests.
 
-Carry the classified cause as an `AppFailure` through repository exceptions,
-Bloc state, and the shared dialog. Preserve its `kind` and raw `details` when
-adding action-specific message text. The dialog selects recovery guidance from
-the kind, never from English phrases. Legacy string inputs remain unclassified.
-Test typed propagation and recovery guidance independently of message wording.
+Pass `AppFailure` from the repository through Bloc state to the shared dialog.
+Preserve `kind` and raw `details` when adding context. Choose recovery steps by
+`kind`, not message text. Legacy string inputs remain unclassified. Test typed
+propagation and recovery guidance without depending on the exact wording.
 
 ## Copyable Technical Content
 
-Configuration, commands, paths, and technical output must be selectable. A code
-block must also have a dedicated copy action because drag selection is a poor
-primary interaction for exact configuration.
+Make configuration, commands, paths, and technical output selectable. Add a copy
+button to code blocks.
 
 - Use monospace only for code, commands, paths, and machine output.
 - Preserve indentation and complete syntax so copied content can be used as-is.
-- Label what the code is, not merely that it is code.
+- Use specific labels, such as "NixOS configuration".
 - Change the copy button in place to `Copied` with a check icon.
 - Do not open another dialog or floating notification to confirm a copy.
 - Revert the copied state if the platform clipboard call fails.
@@ -155,10 +149,8 @@ Routine success should be visible in the state the user just changed. After a
 write, reload the authoritative snapshot and render the resulting setting. Do
 not add a success banner merely to repeat what the control already shows.
 
-Success copy is justified only when the result is not otherwise observable or a
-meaningful next consequence must be communicated. In that case, prefer durable
-inline status near the affected control. A transient floating notification is
-still not appropriate.
+Add success text only when the result is not visible or the user needs a next
+step. Keep it beside the affected control, not in a floating notification.
 
 The BLoC state may retain historical `noticeMessage` fields while older flows
 are migrated, but page views must not render them as global notifications.
@@ -181,22 +173,3 @@ For every change to error or feedback behavior, verify:
 
 Reference tests live in
 [`app_error_dialog_test.dart`](../test/core/widgets/app_error_dialog_test.dart).
-
-## Do and Do Not
-
-**Do:**
-
-- Interrupt for blocked work and consequential failures.
-- Explain the system concept in plain language before showing raw output.
-- Separate general explanation, platform recovery, and technical details.
-- Confirm when no command ran or no setting changed.
-- Reuse the shared dialog and update its tests.
-
-**Do not:**
-
-- Show raw stderr alone.
-- Place a multi-line error in a snackbar or banner.
-- Show both a page banner and a dialog for the same failure.
-- Use a second notification to confirm copying.
-- Give NixOS instructions as if they apply to every distribution.
-- Claim that a write succeeded until authoritative state confirms it.

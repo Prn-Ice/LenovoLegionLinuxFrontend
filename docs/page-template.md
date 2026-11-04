@@ -1,17 +1,12 @@
 # Page template
 
-The **Dashboard** ([lib/features/dashboard/](../lib/features/dashboard/)) is the
-reference implementation. Every new page (Power, Fans, Battery, Lighting, …)
-should follow the patterns below so the app stays consistent and the shared
-primitives keep paying off. Use the current shared components and theme values
-as the implementation reference.
-
----
+Use the [Dashboard](../lib/features/dashboard/) as the reference for new pages.
+Reuse the shared components and theme values below.
 
 ## 1. Page skeleton
 
-A page is a `ConsumerStatefulWidget` (or `ConsumerWidget`) that **composes blocs
-at the widget layer** and renders into `AppPageBody`.
+Use `ConsumerWidget` or `ConsumerStatefulWidget`. Watch the blocs in the page and
+render the content inside `AppPageBody`.
 
 ```dart
 class PowerPage extends ConsumerWidget {
@@ -27,26 +22,20 @@ class PowerPage extends ConsumerWidget {
 }
 ```
 
-- **Blocs never listen to other blocs.** If a page needs data from several
-  blocs, `ref.watch` each one in the page and pass values down. (See the
-  dashboard wiring power + sensors + devices together.)
-- **No content title header.** `AppPageBody.title` is optional and the dashboard
-  passes none — the page starts at its first card. The section name is shown
-  **left-aligned in the window title bar** (`centerTitle: false`), wired in
+- Blocs must not listen to other blocs. Watch each bloc in the page with
+  `ref.watch` and pass its values to child widgets.
+- Put the page title and refresh action in the window title bar, not the page
+  content. Configure them in
   [navigation_shell.dart](../lib/features/navigation/view/navigation_shell.dart).
-- **Refresh lives in the title bar**, not the content. Add it per-section via
-  `_titleBarActions` in the shell (`YaruWindowTitleBar.actions`).
-- **Errors use the shared modal dialog.** Pass `errorMessage` to `AppPageBody`;
-  never add a snackbar, floating banner, or toast. Routine success is reflected
-  by the updated control state rather than a global notice. Follow the
-  [Error and Feedback Standard](error-and-feedback-standard.md).
+  Use `centerTitle: false` and `_titleBarActions` (`YaruWindowTitleBar.actions`);
+  omit the optional `AppPageBody.title`.
+- Pass `errorMessage` to `AppPageBody`. Show routine success through the updated
+  control. Follow the [error and feedback standard](error-and-feedback-standard.md).
 
 ## 2. Cards & layout
 
-- **Always use `SurfaceCard`** ([core/widgets/surface_card.dart](../lib/core/widgets/surface_card.dart))
-  for card surfaces — never bare `YaruBorderContainer`, whose default fill is
-  transparent (cards come out flat). `SurfaceCard` = radius 13,
-  `surfaceContainerHighest` fill, subtle `onSurface @ 6%` border.
+- Use **`SurfaceCard`** ([core/widgets/surface_card.dart](../lib/core/widgets/surface_card.dart))
+  for cards: radius 13, `surfaceContainerHighest` fill, `onSurface @ 6%` border.
 - Use **`ResponsiveCardGrid`** ([core/widgets/responsive_card_grid.dart](../lib/core/widgets/responsive_card_grid.dart))
   for grids of equal cards (quick controls, mode cards) so they reflow by width.
 - Spacing between stacked cards: `SizedBox(height: 16)`.
@@ -57,32 +46,28 @@ class PowerPage extends ConsumerWidget {
   radial 270° gauge for a single value (temps, fans). Size 116 on the dashboard.
 - **`MetricTile`** ([core/widgets/metric_tile.dart](../lib/core/widgets/metric_tile.dart)) —
   label + tabular value + thin bar for utilisation rows (CPU/GPU/VRAM/power).
-- Pure value math (format, fraction, critical) is in
-  [metric_format.dart](../lib/core/widgets/metric_format.dart) — kept
-  widget-free so it's unit-tested directly.
+- Keep formatting, fractions, and threshold calculations in
+  [metric_format.dart](../lib/core/widgets/metric_format.dart), where they can be
+  tested without widgets.
 - Both flip to `colorScheme.error` past their `criticalThreshold`.
 - **`TelemetryHistoryCard`**
   ([features/analytics/view/widgets/telemetry_history_card.dart](../lib/features/analytics/view/widgets/telemetry_history_card.dart))
-  is the shared time-series surface. Pass the surface's resolved accent into it;
-  do not hardcode another chart or selector colour inside the card.
-- Keep the standard Material `SegmentedButton` for compact series choices when
-  they fit. At constrained widths, use `YaruPopupMenuButton`; selected popup
-  checks inherit the same accent through `YaruCheckboxTheme`. Do not replace
-  either with a custom segmented control merely to change its colour.
-- Every displayed measurement needs a documented unit and meaning. Preserve
-  sign conventions and provenance in labels or supporting copy when ambiguity
-  is possible. For example, battery `power_now` is signed battery-side
-  charge/discharge power, not CPU package power or wall power.
-- Missing telemetry stays missing. Render `—` plus a concise explanation when
-  useful; do not infer battery temperature, fabricate history, or substitute a
-  related measurement without labeling it as such.
+  is the shared time-series surface. Pass it the page or card accent and use that
+  accent for its chart and selectors.
+- Use `SegmentedButton` when the choices fit. Use `YaruPopupMenuButton` at narrower
+  widths. Keep their selected colours consistent with the chart accent; popup
+  checks use `YaruCheckboxTheme`.
+- Label measurements with their units. Explain the source or sign when it could
+  be unclear. Battery `power_now` is signed battery-side charge/discharge power,
+  not CPU package power or wall power.
+- Show `—` for missing readings. Do not invent values or silently substitute
+  another measurement.
 
-## 4. Typography — **the rule**
+## 4. Typography
 
-**Yaru's `TextTheme` is the scale for all text. Mono is the one exception.**
-Do NOT build a parallel type scale.
+Use Yaru's `TextTheme` for text and the shared mono styles for telemetry numbers.
 
-### Sans → nearest Yaru `textTheme` slot
+### Text styles
 
 Use the slot directly; override **only** `color` for the muted hierarchy.
 
@@ -98,7 +83,7 @@ Use the slot directly; override **only** `color` for the muted hierarchy.
 > Use Yaru's default title weights (w400/w500); re-bold a specific role only
 > when needed with `.copyWith(fontWeight: FontWeight.w700)`.
 
-### Mono → `metric_text.dart` roles
+### Telemetry number styles
 
 Telemetry numbers are Ubuntu Mono. Use the named roles in
 [metric_text.dart](../lib/core/widgets/metric_text.dart) directly:
@@ -111,29 +96,23 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   silently falls back to sans on hot reload).
 - **Never `.copyWith()` a packaged mono style** — copyWith can drop the package
   and the digits silently fall back to sans. Pass state colors (critical→error)
-  as an argument instead. A test
-  ([test/core/widgets/metric_text_test.dart](../test/core/widgets/metric_text_test.dart))
-  locks this invariant.
+  as an argument instead. Covered by
+  [metric_text_test.dart](../test/core/widgets/metric_text_test.dart).
 
 ## 5. Colour & accent
 
-- Neutral colours are **theme-relative**
-  (`scheme.onSurface.withValues(alpha: …)`) so light/dark both work. Named
-  semantic and vendor colours are the exception; resolve them once at the
-  surface instead of scattering raw hex values through child components.
+- Use theme colours for neutral backgrounds, borders, and text
+  (`scheme.onSurface.withValues(alpha: …)`) so both light and dark themes work.
+  Define semantic and vendor colours once per page or card.
 - Muted hierarchy: **0.7** (label/caption) · **0.56** (subtitle/meta) ·
   **0.5** (micro label) · **0.08** (track/hairline).
 - The default page accent comes from
   [`LegionAccent.fromPowerModeValue`](../lib/core/theme/legion_accent.dart)
-  (quiet=teal, balanced=green, performance=orange, custom=violet). Thread the
-  resolved `Color accent` into cards. A deliberately semantic surface may own a
-  stable accent instead, such as Battery green, but it must still have one
-  authoritative resolved colour.
-- Accent colours describe real state, not page identity. In particular, Custom
-  violet belongs to an explicitly custom or dirty value; do not tint a whole
-  settings page violet merely because it contains advanced controls.
-- Keep one authoritative accent source per surface. Avoid a page-level hardcode
-  combined with component-specific overrides that can disagree.
+  (quiet=teal, balanced=green, performance=orange, custom=violet). Pass the resolved
+  `Color accent` to cards. A card may use a fixed colour when it has a clear
+  meaning, such as green for Battery.
+- Use violet for custom or unsaved values, not for an entire page of advanced
+  settings.
 - A nested `ColorScheme.copyWith(primary: …)` does not rebuild Yaru's generated
   component subthemes. When a chip or another generated component needs a
   semantic state colour, set that component's selected properties directly and
@@ -157,41 +136,29 @@ Use **`YaruIcons.*`**, not Material `Icons.*`, for generic navigation and action
 icons so the app stays Yaru-native. The nav rail already does this via each
 section's `yaruIcon`.
 
-Known hardware identity is the exception: show the detected manufacturer's
-mark rather than a decorative generic chip glyph. Use a neutral container, keep
-the mark in its vendor colour, provide a semantic label, and retain a subdued
-generic GPU/device fallback for unknown names. Vendor-aware presentation does
-not claim backend support for that vendor; capability remains a separate fact.
+For detected hardware, use the manufacturer's logo in its vendor colour, with a
+neutral background and accessible label. Use a generic device icon when the
+manufacturer is unknown.
 See [GPU vendor asset provenance](../assets/gpu_vendors/README.md).
 
-## 6. Capability and state truth
+## 6. Supported features and loading states
 
-- Discover backend capabilities before designing or enabling controls. Test the
-  actual combinations the backend can return, including partial and entirely
-  absent support, rather than relying only on fully populated mocks.
-- Never invent hardware values or draw a plausible curve when the driver did
-  not provide one. Preserve nullable states through the repository, bloc, and
-  widget layers.
-- Model first load separately from an empty result. Until the first snapshot or
-  first failed attempt completes, show a loading state; do not briefly render
-  zeros, `—`, or an empty process list as if they were observed hardware state.
-- Recommendation, explicit selection, successful application, and confirmed
-  hardware-active state are different concepts. Name and render only the state
-  the backend can prove; a recommendation must not silently become selected,
-  and a successful command must not be presented as persistent hardware state
-  without a readback API.
-- Hide unsupported secondary controls. For the primary unavailable feature,
-  show a compact explanation alongside any truthful telemetry that remains;
-  do not leave a large disabled mock interface in place.
-- The shell owns the page name and refresh action. Do not duplicate either in
-  page content unless the content has a separate, meaningful section identity.
+- Enable controls only for supported features. Test partial support and no
+  support, not just fully populated data.
+- Keep missing values as `null` through the repository, bloc, and widgets.
+- Show a loading state until the first read finishes or fails. Do not show zeros,
+  `—`, or an empty process list before then.
+- Keep recommendations, selections, completed commands, and confirmed hardware
+  state separate. Show a setting as active only after reading it back.
+- Hide unsupported secondary controls. If the page's main feature is unavailable,
+  explain why and show any readings that still work.
 - Prefer native Yaru controls and their established interaction states before
   building custom equivalents.
 
 ## 7. Privileged actions
 
-Toggles/buttons that change hardware go through a confirm + guard pattern (see
-`_buildQuickControls` in
+Use `guard` to disable unsupported or busy controls and confirm hardware changes
+before applying them (see `_buildQuickControls` in
 [dashboard_page.dart](../lib/features/dashboard/view/dashboard_page.dart)):
 
 ```dart
@@ -208,46 +175,36 @@ onChanged: guard(
 commands extend
 [`PrivilegedRepository`](../lib/core/data/privileged_repository.dart).
 
-- Keep authentication and save-work guidance compact and legible. It supports
-  the task; it should not visually outweigh the action being explained.
-- Reserve `colorScheme.error` for the destructive control and consequence, not
-  the whole card. Destructive controls remain outlined unless there is a clear
-  reason to make destruction the primary action.
-- Confirmation copy names the exact targets when known (for example PIDs and a
-  PCI address), explains likely data loss or interruption, and uses a specific
-  action label.
+- Keep authentication and save-work guidance brief and legible.
+- Use `colorScheme.error` for destructive actions and their consequences, not the
+  whole card. Use outlined destructive buttons by default.
+- Name the affected processes or devices (PIDs and PCI address when known), explain
+  any likely interruption or data loss, and use a specific action label.
 - UI preflight checks are not a security boundary. The privileged backend must
-  atomically revalidate mutable targets immediately before acting; disabling a
-  button or refreshing a process list only improves the frontend flow.
-- A failed privileged action follows the
-  [Error and Feedback Standard](error-and-feedback-standard.md): explain what
-  failed, whether anything changed, why it failed when classified, and how to
-  recover. Keep raw tool output selectable under technical details.
+  atomically revalidate mutable targets immediately before acting.
+- Handle failures using the
+  [error and feedback standard](error-and-feedback-standard.md).
 
 ## 8. Shell & platform
 
 - Window is a rounded GNOME/Handy window via **handy_window**
   ([linux/runner/my_application.cc](../linux/runner/my_application.cc) registers
   plugins before showing the view).
-- Section title bar: left-aligned (`centerTitle: false`), section-specific
-  actions via `_titleBarActions`.
 
 ## 9. Tooling & process
 
-- `.envrc` selects the shared flake's `#linux` shell. Use `direnv exec . flutter test`
-  from the repo when your terminal has not loaded that environment. See
-  [dependency notes](dependencies.md) for the SDK and package constraints.
+- If you use the optional Nix setup, `.envrc` loads `LLLF_DEV_FLAKE`. Use
+  `direnv exec . flutter test` when your terminal has not loaded that environment.
+  See [contributor setup](../CONTRIBUTING.md#set-up) and
+  [dependency notes](dependencies.md).
 - **`dart format` only the files you edited** — never `dart format lib` (the
-  flake's formatter churns unrelated files).
+  formatter can change unrelated files).
 - **TDD for logic** (red→green). Declarative styling/config is exempt, but lock
   real invariants (e.g. the mono-font test).
-- Reconcile visual changes with established shell behaviour, proven backend
-  capability, and direct review. Reuse app-wide accents and native controls.
 - Verify each change: `flutter analyze` clean + `flutter test` green before
   committing.
 
-## 10. Hardware-specific data gaps
+## Related guides
 
-Support depends on the model, firmware, and deployed driver. Guard for null and
-render `—`; do not infer support from one development machine. See the
-[model-support guide](model-support.md) and [M1CN evidence](architecture/m1cn-hardware-evidence.md).
+- [Model support](model-support.md)
+- [M1CN evidence](architecture/m1cn-hardware-evidence.md)

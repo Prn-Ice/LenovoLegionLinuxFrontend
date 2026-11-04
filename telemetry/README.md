@@ -1,8 +1,8 @@
 # Legion Telemetry Service
 
-`legion-telemetry-service` is a root-owned, read-only D-Bus service that turns
-the kernel's restricted RAPL energy counter into cached CPU package power. It
-never writes hardware state and does not use Polkit while sampling.
+`legion-telemetry-service` reads the kernel's restricted RAPL energy counter and
+provides cached CPU package power over D-Bus. It runs as root and does not change
+hardware settings.
 
 The Linux release bundle contains:
 
@@ -11,15 +11,17 @@ The Linux release bundle contains:
 - `share/dbus-1/system.d/io.github.prnice.LegionTelemetry1.conf`
 - `lib/sysusers.d/legion-telemetry.conf`
 
-A system package must install those files at their matching `/usr` locations,
-run `systemd-sysusers`, add the desktop user to the `legion-telemetry` group,
-and enable `legion-telemetry.service`. Group membership takes effect on the
-next login. This is the only administrative setup; normal reads never request
-authentication.
+To install the service:
 
-The service exposes only `GetSnapshot` on
-`io.github.prnice.LegionTelemetry1`. Raw energy counters and arbitrary file
-access are not part of the API.
+1. Install the bundled files under the matching `/usr` paths.
+2. Run `systemd-sysusers`.
+3. Add the desktop user to `legion-telemetry`.
+4. Enable `legion-telemetry.service`.
+5. Log out and back in.
+
+Reading telemetry does not require an authentication prompt.
+
+The D-Bus API provides one method: `io.github.prnice.LegionTelemetry1.GetSnapshot`.
 
 ## NixOS
 
@@ -33,6 +35,4 @@ services.legionTelemetry = {
 };
 ```
 
-Rebuild the system and start a new login session so the supplementary group is
-present. The module builds the helper from this source tree and uses its Nix
-store path directly.
+Rebuild your system, then log out and back in to apply the group membership.

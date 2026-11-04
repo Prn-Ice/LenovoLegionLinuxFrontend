@@ -1,17 +1,17 @@
 # Legion Linux Frontend
 
-A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux) - the open-source Linux kernel module and tooling for Lenovo Legion laptops.
+A Linux desktop app for controlling Lenovo Legion laptops with [LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux).
 
 ## Features
 
 - Fan curve editor
-- Power profile / platform profile switching
+- Power modes
 - Battery conservation and rapid charging
 - Fn-lock and touchpad controls; camera status
 - Boot logo customization
 - Discrete GPU monitoring
-- Automation (run external programs on profile change)
-- Keyboard lighting (native Spectrum HID and OpenRGB)
+- Run programs when the power mode changes
+- Keyboard lighting through Spectrum HID or OpenRGB
 - Real-time dashboard
 
 ## Requirements
@@ -46,9 +46,8 @@ services.legionControl = {
 
 ## Running
 
-The live application requires `legion_cli` in `PATH`, even when hardware features
-are unavailable. Use the hardware-free tests in [Contributing](CONTRIBUTING.md)
-for development without the backend.
+Running the app requires `legion_cli` in `PATH`. You can
+[run tests without it](CONTRIBUTING.md#test-without-hardware).
 
 ```bash
 flutter run -d linux
@@ -73,7 +72,8 @@ flutter analyze
 
 ## Architecture
 
-Read operations use direct sysfs file reads or the read-only telemetry D-Bus service. Privileged writes use the typed `io.github.prnice.LegionControl1` system-bus API. That root service accepts only allow-listed operations, asks Polkit to authorize the frontend's D-Bus connection, and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. Dart never writes sysfs directly and never launches a privilege-elevation helper.
+The app reads hardware data through sysfs and D-Bus. Privileged changes go through
+the `legion-control` service, which checks permissions with Polkit.
 
 See the [architecture overview](docs/architecture/overview.md).
 

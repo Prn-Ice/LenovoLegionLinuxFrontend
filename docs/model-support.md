@@ -1,32 +1,28 @@
 # Model support and testing
 
-Track support per feature. Use diagnostics to identify whether a gap belongs to
-the kernel module/backend, frontend discovery, or keyboard HID support.
+Some features may not work on every model. Run diagnostics to find out why.
 
-## Add or correct support
+## Report or fix a problem
 
-1. Open a GitHub issue with the laptop model identifier and the feature or
-   mismatch. Attach sanitized diagnostics when available; remove serial numbers,
-   usernames, and other identifying data.
-2. Record BIOS, kernel, module, backend, and relevant device/protocol details.
-   Say explicitly which features you tested and which remain unknown.
-3. Reproduce discovery or parsing behavior with a small sanitized fixture. Add
-   or update the relevant test so contributors without the laptop can verify it.
-4. Change the narrow boundary that owns the behavior: driver/backend issue,
-   frontend discovery, or tested keyboard mapping. Do not guess a fallback for
-   unknown hardware.
-5. Test on the affected machine when possible, then submit a pull request linking
-   the issue, fixture, fix, and completed entry below. Clearly mark any checks
-   not performed.
+1. Open a GitHub issue with your laptop model and the problem. Attach diagnostics
+   if available. Remove serial numbers, usernames, and other personal information.
+2. Include your BIOS, kernel, driver, and CLI versions. List what you tested and
+   the results.
+3. Add a test using a small sample of the diagnostic data, with personal
+   information removed. The test should run without the laptop.
+4. Fix the problem in the driver, app, or keyboard mapping, as needed. Do not
+   guess settings for unknown hardware.
+5. If possible, test the fix on the affected laptop. Link the issue and test
+   results in your pull request, and fill in the template below. Note anything
+   you could not test.
 
-For keyboard lighting, include the USB vendor/product ID and evidence for the
-protocol, physical layout, and brightness calibration. For sysfs-backed
-features, distinguish a readable value from a verified writable capability.
+For keyboard lighting, include the USB vendor and product IDs, protocol, key
+layout, and brightness test results. For sysfs features, report reading and
+writing separately.
 
-## Worked example: missing fan reading
+## Example: missing fan reading
 
-Suppose an owner's diagnostics show a Legion fan provider that the frontend
-does not select.
+Suppose diagnostics show a fan sensor that the app does not detect.
 
 1. Inspect `lib/core/services/legion_sysfs_service.dart`, starting with
    `readFan1Rpm` and its discovery helpers. Compare the reported provider name,
@@ -37,17 +33,16 @@ does not select.
    provider name and `fan1_input` value, recreate required links inside the
    temporary tree, and inject the fixture paths into `LegionSysfsService`.
    Assert the expected RPM and that an unrelated provider is not selected.
-3. Change the selection rule in the service only if the evidence identifies the
-   correct source. Preserve unknown results for unrecognized providers.
+3. Update detection only when the diagnostics identify the correct sensor.
+   Keep unknown results for unidentified sensors.
 4. Run the focused test from the repository root:
 
    ```bash
    flutter test test/core/services/legion_sysfs_service_fan_discovery_test.dart
    ```
 
-5. Ask the owner to verify the readout and attach that result to the issue.
-   Record fan readings as tested; fan writes and other features remain untested
-   unless separately checked.
+5. Ask the owner to check the fan reading and post the result in the issue.
+   Record only the features they tested.
 
 Use the `sysRoot` and `procRoot` constructor inputs for broader discovery fixtures:
 `LegionSysfsService(sysRoot: '${root.path}/sys', procRoot: '${root.path}/proc')`.
@@ -58,7 +53,7 @@ targets inside the test tree.
 
 ## Tested-model entry template
 
-Use `unknown` or `not tested` for fields you cannot verify.
+Use `unknown` or `not tested` where needed.
 
 ```markdown
 ### <manufacturer and model identifier>

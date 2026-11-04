@@ -1,10 +1,8 @@
 # PipeWire X11-bell crash during Plasma logout
 
-A November 3, 2026 Plasma Wayland logout capture with PipeWire 1.6.9 strongly
-matches an upstream double-destruction bug in the X11-bell module. It is
-separate from graphics detach or hibernate results. DrKonqi's later
-`Connection refused` was a secondary forwarding failure after its logout
-socket closed.
+PipeWire 1.6.9 crashed during Plasma Wayland logout on November 3, 2026.
+The logs and binary inspection strongly match a known X11-bell
+double-destruction bug.
 
 ## Evidence and fix
 
@@ -15,28 +13,27 @@ disassembly confirmed an unconditional source-destruction call at the matching
 return address; the source pointer was cleared after the call. A repeated
 handler invocation could therefore destroy a null source.
 
+DrKonqi's later `Connection refused` was a secondary forwarding failure after
+its logout socket closed.
+
 Upstream commit
 [`c2fec6c037a191d535319f99d7720232d03f315b`](https://github.com/PipeWire/pipewire/commit/c2fec6c037a191d535319f99d7720232d03f315b)
 makes that handler idempotent by guarding destruction with `if (impl->source)`.
 The fix is included in
 [1.6.10](https://github.com/PipeWire/pipewire/blob/1.6.10/NEWS) and 1.6.11.
-A compatible distro package containing that fix, or the exact backport, is the
-remediation identified by this evidence. The recorded investigation did not
-install or validate it locally.
+Use a compatible distribution package containing the fix, or backport the
+commit. The fix has not been tested locally.
 
-X11-bell can fail during Xwayland teardown inside a Wayland session; the stack
-does not imply an X11 desktop. Automatic PipeWire restart proves process
-recovery, not restored playback or capture.
+This X11-bell bug can also occur in a Wayland session when Xwayland closes.
 
 ## Validation
 
-After a package fix, record the actual running executable/build and a normal
-logout/login time window. Check for new cores, `SEGV`, and automatic restarts,
-then verify playback and capture after login. A running service alone is not
-proof that logout succeeded without a crash. Investigate persistent DrKonqi
-forwarding failures separately from this primary crash.
+After updating, record the running PipeWire version, executable/build, and the
+time of a normal logout and login. Check for new cores, `SEGV`, and automatic
+restarts, then verify playback and capture after login. Investigate persistent
+DrKonqi forwarding failures separately from this primary crash.
 
 The [pinned investigation](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/blob/b83540b6c1ee81e820c479a51b12955ec23a66dc/docs/architecture/pipewire-logout-crash.md)
 preserves the exact package, boot/core identifiers, timestamped journal, stack,
-binary offsets, and source comparison. The causal match is strong; core-register
-inspection and a fixed-version logout/audio test remain unverified.
+binary offsets, and source comparison. Still to check: core registers and
+logout/audio behavior with the fix installed.

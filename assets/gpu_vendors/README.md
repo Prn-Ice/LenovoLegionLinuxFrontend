@@ -12,9 +12,7 @@ Simple Icons publishes its project under
 but its [disclaimer](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md)
 notes that individual marks may have separate licences and remain subject to
 their owners' trademarks and brand guidelines. These marks identify detected
-hardware; their inclusion does not imply endorsement or broader backend
-support.
+hardware and do not imply endorsement.
 
-Before replacing or recolouring a mark, verify its current Simple Icons source,
-licence metadata, and the vendor's current brand guidance. Keep an unknown-
-vendor fallback in the UI rather than guessing a manufacturer.
+Before replacing or recolouring a logo, check its source, licence, and vendor
+brand guidelines.

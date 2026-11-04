@@ -1,9 +1,8 @@
 # Legion Slim 7 16APH8 hardware evidence
 
-These observations apply to Lenovo `82Y4`, BIOS `M1CN48WW`, and the driver
-revisions recorded below. They are not a support claim for other firmware or
-models. Retained investigation reports are pinned in Git; temporary
-DSDT/MMIO files from those investigations are no longer available.
+Tested hardware: Lenovo `82Y4`, BIOS `M1CN48WW`, with the driver revisions listed
+below. The linked reports are preserved in Git. Their temporary DSDT and MMIO
+files are no longer available.
 
 ## Driver binding and fan data
 
@@ -14,9 +13,9 @@ matched the physical ACPI EC already owned by `acpi-ec`. Upstream
 fixed the synthetic `legion` platform device. Leave `PNP0C09:00` bound to
 `acpi-ec`; its ownership is not a reason to unbind it.
 
-The corrected module bound successfully and exposed `legion_hwmon`. That did
-not establish usable fan curves: the August 30 capture had ten points but
-zero temperatures, zero second-fan PWM values, and unusable first-fan values.
+The corrected module exposed `legion_hwmon`, but its fan-curve readings were
+unusable: the August 30 capture had ten points but zero temperatures, zero
+second-fan PWM values, and unusable first-fan values.
 The frontend's rejection of incomplete curves is intentional.
 
 The retained DSDT analysis found that M1CN `Fan_Get_Table` returns step indices,
@@ -24,8 +23,7 @@ not percentages or temperatures. Before a curve is programmed it can return
 the constant `1,2,3,4,5,6,7,8,8,8`. The A7/SFTW WMI data block supplies per-mode
 RPM palettes and CPU temperature thresholds. DFAN MMIO at `0xFE0B0F00`
 contained live power values but zero curve registers in the clean-boot capture.
-Neither a bound module nor plausible-looking step indices prove writable
-curve support. The older EC register layout also produced zero readings.
+The older EC register layout also produced zero readings.
 
 Sources: [binding evidence][binding], [firmware and fan captures][driver].
 
@@ -44,9 +42,9 @@ writes outside Custom mode. The August 30 boot capture repeatedly read:
 | AC power-target offset | 45 W |
 
 A controlled AC + Custom-mode PL1 write through the authenticated D-Bus path
-read back 54→53→54 W, including ten-second checks. This proves one round trip,
-not safe ranges, other writes, persistence, or factory defaults. See
-[power-defaults evidence](../power-defaults-evidence.md) for the unresolved
+read back 54→53→54 W, including ten-second checks. Only this write and restore
+were tested. Safe ranges, other fields, persistence, and factory defaults remain
+unverified. See [power-defaults evidence](../power-defaults-evidence.md) for the unresolved
 PPAB discrepancy and incomplete restore coverage.
 
 ## Graphics and sleep
@@ -61,11 +59,11 @@ The firmware combines `gsync` (an inverted historical Hybrid/MUX name) and
 | Hybrid Auto | 1 | 2 | AC-dependent attach/eject |
 | Discrete | 0 | 0 | dGPU/MUX mode; reboot required |
 
-Support values `2` and `3` are capability codes, not choice bitmasks. Mode
-selection is distinct from settled PCI topology. Auto's delayed autonomous
-ejection was observed and is not safe to expose as an ordinary frontend action.
+Support values `2` and `3` are capability codes, not bitmasks. Check the actual
+PCI devices after selecting a mode. Auto's delayed autonomous ejection was
+observed and is not safe to expose as an ordinary frontend action.
 
-The retained hardware results establish:
+Hardware test results:
 
 - Guarded internal-panel Plasma Wayland iGPU-only transition, suspend/resume,
   and live Hybrid rollback succeeded on August 31.
@@ -75,15 +73,15 @@ The retained hardware results establish:
   and policy-aware NVIDIA CDI handling succeeded in September. Desktop, audio,
   and Wi-Fi recovery were confirmed for the September 8 direct-hibernate cycle.
 - A guarded systemd 261.2 suspend-then-hibernate manual-wake and timer-driven
-  cycle passed on September 9. The 262 build/deployment checks on November 3
-  did **not** establish equivalent hardware sleep coverage.
+  cycle passed on September 9. Controlled sleep tests were not repeated with
+  systemd 262 on November 3.
 - MediaTek `mt7921e` restore timeouts and NVIDIA firmware-query assertions
   remained separate unresolved findings despite functional recovery.
 - A detached poweroff stall did not recur after backend hardening; its precise
   cause remains unknown. See [poweroff diagnostics](poweroff-stall-investigation.md).
 
-These results do not establish external-display, X11, BIOS-recovery, or newer
-systemd sleep behavior. Use the current [next-boot graphics guide](next-boot-graphics.md)
+Not tested: external displays, X11, BIOS recovery, and sleep with newer systemd
+versions. Use the current [next-boot graphics guide](next-boot-graphics.md)
 for the implemented opt-in boot flow, not old live-transition session steps.
 The [pinned graphics investigation][graphics] retains firmware selectors,
 driver contracts, exact generations, timelines, and validation limits.

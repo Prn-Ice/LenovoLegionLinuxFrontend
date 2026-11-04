@@ -1,40 +1,34 @@
-# Authoritative power defaults: firmware evidence
+# Power defaults investigation
 
 Investigation: 2026-11-04. Frontend task: `lllf-zfg`. Blocking backend work:
 `lllf-dok` (tracked here; implementation belongs in LenovoLegionLinux).
 
-## Decision
+## Current status
 
-There is a concrete firmware source for defaults: Lenovo capability-data records
-contain a separate `default_value`, keyed by feature and power mode. Current
-upstream LenovoLegionLinux exports these for **CPU PL1 and PL2**, but neither the
-nearby backend nor the evidence retained for 82Y4/M1CN48WW supplies a verified,
-complete preset for every exposed limit. Do not implement Restore defaults from
-live readings, slider ranges, or the existing hard-coded frontend baseline map.
+Lenovo capability-data records contain a separate `default_value`, keyed by
+feature and power mode. Upstream LenovoLegionLinux exposes **CPU PL1 and PL2**
+defaults, but a complete, verified preset is still missing for the app's controls.
+Do not implement Restore defaults using current readings, slider ranges, or the
+hard-coded display values. Restore behavior has not been verified.
 
-This is not a claim that firmware defaults are unavailable on all models. It is
-a distinction between an implemented source, actual model/BIOS records, and a
-complete frontend restore contract. No model gains complete restore eligibility
-from this investigation alone.
-
-### Subsequent staged backend implementation
+### Backend work in progress
 
 Backend branch `feature/power-defaults-contract`, commit `3a84dcd`, now exports
 cached firmware rows through the read-only `power_defaults_v1` diagnostic
 attribute. Lookup fixtures cover missing, unsupported, valid-zero and invalid
-records. The branch is pushed separately and is **not merged or deployed**.
-Kernel compilation remains unverified because matching headers were unavailable;
-exact-model coverage and PPAB provenance still block a restore preset. See that
-branch's `doc/POWER_DEFAULTS.md` and `lllf-dok` for the contract and next checks.
+records. The branch is pushed but **not merged or installed**. The kernel build
+has not been checked because matching headers were unavailable. A restore preset
+still needs complete model data and a verified PPAB default. See that branch's
+`doc/POWER_DEFAULTS.md` and `lllf-dok` for the contract and next checks.
 
-## Evidence versions and scope
+## Sources and versions
 
 - Frontend baseline map last changed in commit
   `2f2fc4b4c2fa786213fd6eb3db5969dbb9db5508` (`feat(power): show hardware limit
   baselines`). The current map is in
   `lib/features/power/repository/power_repository.dart:148-159`, and its exact
-  product/BIOS gate is at `:343-351`. It annotates displayed readings; it is not
-  a backend defaults discovery API.
+  product/BIOS gate is at `:343-351`. The map adds reference values to the
+  display; it does not read defaults from the driver.
 - Nearby backend, inspected without changes:
   `../LenovoLegionLinux`, HEAD
   `dec598335b9482c4b63ff02f34c1bc26d1d6cabc`. Local line references below refer to
@@ -51,11 +45,11 @@ branch's `doc/POWER_DEFAULTS.md` and `lllf-dok` for the contract and next checks
   especially lines 116-155 and 188-223, plus `lllf-zfg`'s 2026-08-30 comment.
   `/tmp/opencode/DSDT.dsl` and `/tmp/opencode/phase0/` are **absent** now. No
   matching DSDT/capture artifacts were found in the personal-projects tree.
-  Those prior analyses are retained reports, not raw bytes rechecked today.
+  Only the earlier reports remain; the original files could not be rechecked.
 
-## What exists for each source/model class
+## Available defaults by source and model
 
-| Source / scope | Authoritative default availability | Remaining gap |
+| Source / scope | Verified defaults | Remaining gap |
 |---|---|---|
 | Nearby backend WMI3 models | `struct capdata01` already contains `id`, `supported`, `default_value`, `step`, `min_value`, `max_value` (`:2543-2552`); probe caches available records (`:8328-8355`) | No complete userspace default export; cached data alone does not establish model coverage |
 | Current upstream models supplying supported capability rows | `cpu_longterm_powerlimit_defaults` and `cpu_shortterm_powerlimit_defaults` export explicit per-mode defaults | Only two limits; each model must actually supply the relevant mode rows |
@@ -76,10 +70,8 @@ The current upstream implementation at lines 8192-8211 and 9071-9148:
 
 The upstream Q7CN evidence distinguishes custom WMI settings from limits
 actually enforced in other modes; see [pinned feature documentation][upstream-features].
-This further rules out treating stable current settings as factory defaults.
-No daemon, power-mode transition, or hardware command from those docs was run.
 
-### Existing backend integration point
+### Where to add backend support
 
 The local driver already queries WMI data GUID
 `7A8F5407-CB67-4D6E-B547-39B3BE018154` and retains `default_value`. Its
@@ -93,26 +85,25 @@ power-limit access configuration.
 `CPUDefaultPowerLimit` wraps `cpu_default_powerlimit` in Python. The driver's
 attribute is read-only (`:5942-5951`) and delegates to one legacy method. The
 similarly named GPU default attribute delegates to a legacy GPU method
-(`:6213-6222`). Neither name promises a complete multi-field reset. No complete
+(`:6213-6222`). Neither attribute provides a complete reset. No complete
 defaults command/contract was found in the inspected local Python backend.
 
-### Independent upstream firmware contract
+### How LenovoLegionToolkit reads defaults
 
 LenovoLegionToolkit's [capability reader][toolkit-capability] reads
 `LENOVO_CAPABILITY_DATA_01` properties `IDs`, `DefaultValue`, `MinValue`,
 `MaxValue`, and `Step`. Its [V3 controller][toolkit-v3] keeps current values
 separate from `DefaultValue` (`:250-285`) and selects mode-specific defaults
 by adjusted capability ID (`:331-346`). In particular, the object named
-`GetDefaultStateAsync` also reads current values; its name alone is not evidence
-that all its values are defaults.
+`GetDefaultStateAsync` also reads current values. Do not treat all values
+returned by this method as defaults.
 
 The [legacy per-mode reader][toolkit-legacy] explicitly reads
 `LENOVO_DEFAULT_VALUE_IN_DIFFERENT_MODE_DATA`, including separate CPU long/short,
-peak, cross-load, APU, CPU-temperature and GPU default properties. This is
-another firmware-interface lead, not a universal constant database. Neither
-Toolkit implementation establishes that these records exist on 82Y4/M1CN48WW.
+peak, cross-load, APU, CPU-temperature and GPU default properties. Check whether
+these firmware records exist on `82Y4/M1CN48WW` before using them.
 
-## M1CN historical observations, without promoting them to a preset
+## Recorded M1CN values
 
 | Field | Reported lazy-init candidate | Preserved observed value |
 |---|---:|---:|
@@ -129,18 +120,17 @@ Toolkit implementation establishes that these records exist on 82Y4/M1CN48WW.
 Phase 0 recorded balanced mode on AC. The post-boot capture recorded low-power
 on battery and eight readable fields across three passes. The second boot
 comment confirms stable values but explicitly retains the PPAB discrepancy.
-Repeated observations verify read stability, not factory-reset semantics.
-The later controlled PL1 write/restore demonstrated a 54→53→54 W round trip,
-not an authoritative defaults query.
+These captures show stable readings. The later controlled PL1 write and restore
+demonstrated a 54→53→54 W round trip. They do not identify factory defaults.
 
 The A7/SFTW fan table's `DefaultFanMaxSpeed` is a **fan** default; it supplies
 no missing power-limit default. APU SPPT and CPU L1 tau were reported as
 hard-zero unsupported firmware branches; that does not establish the same
 semantics for PPAB.
 
-## PPAB: what is resolved and what remains bounded
+## PPAB: known facts and open questions
 
-**Resolved at the backend mapping/visibility level:**
+### Confirmed in the backend
 
 - Local `gpu_ppab_powerlimit_show` uses WMI3
   `OtherMethodFeature_GPU_POWER_BOOST`, ID `0x02010000` (`:2528`, `:6120-6136`).
@@ -154,52 +144,44 @@ semantics for PPAB.
   `CGDB 0`, contradicting its later `CGDB 20 W` initializer claim. It cannot be
   used as evidence that PPAB matched.
 
-**Not resolved at the firmware level:** why the reported 20 W initializer did
-not produce the observed zero-valued MMIO/WMI result. Without the original
-DSDT branch conditions, feature dispatch, raw capability records and capture
-ordering, this investigation cannot distinguish an inactive initializer,
-different firmware state, wrong historical mapping, or subsequent firmware
-updates to that register. These are possibilities to discriminate, not findings.
+### Still unknown
 
-Neither 0 nor 20 W is approved as a restore default. Do not expose PPAB based
+It is unclear why the reported 20 W initializer did not produce the observed
+zero-valued MMIO/WMI result. Without the original DSDT branch conditions, feature
+dispatch, raw capability records and capture ordering, this investigation cannot
+distinguish an inactive initializer, different firmware state, wrong historical
+mapping, or subsequent firmware updates to that register.
+
+Do not use either 0 or 20 W as the PPAB restore default. Do not expose PPAB based
 on the initializer alone or globally reinterpret all zero reads as unsupported.
-Its exclusion must be explicit in a future completeness decision. Existing
-visibility stays unchanged in this documentation-only investigation.
+A future restore design must explain how it handles missing PPAB data.
 
-## Backend blocker and completion criteria
+## Required work
 
 `lllf-dok` blocks `lllf-zfg`. Required next work:
 
 1. Recover or preserve exact-model firmware evidence with product, BIOS, table
    identity/hash and capability-row provenance. For M1CN, inspect the PPAB
    dispatch, initialization condition and declared support/default records.
-   A getter with lazy initialization is not automatically side-effect-free;
-   prefer static table/captured record analysis during read-only discovery.
+   Some getters initialize firmware state. Inspect static tables or saved records
+   first to avoid changing hardware during discovery.
 2. Export explicit per-feature, per-mode defaults through a read-only backend
    contract, including unsupported/unavailable status, units and provenance.
    Extend the upstream PL1/PL2 mechanism rather than interpreting live values.
 3. Establish coverage for every exposed field, with a clear distinction between
-   read-only diagnostics and fields a restore would write. Do not let a partial
-   map silently imply complete coverage. Missing Custom rows, unknown firmware,
-   invalid/duplicate/truncated records and unresolved PPAB must fail closed.
-4. Verify zero semantics from capability support and ranges rather than value
-   truthiness. Test missing and partial records, mode selection, valid zero,
-   and model/BIOS mismatch with fixtures before any frontend integration.
-5. Only after complete authoritative coverage exists, implement the confirmed,
-   AC/Custom-gated restore using the existing staged batch/rollback path and
-   meaningful failure/recovery tests.
+   read-only diagnostics and fields a restore would write. Disable restore when
+   required defaults or Custom rows are missing, records are invalid, duplicate
+   or truncated, the firmware is unknown, or PPAB remains unresolved.
+4. Use support flags and ranges to determine whether zero is valid. Do not treat
+   every zero as unsupported. Test missing and partial records, mode selection,
+   valid zero, and model/BIOS mismatch with fixtures before frontend integration.
+5. Once all required defaults are verified, add restore with confirmation, AC
+   power and Custom-mode checks, the existing staged batch/rollback flow, and
+   failure and recovery tests.
 
-The existing `_m1cn48wwHardwareDefaults` display map also needs a provenance
-review under this blocker: retain it only with recoverable authoritative evidence,
-or stop labeling unverified entries as hardware defaults in a separately
-approved production change. This investigation does not authorize that edit.
-
-## Evidence limits
-
-This analysis compares code, retained reports, and pinned upstream source.
-Original firmware bytes, actual per-model capability rows, complete defaults
-coverage, and restore behavior remain unverified. The historical live-value
-captures do not replace an authoritative defaults query.
+Also verify the sources for `_m1cn48wwHardwareDefaults`. Keep the hardware
+defaults label only for entries backed by recoverable authoritative evidence.
+Handle any app behavior change separately.
 
 [upstream-driver]: https://github.com/johnfanv2/LenovoLegionLinux/blob/7f04d9dde1bb4c85cc4136f127ae6fc0296b10e0/kernel_module/legion-laptop.c
 [upstream-features]: https://github.com/johnfanv2/LenovoLegionLinux/blob/7f04d9dde1bb4c85cc4136f127ae6fc0296b10e0/doc/FEATURES_AND_TESTING.md

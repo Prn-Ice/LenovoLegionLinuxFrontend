@@ -7,8 +7,8 @@ and [LICENSE](LICENSE). Third-party materials retain their own notices and terms
 
 Primary source: [OpenRGB](https://github.com/CalcProgrammer1/OpenRGB), verified
 2026-11-04 at commit `fc3aa07947e82da060a429e0b4b10886c7e0d697`.
-This pins the sources inspected for attribution; the original port's exact
-upstream revision was not recorded and has not been established.
+This is the revision checked for attribution. The original port's upstream
+revision is unknown.
 
 | Local file | Upstream source at the verified commit |
 | --- | --- |
@@ -21,10 +21,10 @@ header credits Cooper Hall (geobot19), 17 Apr 2022. OpenRGB's
 contains the GNU GPL version 2 text; the file-level declarations grant the
 option of later versions.
 
-These are modified Dart ports. Project history
-records the Gen 7/8 encoder port (`ac37a83`) and the LED-table port (`df37f3a`)
-on 2026-06-22. The map converts upstream LED entries into name/value pairs.
-The encoder extracts packet construction from the C++ HID driver; local changes
+The Dart ports were modified locally. Git history records the Gen 7/8 encoder
+port (`ac37a83`) and the LED-table port (`df37f3a`) on 2026-06-22. The map converts
+upstream LED entries into name/value pairs.
+The encoder ports packet construction from the C++ HID driver; local changes
 include power limiting, white balance, and protocol updates through 2026-08-29
 (`21ceffa`). Attribution notices were added on 2026-11-04 without changing behavior.
 
@@ -39,16 +39,15 @@ include power limiting, white balance, and protocol updates through 2026-08-29
   assets (`assets/LICENSE.CCBYSA`), and GPLv3 for scripts. Keep these and the
   Material Icons notices when distributing the application.
 - `inspiration/legion-zone/` and `inspiration/lenovo-legion-toolkit/` contain
-  reference screenshots, not declared application assets. No license or
-  attribution notice was found alongside them; their redistribution provenance
-  remains unresolved.
+  reference screenshots, not app assets. No license or attribution notice was
+  found, so permission to redistribute them is unverified.
 - Development guidance under `.agents/skills/` is separate from runtime assets.
   Existing notices, including `.agents/skills/frontend-design/LICENSE.txt`,
   remain applicable.
 
 ## Release notices
 
-The exact original OpenRGB port revision, screenshot permissions, individual
-vendor-mark metadata, and a complete inventory of dependency/runtime notices
-remain unverified. Release packaging must retain applicable third-party notices
-and provide corresponding source as required by the licenses.
+Still unverified: the original OpenRGB revision, screenshot permissions,
+individual vendor-logo license details, and the complete dependency notice list.
+Release packaging must retain applicable third-party notices and provide
+corresponding source as required by the licenses.

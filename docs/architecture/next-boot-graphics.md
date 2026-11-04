@@ -1,10 +1,13 @@
 # Request a graphics change for the next boot
 
-Tracked in `lllf-j9t.7`. This replaces repeated logout/TTY checks for the
-controlled Hybrid-to-iGPU-only workflow. It is opt-in and is not yet
-hardware-validated.
+## Current status
 
-## What changes
+This optional feature changes between Hybrid and Hybrid iGPU-only at the next
+boot. Both directions have passed hardware tests on the recorded setup. Recovery
+after a failed transition, pending-request cancellation, and current sleep tests
+remain unverified. Tracked in `lllf-j9t.7`.
+
+## Enable next-boot graphics changes
 
 Enable both options in the host's NixOS configuration:
 
@@ -15,18 +18,17 @@ services.legionControl = {
 };
 ```
 
-Build and review the resulting generation before deployment. The boot reconciler
-is marked not to restart on live configuration changes, avoiding a restart of
-this display-manager dependency. Other host configuration changes can still
-restart services: do not treat a general NixOS switch as risk-free. For initial
-setup, installing the generation for a later boot is the conservative choice;
-the desktop request command becomes available once the new control service is
-running. No deployment is performed by the request command itself.
+Build and review the configuration before installing it. For initial setup,
+install it for the next boot rather than activating it in a running desktop.
+The reconciler does not restart during live configuration changes, but other
+changed services may restart. The desktop request command becomes available once
+the new control service is running.
 
-Do not use the host's legacy `no-nvidia` specialisation for this workflow. It
-removes PCI devices and uses activation-time firmware commands rather than
-this guarded contract. Use the ordinary Hybrid configuration and the internal
-panel, with external displays disconnected.
+Do not use the legacy `no-nvidia` specialisation. It changes firmware and removes
+PCI devices during activation. Use the ordinary Hybrid configuration and the
+internal panel, with external displays disconnected.
+
+## Request a mode
 
 From a desktop terminal, as your normal user:
 
@@ -34,13 +36,13 @@ From a desktop terminal, as your normal user:
 legion-graphics-next-boot hybrid-igpu-only
 ```
 
-Approve the normal Polkit prompt. The command saves a private, root-owned request
-and prints confirmation. It does **not** change graphics mode, log you out, or
-reboot. Save work and reboot yourself when ready. No new graphical page was added.
-Requests expire after 24 hours; an expired request or a backwards clock change
-blocks the attempt before any hardware command and requires a fresh request.
+Approve the Polkit prompt to save the request. Graphics mode stays unchanged
+until you reboot. Save your work and reboot when ready.
+Requests expire after 24 hours. If the request expires or the clock moves
+backwards, submit a new request. Both cases block the attempt before any hardware
+command.
 
-Other fixed operations:
+Other commands:
 
 ```bash
 legion-graphics-next-boot status
@@ -48,16 +50,16 @@ legion-graphics-next-boot cancel
 legion-graphics-next-boot hybrid
 ```
 
-Only Hybrid and Hybrid iGPU-only are accepted; Auto and Discrete are excluded.
-Cancellation removes a pending request, not an already-applied firmware policy.
-Requesting Hybrid queues a later-boot return to Hybrid.
+Supported modes: Hybrid and Hybrid iGPU-only.
+Cancel removes a pending request. To return to Hybrid after a change, request
+Hybrid and reboot.
 
-## At boot
+## What happens at boot
 
 1. The reconciler runs before the display manager, normal user logins, user
    managers (including lingering users), and the privileged control service.
    Containerd, Docker, and NVIDIA persistence/power daemons are also ordered
-   after the check if enabled. These ordering edges do not enable absent services.
+   after the check if enabled.
    NVIDIA CDI generation requires successful reconciliation; Docker already
    depends on CDI in the toolkit-enabled host configuration. Text login and the
    recovery control service remain available after a failure; ordering alone
@@ -69,8 +71,7 @@ Requesting Hybrid queues a later-boot return to Hybrid.
    unsupported modes, and a non-Hybrid starting policy. Ejection additionally
    requires the connected internal eDP panel and no connected external displays.
 4. It calls the existing guarded backend to select the requested mode. The
-   backend performs its own last-moment client inspection; the earlier snapshot
-   is not treated as permission to detach later.
+   backend checks again for NVIDIA clients immediately before changing the mode.
 5. Reconciliation and existing module/device-node cleanup must succeed. Fresh
    root status must show the requested policy, matching settled topology,
    complete inspection, and zero clients before recording `completed`.
@@ -78,39 +79,38 @@ Requesting Hybrid queues a later-boot return to Hybrid.
    than forcing device removal. Individual commands have 40-second limits and
    the overall unit has a 210-second limit.
 
-These gates control known startup sources. They are **not** a kernel-enforced
-device-open lock against arbitrary system services or privileged programs.
-The guarded backend still has a small inspection-to-firmware-write race. Do not
-claim universal race freedom or add force-detach behavior to work around it.
+Another privileged process could open the GPU between the final check and the
+firmware write. These checks reduce that risk but do not eliminate it. Do not
+force device removal.
 
-## Evidence and recovery
+## Status and recovery
 
 State is stored in `/var/lib/legion-graphics-boot/request.json`, in a private
 root-owned directory. Updates use atomic replacement and file/directory fsync.
-The boot ID distinguishes a later boot from a live service restart. Startup
-output is in the journal:
+The saved boot ID prevents a service restart from applying a request in the same
+boot. Startup output is in the journal:
 
 ```bash
 journalctl -b -u legion-graphics-reconcile.service --no-pager
 ```
 
-`failed` or an interrupted `applying` request blocks later automatic attempts,
-including on another boot. It must not be cleared by cancelling, deleting the
-file, resetting the failed unit, or restarting the desktop. An explicit new
-request is required. Do not restart reconciliation from a running desktop.
+After a failure or interrupted attempt, submit a new request. A `failed` or
+interrupted `applying` request blocks later automatic attempts, including on
+another boot. Do not delete the state file or reset the service to bypass the
+block. Cancelling or restarting the desktop must not clear it either. Do not
+restart reconciliation from a running desktop.
 
 If graphical startup is blocked, log into a text console using Ctrl+Alt+F3.
 Queue Hybrid through the same typed control API, then reboot. A desktop Polkit
 agent may be unavailable on the console; from an authenticated administrative
 recovery shell, the same `legion-graphics-next-boot hybrid` client can be used.
-There is no automatic sudo fallback or generic root-command API.
 
 If Linux recovery is unavailable, restore Hybrid/Switchable graphics in BIOS
 and boot a known-good NixOS generation with this option disabled. A failed
-attempt may already have changed firmware policy: do not assume that clearing
-an error would restore the old topology.
+attempt may still have changed the firmware setting. Clearing the error does not
+restore it.
 
-## Verification boundaries
+## Test coverage
 
 - Python tests exercise real request-file persistence with fake hardware and
   systemd calls: queue/cancel, same-boot/live deferral, one-shot consumption,
@@ -122,9 +122,11 @@ an error would restore the old topology.
   the same authorized connection for the request. Authorization is simulated;
   these are not real Polkit or hardware tests.
 - Native service/package builds, rendered NixOS ordering, full host builds, and
-  real boot tests are separate gates. Deployment and successful hardware boot
-  must not be inferred from unit tests or a build. Record their actual results
-  in the linked issue, with model, firmware, and deployed revision.
+  real boot tests are separate checks. Record deployment and hardware results
+  separately in the linked issue, including the model, firmware, and installed
+  revision.
+
+## Historical results
 
 ### Results on 2026-11-03
 
@@ -150,46 +152,14 @@ an error would restore the old topology.
   confirms that starting an ordinary job after boot does not change the manager
   back to the `starting` state used by the helper's live-activation guard.
 
-Deployment, real Polkit authentication, and real next-boot graphics/recovery
-tests remain unperformed. Follow-up is `lllf-j9t.7.1`; later sleep validation
-remains `lllf-j9t.6.7`. No generation was activated, no firmware was changed, and
-no reboot was requested while implementing and testing this flow.
-
-### Runtime incident before deployment
-
-The user subsequently reported a perceived hang, a power-button shutdown attempt,
-and return to the previous session. Deployment was paused while clarifying that
-event (`lllf-p4q`). The running system is still generation `lkvqlww...`, not the
-built opt-in generation above.
-The user confirms a dark screen with keyboard and power-button lights still on.
-That is consistent with sleep/image preparation, but does not rule out a wake
-problem. Whether a held power press actually extinguished the LEDs remains
-unknown. With user approval, preparation resumed for boot-only setup, not a live
-graphics change, and without treating the reported hang as resolved.
-
-Read-only logs for boot `3a1b0a31-b6fc-4954-9318-b5a38ddb8ae3` show PowerDevil
-requesting suspend-then-hibernate at 22:12 on 2026-11-03, a timer wake after the
-configured 30 minutes, hibernate entry at 22:42:11, and return at 22:45:56.
-Hibernation entry-to-return advances realtime about 225.166 seconds but monotonic
-time only 23.947 seconds. The approximately 201-second difference, unchanged boot
-ID, snapshot-save messages, and restore callbacks strongly support same-image
-hibernation recovery. No explicit restored-image message was captured; this is
-not proof that no hang occurred or that the power button forced a cold shutdown.
-
-The root status logged around that cycle is Hybrid/attached/settled/complete with
-normal desktop clients. It is not an iGPU-only validation. The Wi-Fi restore
-timeout recurs under `lllf-j9t.6.5`. The post-resume loop also incorrectly rejects
-normal Hybrid clients (`lllf-esn`); the sleep service can report success despite
-that hook failure. Only the pre-existing DrKonqi failed unit remains. Neither
-warning has been established as the cause of the user's perceived hang.
-
-No new graphics request, deployment, sleep, or reboot was initiated while
-collecting this evidence. Preserve the unresolved power-button/wake context for
-the subsequent hardware validation.
+At this stage, deployment, real Polkit authentication, and real next-boot
+graphics/recovery tests were unperformed. Follow-up was `lllf-j9t.7.1`; later
+sleep validation remains `lllf-j9t.6.7`. The following sections record the later
+deployment, authentication, and successful transitions.
 
 ### Initial setup launcher
 
-The host configuration now enables the option and pins the implementation in
+The host configuration enabled the option and pinned the implementation in
 host commit `384070f2ec75d95bee958f0f33545b5ecd73a23b` (frontend input
 `9b8724919942ddac8018afb1c71e2fdecacda1d7`). The pre-existing unrelated
 `view-beads` lock edit was not included in that commit and remains untouched in
@@ -247,15 +217,15 @@ started at 9.104487, user-session admission at 9.106614, display manager at
 ordering. The installed client is available and the control service is active
 with the fixed next-boot helper argument.
 
-Current system and user failed-unit lists are both empty. The user journal also
-contains historical crash-report replay and a transient KSplash timeout; these
+At this check, system and user failed-unit lists were both empty. The user journal
+also contains historical crash-report replay and a transient KSplash timeout; these
 are not evidence that a new graphics transition occurred or new crashes matching
 the replayed records. The prior wake incident remains unresolved separately.
 
-Next validate the real desktop Polkit/status round trip without queuing a mode.
-Only after it passes should an explicit iGPU-only request and its separate
-user-triggered reboot be attempted. No iGPU-only transition or sleep validation
-is claimed by this successful Hybrid setup boot.
+The next check was the real desktop Polkit/status round trip without queuing a
+mode, before an explicit iGPU-only request and its separate user-triggered reboot.
+This successful Hybrid setup boot did not validate an iGPU-only transition or
+sleep.
 
 ### First requested iGPU-only boot validated
 
@@ -294,9 +264,8 @@ Two known NVIDIA SBIOS query assertions appear at 23:24:04, before the boot
 helper started and before the mode transition. They remain under
 `lllf-j9t.6.6`; do not claim a warning-free kernel or attribute them to the new
 selection without evidence. The user confirms desktop, sound, and Wi-Fi all
-work normally on this boot. Real Hybrid return/recovery, live cancellation, and
-subsequent sleep coverage remain pending. No further mode write or sleep was
-initiated by the agent during evidence capture.
+work normally on this boot. At this stage, real Hybrid return/recovery, live
+cancellation, and subsequent sleep coverage were pending.
 
 ### Requested return to Hybrid validated
 
@@ -325,9 +294,42 @@ desktop, sound, and Wi-Fi all work normally after this return boot.
 This validates a requested boot-time return to Hybrid, not live hot-attach or
 recovery after an actually failed/interrupted hardware transition. Live pending
 request cancellation and subsequent sleep coverage remain separate unperformed
-checks; no further mode or sleep operation was initiated by the agent.
+checks.
 
-### Repeat dark-screen incident (2026-11-04)
+### Sleep incidents
+
+#### Runtime incident before deployment
+
+Before deployment, the user reported a perceived hang, a power-button shutdown
+attempt, and return to the previous session. Deployment was paused while clarifying that
+event (`lllf-p4q`). The running system was still generation `lkvqlww...`, not the
+built opt-in generation in the [initial build results](#results-on-2026-11-03).
+The user confirms a dark screen with keyboard and power-button lights still on.
+That is consistent with sleep/image preparation, but does not rule out a wake
+problem. Whether a held power press actually extinguished the LEDs remains
+unknown. With user approval, preparation resumed for boot-only setup, not a live
+graphics change, and without treating the reported hang as resolved.
+
+Read-only logs for boot `3a1b0a31-b6fc-4954-9318-b5a38ddb8ae3` show PowerDevil
+requesting suspend-then-hibernate at 22:12 on 2026-11-03, a timer wake after the
+configured 30 minutes, hibernate entry at 22:42:11, and return at 22:45:56.
+Hibernation entry-to-return advances realtime about 225.166 seconds but monotonic
+time only 23.947 seconds. The approximately 201-second difference, unchanged boot
+ID, snapshot-save messages, and restore callbacks strongly support same-image
+hibernation recovery. No explicit restored-image message was captured; this is
+not proof that no hang occurred or that the power button forced a cold shutdown.
+
+The root status logged around that cycle is Hybrid/attached/settled/complete with
+normal desktop clients. It is not an iGPU-only validation. The Wi-Fi restore
+timeout recurs under `lllf-j9t.6.5`. The post-resume loop also incorrectly rejects
+normal Hybrid clients (`lllf-esn`); the sleep service can report success despite
+that hook failure. Only the pre-existing DrKonqi failed unit remains. Neither
+warning has been established as the cause of the user's perceived hang.
+
+Preserve the unresolved power-button/wake context for subsequent hardware
+validation.
+
+#### Repeat dark-screen incident (2026-11-04)
 
 The user reported the perceived hibernate hang again before the requested next
 reboot. Boot ID remains `b4c098f2-8822-4116-8114-5b3edec9e3b4`, and the sleep
@@ -344,15 +346,12 @@ KWin logs repeated `drmGetDeviceFromDevId failed! No such file or directory`
 errors at 01:42:37-38. At 01:43:07, PowerDevil requests **another ordinary
 suspend**, approximately 30 seconds after user sessions thawed. This suspend
 returns at 01:48:42; KWin then reports output-configuration `EACCESS` and
-`drmModeListLessees` permission errors. The trigger for the second suspend
-(button, lid, idle action, or power event) is unknown. Do not label it an
-automatic-idle loop without evidence, or dismiss the user's report because the
-sleep units returned success and current failed-unit lists are empty.
+`drmModeListLessees` permission errors. The cause of the second suspend is unknown
+(button, lid, idle action, or power event). Successful sleep units do not explain
+the reported display problem; current failed-unit lists are empty.
 
 The known Wi-Fi restore timeout and Hybrid post-hook client rejection also
-recur. Neither is established as the cause of the display problem. No new
-policy changes, intentional sleep test, diagnostic write, reboot, or graphics
-operation was initiated by the agent while collecting the evidence.
+recur. Neither is established as the cause of the display problem.
 
 Private evidence is retained at
 `~/.local/state/legion-sleep-incidents/20261104-b4c098f2-rn5kuneg/`: sleep-unit,
