@@ -5,6 +5,8 @@ import 'package:yaru/yaru.dart';
 
 import 'app/app.dart';
 import 'features/analytics/models/sensor_record.dart';
+import 'features/settings/providers/settings_provider.dart';
+import 'features/settings/repository/appearance_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,5 +15,13 @@ Future<void> main() async {
   Hive.registerAdapter(SensorRecordAdapter());
   await Hive.openBox<SensorRecord>('sensor_records');
   await Hive.openBox<dynamic>('rgb_lighting');
-  runApp(const ProviderScope(child: LegionFrontendApp()));
+  final preferences = await Hive.openBox<dynamic>('preferences');
+  runApp(
+    ProviderScope(
+      overrides: [
+        appearanceStoreProvider.overrideWithValue(AppearanceStore(preferences)),
+      ],
+      child: const LegionFrontendApp(),
+    ),
+  );
 }

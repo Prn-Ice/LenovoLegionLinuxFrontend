@@ -16,6 +16,8 @@ import 'package:legion_frontend/features/display/models/display_snapshot.dart';
 import 'package:legion_frontend/features/display/providers/display_provider.dart';
 import 'package:legion_frontend/features/display/repository/display_repository.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
+import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
+import 'package:yaru/yaru.dart';
 import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
@@ -44,8 +46,19 @@ void main() {
     active: true,
     enabled: true,
   );
-  for (final scenario in ['picker', 'win key', 'win key unavailable']) {
+  for (final scenario in [
+    'picker',
+    'win key',
+    'win key unavailable',
+    'appearance',
+  ]) {
     testWidgets('Settings $scenario uses the current provider', (tester) async {
+      if (scenario == 'appearance') {
+        tester.view.physicalSize = const Size(420, 500);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+      }
       final settings = SettingsRepo();
       when(
         settings.loadSnapshot,
@@ -141,7 +154,56 @@ void main() {
       ]) {
         expect(find.text(label), findsWidgets);
       }
-      if (scenario == 'picker') {
+      if (scenario == 'appearance') {
+        container
+            .read(settingsBlocProvider.bloc)
+            .add(const YaruVariantChanged(YaruVariant.blue));
+        await tester.pumpAndSettle();
+        final follow = find.text('Follow power mode accent');
+        await tester.ensureVisible(follow);
+        await tester.pumpAndSettle();
+        await tester.tap(follow);
+        await tester.pumpAndSettle();
+        expect(
+          container.read(settingsBlocProvider).accentFollowsPowerMode,
+          isTrue,
+        );
+        expect(find.textContaining('Manual accent is saved'), findsOneWidget);
+        final system = tester.widget<ChoiceChip>(
+          find.widgetWithText(ChoiceChip, 'System accent'),
+        );
+        expect(system.onSelected, isNull);
+        final blue = find.bySemanticsLabel('blue accent colour');
+        expect(blue, findsOneWidget);
+        await tester.ensureVisible(blue);
+        await tester.pumpAndSettle();
+        await tester.tap(blue);
+        await tester.pumpAndSettle();
+        expect(
+          container.read(settingsBlocProvider).yaruVariant,
+          YaruVariant.blue,
+        );
+        await tester.ensureVisible(follow);
+        await tester.pumpAndSettle();
+        await tester.tap(follow);
+        await tester.pumpAndSettle();
+        expect(
+          container.read(settingsBlocProvider).accentFollowsPowerMode,
+          isFalse,
+        );
+        expect(
+          container.read(settingsBlocProvider).yaruVariant,
+          YaruVariant.blue,
+        );
+        expect(
+          tester
+              .widget<ChoiceChip>(
+                find.widgetWithText(ChoiceChip, 'System accent'),
+              )
+              .onSelected,
+          isNotNull,
+        );
+      } else if (scenario == 'picker') {
         await tester.ensureVisible(find.text('Browse...'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Browse...'));

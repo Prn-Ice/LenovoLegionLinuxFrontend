@@ -13,6 +13,8 @@ class SettingsState extends Equatable {
     required this.noticeMessage,
     required this.themeMode,
     required this.yaruVariant,
+    this.accentFollowsPowerMode = false,
+    this.appearanceErrorMessage,
   });
 
   factory SettingsState.initial() => const SettingsState(
@@ -34,6 +36,8 @@ class SettingsState extends Equatable {
   final String? noticeMessage;
   final ThemeMode themeMode;
   final YaruVariant? yaruVariant;
+  final bool accentFollowsPowerMode;
+  final String? appearanceErrorMessage;
 
   bool get hasLoaded => services.isNotEmpty;
 
@@ -45,6 +49,8 @@ class SettingsState extends Equatable {
     Object? noticeMessage = _unset,
     ThemeMode? themeMode,
     Object? yaruVariant = _unset,
+    bool? accentFollowsPowerMode,
+    Object? appearanceErrorMessage = _unset,
   }) {
     return SettingsState(
       services: services ?? this.services,
@@ -57,6 +63,11 @@ class SettingsState extends Equatable {
           ? this.noticeMessage
           : noticeMessage as String?,
       themeMode: themeMode ?? this.themeMode,
+      accentFollowsPowerMode:
+          accentFollowsPowerMode ?? this.accentFollowsPowerMode,
+      appearanceErrorMessage: appearanceErrorMessage == _unset
+          ? this.appearanceErrorMessage
+          : appearanceErrorMessage as String?,
       yaruVariant: yaruVariant == _unset
           ? this.yaruVariant
           : yaruVariant as YaruVariant?,
@@ -72,5 +83,7 @@ class SettingsState extends Equatable {
     noticeMessage,
     themeMode,
     yaruVariant,
+    accentFollowsPowerMode,
+    appearanceErrorMessage,
   ];
 }

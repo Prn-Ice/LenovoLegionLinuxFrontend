@@ -40,6 +40,7 @@ class SettingsPage extends ConsumerWidget {
 
     return AppPageBody(
       errorMessage:
+          state.appearanceErrorMessage ??
           state.errorMessage ??
           bootLogoState.errorMessage ??
           about.errorMessage ??
@@ -75,41 +76,78 @@ class SettingsPage extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
+                AppSwitchTile(
+                  title: 'Follow power mode accent',
+                  value: state.accentFollowsPowerMode,
+                  subtitle:
+                      'Use the current power mode colour. If the mode is '
+                      'unavailable, use your saved manual or system accent.',
+                  onChanged: (enabled) => ref
+                      .read(settingsBlocProvider.bloc)
+                      .add(AccentFollowsPowerModeChanged(enabled)),
+                ),
+                if (state.accentFollowsPowerMode)
+                  Text(
+                    'Manual accent is saved. Turn off Follow power mode accent '
+                    'to restore or change it.',
+                    style: textTheme.bodySmall,
+                  ),
                 Text('Accent colour', style: textTheme.labelMedium),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: YaruVariant.accents.map((variant) {
-                    final selected = state.yaruVariant == variant;
-                    return Semantics(
-                      label: '${variant.name} accent colour',
-                      button: true,
-                      selected: selected,
-                      child: InkWell(
-                        onTap: () => ref
-                            .read(settingsBlocProvider.bloc)
-                            .add(YaruVariantChanged(selected ? null : variant)),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: variant.color,
-                            border: selected
-                                ? Border.all(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
-                                    width: 2.5,
-                                  )
-                                : null,
+                  children: [
+                    _SettingsChoiceChip(
+                      label: 'System accent',
+                      selected: state.yaruVariant == null,
+                      onSelected: state.accentFollowsPowerMode
+                          ? null
+                          : () => ref
+                                .read(settingsBlocProvider.bloc)
+                                .add(const YaruVariantChanged(null)),
+                    ),
+                    ...YaruVariant.accents.map((variant) {
+                      final selected = state.yaruVariant == variant;
+                      return Semantics(
+                        label: '${variant.name} accent colour',
+                        button: true,
+                        selected: selected,
+                        enabled: !state.accentFollowsPowerMode,
+                        child: Opacity(
+                          opacity: state.accentFollowsPowerMode ? 0.38 : 1,
+                          child: InkWell(
+                            onTap: state.accentFollowsPowerMode
+                                ? null
+                                : () => ref
+                                      .read(settingsBlocProvider.bloc)
+                                      .add(
+                                        YaruVariantChanged(
+                                          selected ? null : variant,
+                                        ),
+                                      ),
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: variant.color,
+                                border: selected
+                                    ? Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurface,
+                                        width: 2.5,
+                                      )
+                                    : null,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }),
+                  ],
                 ),
               ],
             ),
