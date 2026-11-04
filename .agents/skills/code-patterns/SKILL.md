@@ -64,6 +64,15 @@ State choices directly. Do not make the reader decode abstract labels or a list
 of things something is not. Include a limitation when it affects how someone
 should use the thing, beside the relevant instruction.
 
+Follow the **Direct writing** rules in `AGENTS.md` for responses as well as
+project text. State the main point and stop when it is complete. Remove trailing
+“not a…”, “does not mean…”, and “no … needed” explanations unless they change
+the reader's action or understanding. State each necessary limitation once.
+
+Write “Other models and BIOS versions have not been tested.” A comparison with
+upstream driver support adds nothing to that statement. Link to the public
+backlog directly; omit explanations about needing access to internal tooling.
+
 ## Respect the hardware boundary
 
 Repositories use services for hardware access. Read-only sysfs and telemetry

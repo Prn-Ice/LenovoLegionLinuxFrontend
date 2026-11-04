@@ -29,6 +29,22 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
   copy, and handoffs. See the writing examples in the project code patterns.
 - Separate what changed, what was tested, and what remains unverified.
 
+## Direct writing
+
+Applies to every agent's responses, documentation, comments, UI copy, and handoffs.
+
+- State the main point in plain language, then stop when it is complete.
+- Do not append defensive contrasts such as “not a…”, “does not mean…”, or
+  “no … needed” to an already clear statement.
+- Include a caveat only when it changes the reader's action or understanding.
+  State the concrete limitation once, beside the relevant claim.
+- Cut filler, tooling explanations, and repeated disclaimers. During review,
+  check sentence endings for qualifications that add no useful information.
+- Example: “Other models and BIOS versions have not been tested.”
+  Avoid: “Upstream driver support does not mean this frontend has been tested
+  on them.”
+- Example: “See the public backlog for current work.” End there.
+
 ## UI Standards
 
 Follow [`docs/page-template.md`](docs/page-template.md) for page work. Errors,
