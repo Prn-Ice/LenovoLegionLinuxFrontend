@@ -21,6 +21,7 @@ constexpr char bus[] = "io.github.prnice.LegionControl1",
 constexpr size_t input_limit = 128;
 constexpr char xml[] =
     R"(<node><interface name="io.github.prnice.LegionControl1">
+      <method name="GetCapabilities"><arg type="u" direction="out"/><arg type="as" direction="out"/></method>
       <method name="Authorize"/>
       <method name="RequestGraphicsModeAtBoot"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
       <method name="CancelGraphicsModeAtBoot"><arg type="s" direction="out"/></method>
@@ -36,12 +37,14 @@ constexpr char xml[] =
       <method name="RestoreBootLogo"/>
       <method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
     </interface></node>)";
+enum class ControlConnectionMode { installed, portable };
 struct Ctx {
   GMainLoop *loop;
   GDBusNodeInfo *info;
   GDBusConnection *conn = nullptr;
   guint reg = 0, owner = 0, names = 0;
   std::string cli, systemctl, graphics_boot;
+  ControlConnectionMode mode = ControlConnectionMode::installed;
   std::map<std::string, bool> auth;
   std::map<std::string, GCancellable *> pending;
   PolkitAuthority *authority = nullptr;
@@ -72,6 +75,18 @@ void reply_error(GDBusMethodInvocation *i, const char *name,
 }
 void done(GDBusMethodInvocation *i) {
   g_dbus_method_invocation_return_value(i, nullptr);
+}
+void reply_capabilities(Ctx *context, GDBusMethodInvocation *invocation) {
+  GVariantBuilder capabilities;
+  g_variant_builder_init(&capabilities, G_VARIANT_TYPE("as"));
+  g_variant_builder_add(&capabilities, "s", "interactive-control");
+  if (context->mode == ControlConnectionMode::installed)
+    g_variant_builder_add(&capabilities, "s", "persistent-services");
+  if (context->mode == ControlConnectionMode::installed &&
+      !context->graphics_boot.empty())
+    g_variant_builder_add(&capabilities, "s", "next-boot-graphics");
+  g_dbus_method_invocation_return_value(
+      invocation, g_variant_new("(uas)", 1u, &capabilities));
 }
 void auth_done(GObject *source, GAsyncResult *result, gpointer data) {
   auto *p = static_cast<std::pair<Ctx *, GDBusMethodInvocation *> *>(data);
@@ -139,6 +154,8 @@ void complete_operation(Ctx::ActiveOperation *op,
                   "service");
     else if (result.status == Status::unavailable)
       reply_error(op->invocation, "Unavailable", result.error);
+    else if (result.status == Status::busy)
+      reply_error(op->invocation, "Busy", result.error);
     else if (result.status == Status::timeout)
       reply_error(op->invocation, "Timeout", "control operation timed out");
     else if (result.status == Status::outputLimit)
@@ -228,6 +245,15 @@ bool bounded(const char *value, const char *label, std::string *error) {
   return false;
 }
 void dispatch(Ctx *c, const gchar *m, GVariant *v, GDBusMethodInvocation *i) {
+  if (c->mode == ControlConnectionMode::portable &&
+      (!g_strcmp0(m, "SetServiceEnabled") ||
+       !g_strcmp0(m, "RequestGraphicsModeAtBoot") ||
+       !g_strcmp0(m, "CancelGraphicsModeAtBoot") ||
+       !g_strcmp0(m, "GetGraphicsBootRequest"))) {
+    reply_error(i, "NotSupported",
+                "this operation requires installed system integration");
+    return;
+  }
   std::string err;
   const gchar *f_raw = nullptr;
   const gchar *val_raw = nullptr;
@@ -388,6 +414,10 @@ void dispatch(Ctx *c, const gchar *m, GVariant *v, GDBusMethodInvocation *i) {
 void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
           const gchar *m, GVariant *v, GDBusMethodInvocation *i, gpointer d) {
   auto *c = static_cast<Ctx *>(d);
+  if (!g_strcmp0(m, "GetCapabilities")) {
+    reply_capabilities(c, i);
+    return;
+  }
   if (!g_strcmp0(m, "Authorize")) {
     const std::string sender = g_dbus_method_invocation_get_sender(i);
     if (c->auth.count(sender)) {
@@ -494,7 +524,8 @@ int main(int argc, char **argv) {
   }
   c.runner = legion_control::CreateManagedCommandRunner(
       manager_connection, "legion-control.service",
-      graphics_boot.empty() ? "" : "legion-graphics-boot");
+      graphics_boot.empty() ? "" : "legion-graphics-boot",
+      "/run/legion-control/operation.lock");
   g_object_unref(manager_connection);
   c.authority = polkit_authority_get_sync(nullptr, &e);
   if (!c.authority) {

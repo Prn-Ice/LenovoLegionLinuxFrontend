@@ -1,7 +1,9 @@
 // A fixed, hardware-free administrator-startup experiment. Both entry points
 // require the disposable VM marker; this executable is never installed.
 #include "../executable_snapshot.h"
+#include "../portable_lifetime.h"
 #include "../test/test_vm_guard.h"
+#include "portable_control_helper.h"
 
 #include <cerrno>
 #include <climits>
@@ -21,19 +23,14 @@ namespace {
 constexpr char manager_path[] = "/org/freedesktop/systemd1";
 constexpr char manager_interface[] = "org.freedesktop.systemd1.Manager";
 
-int Helper(const char *launcher_text) {
+bool ApprovedSnapshot() {
   if (getuid() != 0 || geteuid() != 0)
-    return 2;
-  char *end;
-  const long launcher = strtol(launcher_text, &end, 10);
-  if (!*launcher_text || *end || launcher <= 1 || launcher > INT_MAX)
-    return 2;
+    return false;
   for (const char *name :
        {"LD_PRELOAD", "LD_LIBRARY_PATH", "GIO_EXTRA_MODULES", "GCONV_PATH",
         "PYTHONPATH", "DBUS_SYSTEM_BUS_ADDRESS"}) {
     if (getenv(name)) {
-      fprintf(stderr, "helper inherited unsafe environment: %s\n", name);
-      return 1;
+      return false;
     }
   }
   const int executable = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
@@ -43,20 +40,75 @@ int Helper(const char *launcher_text) {
   const bool sealed = actual_seals >= 0 && (actual_seals & seals) == seals;
   if (executable >= 0)
     close(executable);
-  if (!sealed)
+  return sealed;
+}
+
+bool StopStartupDeadline(const std::string &unit) {
+  if (!ValidPortableProbeUnit(unit))
+    return false;
+  GError *error = nullptr;
+  auto *connection = g_dbus_connection_new_for_address_sync(
+      "unix:path=/run/dbus/system_bus_socket",
+      static_cast<GDBusConnectionFlags>(
+          G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+          G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+      nullptr, nullptr, &error);
+  auto *reply =
+      connection ? g_dbus_connection_call_sync(
+                       connection, "org.freedesktop.systemd1", manager_path,
+                       manager_interface, "StopUnit",
+                       g_variant_new(
+                           "(ss)",
+                           (unit.substr(0, unit.size() - 8) + "-cleanup.timer")
+                               .c_str(),
+                           "replace"),
+                       G_VARIANT_TYPE("(o)"), G_DBUS_CALL_FLAGS_NO_AUTO_START,
+                       2000, nullptr, &error)
+                 : nullptr;
+  const bool stopped = reply != nullptr;
+  if (reply)
+    g_variant_unref(reply);
+  if (connection) {
+    g_dbus_connection_close_sync(connection, nullptr, nullptr);
+    g_object_unref(connection);
+  }
+  g_clear_error(&error);
+  return stopped;
+}
+
+bool ReceiveLifetime(legion_control::PortableLifetime *lifetime) {
+  GError *error = nullptr;
+  const bool received = legion_control::ReceivePortableLifetimeMessage(
+      STDERR_FILENO, lifetime, &error);
+  g_clear_error(&error);
+  if (!received || lifetime->owner == 0)
+    return false;
+  const int sink = open("/dev/null", O_WRONLY | O_CLOEXEC);
+  if (sink < 0)
+    return false;
+  const bool restored = dup2(sink, STDERR_FILENO) >= 0;
+  close(sink);
+  return restored;
+}
+
+int Helper(const char *launcher_text, const std::string &unit) {
+  if (!ApprovedSnapshot())
     return 2;
-  const int parent = syscall(SYS_pidfd_open, launcher, 0);
-  if (parent < 0)
+  char *end;
+  const long launcher = strtol(launcher_text, &end, 10);
+  if (!*launcher_text || *end || launcher <= 1 || launcher > INT_MAX)
+    return 2;
+  legion_control::PortableLifetime lifetime;
+  if (!ReceiveLifetime(&lifetime) || !StopStartupDeadline(unit))
     return 1;
   printf("ROOT_HELPER uid=%u pid=%d sealed=yes\n", unsigned(getuid()),
          getpid());
   fflush(stdout);
-  pollfd lifetime{parent, POLLIN, 0};
+  pollfd state{lifetime.launcher, POLLIN, 0};
   int result;
   do {
-    result = poll(&lifetime, 1, 12000);
+    result = poll(&state, 1, 12000);
   } while (result < 0 && errno == EINTR);
-  close(parent);
   // The fixture performs no hardware operations. Its only task is to prove
   // root execution of sealed bytes and bounded launcher-death observation.
   return result > 0 ? 0 : 1;
@@ -69,7 +121,9 @@ struct Launch {
   GVariant *reply = nullptr;
   GError *error = nullptr;
   std::string unit, owner;
-  bool start_finished = false, cancelled = false;
+  std::string unit_path;
+  bool start_finished = false, cancelled = false, observing = false;
+  guint unit_watch = 0;
 };
 
 gboolean Cancel(gpointer data) {
@@ -92,7 +146,49 @@ GVariant *Manager(Launch *launch, const char *method, GVariant *parameters,
       G_DBUS_CALL_FLAGS_NO_AUTO_START, 2000, nullptr, &launch->error);
 }
 
-int Launcher(bool wait_before_start, bool queued) {
+gboolean ObserveControlUnit(gpointer data) {
+  auto *launch = static_cast<Launch *>(data);
+  if (launch->observing)
+    return G_SOURCE_CONTINUE;
+  launch->observing = true;
+  g_dbus_connection_call(
+      launch->connection, launch->owner.c_str(), launch->unit_path.c_str(),
+      "org.freedesktop.DBus.Properties", "GetAll",
+      g_variant_new("(s)", "org.freedesktop.systemd1.Unit"),
+      G_VARIANT_TYPE("(a{sv})"), G_DBUS_CALL_FLAGS_NO_AUTO_START, 2000,
+      launch->cancel,
+      [](GObject *source, GAsyncResult *result, gpointer data) {
+        auto *launch = static_cast<Launch *>(data);
+        launch->observing = false;
+        GError *error = nullptr;
+        auto *reply = g_dbus_connection_call_finish(G_DBUS_CONNECTION(source),
+                                                    result, &error);
+        if (!reply) {
+          if (!launch->cancelled)
+            launch->error = error;
+          else
+            g_clear_error(&error);
+          g_main_loop_quit(launch->loop);
+          return;
+        }
+        GVariant *properties;
+        g_variant_get(reply, "(@a{sv})", &properties);
+        const char *state = nullptr, *job_path = nullptr;
+        guint32 job;
+        const bool valid =
+            g_variant_lookup(properties, "ActiveState", "&s", &state) &&
+            g_variant_lookup(properties, "Job", "(u&o)", &job, &job_path);
+        if (!valid || (job == 0 && (g_str_equal(state, "inactive") ||
+                                    g_str_equal(state, "failed"))))
+          g_main_loop_quit(launch->loop);
+        g_variant_unref(properties);
+        g_variant_unref(reply);
+      },
+      launch);
+  return G_SOURCE_CONTINUE;
+}
+
+int Launcher(bool wait_before_start, bool queued, bool control = false) {
   if (getuid() == 0 || geteuid() != getuid() || prctl(PR_SET_DUMPABLE, 0) != 0)
     return 2;
   const pid_t parent_pid = getppid();
@@ -156,7 +252,8 @@ int Launcher(bool wait_before_start, bool queued) {
         return Cancel(data);
       },
       &launch);
-  const guint deadline = g_timeout_add(20000, Cancel, &launch);
+  const guint deadline =
+      g_timeout_add(control ? 60000 : 20000, Cancel, &launch);
 
   GVariant *owner = g_dbus_connection_call_sync(
       launch.connection, "org.freedesktop.DBus", "/org/freedesktop/DBus",
@@ -181,73 +278,114 @@ int Launcher(bool wait_before_start, bool queued) {
     property("TimeoutStartUSec", g_variant_new_uint64(3000000));
     property("JobRunningTimeoutUSec", g_variant_new_uint64(3000000));
     property("TimeoutStopUSec", g_variant_new_uint64(1000000));
-    property("RuntimeMaxUSec", g_variant_new_uint64(15000000));
+    property("RuntimeMaxUSec",
+             g_variant_new_uint64(control ? 60000000 : 15000000));
     for (const char *name :
          {"AddRef", "NoNewPrivileges", "PrivateTmp", "SendSIGKILL"})
       property(name, g_variant_new_boolean(TRUE));
     property("ProtectHome", g_variant_new_string("yes"));
     property("ProtectSystem", g_variant_new_string("strict"));
-    property("StandardInput", g_variant_new_string("null"));
-    property("StandardError", g_variant_new_string("journal"));
     GUnixFDList *fds = g_unix_fd_list_new();
     const int handle = g_unix_fd_list_append(fds, STDOUT_FILENO, &launch.error);
-    if (handle >= 0) {
+    const int image_handle =
+        handle >= 0 ? g_unix_fd_list_append(fds, snapshot, &launch.error) : -1;
+    const int lifetime = image_handle >= 0
+                             ? legion_control::CreatePortableLifetimeMessage(
+                                   parent, &launch.error)
+                             : -1;
+    const int lifetime_handle =
+        lifetime >= 0 ? g_unix_fd_list_append(fds, lifetime, &launch.error)
+                      : -1;
+    if (lifetime >= 0)
+      close(lifetime);
+    if (handle >= 0 && image_handle >= 0 && lifetime_handle >= 0) {
       property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
-      const std::string executable = "/proc/" + std::to_string(getpid()) +
-                                     "/fd/" + std::to_string(snapshot);
+      property("StandardInputFileDescriptor",
+               g_variant_new_handle(image_handle));
+      property("StandardErrorFileDescriptor",
+               g_variant_new_handle(lifetime_handle));
+      // systemd owns the executable descriptor before authorization finishes.
+      // Its executor resolves its own stdin after setting up the supplied fds.
+      const std::string executable = "/proc/self/fd/0";
       const std::string pid = std::to_string(getpid());
+      const std::string app_pid = std::to_string(parent_pid);
+      const std::string app_uid = std::to_string(getuid());
       const char *arguments[] = {executable.c_str(), "--helper", pid.c_str(),
-                                 nullptr};
+                                 launch.unit.c_str(), nullptr};
+      const char *control_arguments[] = {
+          executable.c_str(), "--control-helper",  app_pid.c_str(),
+          app_uid.c_str(),    launch.unit.c_str(), nullptr};
+      const std::string runtime_directory =
+          launch.unit.substr(0, launch.unit.size() - 8);
+      if (control) {
+        for (const char *name :
+             {"ProtectHostname", "ProtectClock", "ProtectControlGroups",
+              "ProtectKernelLogs", "ProtectKernelModules"})
+          property(name, g_variant_new_boolean(TRUE));
+        property("RestrictNamespaces", g_variant_new_uint64(0));
+        const char *families[] = {"AF_UNIX", nullptr};
+        property("RestrictAddressFamilies",
+                 g_variant_new("(b^as)", TRUE, families));
+        const char *architectures[] = {"native", nullptr};
+        property("SystemCallArchitectures",
+                 g_variant_new_strv(architectures, -1));
+        property("SystemCallErrorNumber", g_variant_new_int32(EPERM));
+        const char *syscalls[] = {"@system-service", nullptr};
+        property("SystemCallFilter", g_variant_new("(b^as)", TRUE, syscalls));
+        const char *directories[] = {"legion-control",
+                                     runtime_directory.c_str(), nullptr};
+        property("RuntimeDirectory", g_variant_new_strv(directories, -1));
+        property("RuntimeDirectoryMode", g_variant_new_uint32(0711));
+        property("RuntimeDirectoryPreserve", g_variant_new_string("yes"));
+      }
       const char *flags[] = {"no-env-expand", nullptr};
       GVariantBuilder commands;
       g_variant_builder_init(&commands, G_VARIANT_TYPE("a(sasas)"));
       g_variant_builder_add(&commands, "(s^as^as)", executable.c_str(),
-                            arguments, flags);
+                            control ? control_arguments : arguments, flags);
       property("ExecStartEx", g_variant_builder_end(&commands));
-      // The manager observes launcher death even while the helper's start job
-      // waits for another unit. RuntimeMaxUSec alone does not bound that wait.
-      const std::string scope =
-          launch.unit.substr(0, launch.unit.size() - 8) + ".scope";
-      const char *lifetime[] = {scope.c_str(), nullptr};
-      property("BindsTo", g_variant_new_strv(lifetime, -1));
-      property("After", g_variant_new_strv(lifetime, -1));
+      const std::string base = launch.unit.substr(0, launch.unit.size() - 8);
+      const std::string timer_unit = base + "-cleanup.timer";
+      const std::string cleanup = base + "-cleanup.service";
+      const char *startup[] = {timer_unit.c_str(), nullptr};
+      property("Wants", g_variant_new_strv(startup, -1));
+      property("After", g_variant_new_strv(startup, -1));
+      const char *cleanup_units[] = {cleanup.c_str(), nullptr};
+      for (const char *name : {"OnSuccess", "OnFailure"})
+        property(name, g_variant_new_strv(cleanup_units, -1));
+      for (const char *name : {"OnSuccessJobMode", "OnFailureJobMode"})
+        property(name, g_variant_new_string("replace"));
       if (queued) {
         const char *gate[] = {"legion-bootstrap-gate.service", nullptr};
         property("Requires", g_variant_new_strv(gate, -1));
         property("After", g_variant_new_strv(gate, -1));
       }
-      GVariantBuilder scope_properties, auxiliaries;
-      g_variant_builder_init(&scope_properties, G_VARIANT_TYPE("a(sv)"));
-      GVariantBuilder pids;
-      g_variant_builder_init(&pids, G_VARIANT_TYPE("au"));
-      g_variant_builder_add(&pids, "u", guint32(getpid()));
-      g_variant_builder_add(&scope_properties, "(sv)", "PIDs",
-                            g_variant_builder_end(&pids));
-      g_variant_builder_add(&scope_properties, "(sv)", "CollectMode",
+      GVariantBuilder timer_properties, auxiliaries;
+      g_variant_builder_init(&timer_properties, G_VARIANT_TYPE("a(sv)"));
+      GVariantBuilder deadlines;
+      g_variant_builder_init(&deadlines, G_VARIANT_TYPE("a(st)"));
+      g_variant_builder_add(&deadlines, "(st)", "OnActiveSec",
+                            guint64(5000000));
+      g_variant_builder_add(&timer_properties, "(sv)", "TimersMonotonic",
+                            g_variant_builder_end(&deadlines));
+      g_variant_builder_add(&timer_properties, "(sv)", "AccuracyUSec",
+                            g_variant_new_uint64(1000));
+      g_variant_builder_add(&timer_properties, "(sv)", "RemainAfterElapse",
+                            g_variant_new_boolean(FALSE));
+      g_variant_builder_add(&timer_properties, "(sv)", "CollectMode",
                             g_variant_new_string("inactive-or-failed"));
-      // BindsTo handles a running helper. A cleanup service with Conflicts
-      // replaces an inactive, queued start when the launcher's scope becomes
-      // empty.
-      const std::string cleanup =
-          scope.substr(0, scope.size() - 6) + "-cleanup.service";
-      const char *cleanup_units[] = {cleanup.c_str(), nullptr};
-      for (const char *name : {"OnSuccess", "OnFailure"})
-        g_variant_builder_add(&scope_properties, "(sv)", name,
-                              g_variant_new_strv(cleanup_units, -1));
-      // OnSuccess defaults to "fail", which refuses to replace the helper's
-      // queued start with the stop required by the cleanup unit's Conflicts.
-      for (const char *name : {"OnSuccessJobMode", "OnFailureJobMode"})
-        g_variant_builder_add(&scope_properties, "(sv)", name,
-                              g_variant_new_string("replace"));
       g_variant_builder_init(&auxiliaries, G_VARIANT_TYPE("a(sa(sv))"));
-      g_variant_builder_add(&auxiliaries, "(s@a(sv))", scope.c_str(),
-                            g_variant_builder_end(&scope_properties));
+      g_variant_builder_add(&auxiliaries, "(s@a(sv))", timer_unit.c_str(),
+                            g_variant_builder_end(&timer_properties));
       GVariantBuilder cleanup_properties;
       g_variant_builder_init(&cleanup_properties, G_VARIANT_TYPE("a(sv)"));
       const char *helper_units[] = {launch.unit.c_str(), nullptr};
-      for (const char *name : {"Conflicts", "Before"})
-        g_variant_builder_add(&cleanup_properties, "(sv)", name,
-                              g_variant_new_strv(helper_units, -1));
+      const char *conflicts[] = {launch.unit.c_str(), timer_unit.c_str(),
+                                 nullptr};
+      g_variant_builder_add(&cleanup_properties, "(sv)", "Conflicts",
+                            g_variant_new_strv(conflicts, -1));
+      g_variant_builder_add(&cleanup_properties, "(sv)", "Before",
+                            g_variant_new_strv(helper_units, -1));
       g_variant_builder_add(&cleanup_properties, "(sv)", "DefaultDependencies",
                             g_variant_new_boolean(FALSE));
       g_variant_builder_add(&cleanup_properties, "(sv)", "CollectMode",
@@ -258,6 +396,14 @@ int Launcher(bool wait_before_start, bool queued) {
                             g_variant_new_uint64(3000000));
       g_variant_builder_add(&cleanup_properties, "(sv)", "NoNewPrivileges",
                             g_variant_new_boolean(TRUE));
+      if (control) {
+        const char *directories[] = {runtime_directory.c_str(), nullptr};
+        g_variant_builder_add(&cleanup_properties, "(sv)", "RuntimeDirectory",
+                              g_variant_new_strv(directories, -1));
+        g_variant_builder_add(&cleanup_properties, "(sv)",
+                              "RuntimeDirectoryMode",
+                              g_variant_new_uint32(0711));
+      }
       // Completing this fixed no-op lets systemd collect the cleanup unit after
       // its Conflicts dependency has replaced the helper's queued start job.
       constexpr char no_op[] = "/run/current-system/sw/bin/true";
@@ -298,21 +444,40 @@ int Launcher(bool wait_before_start, bool queued) {
         launch.reply = nullptr;
         printf("START_ACKNOWLEDGED\n");
         fflush(stdout);
-        // Remain alive to retain the immutable executable until the VM kills
-        // this launcher or its parent, or the independent lifetime bound fires.
-        g_main_loop_run(launch.loop);
+        if (control) {
+          auto *location = Manager(&launch, "GetUnit",
+                                   g_variant_new("(s)", launch.unit.c_str()),
+                                   G_VARIANT_TYPE("(o)"));
+          if (location) {
+            const char *path;
+            g_variant_get(location, "(&o)", &path);
+            launch.unit_path = path;
+            g_variant_unref(location);
+            launch.unit_watch = g_timeout_add(100, ObserveControlUnit, &launch);
+          }
+        }
+        // Observe the session until the helper ends, this launcher or its
+        // parent exits, or the independent lifetime bound fires.
+        if (!launch.error)
+          g_main_loop_run(launch.loop);
       }
     } else
       g_variant_builder_clear(&properties);
     g_object_unref(fds);
   }
+  launch.cancelled = true;
+  g_cancellable_cancel(launch.cancel);
+  if (launch.unit_watch)
+    g_source_remove(launch.unit_watch);
+  while (launch.observing)
+    g_main_context_iteration(nullptr, TRUE);
   const bool failed = launch.error != nullptr;
   if (launch.error)
     fprintf(stderr, "%s\n", launch.error->message);
   g_clear_error(&launch.error);
   g_clear_pointer(&launch.reply, g_variant_unref);
-  // Closing the descriptor revokes any queued execution path. The running
-  // helper independently observes this launcher's lifetime with a pidfd.
+  // systemd retains its sealed executable and pinned lifetime message. A late
+  // start must reject dead handles; the independent timer cancels queued jobs.
   close(snapshot);
   GVariant *release =
       Manager(&launch, "UnrefUnit", g_variant_new("(s)", launch.unit.c_str()),
@@ -337,8 +502,26 @@ int main(int argc, char **argv) {
             "This bootstrap probe runs only in the disposable test VM.\n");
     return 2;
   }
-  if (argc == 3 && std::string(argv[1]) == "--helper")
-    return Helper(argv[2]);
+  if (argc == 4 && std::string(argv[1]) == "--helper")
+    return Helper(argv[2], argv[3]);
+  if (argc == 5 && std::string(argv[1]) == "--control-helper") {
+    char *pid_end, *uid_end;
+    const long pid = strtol(argv[2], &pid_end, 10);
+    const unsigned long uid = strtoul(argv[3], &uid_end, 10);
+    if (!ApprovedSnapshot() || !*argv[2] || *pid_end || pid <= 1 ||
+        pid > INT_MAX || !*argv[3] || *uid_end || uid == 0 || uid > UINT_MAX)
+      return 2;
+    legion_control::PortableLifetime lifetime;
+    if (!ValidPortableProbeUnit(argv[4]) || !ReceiveLifetime(&lifetime) ||
+        lifetime.owner != uid || !StopStartupDeadline(argv[4]) ||
+        dup2(lifetime.app, STDIN_FILENO) < 0)
+      return 2;
+    return RunPortableControlProbe(static_cast<pid_t>(pid),
+                                   static_cast<uid_t>(uid), argv[4],
+                                   lifetime.launcher);
+  }
+  if (argc == 2 && std::string(argv[1]) == "--control")
+    return Launcher(false, false, true);
   if (argc == 1)
     return Launcher(false, false);
   if (argc == 2 && std::string(argv[1]) == "--wait-before-start")

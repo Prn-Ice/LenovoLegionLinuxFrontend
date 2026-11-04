@@ -7,6 +7,7 @@
 #include <gio/gunixfdlist.h>
 #include <glib-unix.h>
 #include <map>
+#include <sys/file.h>
 #include <unistd.h>
 
 namespace {
@@ -59,6 +60,8 @@ struct Manager {
   bool omit_job = false, omit_control_group = false;
   size_t written = 0;
   int output = -1, exit_status = 0, calls = 0, stops = 0, unrefs = 0;
+  int input = -1;
+  bool keep_input = false;
   bool hold_start = false, reject_start = false, reject_unref = false;
   const char *start_error = "org.freedesktop.DBus.Error.InvalidArgs";
   bool keep_output = false, ignore_stop = false, status_read = false;
@@ -71,7 +74,8 @@ struct Manager {
         ==, g_dbus_connection_get_unique_name(manager->server));
     manager->Call(name, params, i);
   }
-  explicit Manager(const std::string &state_directory = {}) {
+  explicit Manager(const std::string &state_directory = {},
+                   const std::string &lock_path = {}) {
     g_test_dbus_up(test_bus);
     const auto flags = static_cast<GDBusConnectionFlags>(
         G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
@@ -102,7 +106,7 @@ struct Manager {
         server, unit_path, info->interfaces[1], &table, this, nullptr, &error);
     g_assert_no_error(error);
     runner = legion_control::CreateManagedCommandRunner(
-        client, "legion-control.service", state_directory);
+        client, "legion-control.service", state_directory, lock_path);
   }
   ~Manager() {
     g_assert_cmpint(calls, ==, 1);
@@ -110,6 +114,8 @@ struct Manager {
       g_source_remove(writer);
     if (output >= 0)
       close(output);
+    if (input >= 0)
+      close(input);
     if (start_reply) {
       g_dbus_method_invocation_return_dbus_error(
           start_reply, "org.freedesktop.DBus.Error.Failed", "fixture closed");
@@ -184,6 +190,15 @@ struct Manager {
           g_variant_get_handle(Property("StandardOutputFileDescriptor", "h")),
           &error);
       g_assert_no_error(error);
+      if (properties.count("StandardInputFileDescriptor")) {
+        input = g_unix_fd_list_get(
+            fds,
+            g_variant_get_handle(Property("StandardInputFileDescriptor", "h")),
+            &error);
+        g_assert_no_error(error);
+        char byte;
+        g_assert_cmpint(read(input, &byte, 1), ==, 0);
+      }
       g_assert_cmpint(
           g_variant_get_handle(Property("StandardErrorFileDescriptor", "h")),
           ==,
@@ -266,6 +281,10 @@ struct Manager {
       if (!keep_output) {
         close(output);
         output = -1;
+      }
+      if (input >= 0 && !keep_input) {
+        close(input);
+        input = -1;
       }
       g_dbus_method_invocation_return_value(i, nullptr);
     } else
@@ -365,6 +384,71 @@ void test_persistent_state_directory() {
   g_assert_cmpstr(directory, ==, "legion-graphics-boot");
   g_assert_cmpuint(g_variant_get_uint32(m.Property("StateDirectoryMode", "u")),
                    ==, 0700);
+}
+void test_helpers_share_operation_lock() {
+  char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
+  g_assert_nonnull(directory);
+  const std::string path = std::string(directory) + "/operation.lock";
+  {
+    Manager first({}, path);
+    first.state = "active";
+    first.Start();
+    until([&] { return first.input >= 0; });
+    Manager second({}, path);
+    second.Start();
+    second.Finish();
+    g_assert_true(second.result.status == ManagedCommandStatus::busy);
+    g_assert_true(second.properties.empty());
+    first.operation->Cancel();
+    first.Finish();
+    Manager retry({}, path);
+    retry.Start();
+    retry.Finish();
+    g_assert_true(retry.result.status == ManagedCommandStatus::success);
+  }
+  unlink(path.c_str());
+  rmdir(directory);
+  g_free(directory);
+}
+void test_manager_retains_operation_lock() {
+  char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
+  g_assert_nonnull(directory);
+  const std::string path = std::string(directory) + "/operation.lock";
+  {
+    Manager manager({}, path);
+    manager.keep_input = true;
+    manager.Start();
+    manager.Finish();
+    manager.operation.reset();
+    manager.runner.reset();
+    const int contender = open(path.c_str(), O_RDWR | O_CLOEXEC);
+    g_assert_cmpint(contender, >=, 0);
+    g_assert_cmpint(flock(contender, LOCK_EX | LOCK_NB), ==, -1);
+    g_assert_cmpint(errno, ==, EWOULDBLOCK);
+    close(manager.input);
+    manager.input = -1;
+    g_assert_cmpint(flock(contender, LOCK_EX | LOCK_NB), ==, 0);
+    close(contender);
+  }
+  unlink(path.c_str());
+  rmdir(directory);
+  g_free(directory);
+}
+void test_unsafe_operation_lock() {
+  char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
+  g_assert_nonnull(directory);
+  const std::string path = std::string(directory) + "/operation.lock";
+  g_assert_cmpint(symlink("/dev/null", path.c_str()), ==, 0);
+  {
+    Manager manager({}, path);
+    manager.Start();
+    manager.Finish();
+    g_assert_true(manager.result.status == ManagedCommandStatus::unavailable);
+    g_assert_true(manager.properties.empty());
+  }
+  unlink(path.c_str());
+  rmdir(directory);
+  g_free(directory);
 }
 void test_exit(gconstpointer data) {
   Manager m;
@@ -591,6 +675,11 @@ int main(int argc, char **argv) {
                   test_success_properties);
   g_test_add_func("/managed/persistent-state-directory",
                   test_persistent_state_directory);
+  g_test_add_func("/managed/helpers-share-operation-lock",
+                  test_helpers_share_operation_lock);
+  g_test_add_func("/managed/manager-retains-operation-lock",
+                  test_manager_retains_operation_lock);
+  g_test_add_func("/managed/unsafe-operation-lock", test_unsafe_operation_lock);
   g_test_add_data_func("/managed/exit-2", GINT_TO_POINTER(2), test_exit);
   g_test_add_data_func("/managed/exit-3", GINT_TO_POINTER(3), test_exit);
   g_test_add_func("/managed/pending-start-cancel", test_pending_cancel);

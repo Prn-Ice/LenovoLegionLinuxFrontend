@@ -4,6 +4,7 @@
 #include "legion_control_service.cc"
 #undef main
 #include "test_support/direct_command_runner.h"
+#include <set>
 
 namespace {
 struct ControlledOperation final : legion_control::ManagedCommandOperation {
@@ -80,6 +81,27 @@ void test_boot_dispatch() {
   g_assert_no_error(error);
   g_assert_cmpuint(registration, >, 0);
 
+  auto check_capabilities = [&](const std::set<std::string> &expected) {
+    GVariant *reply =
+        request(client, server, "GetCapabilities", nullptr, &error);
+    g_assert_no_error(error);
+    g_assert_cmpstr(g_variant_get_type_string(reply), ==, "(uas)");
+    guint32 version;
+    GVariant *capabilities;
+    g_variant_get(reply, "(u@as)", &version, &capabilities);
+    g_assert_cmpuint(version, ==, 1);
+    GVariantIter values;
+    g_variant_iter_init(&values, capabilities);
+    const char *value;
+    std::set<std::string> actual;
+    while (g_variant_iter_next(&values, "&s", &value))
+      actual.emplace(value);
+    g_assert_true(actual == expected);
+    g_variant_unref(capabilities);
+    g_variant_unref(reply);
+  };
+  check_capabilities({"interactive-control", "persistent-services"});
+
   GVariant *reply = request(client, server, "RequestGraphicsModeAtBoot",
                             g_variant_new("(s)", "hybrid-igpu-only"), &error);
   g_assert_null(reply);
@@ -109,6 +131,16 @@ void test_boot_dispatch() {
   g_assert_no_error(error);
   g_assert_cmpint(chmod(helper.c_str(), 0700), ==, 0);
   context.graphics_boot = helper;
+  check_capabilities(
+      {"interactive-control", "persistent-services", "next-boot-graphics"});
+  context.mode = ControlConnectionMode::portable;
+  check_capabilities({"interactive-control"});
+  reply = request(client, server, "GetGraphicsBootRequest", nullptr, &error);
+  g_assert_null(reply);
+  g_assert_nonnull(error);
+  g_assert_nonnull(strstr(error->message, "NotSupported"));
+  g_clear_error(&error);
+  context.mode = ControlConnectionMode::installed;
 
   reply = request(client, server, "RequestGraphicsModeAtBoot",
                   g_variant_new("(s)", "hybrid-auto"), &error);

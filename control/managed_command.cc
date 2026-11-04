@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <gio/gunixfdlist.h>
 #include <gio/gunixinputstream.h>
+#include <sys/file.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace legion_control {
@@ -14,7 +16,8 @@ constexpr gsize output_limit = 64 * 1024;
 struct Operation final : ManagedCommandOperation,
                          std::enable_shared_from_this<Operation> {
   GDBusConnection *bus;
-  std::string parent, state_directory, executable, owner, unit, unit_path;
+  std::string parent, state_directory, lock_path, executable, owner, unit,
+      unit_path;
   std::vector<std::string> args;
   unsigned runtime;
   ManagedCommandRunner::Completion completion;
@@ -24,22 +27,26 @@ struct Operation final : ManagedCommandOperation,
   guint timer = 0, watch = 0;
   gulong closed = 0;
   int pending = 0;
+  int operation_lock = -1;
   bool ending = false, delivered = false, reading = false, eof = false;
   bool cancelled = false, started = false, stopping = false, polling = false;
   bool unreferenced = false;
   gint64 deadline = 0, startup_deadline = 0, runtime_deadline = 0,
          drain_deadline = 0;
   Operation(GDBusConnection *b, std::string p, std::string storage,
-            std::string e, std::vector<std::string> a, unsigned r,
-            ManagedCommandRunner::Completion cb)
+            std::string lock, std::string e, std::vector<std::string> a,
+            unsigned r, ManagedCommandRunner::Completion cb)
       : bus(G_DBUS_CONNECTION(g_object_ref(b))), parent(std::move(p)),
-        state_directory(std::move(storage)), executable(std::move(e)),
-        args(std::move(a)), runtime(r), completion(std::move(cb)) {
+        state_directory(std::move(storage)), lock_path(std::move(lock)),
+        executable(std::move(e)), args(std::move(a)), runtime(r),
+        completion(std::move(cb)) {
     gchar *uuid = g_uuid_string_random();
     unit = std::string("legion-control-op-") + uuid + ".service";
     g_free(uuid);
   }
   ~Operation() override {
+    if (operation_lock >= 0)
+      close(operation_lock);
     g_clear_object(&stream);
     g_clear_object(&read_cancel);
     g_object_unref(bus);
@@ -81,6 +88,10 @@ struct Operation final : ManagedCommandOperation,
     if (!ending || delivered || pending || reading)
       return;
     delivered = true;
+    if (operation_lock >= 0) {
+      close(operation_lock);
+      operation_lock = -1;
+    }
     auto cb = std::move(completion);
     cb(std::move(result));
   }
@@ -284,6 +295,25 @@ struct Operation final : ManagedCommandOperation,
          });
   }
   void StartUnit() {
+    if (!lock_path.empty()) {
+      operation_lock = open(lock_path.c_str(),
+                            O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+      struct stat info{};
+      if (operation_lock < 0 || fstat(operation_lock, &info) != 0 ||
+          !S_ISREG(info.st_mode) || info.st_uid != geteuid() ||
+          (info.st_mode & 0777) != 0600 || info.st_nlink != 1 ||
+          info.st_size != 0) {
+        End(ManagedCommandStatus::unavailable,
+            "operation lock is unavailable or has unsafe permissions");
+        return;
+      }
+      if (flock(operation_lock, LOCK_EX | LOCK_NB) != 0) {
+        End(errno == EWOULDBLOCK ? ManagedCommandStatus::busy
+                                 : ManagedCommandStatus::unavailable,
+            "another helper is running a control operation");
+        return;
+      }
+    }
     int pipe_fds[2];
     if (pipe2(pipe_fds, O_CLOEXEC) != 0) {
       End(ManagedCommandStatus::unavailable, "could not create output pipe");
@@ -314,7 +344,19 @@ struct Operation final : ManagedCommandOperation,
     property("CollectMode", g_variant_new_string("inactive-or-failed"));
     property("KillMode", g_variant_new_string("control-group"));
     property("Restart", g_variant_new_string("no"));
-    property("StandardInput", g_variant_new_string("null"));
+    if (operation_lock >= 0) {
+      const int lock_handle =
+          g_unix_fd_list_append(fds, operation_lock, nullptr);
+      if (lock_handle < 0) {
+        g_variant_builder_clear(&props);
+        g_object_unref(fds);
+        End(ManagedCommandStatus::unavailable, "could not pass operation lock");
+        return;
+      }
+      property("StandardInputFileDescriptor",
+               g_variant_new_handle(lock_handle));
+    } else
+      property("StandardInput", g_variant_new_string("null"));
     property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
     property("StandardErrorFileDescriptor", g_variant_new_handle(handle));
     property("TimeoutStartUSec", g_variant_new_uint64(5000000));
@@ -493,16 +535,18 @@ struct Operation final : ManagedCommandOperation,
 };
 struct Runner final : ManagedCommandRunner {
   GDBusConnection *bus;
-  std::string parent, state_directory;
-  Runner(GDBusConnection *b, std::string p, std::string storage)
+  std::string parent, state_directory, lock_path;
+  Runner(GDBusConnection *b, std::string p, std::string storage,
+         std::string lock)
       : bus(G_DBUS_CONNECTION(g_object_ref(b))), parent(std::move(p)),
-        state_directory(std::move(storage)) {}
+        state_directory(std::move(storage)), lock_path(std::move(lock)) {}
   ~Runner() override { g_object_unref(bus); }
   std::shared_ptr<ManagedCommandOperation>
   Start(const std::string &exe, const std::vector<std::string> &args,
         unsigned runtime, Completion done) override {
-    auto op = std::make_shared<Operation>(bus, parent, state_directory, exe,
-                                          args, runtime, std::move(done));
+    auto op =
+        std::make_shared<Operation>(bus, parent, state_directory, lock_path,
+                                    exe, args, runtime, std::move(done));
     g_idle_add_full(
         G_PRIORITY_DEFAULT,
         [](gpointer data) -> gboolean {
@@ -520,7 +564,9 @@ struct Runner final : ManagedCommandRunner {
 } // namespace
 std::shared_ptr<ManagedCommandRunner>
 CreateManagedCommandRunner(GDBusConnection *bus, const std::string &parent,
-                           const std::string &state_directory) {
-  return std::make_shared<Runner>(bus, parent, state_directory);
+                           const std::string &state_directory,
+                           const std::string &operation_lock_path) {
+  return std::make_shared<Runner>(bus, parent, state_directory,
+                                  operation_lock_path);
 }
 } // namespace legion_control

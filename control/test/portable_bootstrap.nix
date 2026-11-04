@@ -1,43 +1,8 @@
 { pkgs }:
 
 let
-  probe = pkgs.stdenv.mkDerivation {
-    pname = "legion-portable-bootstrap-probe";
-    version = "1";
-    src = pkgs.lib.fileset.toSource {
-      root = ../..;
-      fileset = pkgs.lib.fileset.unions [
-        ../../control
-        ../../telemetry
-        ../../packaging
-      ];
-    };
-    nativeBuildInputs = [
-      pkgs.cmake
-      pkgs.pkg-config
-    ];
-    buildInputs = [
-      pkgs.glib
-      pkgs.polkit
-    ];
-    preConfigure = "cd telemetry";
-    cmakeFlags = [
-      "-DBUILD_TESTING=ON"
-      "-DBUILD_LEGION_CONTROL_SERVICE=ON"
-      "-DBUILD_PORTABLE_BOOTSTRAP_PROTOTYPE=ON"
-    ];
-    buildPhase = ''
-      runHook preBuild
-      cmake --build . --target portable_bootstrap_probe executable_snapshot_test
-      runHook postBuild
-    '';
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 portable_bootstrap_probe "$out/bin/portable-bootstrap-probe"
-      install -Dm755 executable_snapshot_test "$out/bin/executable-snapshot-test"
-      runHook postInstall
-    '';
-  };
+  fixtures = pkgs.callPackage ./fixtures.nix { };
+  probe = pkgs.callPackage ./bootstrap-package.nix { inherit fixtures; };
 in
 pkgs.testers.runNixOSTest {
   name = "legion-portable-bootstrap";
@@ -71,24 +36,26 @@ pkgs.testers.runNixOSTest {
       "legion-control-disposable-lifecycle-vm\n";
     environment.systemPackages = [
       probe
+      fixtures
       pkgs.util-linux
     ];
     systemd.services.legion-bootstrap-gate.serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${pkgs.coreutils}/bin/sleep 30";
+      ExecStart = pkgs.writeShellScript "legion-bootstrap-test-gate" ''
+        trap 'exit 0' USR1
+        ${pkgs.coreutils}/bin/sleep 30 &
+        wait
+      '';
       TimeoutStartSec = 35;
     };
     virtualisation.memorySize = 1024;
   };
-  testScript = ''
-    import re
-    import shlex
-    from datetime import timedelta
-
+  testScript = builtins.readFile ./portable_session_test.py + ''
     start_all()
     machine.wait_for_unit("polkit.service")
     snapshot_checks = machine.succeed("runuser -u approved -- executable-snapshot-test")
     assert "# SKIP" not in snapshot_checks, snapshot_checks
+    machine.succeed("runuser -u approved -- portable-lifetime-test")
 
     def as_user(user, command):
         return "runuser -u " + shlex.quote(user) + " -- sh -c " + shlex.quote(command)
@@ -141,6 +108,9 @@ pkgs.testers.runNixOSTest {
     with subtest("authorized startup from a user-owned path containing spaces"):
         pid, unit, output, _, _ = launch()
         helper = root_helper(output)
+        executable = machine.succeed("systemctl show --property=ExecStart --value " + unit)
+        assert "/proc/self/fd/0" in executable, executable
+        assert "/proc/" + str(pid) + "/fd/" not in executable, executable
         machine.fail(as_user("approved", "ls /proc/" + str(pid) + "/fd"))
         machine.succeed("test -e /proc/" + str(helper))
         machine.succeed("kill -TERM " + str(pid))
@@ -186,6 +156,78 @@ pkgs.testers.runNixOSTest {
             wait_collected()
             machine.succeed("systemctl stop legion-bootstrap-gate.service")
             assert "ROOT_HELPER" not in machine.succeed("cat " + output)
+
+    with subtest("a late helper refuses handles from an exited launcher"):
+        pid, unit, output, _, _ = launch(option="--queue-behind-gate")
+        machine.wait_until_succeeds("grep START_ACKNOWLEDGED " + output, timeout=timedelta(seconds=10))
+        machine.succeed("kill -KILL " + str(pid))
+        machine.succeed("systemctl kill --kill-whom=main --signal=USR1 legion-bootstrap-gate.service")
+        wait_collected()
+        assert "ROOT_HELPER" not in machine.succeed("cat " + output)
+
+    with subtest("approved root peer validates and applies typed commands"):
+        app = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
+        app.prepare("success")
+        machine.succeed(portable_as_user("approved", "legion-portable-test-client --fake-peer /home/approved/fake.sock") + " >/tmp/fake-peer.out 2>/tmp/fake-peer.err &")
+        machine.wait_until_succeeds("grep FAKE_READY /tmp/fake-peer.out", timeout=timedelta(seconds=5))
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude unix:path=/home/approved/fake.sock " + app.unit + " " + str(app.helper)))
+        assert code == 8, code
+        machine.wait_until_succeeds("grep FAKE_CLOSED_BEFORE_AUTH /tmp/fake-peer.out", timeout=timedelta(seconds=5))
+        # A different process of the same user reaches the root socket, then
+        # fails EXTERNAL authentication before any methods are exported to it.
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        assert code == 7, code
+        code, _ = machine.execute(portable_as_user("denied", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        assert code == 7, code
+        app.send("connect")
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        assert code == 8, code
+        app.send("enable", "org.freedesktop.DBus.Error.AccessDenied")
+        app.send("authorize")
+        app.send("invalid", "org.freedesktop.DBus.Error.InvalidArgs")
+        app.send("persistent", "io.github.prnice.LegionControl1.Error.NotSupported")
+        app.send("enable")
+        assert app.value("battery-conservation") == "enabled\n"
+        app.send("disable")
+        assert app.value("battery-conservation") == "disabled\n"
+        app.send("fan")
+        assert app.value("payload-read") == "synthetic fan data\n"
+        machine.succeed(app.private("test -z \"$(find /tmp -maxdepth 1 -name 'legion-control-*' -type f -print)\""))
+        app.close()
+        wait_collected()
+
+    with subtest("idle private peer shuts down"):
+        app = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
+        app.send("connect")
+        app.send("idle")
+        machine.wait_until_succeeds("test ! -e " + app.runtime, timeout=timedelta(seconds=8))
+        app.close()
+        wait_collected()
+
+    with subtest("helper crash keeps other helpers blocked through backend cleanup"):
+        first = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
+        first.prepare("tree")
+        first.send("connect")
+        first.send("authorize")
+        first.begin("enable")
+        pids = first.wait_tree()
+        second = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
+        second.prepare("success")
+        second.send("connect")
+        second.send("authorize")
+        second.send("enable", "io.github.prnice.LegionControl1.Error.Busy")
+        machine.succeed("kill -KILL " + str(first.helper))
+        # systemd still owns the input descriptor and its operation lock while
+        # the synthetic descendants resist SIGTERM until SIGKILL escalation.
+        machine.fail("flock -n /run/legion-control/operation.lock true")
+        second.send("enable", "io.github.prnice.LegionControl1.Error.Busy")
+        for pid in pids:
+            machine.wait_until_succeeds("test ! -e /proc/" + str(pid), timeout=timedelta(seconds=5))
+        machine.wait_until_succeeds("flock -n /run/legion-control/operation.lock true", timeout=timedelta(seconds=5))
+        second.send("enable")
+        second.close()
+        first.close()
+        wait_collected()
 
     machine.succeed("test ! -e /etc/systemd/system/legion-control.service; test ! -e /run/systemd/system/legion-control.service")
   '';

@@ -7,9 +7,10 @@ The AppImage goal is: install the supported driver and CLI, download the app,
 open it, and authorize interactive hardware changes without installing our
 system service.
 
-The private-connection prototype and systemd backend process containment are
-implemented. Production portable administrator authorization and release
-packages remain to be implemented. See the [public backlog](../../BACKLOG.md).
+The VM experiment now connects approved administrator startup to the real typed
+control API with a synthetic CLI. Backend process containment and shared write
+locking are implemented. Production desktop integration and release packages
+remain to be implemented. See the [public backlog](../../BACKLOG.md).
 
 ## Installation experience
 
@@ -58,6 +59,13 @@ Before enabling writes, the production client must check protocol compatibility
 and required capabilities. An AppImage may be newer than an installed service
 or the host CLI. A version mismatch needs an actionable setup message.
 
+`GetCapabilities` now returns protocol version 1 and supported operations.
+Installed mode advertises `interactive-control`, `persistent-services`, and
+`next-boot-graphics` when configured. Portable mode advertises interactive
+controls and rejects service changes and next-boot requests. Metadata can be
+read before `Authorize`. An older service without this method needs an
+incompatible-service message; it must not trigger portable elevation.
+
 CLI discovery also needs a shared rule. The desktop currently searches `PATH`,
 the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module receives
 a package path. The release implementation must resolve and validate one backend
@@ -99,15 +107,23 @@ applied. A timed-out or interrupted write needs a fresh read before retrying.
 The VM-only `portable_bootstrap_probe` tests systemd's existing
 `org.freedesktop.systemd1.manage-units` Polkit action. Its launcher requests one
 fixed helper through `StartTransientUnit`, with interactive authorization enabled.
-The probe exports no hardware operations and refuses to run outside the marked
-disposable VM. Production portable control still needs integration and review.
+The probe uses a synthetic CLI and refuses to run outside the marked disposable
+VM. Production portable control still needs integration and review.
 
 Before requesting approval, the launcher copies its own executable into a sealed
 memory file and disables process dumping to prevent another ordinary process
-from replacing its descriptor. systemd executes that snapshot through the live
-launcher's `/proc` descriptor path. Replacing the downloaded file after this
-point cannot change the snapshot. This also avoids asking root to traverse an
-AppImage FUSE mount. FUSE launch still needs separate qualification.
+from replacing its descriptor. The start request passes the sealed descriptor
+to systemd as the helper's stdin. systemd sets up that descriptor before
+executing `/proc/self/fd/0`, so delayed execution uses the manager's retained
+snapshot. Replacing the downloaded file or recycling the launcher's PID cannot
+change those bytes. AppImage FUSE launch still needs separate qualification.
+
+A private Unix packet carries app and launcher pidfds captured before approval.
+systemd retains this packet socket as the helper's stderr. The helper receives
+owned process handles, rejects either process having exited, and redirects its
+stderr before starting control. It never opens another process's executable
+through a numeric PID. Tests reject queued handles after app or launcher death
+and release a delayed start after killing the launcher.
 
 The snapshot validator accepts x86-64 ELF executables. It requires a
 root-controlled interpreter and library search directories, rejects relative
@@ -141,12 +157,31 @@ source replacement after sealing, root execution, environment isolation, missing
 authentication agents, and launcher death during running and queued startup.
 It also runs the ELF validation suite with normal root ownership. The probe
 target is disabled by default and excluded from product installation.
-The startup VM passed on 2026-11-04 with systemd 262, GLib 2.88.3, and Polkit 127.
+The expanded startup VM passed on 2026-11-04 with systemd 262, GLib 2.88.3,
+and Polkit 127.
 
-Root-to-app peer authentication, cancellation during a live authentication
-dialog, idle-helper shutdown, multiple app instances, real desktop prompts,
-Debian qualification, and production transport remain required before enabling
-portable hardware writes.
+The root session in `control/prototype/portable_control_helper.cc` shares the
+production dispatcher and command runner. It authenticates one app with D-Bus
+`EXTERNAL`, checks its kernel UID/PID, and observes both process handles received
+from the startup packet. A recycled PID cannot inherit the session. Approval
+trusts the app process and its code.
+
+The VM app client verifies the root server before D-Bus authentication: the
+underlying Unix socket must report UID 0 and the helper PID reported by the real
+systemd unit. A user-owned impostor is rejected before authentication bytes are
+sent. A different process, another user, and extra connections are rejected by
+the helper. Portable `Authorize` establishes the API session after host approval.
+
+The test covers synthetic enable/readback/restore, native argument validation,
+fan-file cleanup, idle shutdown, helper crashes, and contention between helpers.
+It uses a fixed CLI fixture compiled into the VM probe; callers cannot select a
+root executable. The installed-service VM also verifies contention with a
+portable session. These checks perform no hardware writes.
+
+The production launcher's verified-endpoint handoff to Dart, host CLI discovery
+and capability checks, live authentication-dialog cancellation, desktop prompts,
+Debian qualification, and AppImage FUSE/extraction remain required before
+enabling portable hardware writes.
 
 ### Backend process containment
 
@@ -165,12 +200,26 @@ private `legion-graphics-boot` state directory used by the installed helper.
 The future portable administrator helper must itself run as a transient service.
 These units are created at runtime and require no installed unit files.
 
-The startup experiment also places its ordinary-user launcher in a transient
-scope. A helper bound to that scope stops after launcher death. A temporary
-cleanup service cancels a helper start still waiting on ordering dependencies;
-the scope triggers it with replacement job mode when the launcher exits.
-A runtime limit alone does not
-cover queued startup. The root probe also watches a launcher pidfd.
+The startup experiment creates a five-second transient timer before the helper
+can start. Its cleanup service cancels a start still waiting on ordering
+dependencies, even after launcher death. Once the helper receives live process
+handles, it stops this startup timer and observes those handles directly.
+Helper success or failure triggers the same cleanup service with replacement
+job mode. The launcher observes the helper unit ending and exits, releasing its
+unit reference. Cleanup also removes the private socket directory after
+disconnect, idle exit, or a crash. Runtime limits bound a running helper.
+
+Installed and portable helpers use `/run/legion-control/operation.lock` to
+serialize writes. Each operation opens and locks the empty file independently.
+systemd receives that descriptor as the backend's stdin, preserving EOF behavior
+and retaining the lock while a backend or its descendants remain alive. Killing
+a helper therefore cannot release the lock before systemd finishes cleanup.
+Contending writes return `Busy`.
+
+The root-owned shared runtime directory and empty lock file remain until reboot
+to preserve one lock identity across helper exits and service restarts. Each
+portable session's socket directory is removed separately. Ordinary portable use
+installs no unit files or Polkit actions.
 
 The runner pins the system manager's D-Bus owner and gives each operation a unique
 unit name. It waits for terminal state, no pending job, and systemd's release of
@@ -194,8 +243,7 @@ detached stdout holders, output limits, runtime deadlines, and client/helper
 `SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
 The test passed on 2026-11-04 with the pinned NixOS environment: systemd 262,
 GLib 2.88.3, and Polkit 127. Debian/Ubuntu versions still need qualification.
-Portable startup, authorization cancellation, and idle-helper shutdown remain
-part of the administrator-bootstrap work.
+Live authentication-dialog cancellation still needs desktop qualification.
 
 ## Hardware-free prototype
 

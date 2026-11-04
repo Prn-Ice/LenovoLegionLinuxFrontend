@@ -109,7 +109,8 @@ int main(int argc, char **argv) {
   }
   const bool toggle = argc == 3 &&
                       std::string(argv[1]) == "--donotexpecthwmon" &&
-                      std::string(argv[2]) == "batteryconservation-enable";
+                      (std::string(argv[2]) == "batteryconservation-enable" ||
+                       std::string(argv[2]) == "batteryconservation-disable");
   const bool graphics = argc == 6 &&
                         std::string(argv[1]) == "--donotexpecthwmon" &&
                         std::string(argv[2]) == "graphics-mode" &&
@@ -139,6 +140,12 @@ int main(int argc, char **argv) {
       return 0;
   }
   if (mode == "success") {
+    if (toggle &&
+        !WriteFile("battery-conservation",
+                   std::string(argv[2]) == "batteryconservation-enable"
+                       ? "enabled\n"
+                       : "disabled\n"))
+      return 65;
     puts("synthetic backend completed");
     return 0;
   }

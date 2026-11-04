@@ -124,7 +124,7 @@ To build and test native service code without installing it:
 
 ```bash
 cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test
 ctest --test-dir build/native --output-on-failure
 ```
 
