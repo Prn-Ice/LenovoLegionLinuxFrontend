@@ -29,13 +29,14 @@ static void test_features() {
     g_assert_true(ValidateFeature(feature, "1", &error));
     g_assert_false(ValidateFeature(feature, "2", &error));
   }
-  const std::array<std::tuple<const char *, int, int>, 10> integers = {
+  std::string error;
+  g_assert_false(ValidateFeature("CPUDefaultPowerLimit", "45", &error));
+  const std::array<std::tuple<const char *, int, int>, 9> integers = {
       {{"CPULongtermPowerLimit", 5, 200},
        {"CPUShorttermPowerLimit", 5, 200},
        {"CPUPeakPowerLimit", 1, 200},
        {"CPUCrossLoadingPowerLimit", 1, 100},
        {"CPUAPUSPPTPowerLimit", 1, 100},
-       {"CPUDefaultPowerLimit", 1, 100},
        {"GPUCTGPPowerLimit", 1, 200},
        {"GPUPPABPowerLimit", 1, 200},
        {"GPUBoostClock", 1, 10000},

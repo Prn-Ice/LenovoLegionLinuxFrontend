@@ -72,8 +72,8 @@ class AutomationRepository extends PrivilegedRepository {
   }
 
   Future<void> applyFanPresetForCurrentContext() async {
-    await runPrivilegedCommand(
-      ['fancurve-write-current-preset-to-hw'],
+    await runControlOperation(
+      (client) => client.applyCurrentFanPreset(),
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply fan preset for current context',
     );
@@ -83,19 +83,18 @@ class AutomationRepository extends PrivilegedRepository {
     required int lowerLimit,
     required int upperLimit,
   }) async {
-    await runPrivilegedCommand(
-      ['custom-conservation-mode-apply', '$lowerLimit', '$upperLimit'],
+    await runControlOperation(
+      (client) => client.applyCustomConservation(lowerLimit, upperLimit),
+      args: ['$lowerLimit', '$upperLimit'],
       method: 'battery_conservation.custom_apply',
       failurePrefix: 'Failed to apply custom conservation automation',
     );
   }
 
   Future<void> setRapidChargingEnabled(bool enabled) async {
-    final command = enabled
-        ? 'rapid-charging-enable'
-        : 'rapid-charging-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('rapid-charging', enabled),
+      args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'} in automation',

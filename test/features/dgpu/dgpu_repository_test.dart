@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
@@ -9,6 +10,9 @@ import 'package:mocktail/mocktail.dart';
 class _MockBridgeService extends Mock implements LegionFrontendBridgeService {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue((LegionControlClient client) async {});
+  });
   test(
     'required status reload preserves a classified bridge failure',
     () async {
@@ -146,22 +150,22 @@ void main() {
     'sets only guarded graphics modes through the privileged bridge',
     () async {
       when(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: any(named: 'method'),
           args: any(named: 'args'),
           timeout: any(named: 'timeout'),
-          detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
         ),
       ).thenAnswer((_) async {});
 
       await repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly);
 
       verify(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: 'graphics_mode.set',
-          args: ['graphics-mode', 'set', 'hybrid-igpu-only'],
+          args: ['hybrid-igpu-only'],
           timeout: const Duration(seconds: 45),
-          detectUnavailableResponse: false,
         ),
       ).called(1);
       await expectLater(
@@ -189,11 +193,11 @@ void main() {
       ),
     }.entries) {
       when(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: any(named: 'method'),
           args: any(named: 'args'),
           timeout: any(named: 'timeout'),
-          detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
         ),
       ).thenThrow(
         LegionBridgeException(

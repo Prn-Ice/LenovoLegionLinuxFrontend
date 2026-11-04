@@ -41,37 +41,36 @@ class DevicesRepository extends PrivilegedRepository {
   }
 
   Future<void> setTouchpad(bool enabled) async {
-    final command = enabled ? 'touchpad-enable' : 'touchpad-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('touchpad', enabled),
+      args: ['$enabled'],
       method: 'touchpad.set',
       failurePrefix: 'Failed to set touchpad to ${enabled ? 'on' : 'off'}',
     );
   }
 
   Future<void> setWinKey(bool enabled) async {
-    await runPrivilegedCommand(
-      ['set-feature', 'WinkeyFeature', enabled ? '1' : '0'],
+    await runControlOperation(
+      (client) => client.setFeature('WinkeyFeature', enabled ? '1' : '0'),
+      args: ['WinkeyFeature', '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
     );
   }
 
   Future<void> setFnLock(bool enabled) async {
-    final command = enabled ? 'fnlock-enable' : 'fnlock-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('fn-lock', enabled),
+      args: ['$enabled'],
       method: 'fn_lock.set',
       failurePrefix: 'Failed to set Fn lock to ${enabled ? 'on' : 'off'}',
     );
   }
 
   Future<void> setCamera(bool enabled) async {
-    final command = enabled ? 'camera-enable' : 'camera-disable';
-    await runPrivilegedCommand(
-      [command],
-      method: 'camera.set',
-      failurePrefix: 'Failed to set camera to ${enabled ? 'on' : 'off'}',
+    throw const DevicesRepositoryException(
+      'Camera writes are not supported by the control service.',
+      kind: AppFailureKind.unavailable,
     );
   }
 }

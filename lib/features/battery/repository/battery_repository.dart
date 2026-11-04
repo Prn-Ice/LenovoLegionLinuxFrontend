@@ -81,11 +81,9 @@ class BatteryRepository extends PrivilegedRepository {
   }
 
   Future<void> setBatteryConservation(bool enabled) async {
-    final command = enabled
-        ? 'batteryconservation-enable'
-        : 'batteryconservation-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('battery-conservation', enabled),
+      args: ['$enabled'],
       method: 'battery_conservation.set',
       failurePrefix:
           'Failed to set battery conservation to ${enabled ? 'on' : 'off'}',
@@ -93,11 +91,9 @@ class BatteryRepository extends PrivilegedRepository {
   }
 
   Future<void> setRapidCharging(bool enabled) async {
-    final command = enabled
-        ? 'rapid-charging-enable'
-        : 'rapid-charging-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('rapid-charging', enabled),
+      args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
@@ -111,11 +107,9 @@ class BatteryRepository extends PrivilegedRepository {
       );
     }
 
-    final command = enabled
-        ? 'always-on-usb-charging-enable'
-        : 'always-on-usb-charging-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('always-on-usb-charging', enabled),
+      args: ['$enabled'],
       method: 'always_on_usb.set',
       failurePrefix:
           'Failed to set always-on USB charging to ${enabled ? 'on' : 'off'}',

@@ -29,9 +29,14 @@ creates and disposes dependencies.
 service. The service checks and applies the change. The feature then reloads its
 state or reports an error.
 
-Older code uses `LegionFrontendBridgeService.runPrivilegedCommand` for queuing
-and command history. `LegionControlClient` maps these commands to approved D-Bus
-methods. Use `LegionControlClient` for new operations.
+Feature repositories pass typed `LegionControlClient` calls to
+`LegionFrontendBridgeService.runControlOperation`. The bridge owns serialization,
+duplicate detection, timeouts, history, and control-error translation. Its
+method/argument metadata is for history and duplicate keys, not CLI execution.
+`PrivilegedRepository` preserves failure kinds and details in feature exceptions.
+Fan curves and boot logos cross D-Bus as bytes; only the native service maps
+approved operations to backend commands. Read-only CLI queries still use
+`runCommand`.
 
 Opt-in [next-boot graphics requests](next-boot-graphics.md) also use the control
 service. They save the requested mode for the next boot.

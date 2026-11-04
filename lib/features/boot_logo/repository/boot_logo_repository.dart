@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
 import '../models/boot_logo_snapshot.dart';
@@ -37,8 +39,9 @@ class BootLogoRepository extends PrivilegedRepository {
   }
 
   Future<void> enableBootLogo(String imagePath) async {
-    await runPrivilegedCommand(
-      ['boot-logo', 'enable', imagePath],
+    await runControlOperation(
+      (client) async => client.setBootLogo(await File(imagePath).readAsBytes()),
+      args: [imagePath],
       method: 'boot-logo.enable',
       failurePrefix: 'Failed to enable boot logo',
       timeout: const Duration(seconds: 30),
@@ -46,8 +49,8 @@ class BootLogoRepository extends PrivilegedRepository {
   }
 
   Future<void> restoreBootLogo() async {
-    await runPrivilegedCommand(
-      ['boot-logo', 'restore'],
+    await runControlOperation(
+      (client) => client.restoreBootLogo(),
       method: 'boot-logo.restore',
       failurePrefix: 'Failed to restore boot logo',
       timeout: const Duration(seconds: 30),

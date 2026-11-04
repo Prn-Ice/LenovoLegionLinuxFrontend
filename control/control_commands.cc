@@ -18,7 +18,6 @@ const std::map<std::string, std::pair<int, int>> ints = {
     {"CPUPeakPowerLimit", {1, 200}},
     {"CPUCrossLoadingPowerLimit", {1, 100}},
     {"CPUAPUSPPTPowerLimit", {1, 100}},
-    {"CPUDefaultPowerLimit", {1, 100}},
     {"GPUCTGPPowerLimit", {1, 200}},
     {"GPUPPABPowerLimit", {1, 200}},
     {"GPUBoostClock", {1, 10000}},

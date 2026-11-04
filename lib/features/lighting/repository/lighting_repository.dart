@@ -44,7 +44,6 @@ class LightingRepository extends PrivilegedRepository {
           'WhiteKeyboardBacklightFeature', // legion_linux/legion.py:WhiteKeyboardBacklightFeature
       enabled: enabled,
       settingLabel: 'White keyboard backlight',
-      detectUnavailableResponse: true,
     );
   }
 
@@ -53,7 +52,6 @@ class LightingRepository extends PrivilegedRepository {
       featureName: 'YLogoLight', // legion_linux/legion.py:YLogoLight
       enabled: enabled,
       settingLabel: 'Y-logo light',
-      detectUnavailableResponse: true,
     );
   }
 
@@ -62,7 +60,6 @@ class LightingRepository extends PrivilegedRepository {
       featureName: 'IOPortLight', // legion_linux/legion.py:IOPortLight
       enabled: enabled,
       settingLabel: 'IO-port light',
-      detectUnavailableResponse: true,
     );
   }
 
@@ -70,11 +67,10 @@ class LightingRepository extends PrivilegedRepository {
     required String featureName,
     required bool enabled,
     required String settingLabel,
-    bool detectUnavailableResponse = false,
-  }) => runPrivilegedCommand(
-    ['set-feature', featureName, enabled ? '1' : '0'],
+  }) => runControlOperation(
+    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
+    args: [featureName, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
-    detectUnavailableResponse: detectUnavailableResponse,
   );
 }

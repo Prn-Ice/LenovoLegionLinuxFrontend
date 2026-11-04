@@ -4,6 +4,7 @@ import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
 import '../models/power_limit.dart';
 import '../models/power_mode.dart';
+import '../models/power_model_defaults.dart';
 import '../models/power_snapshot.dart';
 
 class PowerRepositoryException extends AppFailure {
@@ -92,8 +93,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_default',
       label: 'CPU Default Power Limit',
-      featureName:
-          'CPUDefaultPowerLimit', // legion_linux/legion.py:CPUDefaultPowerLimit
+      // The driver exposes this diagnostic with DEVICE_ATTR_RO.
       sysfsAttribute: 'cpu_default_powerlimit',
       min: 0,
       max: 100,
@@ -143,19 +143,6 @@ class PowerRepository extends PrivilegedRepository {
       max: 120,
     ),
   ];
-
-  // Verified from the 82Y4 M1CN48WW DSDT and repeated live captures. Do not
-  // broaden this map to another BIOS without equally authoritative evidence.
-  static const Map<String, int> _m1cn48wwHardwareDefaults = {
-    'cpu_longterm': 54,
-    'cpu_shortterm': 54,
-    'cpu_peak': 65,
-    'cpu_cross_loading': 45,
-    'cpu_temperature': 100,
-    'gpu_ctgp': 60,
-    'gpu_temperature': 87,
-    'gpu_power_target_offset': 45,
-  };
 
   Future<PowerSnapshot> loadSnapshot() async {
     final currentRaw = await _sysfsService.readPlatformProfile();
@@ -230,12 +217,9 @@ class PowerRepository extends PrivilegedRepository {
   }
 
   Future<void> _setPlatformProfile(String profile) async {
-    await runPrivilegedCommand(
-      [
-        'set-feature',
-        'PlatformProfileFeature',
-        profile,
-      ], // legion_linux/legion.py:PlatformProfileFeature
+    await runControlOperation(
+      (client) => client.setFeature('PlatformProfileFeature', profile),
+      args: ['PlatformProfileFeature', profile],
       method: 'feature.set',
       failurePrefix: 'Failed to set platform power mode to "$profile"',
     );
@@ -254,8 +238,9 @@ class PowerRepository extends PrivilegedRepository {
 
     await _requireLimitWriteContext();
 
-    await runPrivilegedCommand(
-      ['set-feature', featureName, '$value'],
+    await runControlOperation(
+      (client) => client.setFeature(featureName, '$value'),
+      args: [featureName, '$value'],
       method: 'feature.set',
       failurePrefix: 'Failed to set ${limit.label}',
     );
@@ -292,8 +277,10 @@ class PowerRepository extends PrivilegedRepository {
     final applied = <PowerLimitReading>[];
     try {
       for (final reading in readings) {
-        await runPrivilegedCommand(
-          ['set-feature', reading.spec.featureName!, '${reading.value}'],
+        await runControlOperation(
+          (client) =>
+              client.setFeature(reading.spec.featureName!, '${reading.value}'),
+          args: [reading.spec.featureName!, '${reading.value}'],
           method: 'feature.set',
           failurePrefix: 'Failed to set ${reading.spec.label}',
         );
@@ -303,12 +290,12 @@ class PowerRepository extends PrivilegedRepository {
       final rollbackFailures = <String>[];
       for (final reading in applied.reversed) {
         try {
-          await runPrivilegedCommand(
-            [
-              'set-feature',
+          await runControlOperation(
+            (client) => client.setFeature(
               reading.spec.featureName!,
               '${originals[reading.spec.id]}',
-            ],
+            ),
+            args: [reading.spec.featureName!, '${originals[reading.spec.id]}'],
             method: 'feature.set',
             failurePrefix: 'Failed to restore ${reading.spec.label}',
           );
@@ -347,10 +334,10 @@ class PowerRepository extends PrivilegedRepository {
       _sysfsService.readDeviceProductName(),
       _sysfsService.readBiosVersion(),
     ]);
-    if (identity[0] == '82Y4' && identity[1] == 'M1CN48WW') {
-      return _m1cn48wwHardwareDefaults;
-    }
-    return const {};
+    return powerReferenceLimitsFor(
+      productName: identity[0],
+      biosVersion: identity[1],
+    );
   }
 
   Future<void> setCpuOverclock(bool enabled) async {
@@ -358,7 +345,6 @@ class PowerRepository extends PrivilegedRepository {
       featureName: 'CPUOverclock', // legion_linux/legion.py:CPUOverclock
       enabled: enabled,
       settingLabel: 'CPU overclock',
-      detectUnavailableResponse: true,
     );
   }
 
@@ -367,7 +353,6 @@ class PowerRepository extends PrivilegedRepository {
       featureName: 'GPUOverclock', // legion_linux/legion.py:GPUOverclock
       enabled: enabled,
       settingLabel: 'GPU overclock',
-      detectUnavailableResponse: true,
     );
   }
 
@@ -375,11 +360,10 @@ class PowerRepository extends PrivilegedRepository {
     required String featureName,
     required bool enabled,
     required String settingLabel,
-    bool detectUnavailableResponse = false,
-  }) => runPrivilegedCommand(
-    ['set-feature', featureName, enabled ? '1' : '0'],
+  }) => runControlOperation(
+    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
+    args: [featureName, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
-    detectUnavailableResponse: detectUnavailableResponse,
   );
 }

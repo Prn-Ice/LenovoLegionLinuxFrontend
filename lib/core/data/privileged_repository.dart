@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/app_failure.dart';
+import '../services/legion_control_client.dart';
 import '../services/legion_frontend_bridge_service.dart';
 
 /// Base class for repositories that issue privileged commands through the
@@ -12,9 +13,7 @@ import '../services/legion_frontend_bridge_service.dart';
 /// [wrapBridgeError].
 ///
 /// Repository writes default to a 5-second timeout, shorter than the bridge's
-/// 15-second default. They use no retries and detect unavailable responses.
-/// Subclasses must explicitly request a longer timeout or disable unavailable
-/// response detection when the operation needs it.
+/// 15-second default. Subclasses explicitly request longer timeouts when needed.
 abstract class PrivilegedRepository {
   const PrivilegedRepository({required this.bridgeService});
 
@@ -26,19 +25,19 @@ abstract class PrivilegedRepository {
   Exception wrapBridgeError(AppFailure failure);
 
   @protected
-  Future<void> runPrivilegedCommand(
-    List<String> args, {
+  Future<void> runControlOperation(
+    Future<void> Function(LegionControlClient) operation, {
     required String method,
+    List<String> args = const [],
     required String failurePrefix,
     Duration timeout = const Duration(seconds: 5),
-    bool detectUnavailableResponse = true,
   }) async {
     try {
-      await bridgeService.runPrivilegedCommand(
+      await bridgeService.runControlOperation(
+        operation: operation,
         method: method,
         args: args,
         timeout: timeout,
-        detectUnavailableResponse: detectUnavailableResponse,
       );
     } on LegionBridgeException catch (error) {
       final details = error.details;

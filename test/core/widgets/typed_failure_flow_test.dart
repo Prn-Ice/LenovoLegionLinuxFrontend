@@ -22,7 +22,7 @@ void main() {
     tester,
   ) async {
     final control = _Control();
-    when(() => control.runCommand(['touchpad-enable'])).thenThrow(
+    when(() => control.setToggle('touchpad', true)).thenThrow(
       const LegionControlSetupException('Service diagnostic wording changed'),
     );
     final bloc = DevicesBloc(
@@ -62,6 +62,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Privileged access needs setup'), findsOneWidget);
-    verify(() => control.runCommand(['touchpad-enable'])).called(1);
+    verify(() => control.setToggle('touchpad', true)).called(1);
   });
 }

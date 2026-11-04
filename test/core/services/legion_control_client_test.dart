@@ -31,18 +31,11 @@ void main() {
       final transport = _FakeTransport();
       final client = LegionControlClient(transport: transport);
 
-      await client.runCommand(const ['set-feature', 'OverdriveFeature', '1']);
-      await client.runCommand(const ['hybrid-mode-disable']);
-      await client.runCommand(const [
-        'fancurve-write-preset-to-hw',
-        'quiet-ac',
-      ]);
-      await client.runCommand(const [
-        'custom-conservation-mode-apply',
-        '40',
-        '80',
-      ]);
-      await client.runCommand(const ['boot-logo', 'restore']);
+      await client.setFeature('OverdriveFeature', '1');
+      await client.setToggle('hybrid-mode', false);
+      await client.applyFanPreset('quiet-ac');
+      await client.applyCustomConservation(40, 80);
+      await client.restoreBootLogo();
 
       expect(transport.calls.map((call) => call.$1), [
         'SetFeature',
@@ -60,53 +53,41 @@ void main() {
     final client = LegionControlClient(transport: transport);
 
     await expectLater(
-      client.runCommand(const ['camera', 'on']),
+      () => client.setToggle('camera', true),
       throwsA(isA<LegionControlNotSupportedException>()),
     );
     await expectLater(
-      client.runCommand(const [
-        'set-feature',
-        'WhiteKeyboardBacklightFeature',
-        '1',
-      ]),
+      () => client.setFeature('WhiteKeyboardBacklightFeature', '1'),
       throwsA(isA<LegionControlNotSupportedException>()),
     );
+    expect(
+      () => client.setFeature('CPUDefaultPowerLimit', '45'),
+      throwsA(isA<LegionControlNotSupportedException>()),
+    );
+    expect(transport.authorizationCalls, 0);
     expect(transport.calls, isEmpty);
   });
 
-  test('supports every toggle command and rejects extra arguments', () async {
+  test('supports every allow-listed toggle', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
     const commands = [
       'hybrid-mode',
-      'batteryconservation',
+      'battery-conservation',
       'rapid-charging',
-      'minifancurve',
-      'lockfancontroller',
-      'maximumfanspeed',
+      'mini-fan-curve',
+      'lock-fan-controller',
+      'maximum-fan-speed',
       'always-on-usb-charging',
       'touchpad',
-      'fnlock',
+      'fn-lock',
     ];
 
     for (final command in commands) {
-      await client.runCommand(['$command-enable']);
-      await client.runCommand(['$command-disable']);
+      await client.setToggle(command, true);
+      await client.setToggle(command, false);
     }
     expect(transport.calls, hasLength(commands.length * 2));
-    await expectLater(
-      client.runCommand(const ['hybrid-mode-enable', 'extra']),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
-    await expectLater(
-      client.runCommand(const [
-        'set-feature',
-        'OverdriveFeature',
-        '1',
-        'extra',
-      ]),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
   });
 
   test('maps only guarded graphics modes to the typed method', () async {
@@ -114,7 +95,7 @@ void main() {
     final client = LegionControlClient(transport: transport);
 
     for (final mode in const ['hybrid', 'hybrid-igpu-only', 'discrete']) {
-      await client.runCommand(['graphics-mode', 'set', mode]);
+      await client.setGraphicsMode(mode);
     }
 
     expect(transport.calls.map((call) => call.$1), [
@@ -128,11 +109,7 @@ void main() {
       'discrete',
     ]);
     await expectLater(
-      client.runCommand(const ['graphics-mode', 'set', 'hybrid-auto']),
-      throwsA(isA<LegionControlNotSupportedException>()),
-    );
-    await expectLater(
-      client.runCommand(const ['graphics-mode', 'set', 'hybrid', '--json']),
+      () => client.setGraphicsMode('hybrid-auto'),
       throwsA(isA<LegionControlNotSupportedException>()),
     );
   });
@@ -223,7 +200,6 @@ void main() {
         'CPUPeakPowerLimit': (1, 200),
         'CPUCrossLoadingPowerLimit': (1, 100),
         'CPUAPUSPPTPowerLimit': (1, 100),
-        'CPUDefaultPowerLimit': (1, 100),
         'GPUCTGPPowerLimit': (1, 200),
         'GPUPPABPowerLimit': (1, 200),
         'GPUBoostClock': (1, 10000),
@@ -288,15 +264,12 @@ void main() {
     );
   });
 
-  test('file commands transfer bytes', () async {
+  test('payload operations transfer bytes', () async {
     final transport = _FakeTransport();
-    final client = LegionControlClient(
-      transport: transport,
-      bytesReader: (_) async => [1, 2, 255],
-    );
+    final client = LegionControlClient(transport: transport);
 
-    await client.runCommand(const ['fancurve-write-file-to-hw', '/tmp/curve']);
-    await client.runCommand(const ['boot-logo', 'enable', '/tmp/logo']);
+    await client.applyFanCurve([1, 2, 255]);
+    await client.setBootLogo([1, 2, 255]);
 
     expect(transport.calls[0].$2.single, [1, 2, 255]);
     expect(transport.calls[1].$2.single, [1, 2, 255]);

@@ -103,11 +103,11 @@ class DgpuRepository extends PrivilegedRepository {
     }
 
     try {
-      await bridgeService.runPrivilegedCommand(
+      await bridgeService.runControlOperation(
+        operation: (client) => client.setGraphicsMode(mode.wireValue),
         method: 'graphics_mode.set',
-        args: ['graphics-mode', 'set', mode.wireValue],
+        args: [mode.wireValue],
         timeout: const Duration(seconds: 45),
-        detectUnavailableResponse: false,
       );
     } on LegionBridgeException catch (error) {
       final technicalDetails = error.details.isEmpty
@@ -155,12 +155,9 @@ class DgpuRepository extends PrivilegedRepository {
         'The GPU process list changed. Refresh and confirm the current targets before trying again.',
       );
     }
-    await runPrivilegedCommand(
-      ['dgpu', 'kill-processes'],
-      method: 'dgpu.kill_processes',
-      failurePrefix: 'Failed to kill GPU processes',
-      timeout: const Duration(seconds: 15),
-      detectUnavailableResponse: false,
+    throw const DgpuRepositoryException(
+      'Killing GPU processes is not supported by the control service.',
+      kind: AppFailureKind.unavailable,
     );
   }
 
@@ -176,12 +173,9 @@ class DgpuRepository extends PrivilegedRepository {
         'GPU compute processes are still active. Stop them before restarting the PCI device.',
       );
     }
-    await runPrivilegedCommand(
-      ['dgpu', 'restart-pci'],
-      method: 'dgpu.restart_pci',
-      failurePrefix: 'Failed to restart GPU PCI device',
-      timeout: const Duration(seconds: 20),
-      detectUnavailableResponse: false,
+    throw const DgpuRepositoryException(
+      'Restarting PCI devices is not supported by the control service.',
+      kind: AppFailureKind.unavailable,
     );
   }
 

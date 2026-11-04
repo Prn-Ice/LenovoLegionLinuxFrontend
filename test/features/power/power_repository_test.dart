@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
@@ -14,6 +15,9 @@ class _MockBridge extends Mock implements LegionFrontendBridgeService {}
 class _MockProfileService extends Mock implements PowerProfileService {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue((LegionControlClient client) async {});
+  });
   late _MockSysfs sysfs;
   late _MockBridge bridge;
   late _MockProfileService profileService;
@@ -62,6 +66,7 @@ void main() {
           'cpu_longterm' => 35,
           'cpu_shortterm' => 201,
           'cpu_temperature' => 100,
+          'cpu_default' => 45,
           'gpu_power_target_offset' => 45,
           _ => 0,
         },
@@ -70,7 +75,7 @@ void main() {
 
     final snapshot = await repository.loadSnapshot();
 
-    expect(snapshot.powerLimits, hasLength(3));
+    expect(snapshot.powerLimits, hasLength(4));
     expect(snapshot.powerLimits.first.spec.id, 'cpu_longterm');
     expect(snapshot.powerLimits.first.value, 35);
     expect(snapshot.powerLimits.first.hardwareDefault, 54);
@@ -78,7 +83,7 @@ void main() {
       snapshot.powerLimits
           .where((reading) => !reading.spec.isWritable)
           .map((reading) => reading.spec.id),
-      ['cpu_temperature', 'gpu_power_target_offset'],
+      ['cpu_temperature', 'cpu_default', 'gpu_power_target_offset'],
     );
     expect(snapshot.powerLimits.last.hardwareDefault, 45);
 
@@ -92,23 +97,38 @@ void main() {
     );
   });
 
-  test('rejects writes to controller-reported read-only limits', () async {
-    final readOnly = PowerRepository.allPowerLimits.firstWhere(
-      (spec) => spec.id == 'cpu_temperature',
-    );
+  for (final id in [
+    'cpu_temperature',
+    'cpu_default',
+    'gpu_power_target_offset',
+  ]) {
+    test('rejects single and batch writes to read-only $id', () async {
+      final readOnly = PowerRepository.allPowerLimits.firstWhere(
+        (spec) => spec.id == id,
+      );
 
-    await expectLater(
-      repository.setPowerLimit(readOnly, 100),
-      throwsA(
-        isA<PowerRepositoryException>().having(
-          (error) => error.message,
-          'message',
-          contains('read-only'),
+      await expectLater(
+        repository.setPowerLimit(readOnly, 100),
+        throwsA(
+          isA<PowerRepositoryException>().having(
+            (error) => error.message,
+            'message',
+            contains('read-only'),
+          ),
         ),
-      ),
-    );
-    verifyZeroInteractions(bridge);
-  });
+      );
+      verifyZeroInteractions(bridge);
+      await expectLater(
+        repository.setPowerLimits([
+          reading,
+          PowerLimitReading(spec: readOnly, value: 45),
+        ]),
+        throwsA(isA<PowerRepositoryException>()),
+      );
+      verifyZeroInteractions(bridge);
+      verifyZeroInteractions(sysfs);
+    });
+  }
 
   test('rejects power-limit writes outside Custom mode', () async {
     when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'balanced');
@@ -172,22 +192,22 @@ void main() {
       () => sysfs.readLegionIntFile(reading.spec.sysfsAttribute),
     ).thenAnswer((_) async => 55);
     when(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName!, '60'],
+        args: [reading.spec.featureName!, '60'],
         timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
       ),
     ).thenAnswer((_) async {});
 
     await repository.setPowerLimits([reading]);
 
     verify(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName!, '60'],
+        args: [reading.spec.featureName!, '60'],
         timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
       ),
     ).called(1);
   });
@@ -211,19 +231,19 @@ void main() {
           () => sysfs.readLegionIntFile(second.spec.sysfsAttribute),
         ).thenAnswer((_) async => 75);
         when(
-          () => bridge.runPrivilegedCommand(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
             method: 'feature.set',
-            args: ['set-feature', reading.spec.featureName!, '60'],
+            args: [reading.spec.featureName!, '60'],
             timeout: const Duration(seconds: 5),
-            detectUnavailableResponse: true,
           ),
         ).thenAnswer((_) async {});
         when(
-          () => bridge.runPrivilegedCommand(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
             method: 'feature.set',
-            args: ['set-feature', second.spec.featureName!, '80'],
+            args: [second.spec.featureName!, '80'],
             timeout: const Duration(seconds: 5),
-            detectUnavailableResponse: true,
           ),
         ).thenThrow(
           const LegionBridgeException(
@@ -234,11 +254,11 @@ void main() {
           ),
         );
         when(
-          () => bridge.runPrivilegedCommand(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
             method: 'feature.set',
-            args: ['set-feature', reading.spec.featureName!, '55'],
+            args: [reading.spec.featureName!, '55'],
             timeout: const Duration(seconds: 5),
-            detectUnavailableResponse: true,
           ),
         ).thenAnswer((_) async {
           if (rollbackFails) {
@@ -274,11 +294,11 @@ void main() {
         );
 
         verify(
-          () => bridge.runPrivilegedCommand(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
             method: 'feature.set',
-            args: ['set-feature', reading.spec.featureName!, '55'],
+            args: [reading.spec.featureName!, '55'],
             timeout: const Duration(seconds: 5),
-            detectUnavailableResponse: true,
           ),
         ).called(1);
       },

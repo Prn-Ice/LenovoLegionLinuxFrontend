@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
@@ -35,7 +35,6 @@ class FansRepository extends PrivilegedRepository {
     'performance-ac',
     'balanced-performance-ac',
   ];
-  static const _tempCurvePath = '/tmp/legion_frontend_custom_curve.yaml';
 
   Future<FansSnapshot> loadSnapshot() async {
     final profile = await _sysfsService.readPlatformProfile();
@@ -64,25 +63,26 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> applyCurrentContextPreset() async {
-    await runPrivilegedCommand(
-      ['fancurve-write-current-preset-to-hw'],
+    await runControlOperation(
+      (client) => client.applyCurrentFanPreset(),
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply current context fan preset',
     );
   }
 
   Future<void> applyPreset(String presetName) async {
-    await runPrivilegedCommand(
-      ['fancurve-write-preset-to-hw', presetName],
+    await runControlOperation(
+      (client) => client.applyFanPreset(presetName),
+      args: [presetName],
       method: 'fan_curve.apply_preset',
       failurePrefix: 'Failed to apply fan preset "$presetName"',
     );
   }
 
   Future<void> setMiniFanCurve(bool enabled) async {
-    final command = enabled ? 'minifancurve-enable' : 'minifancurve-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('mini-fan-curve', enabled),
+      args: ['$enabled'],
       method: 'mini_fan_curve.set',
       failurePrefix:
           'Failed to set mini fan curve to ${enabled ? 'on' : 'off'}',
@@ -90,11 +90,9 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> setLockFanController(bool enabled) async {
-    final command = enabled
-        ? 'lockfancontroller-enable'
-        : 'lockfancontroller-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('lock-fan-controller', enabled),
+      args: ['$enabled'],
       method: 'lock_fan_controller.set',
       failurePrefix:
           'Failed to set lock fan controller to ${enabled ? 'on' : 'off'}',
@@ -102,11 +100,9 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> setMaximumFanSpeed(bool enabled) async {
-    final command = enabled
-        ? 'maximumfanspeed-enable'
-        : 'maximumfanspeed-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('maximum-fan-speed', enabled),
+      args: ['$enabled'],
       method: 'maximum_fan_speed.set',
       failurePrefix:
           'Failed to set maximum fan speed to ${enabled ? 'on' : 'off'}',
@@ -114,16 +110,9 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> writeFanCurveToHardware(FanCurve curve) async {
-    try {
-      await File(_tempCurvePath).writeAsString(curve.toYaml());
-    } catch (error) {
-      throw FansRepositoryException(
-        'Failed to write fan curve temp file: $error',
-      );
-    }
-
-    await runPrivilegedCommand(
-      ['fancurve-write-file-to-hw', _tempCurvePath],
+    final bytes = utf8.encode(curve.toYaml());
+    await runControlOperation(
+      (client) => client.applyFanCurve(bytes),
       method: 'fan_curve.write_to_hw',
       failurePrefix: 'Failed to write fan curve to hardware',
     );

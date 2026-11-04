@@ -120,73 +120,57 @@ class DashboardRepository extends PrivilegedRepository {
   }
 
   Future<void> _setPlatformProfile(String mode) async {
-    await runPrivilegedCommand(
-      [
-        'set-feature',
-        'PlatformProfileFeature',
-        mode,
-      ], // legion_linux/legion.py:PlatformProfileFeature
+    await runControlOperation(
+      (client) => client.setFeature('PlatformProfileFeature', mode),
+      args: ['PlatformProfileFeature', mode],
       method: 'feature.set',
       failurePrefix: 'Failed to set power mode to "$mode"',
-      detectUnavailableResponse: false,
     );
   }
 
   Future<void> setHybridMode(bool enabled) async {
-    final command = enabled ? 'hybrid-mode-enable' : 'hybrid-mode-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('hybrid-mode', enabled),
+      args: ['$enabled'],
       method: 'hybrid_mode.set',
       failurePrefix: 'Failed to set Hybrid mode',
-      detectUnavailableResponse: true,
     );
   }
 
   Future<void> applyContextFanPreset() async {
-    await runPrivilegedCommand(
-      const ['fancurve-write-current-preset-to-hw'],
+    await runControlOperation(
+      (client) => client.applyCurrentFanPreset(),
       method: 'fan_curve.apply_context_preset',
       failurePrefix: 'Failed to apply current context fan preset',
-      detectUnavailableResponse: false,
     );
   }
 
   Future<void> setOverdriveMode(bool enabled) async {
-    await runPrivilegedCommand(
-      [
-        'set-feature',
-        'OverdriveFeature',
-        enabled ? '1' : '0',
-      ], // legion_linux/legion.py:OverdriveFeature
+    await runControlOperation(
+      (client) => client.setFeature('OverdriveFeature', enabled ? '1' : '0'),
+      args: ['OverdriveFeature', '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Overdrive to ${enabled ? 'on' : 'off'}',
-      detectUnavailableResponse: true,
     );
   }
 
   Future<void> setBatteryConservation(bool enabled) async {
-    final command = enabled
-        ? 'batteryconservation-enable'
-        : 'batteryconservation-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('battery-conservation', enabled),
+      args: ['$enabled'],
       method: 'battery_conservation.set',
       failurePrefix:
           'Failed to set battery conservation to ${enabled ? 'on' : 'off'}',
-      detectUnavailableResponse: true,
     );
   }
 
   Future<void> setRapidCharging(bool enabled) async {
-    final command = enabled
-        ? 'rapid-charging-enable'
-        : 'rapid-charging-disable';
-    await runPrivilegedCommand(
-      [command],
+    await runControlOperation(
+      (client) => client.setToggle('rapid-charging', enabled),
+      args: ['$enabled'],
       method: 'rapid_charging.set',
       failurePrefix:
           'Failed to set rapid charging to ${enabled ? 'on' : 'off'}',
-      detectUnavailableResponse: true,
     );
   }
 

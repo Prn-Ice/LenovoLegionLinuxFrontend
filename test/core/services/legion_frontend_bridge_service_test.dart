@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
@@ -24,6 +26,142 @@ class _Transport implements LegionControlTransport {
 
 void main() {
   test(
+    'serializes callbacks, rejects duplicates, and recovers after failure',
+    () async {
+      final cli = _MockCliService();
+      final bridge = LegionFrontendBridgeService(
+        cliService: cli,
+        controlClient: LegionControlClient(transport: _Transport()),
+      );
+      final started = Completer<void>();
+      final release = Completer<void>();
+      final order = <String>[];
+      final first = bridge.runControlOperation(
+        method: 'first',
+        args: const ['value'],
+        operation: (_) async {
+          order.add('first');
+          started.complete();
+          await release.future;
+          throw const LegionControlPermissionDeniedException('denied detail');
+        },
+      );
+      final failed = expectLater(
+        first,
+        throwsA(
+          isA<LegionBridgeException>()
+              .having(
+                (e) => e.code,
+                'code',
+                LegionBridgeErrorCode.permissionDenied,
+              )
+              .having((e) => e.details, 'details', contains('denied detail')),
+        ),
+      );
+      await started.future;
+      final second = bridge.runControlOperation(
+        method: 'second',
+        operation: (_) async {
+          order.add('second');
+        },
+      );
+      await expectLater(
+        bridge.runControlOperation(
+          method: 'first',
+          args: const ['value'],
+          operation: (_) async {
+            fail('duplicate ran');
+          },
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (e) => e.code,
+            'code',
+            LegionBridgeErrorCode.busy,
+          ),
+        ),
+      );
+      expect(order, ['first']);
+      expect(bridge.isActionPending(method: 'first', args: ['value']), isTrue);
+      release.complete();
+      await failed;
+      await second;
+      expect(order, ['first', 'second']);
+      expect(bridge.isActionPending(method: 'first', args: ['value']), isFalse);
+      expect(bridge.commandHistory.map((e) => e.succeeded), [false, true]);
+      expect(bridge.commandHistory.every((e) => e.isPrivileged), isTrue);
+      verifyZeroInteractions(cli);
+    },
+  );
+
+  test(
+    'timeout releases the queue and records failure without retry by default',
+    () async {
+      final bridge = LegionFrontendBridgeService(
+        cliService: _MockCliService(),
+        controlClient: LegionControlClient(transport: _Transport()),
+      );
+      final release = Completer<void>();
+      var calls = 0;
+      await expectLater(
+        bridge.runControlOperation(
+          method: 'slow',
+          timeout: Duration.zero,
+          operation: (_) {
+            calls++;
+            return release.future;
+          },
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (e) => e.code,
+            'code',
+            LegionBridgeErrorCode.timeout,
+          ),
+        ),
+      );
+      await bridge.runControlOperation(method: 'next', operation: (_) async {});
+      release.complete();
+      expect(calls, 1);
+      expect(bridge.commandHistory.map((e) => e.succeeded), [false, true]);
+    },
+  );
+
+  test('retries only transient failures and bounds history', () async {
+    final bridge = LegionFrontendBridgeService(
+      cliService: _MockCliService(),
+      controlClient: LegionControlClient(transport: _Transport()),
+    );
+    var calls = 0;
+    await bridge.runControlOperation(
+      method: 'retry',
+      retries: 1,
+      operation: (_) async {
+        if (calls++ == 0) throw const LegionControlBusyException('busy');
+      },
+    );
+    expect(calls, 2);
+    await expectLater(
+      bridge.runControlOperation(
+        method: 'denied',
+        retries: 1,
+        operation: (_) async {
+          calls++;
+          throw const LegionControlPermissionDeniedException('denied');
+        },
+      ),
+      throwsA(isA<LegionBridgeException>()),
+    );
+    expect(calls, 3);
+    for (var i = 0; i < 21; i++) {
+      await bridge.runControlOperation(method: '$i', operation: (_) async {});
+    }
+    expect(bridge.commandHistory, hasLength(20));
+    expect(bridge.commandHistory.first.method, '1');
+    expect(bridge.commandHistory.last.method, '20');
+  });
+
+  test(
     'missing control service is unavailable and never falls back to pkexec',
     () async {
       final bridge = LegionFrontendBridgeService(
@@ -31,9 +169,11 @@ void main() {
       );
 
       await expectLater(
-        bridge.runPrivilegedCommand(
+        bridge.runControlOperation(
+          operation: (client) =>
+              client.setFeature('PlatformProfileFeature', 'custom'),
           method: 'feature.set',
-          args: const ['set-feature', 'PlatformProfileFeature', 'custom'],
+          args: const ['PlatformProfileFeature', 'custom'],
           retries: 0,
         ),
         throwsA(
@@ -57,9 +197,11 @@ void main() {
         controlClient: LegionControlClient(transport: transport),
       );
 
-      await bridge.runPrivilegedCommand(
+      await bridge.runControlOperation(
+        operation: (client) =>
+            client.setFeature('PlatformProfileFeature', 'custom'),
         method: 'feature.set',
-        args: const ['set-feature', 'PlatformProfileFeature', 'custom'],
+        args: const ['PlatformProfileFeature', 'custom'],
       );
       expect(calls, ['SetFeature']);
     },
@@ -90,9 +232,10 @@ void main() {
         controlClient: LegionControlClient(transport: transport),
       );
       await expectLater(
-        bridge.runPrivilegedCommand(
+        bridge.runControlOperation(
+          operation: (client) => client.setToggle('hybrid-mode', true),
           method: 'toggle',
-          args: const ['hybrid-mode-enable'],
+          args: const ['true'],
         ),
         throwsA(
           isA<LegionBridgeException>().having(
@@ -115,9 +258,10 @@ void main() {
       controlClient: LegionControlClient(transport: transport),
     );
     await expectLater(
-      bridge.runPrivilegedCommand(
+      bridge.runControlOperation(
+        operation: (client) => client.setToggle('hybrid-mode', true),
         method: 'toggle',
-        args: const ['hybrid-mode-enable'],
+        args: const ['true'],
       ),
       throwsA(
         isA<LegionBridgeException>().having(

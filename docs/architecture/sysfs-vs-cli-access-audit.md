@@ -46,9 +46,11 @@
 
 ## Writes (`LegionControl1`)
 
-Repositories pass commands to `LegionControlClient`, which maps them to typed
-D-Bus methods. The root service validates each request and runs a fixed backend
-command.
+Repositories call typed `LegionControlClient` methods inside the bridge's
+`runControlOperation` queue. The root service validates each request and runs a
+fixed backend command. The CLI vocabulary below describes that native backend
+mapping, not repository inputs. Fan curves and boot logos are transferred as
+bytes; custom fan curves no longer use a shared temporary frontend file.
 
 ### Named CLI commands
 
@@ -90,7 +92,6 @@ Used for features that have dedicated `enable/disable` subcommands in legion_cli
 | CPU peak power | `CPUPeakPowerLimit` | power |
 | CPU cross loading | `CPUCrossLoadingPowerLimit` | power |
 | CPU APU SPPT | `CPUAPUSPPTPowerLimit` | power |
-| CPU default | `CPUDefaultPowerLimit` | power |
 | GPU CTGP | `GPUCTGPPowerLimit` | power |
 | GPU PPAB | `GPUPPABPowerLimit` | power |
 | GPU boost clock | `GPUBoostClock` | power |
@@ -105,6 +106,7 @@ Used for features that have dedicated `enable/disable` subcommands in legion_cli
 | `camera_power` | CLI only exposes `camera-power status`; write not supported by driver on most models |
 | `on_power_supply` | Sensor — AC state is not user-settable |
 | `cpu_temperature_limit` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
+| `cpu_default_powerlimit` | Driver declares `DEVICE_ATTR_RO`; retained as a diagnostic reading, excluded from Dart and native write allow-lists |
 | `gpu_power_target_offset` | WMI3 reports the value, but Python has no writable feature and the plain WMI3 store path is not validated |
 | `white_kbd_backlight` | Not included in the privileged service allow-list until a validated backend contract exists |
 | `dgpu` deactivation | Process killing and PCI restart are intentionally outside the privileged service allow-list |
@@ -134,9 +136,9 @@ supporting evidence. Other systems show `Hardware default unavailable`.
 2. Consider `legion_cli monitor` for detecting changes made by other tools. It
    polls hardware state and returns JSON. Tracked in `okf.18`.
 3. Fan curves require 100 sysfs reads per load: 10 points × 10 files each.
-4. The app maps `CPUDefaultPowerLimit` as writable, but the inspected driver
-   exposes `cpu_default_powerlimit` read-only. This mismatch is tracked in
-   `lllf-9g8`; see the [backend evidence](../power-defaults-evidence.md#where-to-add-backend-support).
+4. `CPUDefaultPowerLimit` is read-only in the frontend and rejected by both
+   write allow-lists (`lllf-9g8`), matching the driver's `DEVICE_ATTR_RO`.
+   See the [backend evidence](../power-defaults-evidence.md#where-to-add-backend-support).
 
 ---
 

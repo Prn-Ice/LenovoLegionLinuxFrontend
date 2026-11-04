@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/features/lighting/repository/lighting_repository.dart';
@@ -10,6 +11,7 @@ class _MockSysfs extends Mock implements LegionSysfsService {}
 
 void main() {
   setUpAll(() {
+    registerFallbackValue((LegionControlClient client) async {});
     registerFallbackValue(Duration.zero);
     registerFallbackValue(<String>[]);
   });
@@ -29,22 +31,22 @@ void main() {
     'setIoPortLight forwards the feature.set command through the base',
     () async {
       when(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: any(named: 'method'),
           args: any(named: 'args'),
           timeout: any(named: 'timeout'),
-          detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
         ),
       ).thenAnswer((_) async {});
 
       await repository.setIoPortLight(true);
 
       verify(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: 'feature.set',
-          args: ['set-feature', 'IOPortLight', '1'],
+          args: ['IOPortLight', 'true'],
           timeout: const Duration(seconds: 5),
-          detectUnavailableResponse: true,
         ),
       ).called(1);
     },
@@ -54,11 +56,11 @@ void main() {
     'setIoPortLight normalizes the failure message to the base shape',
     () async {
       when(
-        () => bridge.runPrivilegedCommand(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
           method: any(named: 'method'),
           args: any(named: 'args'),
           timeout: any(named: 'timeout'),
-          detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
         ),
       ).thenThrow(
         const LegionBridgeException(

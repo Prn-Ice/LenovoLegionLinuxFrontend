@@ -26,8 +26,8 @@ still needs complete model data and a verified PPAB default. See that branch's
 - Frontend baseline map last changed in commit
   `2f2fc4b4c2fa786213fd6eb3db5969dbb9db5508` (`feat(power): show hardware limit
   baselines`). The current map is in
-  `lib/features/power/repository/power_repository.dart:148-159`, and its exact
-  product/BIOS gate is at `:343-351`. The map adds reference values to the
+  `lib/features/power/models/power_model_defaults.dart`, with its exact
+  product/BIOS gate in `powerReferenceLimitsFor`. The map adds reference values to the
   display; it does not read defaults from the driver.
 - Nearby backend, inspected without changes:
   `../LenovoLegionLinux`, HEAD
@@ -179,7 +179,7 @@ A future restore design must explain how it handles missing PPAB data.
    power and Custom-mode checks, the existing staged batch/rollback flow, and
    failure and recovery tests.
 
-Also verify the sources for `_m1cn48wwHardwareDefaults`. Keep the hardware
+Also verify the sources for `powerReferenceLimitsFor`. Keep the hardware
 defaults label only for entries backed by recoverable authoritative evidence.
 Handle any app behavior change separately.
 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:dbus/dbus.dart';
 
@@ -117,18 +116,12 @@ class DBusLegionControlTransport implements LegionControlTransport {
   }
 }
 
-typedef BytesReader = Future<List<int>> Function(String path);
-
-/// Maps the legacy legion_cli command vocabulary to the narrow D-Bus contract.
+/// Validates typed control operations against the narrow D-Bus contract.
 class LegionControlClient {
-  LegionControlClient({
-    required LegionControlTransport transport,
-    BytesReader? bytesReader,
-  }) : _transport = transport,
-       _bytesReader = bytesReader ?? ((path) => File(path).readAsBytes());
+  LegionControlClient({required LegionControlTransport transport})
+    : _transport = transport;
 
   final LegionControlTransport _transport;
-  final BytesReader _bytesReader;
   Future<void> _call(
     String method,
     List<Object> arguments, {
@@ -171,7 +164,6 @@ class LegionControlClient {
     'CPUPeakPowerLimit',
     'CPUCrossLoadingPowerLimit',
     'CPUAPUSPPTPowerLimit',
-    'CPUDefaultPowerLimit',
     'GPUCTGPPowerLimit',
     'GPUPPABPowerLimit',
     'GPUBoostClock',
@@ -249,51 +241,6 @@ class LegionControlClient {
       ? _call('SetServiceEnabled', [id, enabled])
       : _unsupported('Unsupported service.');
 
-  Future<void> runCommand(List<String> args) async {
-    if (args.length == 3 && args[0] == 'set-feature') {
-      return setFeature(args[1], args[2]);
-    }
-
-    final toggle = _toggleCommand(args);
-    if (toggle != null) return setToggle(toggle.$1, toggle.$2);
-    if (args.length == 3 && args[0] == 'graphics-mode' && args[1] == 'set') {
-      return setGraphicsMode(args[2]);
-    }
-    if (args.length == 2 &&
-        args[0] == 'fancurve-write-preset-to-hw' &&
-        args[1].isNotEmpty) {
-      return applyFanPreset(args[1]);
-    }
-    if (args.length == 1 && args[0] == 'fancurve-write-current-preset-to-hw') {
-      return applyCurrentFanPreset();
-    }
-    if (args.length == 3 && args[0] == 'custom-conservation-mode-apply') {
-      final lower = int.tryParse(args[1]);
-      final upper = int.tryParse(args[2]);
-      if (lower == null || upper == null) {
-        _unsupported('Malformed conservation limits.');
-      }
-      return applyCustomConservation(lower, upper);
-    }
-    if (args.length == 2 &&
-        args[0] == 'fancurve-write-file-to-hw' &&
-        _isPath(args[1])) {
-      return applyFanCurve(await _bytesReader(args[1]));
-    }
-    if (args.length == 3 &&
-        args[0] == 'boot-logo' &&
-        args[1] == 'enable' &&
-        _isPath(args[2])) {
-      return setBootLogo(await _bytesReader(args[2]));
-    }
-    if (args.length == 2 && args[0] == 'boot-logo' && args[1] == 'restore') {
-      return restoreBootLogo();
-    }
-    throw const LegionControlNotSupportedException(
-      'Unsupported privileged command.',
-    );
-  }
-
   Future<void> close() => _transport.close();
 
   static const _toggleIds = {
@@ -334,7 +281,6 @@ class LegionControlClient {
     'CPUPeakPowerLimit': _IntRange(1, 200),
     'CPUCrossLoadingPowerLimit': _IntRange(1, 100),
     'CPUAPUSPPTPowerLimit': _IntRange(1, 100),
-    'CPUDefaultPowerLimit': _IntRange(1, 100),
     'GPUCTGPPowerLimit': _IntRange(1, 200),
     'GPUPPABPowerLimit': _IntRange(1, 200),
     'GPUBoostClock': _IntRange(1, 10000),
@@ -392,34 +338,6 @@ class LegionControlClient {
     final name = error.errorName;
     return name.endsWith('AccessDenied') || name.endsWith('AuthFailed');
   }
-
-  (String, bool)? _toggleCommand(List<String> args) {
-    if (args.length != 1) return null;
-    const commands = {
-      'hybrid-mode-enable': ('hybrid-mode', true),
-      'hybrid-mode-disable': ('hybrid-mode', false),
-      'batteryconservation-enable': ('battery-conservation', true),
-      'batteryconservation-disable': ('battery-conservation', false),
-      'rapid-charging-enable': ('rapid-charging', true),
-      'rapid-charging-disable': ('rapid-charging', false),
-      'minifancurve-enable': ('mini-fan-curve', true),
-      'minifancurve-disable': ('mini-fan-curve', false),
-      'lockfancontroller-enable': ('lock-fan-controller', true),
-      'lockfancontroller-disable': ('lock-fan-controller', false),
-      'maximumfanspeed-enable': ('maximum-fan-speed', true),
-      'maximumfanspeed-disable': ('maximum-fan-speed', false),
-      'always-on-usb-charging-enable': ('always-on-usb-charging', true),
-      'always-on-usb-charging-disable': ('always-on-usb-charging', false),
-      'touchpad-enable': ('touchpad', true),
-      'touchpad-disable': ('touchpad', false),
-      'fnlock-enable': ('fn-lock', true),
-      'fnlock-disable': ('fn-lock', false),
-    };
-    return commands[args[0]];
-  }
-
-  bool _isPath(String path) =>
-      path.isNotEmpty && path.startsWith('/') && !path.contains('\u0000');
 }
 
 class _IntRange {

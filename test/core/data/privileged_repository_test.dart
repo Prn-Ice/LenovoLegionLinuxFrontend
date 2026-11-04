@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/data/privileged_repository.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
@@ -28,18 +29,18 @@ class _TestRepository extends PrivilegedRepository {
   Future<void> run(
     List<String> args, {
     Duration timeout = const Duration(seconds: 5),
-    bool detectUnavailableResponse = true,
-  }) => runPrivilegedCommand(
-    args,
+  }) => runControlOperation(
+    (client) => client.setFeature('OverdriveFeature', '1'),
+    args: args,
     method: 'feature.set',
     failurePrefix: 'Failed to apply',
     timeout: timeout,
-    detectUnavailableResponse: detectUnavailableResponse,
   );
 }
 
 void main() {
   setUpAll(() {
+    registerFallbackValue((LegionControlClient client) async {});
     registerFallbackValue(Duration.zero);
     registerFallbackValue(<String>[]);
   });
@@ -54,22 +55,22 @@ void main() {
 
   void stubSuccess() {
     when(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: any(named: 'method'),
         args: any(named: 'args'),
         timeout: any(named: 'timeout'),
-        detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
       ),
     ).thenAnswer((_) async {});
   }
 
   void stubThrow(LegionBridgeException error) {
     when(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: any(named: 'method'),
         args: any(named: 'args'),
         timeout: any(named: 'timeout'),
-        detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
       ),
     ).thenThrow(error);
   }
@@ -77,51 +78,45 @@ void main() {
   test('forwards method and args to the bridge', () async {
     stubSuccess();
 
-    await repository.run(['set-feature', 'X', '1']);
+    await repository.run(['X', '1']);
 
     verify(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: 'feature.set',
-        args: ['set-feature', 'X', '1'],
+        args: ['X', '1'],
         timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
       ),
     ).called(1);
   });
 
-  test('defaults forwarded match the bridge defaults (5s, true)', () async {
+  test('repository timeout defaults to 5 seconds', () async {
     stubSuccess();
 
     await repository.run(['a']);
 
     final captured = verify(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: any(named: 'method'),
         args: any(named: 'args'),
         timeout: captureAny(named: 'timeout'),
-        detectUnavailableResponse: captureAny(
-          named: 'detectUnavailableResponse',
-        ),
       ),
     ).captured;
-    expect(captured, [const Duration(seconds: 5), true]);
+    expect(captured, [const Duration(seconds: 5)]);
   });
 
-  test('forwards overridden timeout and detectUnavailableResponse', () async {
+  test('forwards overridden timeout', () async {
     stubSuccess();
 
-    await repository.run(
-      ['a'],
-      timeout: const Duration(seconds: 10),
-      detectUnavailableResponse: false,
-    );
+    await repository.run(['a'], timeout: const Duration(seconds: 10));
 
     verify(
-      () => bridge.runPrivilegedCommand(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
         method: any(named: 'method'),
         args: any(named: 'args'),
         timeout: const Duration(seconds: 10),
-        detectUnavailableResponse: false,
       ),
     ).called(1);
   });

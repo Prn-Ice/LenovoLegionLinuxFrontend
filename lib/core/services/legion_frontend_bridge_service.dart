@@ -95,13 +95,19 @@ class LegionFrontendBridgeService {
     return _pendingActionKeys.contains(actionKey);
   }
 
-  Future<void> runPrivilegedCommand({
+  /// Queues a typed control call. [args] are history and duplicate-key metadata,
+  /// never executable commands. The timeout begins when the operation starts.
+  Future<void> runControlOperation({
+    required Future<void> Function(LegionControlClient) operation,
     required String method,
-    required List<String> args,
+    List<String> args = const [],
     Duration timeout = const Duration(seconds: 15),
     int retries = 0,
-    bool detectUnavailableResponse = true,
   }) async {
+    if (retries < 0) {
+      throw ArgumentError.value(retries, 'retries', 'must be >= 0');
+    }
+    args = List.unmodifiable(args);
     final actionKey = _buildActionKey(method: method, args: args);
     if (_pendingActionKeys.contains(actionKey)) {
       throw LegionBridgeException(
@@ -116,13 +122,11 @@ class LegionFrontendBridgeService {
 
     _privilegedQueue = _privilegedQueue.catchError((_) {}).then((_) async {
       try {
-        await _runCommand(
+        await _runControlOperation(
+          operation: operation,
           method: method,
-          args: args,
           timeout: timeout,
           retries: retries,
-          privileged: true,
-          detectUnavailableResponse: detectUnavailableResponse,
         );
         completion.complete();
       } catch (error, stackTrace) {
@@ -163,7 +167,6 @@ class LegionFrontendBridgeService {
         args: args,
         timeout: timeout,
         retries: retries,
-        privileged: false,
         detectUnavailableResponse: detectUnavailableResponse,
       );
       succeeded = true;
@@ -184,7 +187,6 @@ class LegionFrontendBridgeService {
     required List<String> args,
     required Duration timeout,
     required int retries,
-    required bool privileged,
     required bool detectUnavailableResponse,
   }) async {
     if (retries < 0) {
@@ -195,22 +197,10 @@ class LegionFrontendBridgeService {
     while (true) {
       attempt += 1;
       try {
-        final result = privileged
-            ? await _runControlCommand(method, args)
-                  .timeout(timeout)
-                  .then(
-                    (_) => const LegionCliResult(
-                      exitCode: 0,
-                      stdout: '',
-                      stderr: '',
-                    ),
-                  )
-            : await _cliService.runCommand(args).timeout(timeout);
+        final result = await _cliService.runCommand(args).timeout(timeout);
 
         final unavailable =
-            !privileged &&
-            detectUnavailableResponse &&
-            _looksUnavailable(result);
+            detectUnavailableResponse && _looksUnavailable(result);
 
         if (result.ok && !unavailable) {
           return result;
@@ -239,14 +229,8 @@ class LegionFrontendBridgeService {
         }
 
         throw error;
-      } on LegionControlException catch (error) {
-        final translated = _translateControlError(method, error);
-        if (attempt <= retries &&
-            (translated.code == LegionBridgeErrorCode.busy ||
-                translated.code == LegionBridgeErrorCode.timeout)) {
-          continue;
-        }
-        throw translated;
+      } on LegionBridgeException {
+        rethrow;
       } on Object catch (error) {
         throw LegionBridgeException(
           code: LegionBridgeErrorCode.commandFailed,
@@ -258,14 +242,45 @@ class LegionFrontendBridgeService {
     }
   }
 
-  Future<void> _runControlCommand(String method, List<String> args) {
-    final client = _controlClient;
-    if (client == null) {
-      throw const LegionControlSetupException(
-        'The legion-control service is not configured.',
-      );
+  Future<void> _runControlOperation({
+    required Future<void> Function(LegionControlClient) operation,
+    required String method,
+    required Duration timeout,
+    required int retries,
+  }) async {
+    for (var attempt = 0; ; attempt++) {
+      final LegionBridgeException failure;
+      try {
+        final client = _controlClient;
+        if (client == null) {
+          throw const LegionControlSetupException(
+            'The legion-control service is not configured.',
+          );
+        }
+        await operation(client).timeout(timeout);
+        return;
+      } on TimeoutException {
+        failure = LegionBridgeException(
+          code: LegionBridgeErrorCode.timeout,
+          method: method,
+          message: 'Timed out while running $method.',
+        );
+      } on LegionControlException catch (error) {
+        failure = _translateControlError(method, error);
+      } catch (error) {
+        failure = LegionBridgeException(
+          code: LegionBridgeErrorCode.commandFailed,
+          method: method,
+          message: 'Failed to run $method.',
+          stderr: '$error',
+        );
+      }
+      if (attempt >= retries ||
+          (failure.code != LegionBridgeErrorCode.busy &&
+              failure.code != LegionBridgeErrorCode.timeout)) {
+        throw failure;
+      }
     }
-    return client.runCommand(args);
   }
 
   LegionBridgeException _translateControlError(

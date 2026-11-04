@@ -60,11 +60,10 @@ class DisplayRepository extends PrivilegedRepository {
     required String featureName,
     required bool enabled,
     required String settingLabel,
-    bool detectUnavailableResponse = false,
-  }) => runPrivilegedCommand(
-    ['set-feature', featureName, enabled ? '1' : '0'],
+  }) => runControlOperation(
+    (client) => client.setFeature(featureName, enabled ? '1' : '0'),
+    args: [featureName, '$enabled'],
     method: 'feature.set',
     failurePrefix: 'Failed to set $settingLabel to ${enabled ? 'on' : 'off'}',
-    detectUnavailableResponse: detectUnavailableResponse,
   );
 }
