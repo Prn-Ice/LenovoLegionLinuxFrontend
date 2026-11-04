@@ -10,9 +10,9 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
   LiveSensorBloc({
     required LiveSensorRepository repository,
     Duration pollInterval = const Duration(seconds: 2),
-  })  : _repository = repository,
-        _pollInterval = pollInterval,
-        super(LiveSensorState.initial()) {
+  }) : _repository = repository,
+       _pollInterval = pollInterval,
+       super(LiveSensorState.initial()) {
     on<LiveSensorStarted>(_onStarted);
     on<LiveSensorTicked>(_onTicked);
   }
@@ -31,6 +31,7 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
     if (_started) return;
     _started = true;
     await _reload(emit);
+    if (isClosed) return;
     _pollTimer = Timer.periodic(
       _pollInterval,
       (_) => add(const LiveSensorTicked()),
@@ -49,12 +50,20 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
     _refreshInFlight = true;
     try {
       final snapshot = await _repository.loadSnapshot();
-      emit(state.copyWith(snapshot: snapshot, isLoading: false, errorMessage: null));
+      emit(
+        state.copyWith(
+          snapshot: snapshot,
+          isLoading: false,
+          errorMessage: null,
+        ),
+      );
     } catch (error) {
-      emit(state.copyWith(
-        isLoading: false,
-        errorMessage: 'Failed to read sensors: $error',
-      ));
+      emit(
+        state.copyWith(
+          isLoading: false,
+          errorMessage: 'Failed to read sensors: $error',
+        ),
+      );
     } finally {
       _refreshInFlight = false;
     }
