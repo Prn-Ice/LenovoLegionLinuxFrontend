@@ -6,7 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/app.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
-import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
+import 'package:legion_frontend/features/battery/models/battery_snapshot.dart';
+import 'package:legion_frontend/features/battery/providers/battery_provider.dart';
+import 'package:legion_frontend/features/battery/repository/battery_repository.dart';
+import 'package:legion_frontend/features/dashboard/models/dashboard_snapshot.dart';
+import 'package:legion_frontend/features/dashboard/providers/dashboard_provider.dart';
+import 'package:legion_frontend/features/dashboard/repository/dashboard_repository.dart';
+import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
+import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
+import 'package:legion_frontend/features/sensors/repository/live_sensor_repository.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/analytics/providers/analytics_provider.dart';
 import 'package:legion_frontend/features/analytics/repository/analytics_repository.dart';
@@ -35,11 +43,39 @@ import 'package:legion_frontend/features/settings/view/settings_page.dart';
 import 'package:legion_frontend/features/diagnostics/view/diagnostics_page.dart';
 import 'package:yaru/yaru.dart';
 
-class _UnavailablePackagePowerClient implements PackagePowerTelemetryClient {
-  const _UnavailablePackagePowerClient();
+class _FakeDashboardRepository implements DashboardRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 
   @override
-  Future<double?> readPackagePowerWatts() async => null;
+  Future<DashboardSnapshot> loadSnapshot() async => DashboardSnapshot.initial();
+}
+
+class _FakeBatteryRepository implements BatteryRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<BatterySnapshot> loadSnapshot() async => const BatterySnapshot(
+    batteryConservationEnabled: null,
+    batteryConservationSupported: false,
+    rapidChargingEnabled: null,
+    rapidChargingSupported: false,
+    batteryPercent: null,
+    batteryCharging: null,
+    batteryPowerDrawW: null,
+    cycleCounts: null,
+    fullCapacityWh: null,
+    designCapacityWh: null,
+    currentCapacityWh: null,
+    batteryTempC: null,
+  );
+}
+
+class _FakeLiveSensorRepository implements LiveSensorRepository {
+  @override
+  Future<LiveSensorSnapshot> loadSnapshot() async =>
+      LiveSensorSnapshot.initial();
 }
 
 class _FakeAboutRepository implements AboutRepository {
@@ -195,9 +231,18 @@ final _automationRepository = _FakeAutomationRepository();
 
 Widget _testApp() => ProviderScope(
   overrides: [
-    packagePowerTelemetryClientProvider.overrideWithValue(
-      const _UnavailablePackagePowerClient(),
+    legionCliServiceProvider.overrideWith(
+      (_) => throw StateError('Shell tests must not launch legion_cli'),
     ),
+    legionSysfsServiceProvider.overrideWith(
+      (_) => throw StateError('Shell tests must not read host sysfs'),
+    ),
+    legionControlClientProvider.overrideWith(
+      (_) => throw StateError('Shell tests must not connect to system D-Bus'),
+    ),
+    dashboardRepositoryProvider.overrideWithValue(_FakeDashboardRepository()),
+    batteryRepositoryProvider.overrideWithValue(_FakeBatteryRepository()),
+    liveSensorRepositoryProvider.overrideWithValue(_FakeLiveSensorRepository()),
     aboutRepositoryProvider.overrideWithValue(_aboutRepository),
     analyticsRepositoryProvider.overrideWithValue(_analyticsRepository),
     settingsRepositoryProvider.overrideWithValue(_settingsRepository),

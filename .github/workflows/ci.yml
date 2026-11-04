@@ -32,15 +32,29 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Add legion_cli test stub
-        run: |
-          mkdir -p "$RUNNER_TEMP/bin"
-          cat > "$RUNNER_TEMP/bin/legion_cli" <<'EOF'
-          #!/usr/bin/env bash
-          exit 0
-          EOF
-          chmod +x "$RUNNER_TEMP/bin/legion_cli"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-
       - name: Run tests
         run: flutter test --reporter=compact
+
+  native:
+    name: Native services and tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev libpolkit-gobject-1-dev dbus
+
+      - name: Configure
+        run: cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_TESTING=ON
+
+      - name: Build services and tests
+        run: >-
+          cmake --build build/native --parallel 2 --target
+          legion_telemetry_service legion_control_service
+          package_power_sampler_test control_commands_test graphics_boot_service_test
+
+      - name: Run native tests
+        run: ctest --test-dir build/native --output-on-failure --no-tests=error
