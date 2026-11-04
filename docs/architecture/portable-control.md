@@ -7,9 +7,9 @@ The AppImage goal is: install the supported driver and CLI, download the app,
 open it, and authorize interactive hardware changes without installing our
 system service.
 
-The first implementation step is a hardware-free private-connection prototype.
-Production administrator authorization and release packages remain to be
-implemented. See the [public backlog](../../BACKLOG.md).
+The private-connection prototype and systemd backend process containment are
+implemented. Production portable administrator authorization and release
+packages remain to be implemented. See the [public backlog](../../BACKLOG.md).
 
 ## Installation experience
 
@@ -110,6 +110,48 @@ dependencies and work with host execution policies and `pkexec`; sealing bytes
 alone does not establish their origin. The prototype deliberately has no
 production elevation path while this choice is unresolved.
 
+### Backend process containment
+
+Each validated backend operation runs in a systemd transient service. systemd
+owns its control group and terminates descendants, including children that
+detach with `setsid()` or double-fork. Startup, runtime, and stop deadlines are
+enforced by systemd independently of the control helper. The helper also cancels
+an acknowledged start that remains queued for five seconds.
+
+The operation uses `BindsTo` and `After` to end when its helper service ends.
+`JoinsNamespaceOf` shares the helper's private temporary directory so a backend
+can read a temporary fan-curve payload. The operation retains the service's
+filesystem, namespace, syscall, and privilege restrictions and trusted `PATH`.
+When next-boot graphics requests are enabled, command units also retain the
+private `legion-graphics-boot` state directory used by the installed helper.
+The future portable administrator helper must itself run as a transient service.
+These units are created at runtime and require no installed unit files.
+
+The runner pins the system manager's D-Bus owner and gives each operation a unique
+unit name. It waits for terminal state, no pending job, and systemd's release of
+the empty control group before releasing its unit reference. systemd can then
+close its output descriptors and collect the unit. A failed unit with processes
+still stuck in the kernel keeps the helper busy until the cleanup deadline.
+Cancellation during startup waits for the start reply before requesting stop.
+Uncertain cleanup disables further writes until the helper restarts.
+
+Private-bus tests exercise the manager protocol and failure paths. The disposable
+NixOS VM test exercises actual cgroup cleanup under the installed service's
+sandbox with synthetic backends:
+
+```bash
+nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
+```
+
+The VM covers private payload visibility and removal, persistent next-boot
+request/status/cancellation, graphics exit codes,
+detached stdout holders, output limits, runtime deadlines, and client/helper
+`SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
+The test passed on 2026-11-04 with the pinned NixOS environment: systemd 262,
+GLib 2.88.3, and Polkit 127. Debian/Ubuntu versions still need qualification.
+Portable startup, authorization cancellation, and idle-helper shutdown remain
+part of the administrator-bootstrap work.
+
 ## Hardware-free prototype
 
 Build the opt-in native probe and run the Dart client from the repository root:
@@ -180,3 +222,6 @@ documentation and the resolved local dependency sources:
 - [Dart dbus client](https://pub.dev/documentation/dbus/latest/dbus/DBusClient-class.html)
 - [AppImage FUSE and extraction](https://docs.appimage.org/user-guide/troubleshooting/fuse.html)
 - [Linux memfd and seals](https://man7.org/linux/man-pages/man2/memfd_create.2.html)
+- [systemd transient units](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html)
+- [systemd manager D-Bus API](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.systemd1.html)
+- [systemd process termination](https://www.freedesktop.org/software/systemd/man/latest/systemd.kill.html)

@@ -1,4 +1,5 @@
 #include "control_commands.h"
+#include "managed_command.h"
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -17,7 +18,6 @@ namespace {
 constexpr char bus[] = "io.github.prnice.LegionControl1",
                path[] = "/io/github/prnice/LegionControl1",
                iface[] = "io.github.prnice.LegionControl1";
-constexpr gsize output_limit = 64 * 1024;
 constexpr size_t input_limit = 128;
 constexpr char xml[] =
     R"(<node><interface name="io.github.prnice.LegionControl1">
@@ -45,26 +45,18 @@ struct Ctx {
   std::map<std::string, bool> auth;
   std::map<std::string, GCancellable *> pending;
   PolkitAuthority *authority = nullptr;
+  std::shared_ptr<legion_control::ManagedCommandRunner> runner;
+  bool cleanup_failed = false;
+  unsigned authorization_callbacks = 0;
   struct ActiveOperation {
     Ctx *ctx;
     GDBusMethodInvocation *invocation;
-    GSubprocess *subprocess;
-    GInputStream *output;
-    guint timeout_source = 0;
+    std::shared_ptr<legion_control::ManagedCommandOperation> command;
     std::string temp_path;
     std::string sender;
-    std::string output_text;
-    std::string process_error;
-    bool process_finished = false;
-    bool output_finished = false;
-    bool process_success = false;
-    bool output_exceeded = false;
-    bool timed_out = false;
     bool disconnected = false;
     bool graphics_operation = false;
     bool return_output = false;
-    int exit_status = -1;
-    bool completed = false;
   };
   std::unique_ptr<ActiveOperation> active;
 };
@@ -83,6 +75,7 @@ void done(GDBusMethodInvocation *i) {
 }
 void auth_done(GObject *source, GAsyncResult *result, gpointer data) {
   auto *p = static_cast<std::pair<Ctx *, GDBusMethodInvocation *> *>(data);
+  --p->first->authorization_callbacks;
   GError *e = nullptr;
   PolkitAuthorizationResult *r = polkit_authority_check_authorization_finish(
       POLKIT_AUTHORITY(source), result, &e);
@@ -119,14 +112,8 @@ void auth_done(GObject *source, GAsyncResult *result, gpointer data) {
 }
 void finish_operation(Ctx::ActiveOperation *op) {
   Ctx *c = op->ctx;
-  if (op->timeout_source != 0) {
-    g_source_remove(op->timeout_source);
-    op->timeout_source = 0;
-  }
   if (!op->temp_path.empty())
     unlink(op->temp_path.c_str());
-  g_clear_object(&op->output);
-  g_clear_object(&op->subprocess);
   g_clear_object(&op->invocation);
   c->active.reset();
 }
@@ -136,19 +123,31 @@ std::string valid_utf8(const std::string &value) {
   g_free(text);
   return result;
 }
-void maybe_finish_operation(Ctx::ActiveOperation *op) {
-  if (!op->process_finished || !op->output_finished || op->completed)
-    return;
-  if (!op->timed_out && !op->disconnected) {
-    if (op->output_exceeded)
+void complete_operation(Ctx::ActiveOperation *op,
+                        legion_control::ManagedCommandResult result) {
+  using Status = legion_control::ManagedCommandStatus;
+  if (result.status == Status::cleanupFailed) {
+    op->ctx->cleanup_failed = true;
+    if (!result.error.empty())
+      g_message("Backend cleanup could not be confirmed: %s",
+                result.error.c_str());
+  }
+  if (!op->disconnected) {
+    if (result.status == Status::cleanupFailed)
+      reply_error(op->invocation, "Unavailable",
+                  "backend cleanup could not be confirmed; restart the control "
+                  "service");
+    else if (result.status == Status::unavailable)
+      reply_error(op->invocation, "Unavailable", result.error);
+    else if (result.status == Status::timeout)
+      reply_error(op->invocation, "Timeout", "control operation timed out");
+    else if (result.status == Status::outputLimit)
       reply_error(op->invocation, "CommandFailed",
                   "backend output exceeded limit");
-    else if (!op->process_error.empty())
-      reply_error(op->invocation, "CommandFailed", op->process_error);
-    else if (!op->process_success) {
-      const std::string output = valid_utf8(op->output_text);
+    else if (result.status != Status::success) {
+      const std::string output = valid_utf8(result.output);
       const auto graphics_exit =
-          legion_control::ClassifyGraphicsExit(op->exit_status);
+          legion_control::ClassifyGraphicsExit(result.exit_status);
       if (op->graphics_operation &&
           graphics_exit == legion_control::GraphicsExit::kBlocked)
         reply_error(op->invocation, "GraphicsBlocked",
@@ -167,58 +166,11 @@ void maybe_finish_operation(Ctx::ActiveOperation *op) {
     } else if (op->return_output)
       g_dbus_method_invocation_return_value(
           op->invocation,
-          g_variant_new("(s)", valid_utf8(op->output_text).c_str()));
+          g_variant_new("(s)", valid_utf8(result.output).c_str()));
     else
       done(op->invocation);
   }
-  op->completed = true;
   finish_operation(op);
-}
-void read_output(Ctx::ActiveOperation *op);
-void output_read_done(GObject *source, GAsyncResult *result, gpointer data) {
-  auto *op = static_cast<Ctx::ActiveOperation *>(data);
-  GError *error = nullptr;
-  GBytes *bytes =
-      g_input_stream_read_bytes_finish(G_INPUT_STREAM(source), result, &error);
-  if (!bytes) {
-    op->process_error =
-        error ? "could not read backend output: " + std::string(error->message)
-              : "could not read backend output";
-    g_clear_error(&error);
-    op->output_finished = true;
-    g_subprocess_force_exit(op->subprocess);
-  } else {
-    gsize size = 0;
-    const char *contents =
-        static_cast<const char *>(g_bytes_get_data(bytes, &size));
-    if (size == 0) {
-      op->output_finished = true;
-    } else if (op->output_text.size() + size > output_limit) {
-      op->output_exceeded = true;
-      op->output_finished = true;
-      g_input_stream_close(op->output, nullptr, nullptr);
-      g_subprocess_force_exit(op->subprocess);
-    } else {
-      op->output_text.append(contents, size);
-      read_output(op);
-    }
-    g_bytes_unref(bytes);
-  }
-  maybe_finish_operation(op);
-}
-void read_output(Ctx::ActiveOperation *op) {
-  g_input_stream_read_bytes_async(op->output, 4096, G_PRIORITY_DEFAULT, nullptr,
-                                  output_read_done, op);
-}
-void operation_timeout(gpointer data) {
-  auto *op = static_cast<Ctx::ActiveOperation *>(data);
-  op->timeout_source = 0;
-  if (op->completed)
-    return;
-  op->timed_out = true;
-  if (!op->disconnected)
-    reply_error(op->invocation, "Timeout", "control operation timed out");
-  g_subprocess_force_exit(op->subprocess);
 }
 enum class CommandBackend { kCli, kSystemctl, kGraphicsBoot };
 void invoke(Ctx *c, GDBusMethodInvocation *i,
@@ -232,36 +184,22 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
     reply_error(i, "Busy", "another control operation is running");
     return;
   }
-  GError *e = nullptr;
-  const auto flags = static_cast<GSubprocessFlags>(
-      G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_MERGE);
-  GSubprocessLauncher *l = g_subprocess_launcher_new(flags);
-  std::vector<const char *> a;
+  if (c->cleanup_failed || !c->runner) {
+    if (!temp_path.empty())
+      unlink(temp_path.c_str());
+    reply_error(i, "Unavailable",
+                "command runner unavailable; restart the control service");
+    return;
+  }
   const std::string *executable = &c->cli;
   if (backend == CommandBackend::kGraphicsBoot)
     executable = &c->graphics_boot;
   else if (backend == CommandBackend::kSystemctl)
     executable = &c->systemctl;
-  a.push_back(executable->c_str());
-  for (const auto &x : command.argv)
-    a.push_back(x.c_str());
-  a.push_back(nullptr);
-  GSubprocess *p = g_subprocess_launcher_spawnv(l, a.data(), &e);
-  g_object_unref(l);
-  if (!p) {
-    if (!temp_path.empty())
-      unlink(temp_path.c_str());
-    reply_error(i, "Unavailable", e ? e->message : "could not start backend");
-    g_clear_error(&e);
-    return;
-  }
   auto operation =
       std::unique_ptr<Ctx::ActiveOperation>(new Ctx::ActiveOperation{});
   operation->ctx = c;
   operation->invocation = G_DBUS_METHOD_INVOCATION(g_object_ref(i));
-  operation->subprocess = p;
-  operation->output =
-      G_INPUT_STREAM(g_object_ref(g_subprocess_get_stdout_pipe(p)));
   operation->temp_path = temp_path;
   const char *sender = g_dbus_method_invocation_get_sender(i);
   operation->sender = sender ? sender : "";
@@ -269,31 +207,11 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
   operation->return_output = return_output;
   Ctx::ActiveOperation *q = operation.get();
   c->active = std::move(operation);
-  read_output(q);
-  g_subprocess_wait_async(
-      p, nullptr,
-      [](GObject *o, GAsyncResult *r, gpointer d) {
-        auto *op = static_cast<Ctx::ActiveOperation *>(d);
-        GError *e = nullptr;
-        if (!g_subprocess_wait_finish(G_SUBPROCESS(o), r, &e)) {
-          op->process_error = e ? e->message : "backend failed";
-          g_clear_error(&e);
-        } else {
-          op->process_success = g_subprocess_get_successful(G_SUBPROCESS(o));
-          if (g_subprocess_get_if_exited(G_SUBPROCESS(o)))
-            op->exit_status = g_subprocess_get_exit_status(G_SUBPROCESS(o));
-        }
-        op->process_finished = true;
-        maybe_finish_operation(op);
-      },
-      q);
-  q->timeout_source = g_timeout_add_seconds(
-      graphics ? 35 : 10,
-      [](gpointer d) -> gboolean {
-        operation_timeout(d);
-        return G_SOURCE_REMOVE;
-      },
-      q);
+  q->command =
+      c->runner->Start(*executable, command.argv, graphics ? 35 : 10,
+                       [q](legion_control::ManagedCommandResult result) {
+                         complete_operation(q, std::move(result));
+                       });
 }
 bool authorized(Ctx *c, GDBusMethodInvocation *i) {
   if (c->auth.count(g_dbus_method_invocation_get_sender(i)))
@@ -490,6 +408,7 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
     auto *cancel = g_cancellable_new();
     c->pending.emplace(sender, G_CANCELLABLE(g_object_ref(cancel)));
     auto *q = new std::pair<Ctx *, GDBusMethodInvocation *>(c, g_object_ref(i));
+    ++c->authorization_callbacks;
     polkit_authority_check_authorization(
         c->authority, s, "io.github.prnice.legion-control.manage", x,
         POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION, cancel,
@@ -557,6 +476,26 @@ int main(int argc, char **argv) {
   c.systemctl = sys;
   c.graphics_boot = graphics_boot;
   GError *e = nullptr;
+  gchar *manager_address =
+      g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SYSTEM, nullptr, &e);
+  GDBusConnection *manager_connection =
+      manager_address ? g_dbus_connection_new_for_address_sync(
+                            manager_address,
+                            static_cast<GDBusConnectionFlags>(
+                                G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+                                G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+                            nullptr, nullptr, &e)
+                      : nullptr;
+  g_free(manager_address);
+  if (!manager_connection) {
+    g_clear_error(&e);
+    g_main_loop_unref(c.loop);
+    return 1;
+  }
+  c.runner = legion_control::CreateManagedCommandRunner(
+      manager_connection, "legion-control.service",
+      graphics_boot.empty() ? "" : "legion-graphics-boot");
+  g_object_unref(manager_connection);
   c.authority = polkit_authority_get_sync(nullptr, &e);
   if (!c.authority) {
     g_clear_error(&e);
@@ -598,10 +537,9 @@ int main(int argc, char **argv) {
               g_variant_get(v, "(&s&s&s)", &n, &old, &now);
               if (!*now) {
                 c->auth.erase(n);
-                if (c->active && c->active->sender == n &&
-                    !c->active->completed) {
+                if (c->active && c->active->sender == n) {
                   c->active->disconnected = true;
-                  g_subprocess_force_exit(c->active->subprocess);
+                  c->active->command->Cancel();
                 }
                 auto pending = c->pending.find(n);
                 if (pending != c->pending.end()) {
@@ -629,13 +567,13 @@ int main(int argc, char **argv) {
     g_dbus_connection_unregister_object(c.conn, c.reg);
   if (c.active) {
     c.active->disconnected = true;
-    g_subprocess_force_exit(c.active->subprocess);
+    c.active->command->Cancel();
     while (c.active)
       g_main_context_iteration(nullptr, TRUE);
   }
   for (auto &entry : c.pending)
     g_cancellable_cancel(entry.second);
-  while (!c.pending.empty())
+  while (c.authorization_callbacks != 0)
     g_main_context_iteration(nullptr, TRUE);
   g_bus_unown_name(c.owner);
   g_clear_object(&c.conn);

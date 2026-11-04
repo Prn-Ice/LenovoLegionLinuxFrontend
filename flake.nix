@@ -53,6 +53,10 @@
       };
     in
     {
+      checks.${system}.control-lifecycle = import ./control/test/control_lifecycle.nix {
+        inherit pkgs;
+      };
+
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           flutter

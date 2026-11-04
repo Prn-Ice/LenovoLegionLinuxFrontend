@@ -124,7 +124,7 @@ To build and test native service code without installing it:
 
 ```bash
 cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test
 ctest --test-dir build/native --output-on-failure
 ```
 
@@ -132,6 +132,16 @@ For the AppImage control experiment, run the
 [hardware-free portable-control probe](docs/architecture/portable-control.md#hardware-free-prototype).
 It tests a private D-Bus connection with simulated authorization and a synthetic
 backend, using an opt-in native build.
+
+To check backend process cleanup with real systemd, run the disposable VM test:
+
+```bash
+nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
+```
+
+This uses QEMU/KVM and synthetic backend commands inside NixOS. See
+[backend process containment](docs/architecture/portable-control.md#backend-process-containment)
+for the lifecycle cases it covers.
 
 To capture screenshots for visual review:
 

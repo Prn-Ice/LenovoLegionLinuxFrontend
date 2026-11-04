@@ -1,8 +1,9 @@
-// Reuse the production dispatcher and subprocess runner without starting its
-// system-bus daemon.
+// Reuse the production dispatcher with an ordinary-user fixture runner, without
+// starting its system-bus daemon.
 #define main legion_control_daemon_main
 #include "../legion_control_service.cc"
 #undef main
+#include "../test_support/direct_command_runner.h"
 
 #include <fcntl.h>
 #include <glib-unix.h>
@@ -245,7 +246,7 @@ void cleanup(Probe *probe) {
                                         probe->control.reg);
   if (probe->control.active) {
     probe->control.active->disconnected = true;
-    g_subprocess_force_exit(probe->control.active->subprocess);
+    probe->control.active->command->Cancel();
     while (probe->control.active)
       g_main_context_iteration(nullptr, TRUE);
   }
@@ -302,6 +303,7 @@ int main(int argc, char **argv) {
   }
 
   Probe probe{};
+  probe.control.runner = legion_control::CreateDirectCommandRunner();
   probe.expected_uid = getuid();
   probe.expected_pid = static_cast<pid_t>(client_pid);
   probe.cancel_authorization = cancel_authorization;
