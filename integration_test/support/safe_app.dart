@@ -35,10 +35,15 @@ enum FixturePlatformProfile { quiet, balanced, performance, maxPower }
 /// Synthetic readings, not defaults or measurements from a supported laptop.
 /// All writes stay inside this instance's temporary directory.
 class SafeApp {
-  SafeApp._(this.directory, this.conservationFile);
+  SafeApp._(
+    this.directory,
+    this.conservationFile, {
+    required bool ownsDirectory,
+  }) : _ownsDirectory = ownsDirectory;
 
   final Directory directory;
   final File conservationFile;
+  final bool _ownsDirectory;
   final writes = <bool>[];
   final requests = <bool>[];
   final platformProfileWrites = <FixturePlatformProfile>[];
@@ -49,7 +54,10 @@ class SafeApp {
   final _controlClosed = Completer<void>();
   int authorizations = 0;
 
+  /// Caller-created roots survive disposal so separate app processes can share
+  /// test storage. The caller owns their cleanup.
   static Future<SafeApp> create({
+    Directory? fixtureDirectory,
     bool acOnline = true,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
@@ -58,7 +66,44 @@ class SafeApp {
       FixturePlatformProfile.maxPower,
     ],
   }) async {
-    final directory = await Directory.systemTemp.createTemp('legion_journey_');
+    final ownsDirectory = fixtureDirectory == null;
+    final directory =
+        fixtureDirectory ??
+        await Directory.systemTemp.createTemp('legion_journey_');
+    if (!await directory.exists()) {
+      throw ArgumentError.value(
+        directory.path,
+        'fixtureDirectory',
+        'The parent must create the fixture directory first',
+      );
+    }
+    await _prepareHardwareFixtures(
+      directory,
+      profileChoices: profileChoices,
+      acOnline: acOnline,
+    );
+    Hive.init('${directory.path}/storage');
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(SensorRecordAdapter());
+    }
+    await Hive.openBox<SensorRecord>('sensor_records');
+    await Hive.openBox<dynamic>('rgb_lighting');
+    await Hive.openBox<dynamic>('preferences');
+    return SafeApp._(
+      directory,
+      File(
+        '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
+        'VPC2004:00/conservation_mode',
+      ),
+      ownsDirectory: ownsDirectory,
+    );
+  }
+
+  static Future<void> _prepareHardwareFixtures(
+    Directory directory, {
+    required List<FixturePlatformProfile> profileChoices,
+    required bool acOnline,
+  }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
       'VPC2004:00/conservation_mode',
@@ -77,16 +122,7 @@ class SafeApp {
     await ac.create(recursive: true);
     await File('${ac.path}/type').writeAsString('Mains\n');
     await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
-    await Directory('${directory.path}/proc').create();
-
-    Hive.init('${directory.path}/storage');
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(SensorRecordAdapter());
-    }
-    await Hive.openBox<SensorRecord>('sensor_records');
-    await Hive.openBox<dynamic>('rgb_lighting');
-    await Hive.openBox<dynamic>('preferences');
-    return SafeApp._(directory, file);
+    await Directory('${directory.path}/proc').create(recursive: true);
   }
 
   Future<void> launch({List<Override> additionalOverrides = const []}) async {
@@ -170,7 +206,9 @@ class SafeApp {
       }
     } finally {
       await Hive.close();
-      await directory.delete(recursive: true);
+      if (_ownsDirectory) {
+        await directory.delete(recursive: true);
+      }
     }
   }
 }

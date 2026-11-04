@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'scenarios/battery_health_journey.dart' as battery_health;
 import 'scenarios/control_recovery_journey.dart' as control_recovery;
 import 'scenarios/keyboard_profile_journey.dart' as keyboard_profile;
+import 'scenarios/keyboard_mode_journey.dart' as keyboard_mode;
 import 'scenarios/power_mode_journey.dart' as power_mode;
 
 void main() {
@@ -13,4 +14,5 @@ void main() {
   control_recovery.main();
   power_mode.main();
   keyboard_profile.main();
+  keyboard_mode.main();
 }
