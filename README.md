@@ -75,3 +75,14 @@ Read operations use direct sysfs file reads or the read-only telemetry D-Bus ser
 See [the architecture overview](docs/architecture/overview.md) for the main
 boundaries. Report problems or propose changes through GitHub issues and pull
 requests.
+
+## License
+
+Legion Linux Frontend is free software: you may redistribute it and/or modify
+it under the GNU General Public License as published by the Free Software
+Foundation, either version 2 of the License, or (at your option) any later
+version (`GPL-2.0-or-later`). It is distributed WITHOUT ANY WARRANTY, including
+the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See [LICENSE](LICENSE) for the full terms and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for OpenRGB attribution,
+separately licensed materials, and remaining provenance gaps.

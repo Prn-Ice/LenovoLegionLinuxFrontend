@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Adapted from OpenRGB's LenovoUSBController_Gen7_8.cpp and .h.
+// Modified for Legion Linux Frontend: Gen 7/8 Dart packet encoder port
+// on 2026-06-22; local power limiting, white balance, and protocol updates
+// through 2026-08-29; attribution added 2026-11-04.
+// This is not the upstream driver. Its headers name no individual author.
+// See THIRD_PARTY_NOTICES.md for pinned sources and LICENSE for terms.
+
 import 'dart:typed_data';
 
 /// Wire format for the Lenovo Legion "Spectrum" per-key keyboard, **Gen 7/8**
