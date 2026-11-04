@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/lighting/models/spectrum_keyboard_profile.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_hid_discovery.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 
 String _fixture(String name) =>
@@ -88,8 +89,16 @@ void main() {
 
     test('missing root and unknown device return no path', () {
       expect(service.findHidrawPath(), isNull);
+      expect(
+        service.inspectHidraw().outcome,
+        SpectrumHidDiscoveryOutcome.missing,
+      );
       addDevice('hidraw0', _fixture('unknown-product'));
       expect(service.findHidrawPath(), isNull);
+      expect(
+        service.inspectHidraw().outcome,
+        SpectrumHidDiscoveryOutcome.unsupported,
+      );
     });
 
     test(
@@ -103,6 +112,11 @@ void main() {
         addDevice('hidraw3', _fixture('c987'));
 
         expect(service.findHidrawPath(), '${root.path}/dev/hidraw3');
+        final discovery = service.inspectHidraw();
+        expect(discovery.outcome, SpectrumHidDiscoveryOutcome.supported);
+        expect(discovery.vendorId, kSpectrumVendorId);
+        expect(discovery.productId, kSpectrumC987ProductId);
+        expect(discovery.protocol, SpectrumProtocol.gen7And8.name);
         expect(service.isOpen, isFalse);
         expect(Directory('${root.path}/dev').existsSync(), isFalse);
       },
@@ -118,6 +132,14 @@ void main() {
       expect(unknown.keyboardProfile, isNull);
       expect(unknown.findHidrawPath(), isNull);
       expect(unknown.isOpen, isFalse);
+    });
+
+    test('reports malformed identity without opening a device', () {
+      addDevice('hidraw0', 'HID_ID=not-an-id\n');
+      final discovery = service.inspectHidraw();
+      expect(discovery.outcome, SpectrumHidDiscoveryOutcome.malformed);
+      expect(discovery.selectedHidrawPath, isNull);
+      expect(service.isOpen, isFalse);
     });
   });
 }

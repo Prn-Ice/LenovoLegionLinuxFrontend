@@ -92,6 +92,19 @@ SpectrumKeyboardProfile? spectrumKeyboardProfile(int vendorId, int productId) {
 
 /// Reads the USB IDs from Linux's HID_ID line and looks up the keyboard.
 SpectrumKeyboardProfile? spectrumKeyboardProfileFromUevent(String uevent) {
+  final identity = spectrumHidIdentityFromUevent(uevent);
+  return identity == null
+      ? null
+      : spectrumKeyboardProfile(identity.vendorId, identity.productId);
+}
+
+class SpectrumHidIdentity {
+  const SpectrumHidIdentity(this.vendorId, this.productId);
+  final int vendorId;
+  final int productId;
+}
+
+SpectrumHidIdentity? spectrumHidIdentityFromUevent(String uevent) {
   final match = RegExp(
     r'^HID_ID=[0-9A-Fa-f]+:([0-9A-Fa-f]+):([0-9A-Fa-f]+)\r?$',
     multiLine: true,
@@ -100,5 +113,5 @@ SpectrumKeyboardProfile? spectrumKeyboardProfileFromUevent(String uevent) {
   final vendor = int.tryParse(match.group(1)!, radix: 16);
   final product = int.tryParse(match.group(2)!, radix: 16);
   if (vendor == null || product == null) return null;
-  return spectrumKeyboardProfile(vendor, product);
+  return SpectrumHidIdentity(vendor, product);
 }

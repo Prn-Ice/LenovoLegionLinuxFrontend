@@ -111,6 +111,12 @@ Native keyboard data lives in `lib/features/lighting/models/`:
 - `spectrum_led_map.dart`: the LED address controlled by each key name.
 - `keyboard_layout.dart`: key positions and sizes used in the preview.
 
+Diagnostics also read Linux HID `uevent` files under `/sys/class/hidraw` to
+record the vendor/product IDs, selected hidraw node, known profile, protocol,
+and a clear missing/unsupported/unreadable/malformed result. This discovery is
+read-only and does not open the device or send keyboard packets. Copied report
+JSON redacts the selected path and never includes serial or `HID_UNIQ` data.
+
 For a new keyboard, record its exact USB IDs and verify its LED addresses,
 layout, and brightness behavior. Add a profile and a small `uevent` sample under
 `test/fixtures/lighting/spectrum/`, explaining whether the sample was recorded or

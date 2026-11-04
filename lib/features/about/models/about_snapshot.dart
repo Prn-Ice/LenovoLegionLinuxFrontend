@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../../core/models/bridge_command_record.dart';
 import 'about_diagnostic_item.dart';
+import '../../lighting/models/spectrum_hid_discovery.dart';
 
 class AboutSnapshot extends Equatable {
   const AboutSnapshot({
@@ -20,6 +21,7 @@ class AboutSnapshot extends Equatable {
     required this.cliVersion,
     required this.commandHistory,
     this.biosVersion,
+    this.spectrumHid = const SpectrumHidDiscovery.missing(),
   });
 
   final DateTime updatedAt;
@@ -37,11 +39,12 @@ class AboutSnapshot extends Equatable {
   final String? cliVersion;
   final List<BridgeCommandRecord> commandHistory;
   final String? biosVersion;
+  final SpectrumHidDiscovery spectrumHid;
 
   /// Builds the JSON copied from Diagnostics. Local CLI paths and error output
   /// stay in the UI because they can contain personal directory names.
   Map<String, Object?> toJson() => {
-    'schema_version': 2,
+    'schema_version': 3,
     'updated_at': updatedAt.toIso8601String(),
     'cli_path': '<configured-cli>',
     'cli_path_exists': cliPathExists,
@@ -56,6 +59,7 @@ class AboutSnapshot extends Equatable {
     'module_version': moduleVersion,
     'cli_version': cliVersion,
     'hardware_write_verification': 'unverified',
+    'spectrum_hid': spectrumHid.toJson(),
     'diagnostics': diagnostics.map((item) => item.toJson()).toList(),
     'command_history': commandHistory
         .map(
@@ -88,5 +92,6 @@ class AboutSnapshot extends Equatable {
     cliVersion,
     commandHistory,
     biosVersion,
+    spectrumHid,
   ];
 }

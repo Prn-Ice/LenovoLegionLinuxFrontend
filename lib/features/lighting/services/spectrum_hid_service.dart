@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 
 import '../models/spectrum_keyboard_profile.dart';
+import '../models/spectrum_hid_discovery.dart';
 import 'spectrum_protocol.dart';
 
 typedef _OpenNative = Int32 Function(Pointer<Utf8>, Int32);
@@ -51,25 +52,65 @@ class SpectrumHidService {
   /// The `/dev/hidraw*` node whose HID_ID matches [vendorId]:[productId], or
   /// null when the keyboard isn't present.
   String? findHidrawPath() {
+    return inspectHidraw().selectedHidrawPath;
+  }
+
+  /// Reads HID identity and uevent files without opening a hidraw device.
+  SpectrumHidDiscovery inspectHidraw() {
     final profile = keyboardProfile;
-    if (profile == null || profile.protocol != SpectrumProtocol.gen7And8) {
-      return null;
-    }
     final dir = Directory(sysfsHidrawRoot);
-    if (!dir.existsSync()) return null;
+    if (!dir.existsSync()) return const SpectrumHidDiscovery.missing();
+    var sawEntry = false;
+    var sawUnreadable = false;
+    var sawMalformed = false;
+    SpectrumHidDiscovery? unsupported;
     for (final entry in dir.listSync()) {
       final name = entry.path.split('/').last;
+      sawEntry = true;
       try {
         final uevent = File('${entry.path}/device/uevent').readAsStringSync();
-        final found = spectrumKeyboardProfileFromUevent(uevent);
-        if (found == profile) {
-          return '$devRoot/$name';
+        final identity = spectrumHidIdentityFromUevent(uevent);
+        if (identity == null) {
+          sawMalformed = true;
+          continue;
+        }
+        final found = spectrumKeyboardProfile(
+          identity.vendorId,
+          identity.productId,
+        );
+        if (found == null) {
+          unsupported ??= SpectrumHidDiscovery(
+            outcome: SpectrumHidDiscoveryOutcome.unsupported,
+            vendorId: identity.vendorId,
+            productId: identity.productId,
+          );
+          continue;
+        }
+        if (found.protocol == SpectrumProtocol.gen7And8 && found == profile) {
+          return SpectrumHidDiscovery(
+            outcome: SpectrumHidDiscoveryOutcome.supported,
+            vendorId: identity.vendorId,
+            productId: identity.productId,
+            selectedHidrawPath: '$devRoot/$name',
+            profile: found,
+          );
         }
       } on FileSystemException {
-        // hidraw without a readable uevent — skip.
+        sawUnreadable = true;
       }
     }
-    return null;
+    if (unsupported != null) return unsupported;
+    if (sawUnreadable) {
+      return const SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.unreadable,
+      );
+    }
+    if (sawMalformed || sawEntry) {
+      return const SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.malformed,
+      );
+    }
+    return const SpectrumHidDiscovery.missing();
   }
 
   /// Opens the keyboard's hidraw node. False when absent or permission-denied.

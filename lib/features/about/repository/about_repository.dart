@@ -6,21 +6,25 @@ import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/about_diagnostic_item.dart';
 import '../models/about_snapshot.dart';
+import '../../lighting/services/spectrum_hid_service.dart';
 
 class AboutRepository {
   AboutRepository({
     required LegionSysfsService sysfs,
     required LegionCliService cli,
     required LegionFrontendBridgeService bridge,
+    SpectrumHidService? spectrumHid,
     ProcessRunner? processRunner,
   }) : _sysfs = sysfs,
        _cli = cli,
        _bridge = bridge,
+       _spectrumHid = spectrumHid ?? SpectrumHidService(),
        _processRunner = processRunner ?? Process.run;
 
   final LegionSysfsService _sysfs;
   final LegionCliService _cli;
   final LegionFrontendBridgeService _bridge;
+  final SpectrumHidService _spectrumHid;
   final ProcessRunner _processRunner;
 
   Future<AboutSnapshot> loadSnapshot() async {
@@ -72,6 +76,7 @@ class AboutRepository {
       moduleVersion: probes[HardwareCheck.moduleVersion]?.selectedRead?.value,
       cliVersion: cliVersion,
       commandHistory: _bridge.commandHistory,
+      spectrumHid: _spectrumHid.inspectHidraw(),
     );
   }
 

@@ -9,12 +9,14 @@ import '../bloc/rgb_lighting_event.dart';
 import '../bloc/rgb_lighting_state.dart';
 import '../repository/lighting_repository.dart';
 import '../repository/rgb_lighting_repository.dart';
+
 import 'package:hive_ce/hive.dart';
 
 import '../repository/rgb_lighting_store.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/openrgb_cli_service.dart';
 import '../services/spectrum_effect_engine.dart';
+import '../services/spectrum_hid_service.dart';
 
 final lightingRepositoryProvider = Provider<LightingRepository>((ref) {
   final sysfsService = ref.watch(legionSysfsServiceProvider);
@@ -44,7 +46,13 @@ final rgbLightingRepositoryProvider = Provider<RgbLightingRepository>(
 
 /// Native real-time per-key RGB (direct hidraw, no OpenRGB).
 final spectrumRgbRepositoryProvider = Provider<SpectrumRgbRepository>(
-  (ref) => SpectrumRgbRepository(),
+  (ref) =>
+      SpectrumRgbRepository(service: ref.watch(spectrumHidServiceProvider)),
+);
+
+/// Shared read-only discovery and native HID lifetime for lighting and reports.
+final spectrumHidServiceProvider = Provider<SpectrumHidService>(
+  (ref) => SpectrumHidService(),
 );
 
 /// Software animated-effect engine (drives region effects over the native path).

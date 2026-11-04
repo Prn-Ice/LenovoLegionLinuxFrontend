@@ -12,6 +12,7 @@ import '../../about/bloc/about_event.dart';
 import '../../about/models/about_diagnostic_item.dart';
 import '../../about/models/about_snapshot.dart';
 import '../../about/providers/about_provider.dart';
+import '../../lighting/models/spectrum_hid_discovery.dart';
 import '../../analytics/bloc/analytics_event.dart';
 import '../../analytics/bloc/analytics_state.dart';
 import '../../analytics/models/sensor_record.dart';
@@ -152,6 +153,45 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         ),
         const SizedBox(height: 16),
 
+        if (snapshot != null) ...[
+          AppControlCard(
+            icon: Icons.keyboard_outlined,
+            title: 'Spectrum keyboard discovery',
+            description: 'Read-only HID identity and protocol detection.',
+            children: [
+              _StatusLine(
+                label: 'Result',
+                value: _hidOutcomeLabel(snapshot.spectrumHid.outcome),
+                status:
+                    snapshot.spectrumHid.outcome ==
+                        SpectrumHidDiscoveryOutcome.supported
+                    ? AboutDiagnosticStatus.ok
+                    : AboutDiagnosticStatus.unavailable,
+              ),
+              if (snapshot.spectrumHid.vendorId != null)
+                _StatusLine(
+                  label: 'HID ID',
+                  value:
+                      '0x${snapshot.spectrumHid.vendorId!.toRadixString(16).padLeft(4, '0')}:0x${snapshot.spectrumHid.productId!.toRadixString(16).padLeft(4, '0')}',
+                  status: AboutDiagnosticStatus.ok,
+                ),
+              if (snapshot.spectrumHid.profile != null)
+                _StatusLine(
+                  label: 'Profile / protocol',
+                  value: 'Spectrum / ${snapshot.spectrumHid.protocol}',
+                  status: AboutDiagnosticStatus.ok,
+                ),
+              if (snapshot.spectrumHid.selectedHidrawPath != null)
+                _StatusLine(
+                  label: 'Selected hidraw',
+                  value: snapshot.spectrumHid.selectedHidrawPath!,
+                  status: AboutDiagnosticStatus.ok,
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
+
         // ── Runtime Dependencies ─────────────────────────────────────────────
         AppControlCard(
           icon: Icons.link_outlined,
@@ -267,6 +307,21 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   static AboutDiagnosticStatus _boolStatus(bool? value) {
     if (value == null) return AboutDiagnosticStatus.unavailable;
     return value ? AboutDiagnosticStatus.ok : AboutDiagnosticStatus.error;
+  }
+
+  static String _hidOutcomeLabel(SpectrumHidDiscoveryOutcome outcome) {
+    switch (outcome) {
+      case SpectrumHidDiscoveryOutcome.missing:
+        return 'Missing';
+      case SpectrumHidDiscoveryOutcome.unsupported:
+        return 'Unsupported HID ID';
+      case SpectrumHidDiscoveryOutcome.unreadable:
+        return 'Unreadable uevent';
+      case SpectrumHidDiscoveryOutcome.malformed:
+        return 'Malformed HID ID';
+      case SpectrumHidDiscoveryOutcome.supported:
+        return 'Supported';
+    }
   }
 
   Future<void> _copyDiagnosticsJson(AboutSnapshot snapshot) async {
