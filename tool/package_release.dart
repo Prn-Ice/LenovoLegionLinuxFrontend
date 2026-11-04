@@ -98,8 +98,11 @@ Future<Map<String, Object>> packageReleaseSource(
       '''# Rebuild this release
 
 Use the SDK-reported Flutter version and framework/engine revisions in
-SOURCE-MANIFEST.json. Distributor SDKs can report a placeholder framework
-revision; obtain that SDK's source from its distributor in that case.
+SOURCE-MANIFEST.json. For Nix SDKs, source_provenance identifies the upstream
+archive/ref, the source-tree NAR hash, derivation IDs, and distributor patches.
+The NAR hash describes the unpacked tree, not the downloaded tarball bytes.
+Distributor SDKs can report a placeholder framework revision; use the recorded
+source provenance when available, or obtain SDK source from its distributor.
 Install the Linux build dependencies listed in source/CONTRIBUTING.md.
 
 From this archive directory:

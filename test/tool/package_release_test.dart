@@ -4,13 +4,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/package_release.dart';
-import '../../tool/nix_flutter_provenance.dart';
 
 void main() {
-  test(
-    'parses a Nix derivation chain without exposing source paths',
-    nixProvenanceFixtureTest,
-  );
   late Directory workspace;
   late Directory root;
   late Directory dependency;
@@ -239,17 +234,11 @@ void main() {
       final inputs = manifest['inputs'] as Map;
       expect((inputs['packages'] as Map).keys, ['handy_window']);
       expect(
-        (inputs['flutter_sdk'] as Map).keys,
-        containsAll([
-          'frameworkVersion',
-          'frameworkRevision',
-          'engineRevision',
-          'dartSdkVersion',
-          'source_provenance',
-        ]),
+        Map.of(inputs['flutter_sdk'] as Map)..remove('source_provenance'),
+        Map.of(metadata)..remove('flutterRoot'),
       );
       expect((inputs['flutter_sdk'] as Map)['source_provenance'], {
-        'status': 'unavailable',
+        'status': 'notApplicable',
         'reason': 'The Flutter SDK is not installed from the Nix store.',
       });
       expect(jsonEncode(manifest), isNot(contains(workspace.path)));
@@ -286,44 +275,6 @@ void main() {
       throwsStateError,
     );
   });
-}
-
-void nixProvenanceFixtureTest() {
-  final fetcher = '/nix/store/5fs9jmaj8bh58sdlm76zrmyrsrmr7h43-source.drv';
-  final unwrapped =
-      '/nix/store/4pc2g8z5qgzbshvfa4cya0cxk8j3ffq8-flutter-3.47.9-unwrapped.drv';
-  final result = parseNixFlutterProvenance(
-    {
-      fetcher: {
-        'structuredAttrs': {
-          'owner': 'flutter',
-          'repo': 'flutter',
-          'rev': 'refs/tags/3.47.9',
-          'urls': [
-            'https://github.com/flutter/flutter/archive/refs/tags/3.47.9.tar.gz',
-          ],
-          'outputHash': 'sha256-JBauGMdb1lmply2yAekkeonIX7+duVFixiHEREg+EG8=',
-          'outputHashMode': 'recursive',
-        },
-        'outputs': {
-          'out': {
-            'hash': 'sha256-JBauGMdb1lmply2yAekkeonIX7+duVFixiHEREg+EG8=',
-          },
-        },
-      },
-      unwrapped: {
-        'structuredAttrs': {
-          'src': '/nix/store/1gbc6jf4pnic6x2ijcfwamal6qw1kljy-source',
-          'patches': ['/nix/store/patch-one', '/nix/store/patch-two'],
-        },
-      },
-    },
-    sdkDerivation:
-        '/nix/store/dy4r1f6aavk1m4safx8pzacnff7f83cb-flutter-wrapped.drv',
-  );
-  expect(result['status'], 'recorded');
-  expect((result['source'] as Map)['ref'], 'refs/tags/3.47.9');
-  expect(jsonEncode(result), isNot(contains('/home/')));
 }
 
 Future<String> _sha256(File file) async {

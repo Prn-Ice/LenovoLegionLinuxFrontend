@@ -120,6 +120,7 @@ installed from Nix and its derivations are available, the manifest records the
 Flutter source fetch URL and ref, the recursive Nix SHA-256 content hash, the
 relevant derivation store names, and identifiers plus SHA-256 hashes for the
 SDK patch files. Store names are identifiers only; local derivation paths and
-the unfiltered build environment are not published. The Nix hash identifies
-the fetched archive bytes and does not claim that a tag is a Git commit. A
-non-Nix SDK or collected derivations is reported as unavailable.
+the unfiltered build environment are not published. The recursive Nix hash
+identifies the unpacked source tree serialized as a NAR, rather than the
+downloaded tarball bytes. The recorded tag is not a Git commit. A non-Nix SDK
+is marked not applicable; missing or unsupported derivations are unavailable.

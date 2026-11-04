@@ -1,180 +1,194 @@
-// Read the small, public part of a Nix Flutter derivation graph.
+// Identify the source and patches used by the installed Nix Flutter framework.
 import 'dart:convert';
 import 'dart:io';
 
-Future<Map<String, Object>> nixFlutterProvenance(Directory sdk) async {
-  final sdkPath = sdk.resolveSymbolicLinksSync();
-  if (!sdkPath.startsWith('/nix/store/')) {
-    return {
-      'status': 'unavailable',
-      'reason': 'The Flutter SDK is not installed from the Nix store.',
-    };
-  }
+typedef NixCommand =
+    Future<String> Function(String executable, List<String> args);
+
+enum NixProvenanceStatus { recorded, unavailable, notApplicable }
+
+enum NixSourceHashMode { nar, flat }
+
+Future<Map<String, Object>> nixFlutterProvenance(
+  Directory sdk, {
+  NixCommand? command,
+}) async {
+  final run = command ?? _command;
   try {
-    final drv = (await _command('nix-store', [
-      '--query',
-      '--deriver',
-      sdkPath,
-    ])).trim();
-    if (!drv.startsWith('/nix/store/') || !drv.endsWith('.drv')) {
+    final sdkPath = (await run('readlink', ['-f', '--', sdk.path])).trim();
+    final sdkStore = _storeRoot(sdkPath);
+    if (sdkStore == null) {
       return {
-        'status': 'unavailable',
-        'reason': 'The SDK derivation is unavailable.',
+        'status': NixProvenanceStatus.notApplicable.name,
+        'reason': 'The Flutter SDK is not installed from the Nix store.',
       };
     }
-    final derivations = <String, Map<String, dynamic>>{};
-    final pending = <String>[drv];
-    while (pending.isNotEmpty) {
-      final current = pending.removeLast();
-      if (derivations.containsKey(current)) continue;
-      final found = _derivations(
-        jsonDecode(await _command('nix', ['derivation', 'show', current])),
-      );
-      derivations.addAll(found);
-      for (final value in found.values) {
-        final drvs = (value['inputs'] as Map?)?['drvs'];
-        if (drvs is Map) {
-          for (final key in drvs.keys) {
-            final name = key.toString();
-            pending.add(
-              name.startsWith('/nix/store/') ? name : '/nix/store/$name',
-            );
-          }
-        }
-      }
+    // SDK wrappers can link to other packages. Follow a framework source file
+    // to identify the framework we compiled, rather than scanning the toolchain.
+    final frameworkFile = (await run('readlink', [
+      '-f',
+      '--',
+      '$sdkPath/packages/flutter/lib/src/foundation/constants.dart',
+    ])).trim();
+    final frameworkStore = _storeRoot(frameworkFile);
+    if (frameworkStore == null) throw const FormatException();
+
+    Future<String> deriver(String storePath) async {
+      final path = (await run('nix-store', [
+        '--query',
+        '--deriver',
+        storePath,
+      ])).trim();
+      return _derivationPath(path);
     }
-    final provenance = parseNixFlutterProvenance(
-      derivations,
-      sdkDerivation: drv,
-    );
-    if (provenance['status'] == 'recorded') {
-      final unwrapped = derivations.entries
-          .firstWhere(
-            (entry) =>
-                entry.key.contains('flutter-') &&
-                entry.key.contains('unwrapped') &&
-                (entry.value['structuredAttrs'] as Map?)?['patches'] is List,
-          )
-          .value;
-      final patches = (unwrapped['structuredAttrs']['patches'] as List)
+
+    Future<Map> readDerivation(String path) async {
+      final decoded =
+          jsonDecode(await run('nix', ['derivation', 'show', path])) as Map;
+      // Nix 2.x used absolute keys at the top level; newer Nix wraps store names.
+      final records = (decoded['derivations'] ?? decoded) as Map;
+      return (records[path] ?? records[_storeName(path)]) as Map;
+    }
+
+    final sdkDerivation = await deriver(sdkStore);
+    final frameworkDerivation = await deriver(frameworkStore);
+    final framework = _attributes(await readDerivation(frameworkDerivation));
+    final sourcePath = framework['src'];
+    if (sourcePath is! String || _storeRoot(sourcePath) != sourcePath) {
+      throw const FormatException();
+    }
+    var current = await deriver(sourcePath);
+    final chain = <String>[];
+    Map<String, Object>? source;
+    while (chain.length < 8 && !chain.contains(current)) {
+      chain.add(current);
+      final derivation = await readDerivation(current);
+      final attrs = _attributes(derivation);
+      if (attrs['urls'] != null) {
+        source = _sourceRecord(attrs, derivation);
+        break;
+      }
+      // Nixpkgs prepares Flutter's fetched tree by adding engine stamps. Follow
+      // its source input only. Multiple source inputs require explicit support.
+      final inputs =
+          ((derivation['inputs'] as Map?)?['drvs'] ?? derivation['inputDrvs'])
+              as Map?;
+      final sourceInputs = inputs?.keys
           .whereType<String>()
+          .where((name) => name.endsWith('-source.drv'))
+          .map(_derivationPath)
           .toList();
-      final records = provenance['patches'] as List;
-      for (var i = 0; i < records.length && i < patches.length; i++) {
-        (records[i] as Map)['content_sha256'] = await _sha256Path(patches[i]);
+      if (sourceInputs == null || sourceInputs.length != 1) {
+        throw const FormatException();
       }
+      current = sourceInputs.single;
     }
-    return provenance;
+    if (source == null) throw const FormatException();
+
+    final patchValue = framework['patches'];
+    final patches = switch (patchValue) {
+      final List values => values.cast<String>(),
+      final String value =>
+        value.split(RegExp(r'\s+')).where((v) => v.isNotEmpty).toList(),
+      _ => throw const FormatException(),
+    };
+    final patchRecords = <Map<String, String>>[];
+    for (final path in patches) {
+      if (_storeRoot(path) != path) throw const FormatException();
+      final checksum = await run('sha256sum', [
+        '--binary',
+        '--zero',
+        '--',
+        path,
+      ]);
+      if (!RegExp(r'^[0-9a-f]{64} ').hasMatch(checksum)) {
+        throw const FormatException();
+      }
+      patchRecords.add({
+        'store_name': _storeName(path),
+        'content_sha256': checksum.substring(0, 64),
+      });
+    }
+    return {
+      'status': NixProvenanceStatus.recorded.name,
+      'distributor': 'Nix',
+      'source': source,
+      'derivations': {
+        'sdk': _storeName(sdkDerivation),
+        'framework': _storeName(frameworkDerivation),
+        'source_chain': chain.map(_storeName).toList(),
+      },
+      'patches': patchRecords,
+    };
   } catch (_) {
+    // Error output and derivation environments can contain private paths.
     return {
-      'status': 'unavailable',
+      'status': NixProvenanceStatus.unavailable.name,
       'reason':
-          'Nix derivation metadata is unavailable (it may have been garbage-collected).',
+          'Nix source metadata or patches are missing or use an unsupported layout.',
     };
   }
 }
 
-/// Parses `nix derivation show` output without requiring Nix in tests.
-Map<String, Object> parseNixFlutterProvenance(
-  Map<String, Map<String, dynamic>> derivations, {
-  required String sdkDerivation,
-}) {
-  Map<String, dynamic>? unwrapped;
-  String? unwrappedId;
-  Map<String, dynamic>? fetcher;
-  String? fetcherId;
-  for (final entry in derivations.entries) {
-    final attrs = entry.value['structuredAttrs'];
-    if (attrs is! Map) continue;
-    if (attrs['owner'] == 'flutter' &&
-        attrs['repo'] == 'flutter' &&
-        attrs['urls'] is List) {
-      fetcher = entry.value;
-      fetcherId = _storeName(entry.key);
-    }
-    final name = entry.key.toString();
-    if (attrs['src'] is String &&
-        attrs['patches'] is List &&
-        (name.contains('flutter-') && name.contains('unwrapped'))) {
-      unwrapped = entry.value;
-      unwrappedId = _storeName(entry.key);
-    }
+Map _attributes(Map derivation) {
+  if (derivation['structuredAttrs'] case final Map attrs) return attrs;
+  final env = derivation['env'] as Map;
+  if (env['__json'] case final String encoded) {
+    return jsonDecode(encoded) as Map;
   }
-  if (unwrapped == null || fetcher == null) {
-    return {
-      'status': 'unavailable',
-      'reason': 'Flutter source derivations were not found.',
-    };
-  }
-  final attrs = fetcher['structuredAttrs'] as Map;
-  final urls = (attrs['urls'] as List).whereType<String>().toList();
-  final outputHash = attrs['outputHash'];
-  final output = (fetcher['outputs'] as Map?)?['out'];
-  final outputMap = output is Map ? output : const <String, dynamic>{};
-  final source = <String, Object>{
-    'url': urls.isEmpty ? 'unknown' : urls.first,
-    'ref': attrs['rev'] is String ? attrs['rev'] as String : 'unknown',
-    'hash': outputHash is String
-        ? outputHash
-        : (outputMap['hash'] is String
-              ? outputMap['hash'] as String
-              : 'unknown'),
-    'hash_algorithm': 'sha256',
-    'hash_encoding': 'nix-store-base64',
-    'hash_mode': attrs['outputHashMode'] ?? 'unknown',
+  return env;
+}
+
+Map<String, Object> _sourceRecord(Map attrs, Map derivation) {
+  final urls = switch (attrs['urls']) {
+    final List values => values.cast<String>(),
+    final String value => value.split(RegExp(r'\s+')),
+    _ => throw const FormatException(),
   };
-  final patches = <Map<String, Object>>[];
-  for (final patch in (unwrapped['structuredAttrs']['patches'] as List)) {
-    if (patch is String) patches.add({'store_name': _storeName(patch)});
+  final ref = attrs['rev'];
+  if (ref is! String || !RegExp(r'^[a-zA-Z0-9._/-]+$').hasMatch(ref)) {
+    throw const FormatException();
   }
-  String? prepared;
-  for (final entry in derivations.entries) {
-    final drvs = (entry.value['inputs'] as Map?)?['drvs'];
-    if (drvs is Map &&
-        drvs.keys.any((key) => _storeName(key.toString()) == fetcherId)) {
-      prepared = _storeName(entry.key);
-      break;
-    }
+  // Only publish the public upstream Flutter archive URL. Never copy arbitrary
+  // fetcher URLs, which can carry credentials or refer to local files.
+  final url = 'https://github.com/flutter/flutter/archive/$ref.tar.gz';
+  if (!urls.contains(url)) throw const FormatException();
+  final output = (derivation['outputs'] as Map?)?['out'] as Map?;
+  final hash = attrs['outputHash'] ?? output?['hash'];
+  if (hash is! String ||
+      !hash.startsWith('sha256-') ||
+      base64Decode(hash.substring(7)).length != 32) {
+    throw const FormatException();
   }
+  final mode = switch (attrs['outputHashMode'] ?? output?['method']) {
+    'recursive' || 'nar' => NixSourceHashMode.nar,
+    'flat' => NixSourceHashMode.flat,
+    _ => throw const FormatException(),
+  };
   return {
-    'status': 'recorded',
-    'distributor': 'Nix',
-    'source': source,
-    'derivations': {
-      'sdk': _storeName(sdkDerivation),
-      'unwrapped': unwrappedId!,
-      'source_fetcher': fetcherId!,
-      'prepared_source': prepared ?? 'unknown',
-    },
-    'patches': patches,
+    'url': url,
+    'ref': ref,
+    'hash': hash,
+    'hash_format': 'sri',
+    'hash_mode': mode.name,
   };
 }
 
-Map<String, Map<String, dynamic>> _derivations(dynamic decoded) {
-  if (decoded is! Map || decoded['derivations'] is! Map) return {};
-  final result = <String, Map<String, dynamic>>{};
-  for (final entry in (decoded['derivations'] as Map).entries) {
-    if (entry.value is Map) {
-      final key = entry.key.toString();
-      result[key.startsWith('/nix/store/') ? key : '/nix/store/$key'] =
-          Map<String, dynamic>.from(entry.value as Map);
-    }
+String? _storeRoot(String path) =>
+    RegExp(r'^/nix/store/[a-z0-9]{32}-[^/\s]+(?=/|$)').stringMatch(path);
+
+String _derivationPath(String path) {
+  final absolute = path.startsWith('/nix/store/') ? path : '/nix/store/$path';
+  if (_storeRoot(absolute) != absolute || !absolute.endsWith('.drv')) {
+    throw const FormatException();
   }
-  return result;
+  return absolute;
 }
 
 String _storeName(String path) => path.split('/').last;
 
 Future<String> _command(String executable, List<String> args) async {
   final result = await Process.run(executable, args);
-  if (result.exitCode != 0) throw StateError(result.stderr.toString());
-  return result.stdout.toString();
-}
-
-Future<String> _sha256Path(String path) async {
-  try {
-    final result = await Process.run('sha256sum', ['--binary', '--', path]);
-    if (result.exitCode == 0) return result.stdout.toString().substring(0, 64);
-  } catch (_) {}
-  return 'unknown';
+  if (result.exitCode != 0) throw StateError('Provenance command failed.');
+  return result.stdout as String;
 }
