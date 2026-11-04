@@ -43,6 +43,8 @@ void main() {
           find.text('Journey keyboard').evaluate().isNotEmpty,
       description: 'Lighting profile controls and keyboard discovery',
     );
+    await tester.pumpAndSettle();
+    expect(nameField, findsOneWidget);
     await tester.ensureVisible(nameField);
 
     final colorField = find.byWidgetPredicate(
