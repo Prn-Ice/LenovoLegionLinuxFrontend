@@ -14,12 +14,17 @@ import '../../../core/theme/legion_accent.dart';
   final lightAccent = accent == LegionAccent.balanced
       ? const Color(0xFF555555)
       : accent?.color;
+  // Yaru interprets pure white as high contrast, including window controls and
+  // dividers. Balanced needs a white-looking accent with normal dark chrome.
+  final darkAccent = accent == LegionAccent.balanced
+      ? const Color(0xFFFAFAFA)
+      : accent?.color;
   return (
     theme: accent == null
         ? fallback.theme
         : createYaruLightTheme(primaryColor: lightAccent!),
     darkTheme: accent == null
         ? fallback.darkTheme
-        : createYaruDarkTheme(primaryColor: accent.color),
+        : createYaruDarkTheme(primaryColor: darkAccent!),
   );
 }

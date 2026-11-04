@@ -236,7 +236,12 @@ void main() {
               ? const Color(0xFF555555)
               : entry.value.color,
         ),
-        (themes.darkTheme, entry.value.color),
+        (
+          themes.darkTheme,
+          entry.value == LegionAccent.balanced
+              ? const Color(0xFFFAFAFA)
+              : entry.value.color,
+        ),
       ]) {
         expect(theme.colorScheme.primary, color);
         expect(
@@ -252,6 +257,14 @@ void main() {
       );
       expect(themes.theme.colorScheme.primary, YaruVariant.blue.color);
       expect(themes.darkTheme.colorScheme.primary, YaruVariant.blue.color);
+    }
+  });
+
+  test('Balanced keeps normal Yaru chrome in both themes', () {
+    final themes = appearanceThemes('balanced', const YaruThemeData());
+    for (final theme in [themes.theme, themes.darkTheme]) {
+      expect(theme.colorScheme.isHighContrast, isFalse);
+      expect(theme.dividerColor, isNot(Colors.white));
     }
   });
 }

@@ -12,6 +12,7 @@ import 'package:legion_frontend/features/battery/models/battery_snapshot.dart';
 import 'package:legion_frontend/features/battery/providers/battery_provider.dart';
 import 'package:legion_frontend/features/battery/repository/battery_repository.dart';
 import 'package:legion_frontend/features/battery/view/battery_page.dart';
+import 'package:legion_frontend/features/settings/models/appearance_theme.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:yaru/yaru.dart';
 
@@ -20,6 +21,35 @@ class _MockBatteryRepository extends Mock implements BatteryRepository {}
 class _MockAnalyticsRepository extends Mock implements AnalyticsRepository {}
 
 void main() {
+  for (final dark in [false, true]) {
+    testWidgets(
+      'Balanced battery ring distinguishes charge from track ($dark)',
+      (tester) async {
+        await _pumpPage(tester, width: 1100, dark: dark, mode: 'balanced');
+        final ring = tester.widget<CircularProgressIndicator>(
+          find.byType(CircularProgressIndicator),
+        );
+        final scheme = Theme.of(
+          tester.element(find.byType(BatteryPage)),
+        ).colorScheme;
+        final track = Color.alphaBlend(
+          ring.backgroundColor!,
+          scheme.surfaceContainerHighest,
+        );
+        final luminances = [
+          ring.color!.computeLuminance(),
+          track.computeLuminance(),
+        ]..sort();
+        expect(ring.value, 0.78);
+        expect(
+          (luminances.last + 0.05) / (luminances.first + 0.05),
+          greaterThanOrEqualTo(3),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('battery handoff is truthful and responsive at compact width', (
     tester,
   ) async {
@@ -119,6 +149,7 @@ Future<void> _pumpPage(
   WidgetTester tester, {
   required double width,
   bool dark = false,
+  String? mode,
   BatterySnapshot snapshot = _snapshot,
   bool includeTemperature = true,
 }) async {
@@ -172,12 +203,15 @@ Future<void> _pumpPage(
       ],
       child: YaruTheme(
         data: const YaruThemeData(),
-        builder: (context, yaru, child) => MaterialApp(
-          theme: yaru.theme,
-          darkTheme: yaru.darkTheme,
-          themeMode: dark ? ThemeMode.dark : ThemeMode.light,
-          home: const Scaffold(body: BatteryPage()),
-        ),
+        builder: (context, yaru, child) {
+          final themes = appearanceThemes(mode, yaru);
+          return MaterialApp(
+            theme: themes.theme,
+            darkTheme: themes.darkTheme,
+            themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+            home: const Scaffold(body: BatteryPage()),
+          );
+        },
       ),
     ),
   );

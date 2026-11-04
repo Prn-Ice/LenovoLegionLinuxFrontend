@@ -152,7 +152,7 @@ class _BatteryOverview extends StatelessWidget {
                     strokeWidth: 9,
                     strokeCap: StrokeCap.round,
                     color: accent,
-                    backgroundColor: scheme.outlineVariant,
+                    backgroundColor: scheme.onSurface.withValues(alpha: 0.08),
                   ),
                 ),
                 Text(

@@ -88,6 +88,17 @@ class ModeHero extends StatelessWidget {
                 accent.withValues(alpha: 0.2),
                 scheme.surface,
               ),
+              // The selected fill is a tinted surface, not Yaru's solid accent.
+              secondaryLabelStyle: WidgetStateTextStyle.resolveWith(
+                (states) =>
+                    (ChipTheme.of(context).secondaryLabelStyle ??
+                            const TextStyle())
+                        .copyWith(
+                          color: states.contains(WidgetState.disabled)
+                              ? scheme.onSurface.withValues(alpha: 0.38)
+                              : scheme.onSurface,
+                        ),
+              ),
             ),
             child: YaruChoiceChipBar(
               style: YaruChoiceChipBarStyle.wrap,

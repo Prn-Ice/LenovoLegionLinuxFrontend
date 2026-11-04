@@ -89,7 +89,7 @@ void main() {
       expect(balancedApp.theme!.colorScheme.primary, const Color(0xFF555555));
       expect(
         balancedApp.darkTheme!.colorScheme.primary,
-        LegionAccent.balanced.color,
+        const Color(0xFFFAFAFA),
       );
       modes.add(observed('custom'));
       await tester.pumpAndSettle();

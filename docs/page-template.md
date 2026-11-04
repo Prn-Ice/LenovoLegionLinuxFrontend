@@ -110,7 +110,8 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   (quiet=blue, balanced=white, performance=red, custom=violet), generating both
   Yaru themes and their component subthemes. Every page and the navigation shell
   uses `Theme.of(context).colorScheme.primary` for its interaction accent.
-  Balanced uses dark gray for light-theme interactions so controls remain visible.
+  Balanced uses dark gray for light-theme interactions so controls remain visible,
+  and near-white in dark mode to avoid Yaru's pure-white high-contrast styling.
   The mode colors are approximations based on a laptop's power-button photos.
   Pages must not resolve their own mode or assign a page colour, including Battery
   and Automation. The HTML reference's page-specific accents are not authoritative.
