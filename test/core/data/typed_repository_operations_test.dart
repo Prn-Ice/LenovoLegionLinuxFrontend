@@ -204,6 +204,17 @@ void main() {
 
     transport.calls.clear();
     await expectLater(
+      fans.applyPreset('unknown-preset'),
+      throwsA(
+        isA<AppFailure>().having(
+          (e) => e.kind,
+          'kind',
+          AppFailureKind.unavailable,
+        ),
+      ),
+    );
+    expect(bridge.commandHistory.last.succeeded, isFalse);
+    await expectLater(
       devices.setCamera(true),
       throwsA(
         isA<AppFailure>().having(

@@ -52,8 +52,8 @@ class DevicesRepository extends PrivilegedRepository {
 
   Future<void> setWinKey(bool enabled) async {
     await runControlOperation(
-      (client) => client.setFeature(ControlFeature.winkey, enabled ? '1' : '0'),
-      args: [ControlFeature.winkey.wireValue, '$enabled'],
+      (client) => client.setFeature(ControlFeature.winKey, enabled ? '1' : '0'),
+      args: [ControlFeature.winKey.wireValue, '$enabled'],
       method: 'feature.set',
       failurePrefix: 'Failed to set Win key to ${enabled ? 'on' : 'off'}',
     );

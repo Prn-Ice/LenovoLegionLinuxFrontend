@@ -71,7 +71,74 @@ void main() {
       await client.setToggle(command, true);
       await client.setToggle(command, false);
     }
-    expect(transport.calls, hasLength(commands.length * 2));
+    expect(transport.calls.map((call) => [call.$1, ...call.$2]), [
+      for (final name in const [
+        'hybrid-mode',
+        'battery-conservation',
+        'rapid-charging',
+        'always-on-usb-charging',
+        'touchpad',
+        'fn-lock',
+        'mini-fan-curve',
+        'lock-fan-controller',
+        'maximum-fan-speed',
+      ]) ...[
+        ['SetToggle', name, true],
+        ['SetToggle', name, false],
+      ],
+    ]);
+  });
+
+  test('fan preset enums keep the backend preset names', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+    for (final preset in ControlFanPreset.values) {
+      await client.applyFanPreset(preset);
+    }
+    expect(transport.calls.map((call) => [call.$1, ...call.$2]), [
+      for (final name in const [
+        'quiet-battery',
+        'balanced-battery',
+        'performance-battery',
+        'balanced-performance-battery',
+        'quiet-ac',
+        'balanced-ac',
+        'performance-ac',
+        'balanced-performance-ac',
+      ])
+        ['ApplyFanPreset', name],
+    ]);
+  });
+
+  test('feature enums keep the backend setting names', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+    for (final feature in ControlFeature.values) {
+      await client.setFeature(feature, switch (feature) {
+        ControlFeature.platformProfile => 'balanced',
+        ControlFeature.cpuLongtermPowerLimit ||
+        ControlFeature.cpuShorttermPowerLimit => '5',
+        _ => '1',
+      });
+    }
+    expect(transport.calls.map((call) => call.$2.first), [
+      'PlatformProfileFeature',
+      'OverdriveFeature',
+      'WinkeyFeature',
+      'CPULongtermPowerLimit',
+      'CPUShorttermPowerLimit',
+      'CPUPeakPowerLimit',
+      'CPUCrossLoadingPowerLimit',
+      'CPUAPUSPPTPowerLimit',
+      'GPUCTGPPowerLimit',
+      'GPUPPABPowerLimit',
+      'GPUBoostClock',
+      'GPUTemperatureLimit',
+      'CPUOverclock',
+      'GPUOverclock',
+      'YLogoLight',
+      'IOPortLight',
+    ]);
   });
 
   test('maps only guarded graphics modes to the typed method', () async {
@@ -107,6 +174,10 @@ void main() {
     final client = LegionControlClient(transport: transport);
     await client.setServiceEnabled(ControlService.powerProfilesDaemon, true);
     await client.setServiceEnabled(ControlService.legiondStack, false);
+    expect(transport.calls.map((call) => [call.$1, ...call.$2]), [
+      ['SetServiceEnabled', 'power_profiles_daemon', true],
+      ['SetServiceEnabled', 'legiond_stack', false],
+    ]);
     await client.applyFanCurve([0, 255]);
     expect(
       () => client.applyFanCurve([-1]),
@@ -183,8 +254,8 @@ void main() {
         ControlFeature.cpuShorttermPowerLimit: (5, 200),
         ControlFeature.cpuPeakPowerLimit: (1, 200),
         ControlFeature.cpuCrossLoadingPowerLimit: (1, 100),
-        ControlFeature.cpuApusPptPowerLimit: (1, 100),
-        ControlFeature.gpuCtgPowerLimit: (1, 200),
+        ControlFeature.cpuApuSpptPowerLimit: (1, 100),
+        ControlFeature.gpuCtgpPowerLimit: (1, 200),
         ControlFeature.gpuPpabPowerLimit: (1, 200),
         ControlFeature.gpuBoostClock: (1, 10000),
         ControlFeature.gpuTemperatureLimit: (1, 120),

@@ -217,7 +217,7 @@ class LegionControlClient {
           }.contains(value)
         : {
             ControlFeature.overdrive,
-            ControlFeature.winkey,
+            ControlFeature.winKey,
             ControlFeature.cpuOverclock,
             ControlFeature.gpuOverclock,
             ControlFeature.yLogoLight,
@@ -234,8 +234,8 @@ class LegionControlClient {
     ControlFeature.cpuShorttermPowerLimit: _IntRange(5, 200),
     ControlFeature.cpuPeakPowerLimit: _IntRange(1, 200),
     ControlFeature.cpuCrossLoadingPowerLimit: _IntRange(1, 100),
-    ControlFeature.cpuApusPptPowerLimit: _IntRange(1, 100),
-    ControlFeature.gpuCtgPowerLimit: _IntRange(1, 200),
+    ControlFeature.cpuApuSpptPowerLimit: _IntRange(1, 100),
+    ControlFeature.gpuCtgpPowerLimit: _IntRange(1, 200),
     ControlFeature.gpuPpabPowerLimit: _IntRange(1, 200),
     ControlFeature.gpuBoostClock: _IntRange(1, 10000),
     ControlFeature.gpuTemperatureLimit: _IntRange(1, 120),

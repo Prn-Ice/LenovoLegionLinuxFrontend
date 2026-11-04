@@ -30,7 +30,9 @@ service. The service checks and applies the change. The feature then reloads its
 state or reports an error.
 
 Feature repositories pass typed `LegionControlClient` calls to
-`LegionFrontendBridgeService.runControlOperation`. The bridge owns serialization,
+`LegionFrontendBridgeService.runControlOperation`. Commands use the enums in
+`lib/core/models/control_selectors.dart`, such as `ControlToggle.rapidCharging`.
+The client converts them to the names expected by D-Bus. The bridge owns serialization,
 duplicate detection, timeouts, history, and control-error translation. Its
 method/argument metadata is for history and duplicate keys, not CLI execution.
 `PrivilegedRepository` preserves failure kinds and details in feature exceptions.

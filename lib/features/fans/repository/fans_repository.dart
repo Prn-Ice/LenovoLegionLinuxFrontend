@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
 import '../../../core/models/control_selectors.dart';
+import '../../../core/services/legion_control_client.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';
@@ -73,7 +74,17 @@ class FansRepository extends PrivilegedRepository {
 
   Future<void> applyPreset(String presetName) async {
     await runControlOperation(
-      (client) => client.applyFanPreset(ControlFanPreset.parse(presetName)),
+      (client) {
+        final ControlFanPreset preset;
+        try {
+          preset = ControlFanPreset.parse(presetName);
+        } on FormatException {
+          throw const LegionControlNotSupportedException(
+            'Unsupported fan preset.',
+          );
+        }
+        return client.applyFanPreset(preset);
+      },
       args: [presetName],
       method: 'fan_curve.apply_preset',
       failurePrefix: 'Failed to apply fan preset "$presetName"',

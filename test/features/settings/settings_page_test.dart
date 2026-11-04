@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
 import 'package:legion_frontend/features/about/providers/about_provider.dart';
 import 'package:legion_frontend/features/boot_logo/models/boot_logo_snapshot.dart';
@@ -40,7 +41,7 @@ class DisplayRepo extends Mock implements DisplayRepository {}
 
 void main() {
   const service = ServiceControl(
-    id: 'test',
+    service: ControlService.legiondStack,
     label: 'Test service',
     units: ['test'],
     supported: true,

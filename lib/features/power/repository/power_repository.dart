@@ -49,7 +49,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_shortterm',
       label: 'CPU boost (PL2)',
-      feature: ControlFeature.cpuShorttermPowerLimit, // legion_linux/legion.py:CPUShorttermPowerLimit
+      feature: ControlFeature
+          .cpuShorttermPowerLimit, // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsAttribute: 'cpu_shortterm_powerlimit',
       min: 5,
       max: 200,
@@ -57,7 +58,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_peak',
       label: 'CPU Peak Power Limit',
-      feature: ControlFeature.cpuPeakPowerLimit, // legion_linux/legion.py:CPUPeakPowerLimit
+      feature: ControlFeature
+          .cpuPeakPowerLimit, // legion_linux/legion.py:CPUPeakPowerLimit
       sysfsAttribute: 'cpu_peak_powerlimit',
       min: 0,
       max: 200,
@@ -65,7 +67,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_cross_loading',
       label: 'CPU Cross Loading Power Limit',
-      feature: ControlFeature.cpuCrossLoadingPowerLimit, // legion_linux/legion.py:CPUCrossLoadingPowerLimit
+      feature: ControlFeature
+          .cpuCrossLoadingPowerLimit, // legion_linux/legion.py:CPUCrossLoadingPowerLimit
       sysfsAttribute: 'cpu_cross_loading_powerlimit',
       min: 0,
       max: 100,
@@ -81,7 +84,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_apu_sppt',
       label: 'CPU APU SPPT Power Limit',
-      feature: ControlFeature.cpuApusPptPowerLimit, // legion_linux/legion.py:CPUAPUSPPTPowerLimit
+      feature: ControlFeature.cpuApuSpptPowerLimit,
       sysfsAttribute: 'cpu_apu_sppt_powerlimit',
       min: 0,
       max: 100,
@@ -97,7 +100,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_ctgp',
       label: 'GPU total power (cTGP)',
-      feature: ControlFeature.gpuCtgPowerLimit, // legion_linux/legion.py:GPUCTGPPowerLimit
+      feature: ControlFeature.gpuCtgpPowerLimit,
       sysfsAttribute: 'gpu_ctgp_powerlimit',
       min: 0,
       max: 200,
@@ -112,7 +115,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_ppab',
       label: 'GPU PPAB Power Limit',
-      feature: ControlFeature.gpuPpabPowerLimit, // legion_linux/legion.py:GPUPPABPowerLimit
+      feature: ControlFeature
+          .gpuPpabPowerLimit, // legion_linux/legion.py:GPUPPABPowerLimit
       sysfsAttribute: 'gpu_ppab_powerlimit',
       min: 0,
       max: 200,
@@ -120,7 +124,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_boost_clock',
       label: 'GPU Boost Clock',
-      feature: ControlFeature.gpuBoostClock, // legion_linux/legion.py:GPUBoostClock
+      feature:
+          ControlFeature.gpuBoostClock, // legion_linux/legion.py:GPUBoostClock
       sysfsAttribute: 'gpu_boost_clock',
       unit: 'MHz',
       min: 0,
@@ -129,7 +134,8 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'gpu_temperature',
       label: 'GPU Temperature Limit',
-      feature: ControlFeature.gpuTemperatureLimit, // legion_linux/legion.py:GPUTemperatureLimit
+      feature: ControlFeature
+          .gpuTemperatureLimit, // legion_linux/legion.py:GPUTemperatureLimit
       sysfsAttribute: 'gpu_temperature_limit',
       unit: '°C',
       min: 0,

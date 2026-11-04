@@ -93,6 +93,38 @@ that temporary `sys` directory, not the host `/sys`. The narrower fan tests can
 also use `hwmonRoot` and `fanHwmonRoot`. Keep all fixture writes and symlink
 targets inside the test tree.
 
+## Add model-specific data
+
+Power and temperature settings recorded from an `82Y4` laptop with `M1CN48WW`
+BIOS were chosen as the app's defaults for that model and BIOS. They live in
+`lib/features/power/models/power_model_defaults.dart`. The Power page shows them
+beside current settings. See [the capture notes](power-defaults-evidence.md) for
+where the numbers came from. Add another entry only with its model, BIOS, recorded
+values, and an explanation of why those values should be used. Extend
+`test/features/power/power_model_defaults_test.dart` so nearby BIOS versions and
+unknown models do not inherit them.
+
+Native keyboard data lives in `lib/features/lighting/models/`:
+
+- `spectrum_keyboard_profile.dart`: USB IDs, packet format, and measured color
+  adjustments for each supported keyboard.
+- `spectrum_led_map.dart`: the LED address controlled by each key name.
+- `keyboard_layout.dart`: key positions and sizes used in the preview.
+
+For a new keyboard, record its exact USB IDs and verify its LED addresses,
+layout, and brightness behavior. Add a profile and a small `uevent` sample under
+`test/fixtures/lighting/spectrum/`, explaining whether the sample was recorded or
+invented for the test. Test unknown IDs as well as the new keyboard. The native
+service currently targets `048d:c987`; selecting another profile also requires
+passing its IDs to `SpectrumHidService`. Only the Gen 7/8 packet format is
+implemented.
+
+Run the data and keyboard tests without connecting hardware:
+
+```bash
+flutter test test/features/power/power_model_defaults_test.dart test/features/lighting
+```
+
 ## Tested-model entry template
 
 Use `unknown` or `not tested` where needed.

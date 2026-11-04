@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
 
 ServiceControl _service() => const ServiceControl(
-  id: 'tlp',
-  label: 'TLP',
-  units: ['tlp.service'],
+  service: ControlService.powerProfilesDaemon,
+  label: 'power-profiles-daemon',
+  units: ['power-profiles-daemon'],
   supported: true,
   active: true,
   enabled: true,
