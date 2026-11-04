@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
 import 'package:legion_frontend/features/about/providers/about_provider.dart';
 import 'package:legion_frontend/features/boot_logo/models/boot_logo_snapshot.dart';
@@ -48,12 +49,13 @@ void main() {
   );
   for (final scenario in [
     'picker',
+    'boot logo',
     'win key',
     'win key unavailable',
     'appearance',
   ]) {
     testWidgets('Settings $scenario uses the current provider', (tester) async {
-      if (scenario == 'appearance') {
+      if (scenario == 'appearance' || scenario == 'boot logo') {
         tester.view.physicalSize = const Size(420, 500);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
@@ -75,6 +77,14 @@ void main() {
       for (final repo in [boot, nextBoot]) {
         when(repo.loadSnapshot).thenAnswer((_) async => logo);
       }
+      when(() => boot.enableBootLogo('/tmp/logo.png')).thenThrow(
+        const BootLogoRepositoryException(
+          'Could not apply boot logo',
+          kind: AppFailureKind.privilegeSetup,
+          details: 'Test service unavailable',
+        ),
+      );
+      when(boot.restoreBootLogo).thenAnswer((_) async {});
       final about = AboutRepo();
       when(about.loadSnapshot).thenThrow(Exception('unavailable'));
       final devices = DevicesRepo();
@@ -203,6 +213,62 @@ void main() {
               .onSelected,
           isNotNull,
         );
+      } else if (scenario == 'boot logo') {
+        await tester.ensureVisible(find.text('Browse...'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Browse...'));
+        picker.result.complete([MockPlatformFile()]);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byTooltip('Clear selection'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Clear selection'));
+        await tester.pumpAndSettle();
+        expect(find.text('No image selected'), findsOneWidget);
+        expect(
+          tester
+              .widget<FilledButton>(
+                find.widgetWithText(FilledButton, 'Apply Custom Logo'),
+              )
+              .onPressed,
+          isNull,
+        );
+        await tester.tap(find.text('Browse...'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Apply Custom Logo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Apply Custom Logo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        verifyNever(() => boot.enableBootLogo('/tmp/logo.png'));
+        await tester.tap(find.text('Apply Custom Logo'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Apply').last);
+        await tester.pumpAndSettle();
+        verify(() => boot.enableBootLogo('/tmp/logo.png')).called(1);
+        expect(find.text('Privileged access needs setup'), findsOneWidget);
+        expect(
+          container.read(bootLogoBlocProvider).errorMessage?.kind,
+          AppFailureKind.privilegeSetup,
+        );
+        expect(
+          container.read(bootLogoBlocProvider).errorMessage?.details,
+          'Test service unavailable',
+        );
+        await tester.tap(find.text('Close').last);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Restore Default'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Restore Default'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel').last);
+        await tester.pumpAndSettle();
+        verifyNever(boot.restoreBootLogo);
+        await tester.tap(find.text('Restore Default'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Restore').last);
+        await tester.pumpAndSettle();
+        verify(boot.restoreBootLogo).called(1);
       } else if (scenario == 'picker') {
         await tester.ensureVisible(find.text('Browse...'));
         await tester.pumpAndSettle();
