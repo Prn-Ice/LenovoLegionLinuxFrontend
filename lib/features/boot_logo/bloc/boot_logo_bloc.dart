@@ -1,6 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../repository/boot_logo_repository.dart';
 import 'boot_logo_event.dart';
 import 'boot_logo_state.dart';

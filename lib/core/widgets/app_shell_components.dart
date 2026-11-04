@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
+
 import '../models/app_failure.dart';
 
 const _nixosControlConfiguration = '''security.polkit.enable = true;
@@ -216,7 +217,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
                       const SizedBox(height: 16),
                       Text('Details', style: textTheme.titleSmall),
                       const SizedBox(height: 6),
-                      Text(widget.message.toString()),
+                      Text(AppFailure.from(widget.message).displayText),
                     ],
             ),
           ),
@@ -310,7 +311,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
       Text('Technical details', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       Text(
-        widget.message.toString(),
+        AppFailure.from(widget.message).displayText,
         style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
       ),
     ];
@@ -331,7 +332,9 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
   Future<void> _copyDetails() async {
     if (mounted) setState(() => _detailsCopied = true);
     try {
-      await Clipboard.setData(ClipboardData(text: widget.message.toString()));
+      await Clipboard.setData(
+        ClipboardData(text: AppFailure.from(widget.message).displayText),
+      );
     } catch (_) {
       if (mounted) setState(() => _detailsCopied = false);
       rethrow;

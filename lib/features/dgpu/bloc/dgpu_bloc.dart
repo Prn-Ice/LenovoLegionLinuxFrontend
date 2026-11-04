@@ -1,8 +1,8 @@
 import 'dart:async';
-import '../../../core/models/app_failure.dart';
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/graphics_mode.dart';
 import '../repository/dgpu_repository.dart';
 import 'dgpu_event.dart';

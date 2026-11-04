@@ -9,6 +9,40 @@ import 'package:mocktail/mocktail.dart';
 class _MockBridgeService extends Mock implements LegionFrontendBridgeService {}
 
 void main() {
+  test(
+    'required status reload preserves a classified bridge failure',
+    () async {
+      final bridge = _MockBridgeService();
+      const error = LegionBridgeException(
+        code: LegionBridgeErrorCode.timeout,
+        method: 'graphics_mode.status',
+        message: 'Status request expired',
+        stderr: 'raw status diagnostic',
+      );
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status', '--json'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenThrow(error);
+      final repository = DgpuRepository(bridgeService: bridge);
+      await expectLater(
+        repository.loadGraphicsModeStatus(required: true),
+        throwsA(
+          isA<DgpuRepositoryException>()
+              .having((failure) => failure.kind, 'kind', AppFailureKind.timeout)
+              .having((failure) => failure.details, 'details', error.details)
+              .having(
+                (failure) => failure.message,
+                'context',
+                contains('Authoritative graphics status'),
+              ),
+        ),
+      );
+    },
+  );
   late _MockBridgeService bridge;
   late DgpuRepository repository;
 

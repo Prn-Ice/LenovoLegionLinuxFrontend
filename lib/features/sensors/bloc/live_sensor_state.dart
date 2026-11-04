@@ -1,5 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
+
+import '../../../core/models/app_failure.dart';
 import '../models/live_sensor_snapshot.dart';
 
 class LiveSensorState extends Equatable {

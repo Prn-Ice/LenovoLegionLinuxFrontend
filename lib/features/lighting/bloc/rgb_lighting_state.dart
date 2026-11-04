@@ -1,8 +1,8 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:ui' show Color;
 
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/rgb_lighting_device.dart';
 import '../services/spectrum_effects.dart';
 

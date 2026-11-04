@@ -1,8 +1,8 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../repository/battery_repository.dart';
 import 'battery_event.dart';
 import 'battery_state.dart';

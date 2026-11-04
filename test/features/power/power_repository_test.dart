@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
@@ -191,62 +192,96 @@ void main() {
     ).called(1);
   });
 
-  test('rolls back earlier limits when a later write fails', () async {
-    final second = PowerLimitReading(
-      spec: PowerRepository.allPowerLimits[1],
-      value: 80,
-    );
-    when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
-    when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
-    when(
-      () => sysfs.readLegionIntFile(reading.spec.sysfsAttribute),
-    ).thenAnswer((_) async => 55);
-    when(
-      () => sysfs.readLegionIntFile(second.spec.sysfsAttribute),
-    ).thenAnswer((_) async => 75);
-    when(
-      () => bridge.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName!, '60'],
-        timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
-      ),
-    ).thenAnswer((_) async {});
-    when(
-      () => bridge.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', second.spec.featureName!, '80'],
-        timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
-      ),
-    ).thenThrow(
-      const LegionBridgeException(
-        code: LegionBridgeErrorCode.commandFailed,
-        method: 'feature.set',
-        message: 'failed',
-      ),
-    );
-    when(
-      () => bridge.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName!, '55'],
-        timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
-      ),
-    ).thenAnswer((_) async {});
+  for (final rollbackFails in [false, true]) {
+    test(
+      'preserves write failure after rollback (rollback fails: $rollbackFails)',
+      () async {
+        final second = PowerLimitReading(
+          spec: PowerRepository.allPowerLimits[1],
+          value: 80,
+        );
+        when(
+          () => sysfs.readPlatformProfile(),
+        ).thenAnswer((_) async => 'custom');
+        when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+        when(
+          () => sysfs.readLegionIntFile(reading.spec.sysfsAttribute),
+        ).thenAnswer((_) async => 55);
+        when(
+          () => sysfs.readLegionIntFile(second.spec.sysfsAttribute),
+        ).thenAnswer((_) async => 75);
+        when(
+          () => bridge.runPrivilegedCommand(
+            method: 'feature.set',
+            args: ['set-feature', reading.spec.featureName!, '60'],
+            timeout: const Duration(seconds: 5),
+            detectUnavailableResponse: true,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => bridge.runPrivilegedCommand(
+            method: 'feature.set',
+            args: ['set-feature', second.spec.featureName!, '80'],
+            timeout: const Duration(seconds: 5),
+            detectUnavailableResponse: true,
+          ),
+        ).thenThrow(
+          const LegionBridgeException(
+            code: LegionBridgeErrorCode.commandFailed,
+            method: 'feature.set',
+            message: 'failed',
+            stderr: 'original diagnostic',
+          ),
+        );
+        when(
+          () => bridge.runPrivilegedCommand(
+            method: 'feature.set',
+            args: ['set-feature', reading.spec.featureName!, '55'],
+            timeout: const Duration(seconds: 5),
+            detectUnavailableResponse: true,
+          ),
+        ).thenAnswer((_) async {
+          if (rollbackFails) {
+            throw const LegionBridgeException(
+              code: LegionBridgeErrorCode.busy,
+              method: 'feature.set',
+              message: 'restore failed',
+            );
+          }
+        });
 
-    await expectLater(
-      repository.setPowerLimits([reading, second]),
-      throwsA(isA<PowerRepositoryException>()),
-    );
+        await expectLater(
+          repository.setPowerLimits([reading, second]),
+          throwsA(
+            isA<PowerRepositoryException>()
+                .having(
+                  (failure) => failure.kind,
+                  'kind',
+                  AppFailureKind.commandFailed,
+                )
+                .having(
+                  (failure) => failure.details,
+                  'details',
+                  'original diagnostic',
+                )
+                .having(
+                  (failure) =>
+                      failure.message.contains('could not be restored'),
+                  'rollback consequence',
+                  rollbackFails,
+                ),
+          ),
+        );
 
-    verify(
-      () => bridge.runPrivilegedCommand(
-        method: 'feature.set',
-        args: ['set-feature', reading.spec.featureName!, '55'],
-        timeout: const Duration(seconds: 5),
-        detectUnavailableResponse: true,
-      ),
-    ).called(1);
-  });
+        verify(
+          () => bridge.runPrivilegedCommand(
+            method: 'feature.set',
+            args: ['set-feature', reading.spec.featureName!, '55'],
+            timeout: const Duration(seconds: 5),
+            detectUnavailableResponse: true,
+          ),
+        ).called(1);
+      },
+    );
+  }
 }

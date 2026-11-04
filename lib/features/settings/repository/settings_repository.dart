@@ -1,6 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
+import '../../../core/models/app_failure.dart';
 import '../../../core/services/legion_control_client.dart';
 import '../models/service_control.dart';
 import '../models/settings_snapshot.dart';

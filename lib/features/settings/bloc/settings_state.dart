@@ -1,8 +1,8 @@
-import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/service_control.dart';
 
 class SettingsState extends Equatable {

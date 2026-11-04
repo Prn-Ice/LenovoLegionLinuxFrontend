@@ -1,5 +1,5 @@
-import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
+import '../../../core/models/app_failure.dart';
 import '../models/boot_logo_snapshot.dart';
 import '../models/boot_logo_status.dart';
 

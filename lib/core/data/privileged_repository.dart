@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../services/legion_frontend_bridge_service.dart';
 import '../models/app_failure.dart';
+import '../services/legion_frontend_bridge_service.dart';
 
 /// Base class for repositories that issue privileged commands through the
 /// [LegionFrontendBridgeService].
@@ -11,11 +11,10 @@ import '../models/app_failure.dart';
 /// [LegionBridgeException] into the feature's own exception type via
 /// [wrapBridgeError].
 ///
-/// Defaults intentionally mirror [LegionFrontendBridgeService.runPrivilegedCommand]
-/// (`timeout` 5s, no retries, `detectUnavailableResponse` true) so subclasses
-/// that relied on the bridge defaults need no call-site changes. Subclasses that
-/// need other values (e.g. a longer timeout, or suppressing unavailable-response
-/// detection) must pass them explicitly at the call site.
+/// Repository writes default to a 5-second timeout, shorter than the bridge's
+/// 15-second default. They use no retries and detect unavailable responses.
+/// Subclasses must explicitly request a longer timeout or disable unavailable
+/// response detection when the operation needs it.
 abstract class PrivilegedRepository {
   const PrivilegedRepository({required this.bridgeService});
 

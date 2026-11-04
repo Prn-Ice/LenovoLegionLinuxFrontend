@@ -1,11 +1,11 @@
 import 'package:bloc_test/bloc_test.dart';
-import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
-import 'package:legion_frontend/features/dgpu/models/dgpu_snapshot.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
+import 'package:legion_frontend/features/dgpu/models/dgpu_snapshot.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
 import 'package:mocktail/mocktail.dart';

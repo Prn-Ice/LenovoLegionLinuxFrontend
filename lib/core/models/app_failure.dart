@@ -27,6 +27,17 @@ class AppFailure extends Equatable implements Exception {
   final AppFailureKind kind;
   final String? details;
 
+  /// Include raw diagnostics unless the action message already contains them.
+  String get displayText {
+    final rawDetails = details;
+    if (rawDetails == null ||
+        rawDetails.trim().isEmpty ||
+        message.contains(rawDetails)) {
+      return message;
+    }
+    return '$message\n\n$rawDetails';
+  }
+
   /// Normalize unclassified errors without guessing their cause from text.
   factory AppFailure.from(Object error, {String? message}) {
     if (error is AppFailure) {

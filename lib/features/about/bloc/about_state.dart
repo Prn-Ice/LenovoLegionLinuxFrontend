@@ -1,6 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/about_snapshot.dart';
 
 class AboutState extends Equatable {

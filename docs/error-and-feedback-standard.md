@@ -112,9 +112,11 @@ When adding another known failure:
 4. Keep generic fallback details available for diagnostics.
 5. Add focused dialog and service-classification tests.
 
-Prefer carrying a structured error code to the presentation layer. If an
-existing state currently carries only a string, keep the recognition token
-stable and update the service and dialog tests together.
+Carry the classified cause as an `AppFailure` through repository exceptions,
+Bloc state, and the shared dialog. Preserve its `kind` and raw `details` when
+adding action-specific message text. The dialog selects recovery guidance from
+the kind, never from English phrases. Legacy string inputs remain unclassified.
+Test typed propagation and recovery guidance independently of message wording.
 
 ## Copyable Technical Content
 

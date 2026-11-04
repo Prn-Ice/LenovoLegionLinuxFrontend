@@ -1,9 +1,9 @@
-import '../../../core/models/app_failure.dart';
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/service_control.dart';
-import '../repository/settings_repository.dart';
 import '../repository/appearance_store.dart';
+import '../repository/settings_repository.dart';
 import 'settings_event.dart';
 import 'settings_state.dart';
 

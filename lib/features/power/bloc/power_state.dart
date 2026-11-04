@@ -1,6 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../../../core/models/cpu_policy_snapshot.dart';
 import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import '../models/power_limit.dart';

@@ -1,9 +1,9 @@
-import '../../../core/models/app_failure.dart';
 // lib/features/analytics/bloc/analytics_bloc.dart
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../repository/analytics_repository.dart';
 import 'analytics_event.dart';
 import 'analytics_state.dart';

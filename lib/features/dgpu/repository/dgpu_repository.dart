@@ -1,7 +1,7 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
+import '../../../core/models/app_failure.dart';
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
@@ -82,9 +82,12 @@ class DgpuRepository extends PrivilegedRepository {
       rethrow;
     } catch (error) {
       if (required) {
+        final failure = AppFailure.from(error);
         throw DgpuRepositoryException(
           'Authoritative graphics status could not be reloaded after the mode '
           'request: $error',
+          kind: failure.kind,
+          details: failure.details,
         );
       }
       return null;

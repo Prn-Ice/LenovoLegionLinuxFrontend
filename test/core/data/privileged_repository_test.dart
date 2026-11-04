@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/data/privileged_repository.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:mocktail/mocktail.dart';
 

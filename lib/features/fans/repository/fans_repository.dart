@@ -1,7 +1,7 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
+import '../../../core/models/app_failure.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';

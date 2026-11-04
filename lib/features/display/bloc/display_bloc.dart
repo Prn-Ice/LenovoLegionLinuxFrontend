@@ -1,8 +1,8 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../repository/display_repository.dart';
 import 'display_event.dart';
 import 'display_state.dart';

@@ -1,7 +1,8 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
+
+import '../../../core/models/app_failure.dart';
 
 String formatBatteryDuration(int minutes) {
   final hours = minutes ~/ 60;

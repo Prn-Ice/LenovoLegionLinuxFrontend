@@ -1,7 +1,7 @@
-import '../../../core/models/app_failure.dart';
 // lib/features/analytics/bloc/analytics_state.dart
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/sensor_record.dart';
 
 enum AnalyticsTimeWindow { lastHour, last6h, last24h, last7d, last30d }

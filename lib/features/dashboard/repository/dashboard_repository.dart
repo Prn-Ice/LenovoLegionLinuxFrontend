@@ -1,5 +1,5 @@
-import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
+import '../../../core/models/app_failure.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
 import '../models/dashboard_snapshot.dart';

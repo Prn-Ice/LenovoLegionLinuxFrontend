@@ -1,9 +1,9 @@
-import '../../../core/models/app_failure.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
+import '../../../core/models/app_failure.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';

@@ -1,6 +1,6 @@
-import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';
 

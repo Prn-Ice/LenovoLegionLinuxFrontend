@@ -1,9 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 
 void main() {
+  for (final embedded in [false, true]) {
+    testWidgets('displays and copies raw details once (embedded: $embedded)', (
+      tester,
+    ) async {
+      const raw = 'raw error\n  diagnostic context';
+      final failure = AppFailure(
+        embedded ? 'Short message\n\n$raw' : 'Short message',
+        details: raw,
+      );
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: AppErrorDialog(message: failure)),
+        ),
+      );
+      expect(find.text('Short message\n\n$raw'), findsOneWidget);
+      await tester.tap(find.text('Copy details'));
+      await tester.pumpAndSettle();
+      expect(copied, 'Short message\n\n$raw');
+      expect(find.text('Copied'), findsOneWidget);
+    });
+  }
+
   testWidgets('error opens a modal dialog and remains until closed', (
     tester,
   ) async {
