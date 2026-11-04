@@ -1,5 +1,17 @@
 import 'package:equatable/equatable.dart';
 
+import 'hardware_check.dart';
+
+class HardwareFileResults {
+  const HardwareFileResults({
+    required this.checks,
+    required this.sensorProviders,
+  });
+
+  final Map<HardwareCheck, SysfsProbe> checks;
+  final List<SysfsProbe> sensorProviders;
+}
+
 enum SysfsReadOutcome { readable, missing, unreadable, malformed, unknown }
 
 /// The result of reading one hardware file. Invalid values are not saved.

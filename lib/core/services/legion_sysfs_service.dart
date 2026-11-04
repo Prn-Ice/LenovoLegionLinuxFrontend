@@ -5,6 +5,7 @@ import '../../features/fans/models/fan_curve.dart';
 import '../../features/dashboard/models/system_status.dart';
 import '../models/cpu_policy_snapshot.dart';
 import '../models/sysfs_probe.dart';
+import '../models/hardware_check.dart';
 
 enum _ProbeValue { text, boolean, integer }
 
@@ -93,30 +94,38 @@ class LegionSysfsService {
 
   /// Reads the hardware files included in diagnostics. Only the named model and
   /// BIOS fields are included; serial numbers and UUIDs are excluded.
-  Future<Map<String, SysfsProbe>> readHardwareProbes() async {
-    final probes = <String, SysfsProbe>{};
-    for (final field in ['product_family', 'product_name', 'bios_version']) {
-      probes[field] = await _probePaths(['${_sys(_dmiPath)}/$field']);
+  Future<HardwareFileResults> readHardwareProbes() async {
+    final probes = <HardwareCheck, SysfsProbe>{};
+    for (final entry in {
+      HardwareCheck.productFamily: 'product_family',
+      HardwareCheck.productName: 'product_name',
+      HardwareCheck.biosVersion: 'bios_version',
+    }.entries) {
+      probes[entry.key] = await _probePaths([
+        '${_sys(_dmiPath)}/${entry.value}',
+      ]);
     }
-    probes['kernel_version'] = await _probePaths([
+    probes[HardwareCheck.kernelVersion] = await _probePaths([
       _proc('/proc/sys/kernel/osrelease'),
     ]);
-    probes['module_version'] = await _probePaths([
+    probes[HardwareCheck.moduleVersion] = await _probePaths([
       _sys('/sys/module/legion_laptop/version'),
     ]);
-    probes['platform_profile'] = await _probePaths([
+    probes[HardwareCheck.platformProfile] = await _probePaths([
       _sys(_platformProfilePath),
     ]);
-    probes['platform_profile_choices'] = await _probePaths([
+    probes[HardwareCheck.platformProfileChoices] = await _probePaths([
       _sys(_platformProfileChoicesPath),
     ]);
     for (final entry in {
-      'hybrid_mode': 'gsync',
-      'overdrive': 'overdrive',
-      'rapid_charge': 'rapidcharge',
-      'win_key': 'winkey',
-      'lock_fan_controller': 'lockfancontroller',
-      'fan_fullspeed': 'fan_fullspeed',
+      HardwareCheck.hybridMode: 'gsync',
+      HardwareCheck.overdrive: 'overdrive',
+      HardwareCheck.rapidCharge: 'rapidcharge',
+      HardwareCheck.winKey: 'winkey',
+      HardwareCheck.lockFanController: 'lockfancontroller',
+      HardwareCheck.fanFullspeed: 'fan_fullspeed',
+      HardwareCheck.cpuOverclock: 'cpu_oc',
+      HardwareCheck.gpuOverclock: 'gpu_oc',
     }.entries) {
       probes[entry.key] = await _probePaths(
         _legionPaths(entry.value),
@@ -124,24 +133,44 @@ class LegionSysfsService {
       );
     }
     for (final entry in {
-      'battery_conservation': _batteryConservationPath,
-      'always_on_usb': _alwaysOnUsbChargingPath,
-      'touchpad': _touchpadIdeapadPath,
-      'camera_power': _cameraPowerPath,
-      'fn_lock': _fnLockPath,
+      HardwareCheck.batteryConservation: _batteryConservationPath,
+      HardwareCheck.alwaysOnUsb: _alwaysOnUsbChargingPath,
+      HardwareCheck.touchpad: _touchpadIdeapadPath,
+      HardwareCheck.cameraPower: _cameraPowerPath,
+      HardwareCheck.fnLock: _fnLockPath,
     }.entries) {
       probes[entry.key] = await _probePaths([
         ...await _ideapadPaths(entry.value),
-        if (entry.key == 'touchpad') ..._legionPaths('touchpad'),
+        if (entry.key == HardwareCheck.touchpad) ..._legionPaths('touchpad'),
       ], kind: _ProbeValue.boolean);
     }
     for (final entry in {
-      'keyboard_backlight': _whiteKeyboardBacklightPath,
-      'y_logo': _yLogoLightPath,
-      'io_port_light': _ioPortLightPath,
+      HardwareCheck.keyboardBacklight: _whiteKeyboardBacklightPath,
+      HardwareCheck.yLogo: _yLogoLightPath,
+      HardwareCheck.ioPortLight: _ioPortLightPath,
     }.entries) {
       probes[entry.key] = await _probePaths(
         await _ledPaths(entry.value),
+        kind: _ProbeValue.integer,
+      );
+    }
+    // These attributes are the readings displayed by PowerRepository.
+    for (final entry in {
+      HardwareCheck.cpuLongterm: 'cpu_longterm_powerlimit',
+      HardwareCheck.cpuShortterm: 'cpu_shortterm_powerlimit',
+      HardwareCheck.cpuPeak: 'cpu_peak_powerlimit',
+      HardwareCheck.cpuCrossLoading: 'cpu_cross_loading_powerlimit',
+      HardwareCheck.cpuTemperature: 'cpu_temperature_limit',
+      HardwareCheck.cpuApuSppt: 'cpu_apu_sppt_powerlimit',
+      HardwareCheck.cpuDefault: 'cpu_default_powerlimit',
+      HardwareCheck.gpuCtgp: 'gpu_ctgp_powerlimit',
+      HardwareCheck.gpuPowerTargetOffset: 'gpu_power_target_offset',
+      HardwareCheck.gpuPpab: 'gpu_ppab_powerlimit',
+      HardwareCheck.gpuBoostClock: 'gpu_boost_clock',
+      HardwareCheck.gpuTemperature: 'gpu_temperature_limit',
+    }.entries) {
+      probes[entry.key] = await _probePaths(
+        _legionPaths(entry.value),
         kind: _ProbeValue.integer,
       );
     }
@@ -155,36 +184,43 @@ class LegionSysfsService {
             _sys(_onPowerSupplyAdp0Path),
             _sys(_onPowerSupplyAcPath),
           ], kind: _ProbeValue.boolean);
-    probes['ac_online'] = SysfsProbe(
+    probes[HardwareCheck.acOnline] = SysfsProbe(
       List.unmodifiable([...mainsProbe.reads, ...legacyMainsProbe.reads]),
     );
     final controller = await _findFanHwmonDir();
-    probes['mini_fan_curve'] = await _probePaths([
+    probes[HardwareCheck.miniFanCurve] = await _probePaths([
       if (controller != null) '${controller}minifancurve',
     ], kind: _ProbeValue.boolean);
     for (final fan in [1, 2]) {
-      final paths = await _fanRpmPaths(fan);
-      final probe = await _probePaths(paths, kind: _ProbeValue.integer);
-      probes['fan${fan}_rpm'] = probe;
-      final selectedPath = probe.selectedRead?.path;
-      probes['fan${fan}_provider'] = await _probePaths([
-        if (selectedPath != null)
-          '${File(paths.toSet().elementAt(probe.reads.length - 1)).parent.path}/name',
+      final candidates = (await _fanRpmPaths(fan)).toSet().toList();
+      final probe = await _probePaths(candidates, kind: _ProbeValue.integer);
+      probes[fan == 1 ? HardwareCheck.fan1Rpm : HardwareCheck.fan2Rpm] = probe;
+      final selectedIndex = probe.reads.indexWhere(
+        (read) => read.outcome == SysfsReadOutcome.readable,
+      );
+      final selectedFile = selectedIndex < 0
+          ? null
+          : File(candidates[selectedIndex]);
+      probes[fan == 1
+          ? HardwareCheck.fan1Provider
+          : HardwareCheck.fan2Provider] = await _probePaths([
+        if (selectedFile != null) '${selectedFile.parent.path}/name',
       ]);
     }
     // Driver names help identify layouts the app does not yet recognize.
     // Reading a driver name does not establish that it provides fan readings.
     final providers = await _sortedDirectories(_hwmonRoot);
+    final sensorProviders = <SysfsProbe>[];
     for (var index = 0; index < providers.length && index < 32; index++) {
-      probes['hwmon_provider_${index + 1}'] = await _probePaths([
-        '${providers[index].path}/name',
-      ]);
+      sensorProviders.add(await _probePaths(['${providers[index].path}/name']));
     }
     // Report directory access failures separately from missing hardware files.
     for (final entry in {
-      'hwmon_discovery': _hwmonRoot,
-      'ideapad_discovery': _sys('/sys/bus/platform/drivers/ideapad_acpi'),
-      'led_discovery': _sys('/sys/class/leds'),
+      HardwareCheck.hwmonDiscovery: _hwmonRoot,
+      HardwareCheck.ideapadDiscovery: _sys(
+        '/sys/bus/platform/drivers/ideapad_acpi',
+      ),
+      HardwareCheck.ledDiscovery: _sys('/sys/class/leds'),
     }.entries) {
       try {
         await Directory(entry.value).list().drain<void>();
@@ -204,7 +240,10 @@ class LegionSysfsService {
         ]);
       }
     }
-    return Map.unmodifiable(probes);
+    return HardwareFileResults(
+      checks: Map.unmodifiable(probes),
+      sensorProviders: List.unmodifiable(sensorProviders),
+    );
   }
 
   Future<SysfsProbe> _probePaths(

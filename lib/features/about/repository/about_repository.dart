@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../../../core/models/hardware_check.dart';
 import '../../../core/services/legion_cli_service.dart';
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
@@ -23,27 +24,26 @@ class AboutRepository {
   final ProcessRunner _processRunner;
 
   Future<AboutSnapshot> loadSnapshot() async {
-    final probes = await _sysfs.readHardwareProbes();
+    final results = await _sysfs.readHardwareProbes();
+    final probes = results.checks;
     final diagnostics = <AboutDiagnosticItem>[
-      for (final entry in _probeLabels.entries)
-        if (probes[entry.key] case final probe?)
-          AboutDiagnosticItem.fromProbe(
-            id: entry.key,
-            label: entry.value,
-            probe: probe,
-            frontendWriteAvailable: _writeControls.contains(entry.key),
-          ),
       for (final entry in probes.entries)
-        if (entry.key.startsWith('hwmon_provider_'))
-          AboutDiagnosticItem.fromProbe(
-            id: entry.key,
-            label: 'Sensor provider ${entry.key.split('_').last}',
-            probe: entry.value,
-            frontendWriteAvailable: false,
-          ),
+        AboutDiagnosticItem.fromProbe(
+          id: entry.key.jsonId,
+          label: entry.key.label,
+          probe: entry.value,
+          frontendWriteAvailable: entry.key.writable,
+        ),
+      for (var index = 0; index < results.sensorProviders.length; index++)
+        AboutDiagnosticItem.fromProbe(
+          id: 'hwmon_provider_${index + 1}',
+          label: 'Sensor provider ${index + 1}',
+          probe: results.sensorProviders[index],
+          frontendWriteAvailable: false,
+        ),
     ];
-    final family = probes['product_family']?.selectedRead?.value;
-    final name = probes['product_name']?.selectedRead?.value;
+    final family = probes[HardwareCheck.productFamily]?.selectedRead?.value;
+    final name = probes[HardwareCheck.productName]?.selectedRead?.value;
     final hardwareModel = family == null
         ? name
         : name == null
@@ -66,67 +66,14 @@ class AboutRepository {
       cliHealthy: cliProbe.$1,
       cliHealthSummary: cliProbe.$2,
       diagnostics: List.unmodifiable(diagnostics),
-      kernelVersion: probes['kernel_version']?.selectedRead?.value,
+      kernelVersion: probes[HardwareCheck.kernelVersion]?.selectedRead?.value,
       hardwareModel: hardwareModel,
-      biosVersion: probes['bios_version']?.selectedRead?.value,
-      moduleVersion: probes['module_version']?.selectedRead?.value,
+      biosVersion: probes[HardwareCheck.biosVersion]?.selectedRead?.value,
+      moduleVersion: probes[HardwareCheck.moduleVersion]?.selectedRead?.value,
       cliVersion: cliVersion,
       commandHistory: _bridge.commandHistory,
     );
   }
-
-  static const _probeLabels = {
-    'product_family': 'Model family',
-    'product_name': 'Model identifier',
-    'bios_version': 'BIOS version',
-    'kernel_version': 'Kernel version',
-    'module_version': 'Module version',
-    'platform_profile': 'Platform profile',
-    'platform_profile_choices': 'Platform profile choices',
-    'hybrid_mode': 'Hybrid/G-Sync state',
-    'overdrive': 'Overdrive state',
-    'battery_conservation': 'Battery conservation',
-    'rapid_charge': 'Rapid charging',
-    'always_on_usb': 'Always-on USB charging',
-    'touchpad': 'Touchpad state',
-    'win_key': 'Win key lock',
-    'camera_power': 'Camera power state',
-    'fn_lock': 'Fn lock',
-    'keyboard_backlight': 'Keyboard brightness',
-    'y_logo': 'Y-logo brightness',
-    'io_port_light': 'I/O-port brightness',
-    'ac_online': 'AC adapter online',
-    'lock_fan_controller': 'Fan controller lock',
-    'fan_fullspeed': 'Max fan speed toggle',
-    'mini_fan_curve': 'Mini fan curve mode',
-    'fan1_rpm': 'Fan 1 (RPM)',
-    'fan2_rpm': 'Fan 2 (RPM)',
-    'fan1_provider': 'Fan 1 provider',
-    'fan2_provider': 'Fan 2 provider',
-    'hwmon_discovery': 'Sensor discovery',
-    'ideapad_discovery': 'Ideapad discovery',
-    'led_discovery': 'LED discovery',
-  };
-
-  // Settings the app can ask to change. The driver may still reject a change.
-  static const _writeControls = {
-    'platform_profile',
-    'hybrid_mode',
-    'overdrive',
-    'battery_conservation',
-    'rapid_charge',
-    'always_on_usb',
-    'touchpad',
-    'win_key',
-    'camera_power',
-    'fn_lock',
-    'keyboard_backlight',
-    'y_logo',
-    'io_port_light',
-    'lock_fan_controller',
-    'fan_fullspeed',
-    'mini_fan_curve',
-  };
 
   Future<(bool, String)> _probeCliHealth() async {
     try {

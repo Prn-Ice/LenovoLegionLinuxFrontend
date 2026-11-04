@@ -61,6 +61,94 @@ void main() {
   tearDown(() => root.delete(recursive: true));
 
   test(
+    'power report keeps readable files separate from allowed write actions',
+    () async {
+      const legion = 'sys/module/legion_laptop/drivers/platform:legion';
+      // Synthetic values cover every attribute displayed by the Power page.
+      final files = {
+        '$legion/PNP0C09:00/cpu_longterm_powerlimit': '75',
+        '$legion/PNP0C09:00/cpu_shortterm_powerlimit': '90',
+        '$legion/PNP0C09:00/cpu_peak_powerlimit': '100',
+        '$legion/PNP0C09:00/cpu_cross_loading_powerlimit': '45',
+        '$legion/PNP0C09:00/cpu_temperature_limit': '95',
+        '$legion/PNP0C09:00/cpu_apu_sppt_powerlimit': '55',
+        '$legion/PNP0C09:00/cpu_default_powerlimit': '65',
+        '$legion/PNP0C09:00/gpu_ctgp_powerlimit': 'invalid',
+        '$legion/PNP0C09:00/gpu_power_target_offset': '15',
+        '$legion/PNP0C09:00/gpu_ppab_powerlimit': '20',
+        '$legion/PNP0C09:00/gpu_boost_clock': '1500',
+        '$legion/PNP0C09:00/gpu_temperature_limit': '87',
+        '$legion/PNP0C09:00/cpu_oc': '0',
+        '$legion/PNP0C09:00/gpu_oc': '1',
+        'sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/camera_power': '1',
+      };
+      for (final entry in files.entries) {
+        final file = File('${root.path}/${entry.key}');
+        await file.parent.create(recursive: true);
+        await file.writeAsString('${entry.value}\n');
+      }
+      final report = (await repository.loadSnapshot()).toJson();
+      final checks = {
+        for (final item in report['diagnostics'] as List)
+          (item as Map<String, Object?>)['id']: item,
+      };
+      for (final id in [
+        'camera_power',
+        'keyboard_backlight',
+        'cpu_default',
+        'cpu_temperature',
+        'gpu_power_target_offset',
+      ]) {
+        expect(checks[id]!['frontend_write_available'], isFalse, reason: id);
+        expect((checks[id]!['read'] as Map)['outcome'], 'readable', reason: id);
+      }
+      for (final id in [
+        'cpu_longterm',
+        'cpu_shortterm',
+        'cpu_peak',
+        'cpu_cross_loading',
+        'cpu_apu_sppt',
+        'gpu_ctgp',
+        'gpu_ppab',
+        'gpu_boost_clock',
+        'gpu_temperature',
+        'cpu_oc',
+        'gpu_oc',
+      ]) {
+        expect(checks[id]!['frontend_write_available'], isTrue, reason: id);
+        expect(
+          checks[id]!['hardware_write_verification'],
+          'unverified',
+          reason: id,
+        );
+        expect(
+          (checks[id]!['read'] as Map)['outcome'],
+          id == 'gpu_ctgp' ? 'malformed' : 'readable',
+          reason: id,
+        );
+      }
+      expect(
+        (checks['cpu_longterm']!['read'] as Map)['selected_path'],
+        '/$legion/PNP0C09:00/cpu_longterm_powerlimit',
+      );
+      expect(checks['cpu_longterm']!['value'], '75');
+      expect(checks['cpu_default']!['value'], '65');
+      expect((checks['gpu_ctgp']!['read'] as Map)['selected_path'], isNull);
+      expect((checks['gpu_ctgp']!['read'] as Map)['attempts'], [
+        {'path': '/$legion/legion/gpu_ctgp_powerlimit', 'outcome': 'missing'},
+        {
+          'path': '/$legion/PNP0C09:00/gpu_ctgp_powerlimit',
+          'outcome': 'malformed',
+        },
+      ]);
+      expect(commands, [
+        ['--donotexpecthwmon', '--help'],
+        ['--donotexpecthwmon', '--version'],
+      ]);
+    },
+  );
+
+  test(
     'existing snapshot export includes identity, selections and separate write evidence',
     () async {
       final snapshot = await repository.loadSnapshot();
