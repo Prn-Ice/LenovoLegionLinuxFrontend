@@ -11,9 +11,16 @@ Install Flutter stable (3.47.9 or newer; see [dependency notes](docs/dependencie
 and the Linux desktop prerequisites for Flutter: CMake, Ninja, a C/C++ compiler,
 pkg-config, GTK 3 development headers, and Linux desktop development libraries.
 For native service tests, also install GLib/GIO development files; control-service
-builds need Polkit development files. Use your distribution's package names and
-Flutter's Linux desktop setup guidance. You do not need Android SDK components
-for this Linux app.
+builds need Polkit development files. Follow the official
+[Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
+For Debian/Ubuntu, a dependency example including native service headers is:
+
+```bash
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev
+```
+
+Package names can vary by distribution release. Android SDK components are not
+needed for this Linux app.
 
 ```bash
 git clone https://github.com/Prn-Ice/LenovoLegionLinuxFrontend.git
@@ -27,12 +34,11 @@ The repository does not require Nix or direnv. Optionally, set
 then run `direnv allow`. `.envrc` does not select a maintainer-specific path or
 update a shared SDK.
 
-## Run and test without hardware
+## Test without hardware
 
 ```bash
 flutter test
 flutter analyze
-flutter run -d linux
 ```
 
 Tests use fakes, mocks, and fixtures; they should not require a connected laptop,
@@ -57,6 +63,14 @@ Inspect its captured images; a passing capture test alone does not prove visual
 quality or hardware behavior.
 
 ## Hardware and model support
+
+The live application currently requires `legion_cli` in `PATH`: constructing
+`LegionCliService` fails if it cannot find the executable. Once the backend is
+installed, launch the application with:
+
+```bash
+flutter run -d linux
+```
 
 Install the kernel module, backend, D-Bus/Polkit policy, and service only when
 you intentionally want to test on supported hardware. Read the

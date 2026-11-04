@@ -17,23 +17,9 @@ Nix and direnv are optional. `.envrc` only activates a development shell when
 project flake or required shared SDK, and the repository does not update or
 install a system-wide SDK for you.
 
-Nixpkgs previously packaged Flutter 3.47.4. A custom flake may package
-3.47.9 using Nixpkgs' Flutter builder, patches, and wrapper, with pinned source,
-Dart, and engine artifact hashes. Remove that custom pin once Nixpkgs packages
-3.47.9 or newer. Its verified target is x86_64-linux; do not assume a successful
-Linux build proves Android, another host architecture, or macOS support.
-
-Update your own flake and lockfile deliberately, if you maintain one:
-
-```bash
-nix flake update
-direnv reload
-direnv exec . flutter --version
-```
-
-Check the custom pin before updating: it intentionally rejects a changed upstream
-Flutter baseline so tool dependencies and patches cannot drift silently. Do not
-run `flutter upgrade` against the read-only Nix SDK.
+Manage SDK changes in the environment that supplies Flutter. Do not run
+`flutter upgrade` against a read-only Nix SDK. See [contributor setup](../CONTRIBUTING.md)
+for the official Linux setup link and a Debian/Ubuntu dependency example.
 
 ## Retained compatibility boundaries
 

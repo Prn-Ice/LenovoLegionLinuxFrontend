@@ -11,7 +11,7 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 - Boot logo customization
 - Discrete GPU monitoring
 - Automation (run external programs on profile change)
-- Display lighting (LampArray)
+- Keyboard lighting (native Spectrum HID and OpenRGB)
 - Real-time dashboard
 
 ## Requirements
@@ -19,7 +19,7 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 For development and hardware-free tests, install Flutter (stable; this project
 currently requires Flutter 3.47.9 or newer) and the Linux desktop build tools
 required by Flutter: CMake, Ninja, a C/C++ compiler, pkg-config, GTK 3
-development headers, and the usual Linux desktop libraries. Native service
+development headers, and C++ standard-library development files. Native service
 checks additionally need GLib/GIO development files; building the control service
 also needs Polkit development files. Package names vary by distribution. See
 [Contributing](CONTRIBUTING.md) for commands and a hardware-free workflow.
@@ -41,6 +41,10 @@ services.legionControl = {
 ```
 
 ## Running
+
+The live application requires `legion_cli` in `PATH`, even when hardware features
+are unavailable. Use the hardware-free tests in [Contributing](CONTRIBUTING.md)
+for development without the backend.
 
 ```bash
 flutter run -d linux

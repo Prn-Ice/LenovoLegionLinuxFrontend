@@ -36,6 +36,15 @@ operation. The native service validates and performs the operation, and the
 feature refreshes state or reports failure. Readable state does not by itself
 prove that a write is supported.
 
+Legacy callers use `LegionFrontendBridgeService.runPrivilegedCommand` for
+queuing and command history. Its CLI-shaped vocabulary is mapped by
+`LegionControlClient` to typed D-Bus methods; it is not an arbitrary command
+execution interface. New operations should use the typed client contract.
+
+Opt-in [next-boot graphics requests](next-boot-graphics.md) also use the control
+service. They save a request for a guarded boot service rather than switching
+graphics immediately.
+
 For contributor workflow and safe hardware testing, see
 [Contributing](../../CONTRIBUTING.md) and the [model-support guide](../model-support.md).
 The [sysfs/CLI access audit](sysfs-vs-cli-access-audit.md) records feature-specific

@@ -25,6 +25,40 @@ For keyboard lighting, include the USB vendor/product ID and evidence for the
 protocol, physical layout, and brightness calibration. For sysfs-backed
 features, distinguish a readable value from a verified writable capability.
 
+## Worked example: missing fan reading
+
+Suppose an owner's diagnostics show a Legion fan provider that the frontend
+does not select. This is a hypothetical discovery fix, not a support claim.
+
+1. Inspect `lib/core/services/legion_sysfs_service.dart`, starting with
+   `readFan1Rpm` and its discovery helpers. Compare the reported provider name,
+   paths, and readable inputs with the selection rule.
+2. Add a regression case to
+   `test/core/services/legion_sysfs_service_fan_discovery_test.dart`. Follow its
+   temporary-directory setup and teardown: copy only the relevant sanitized
+   provider name and `fan1_input` value, recreate required links inside the
+   temporary tree, and inject the fixture paths into `LegionSysfsService`.
+   Assert the expected RPM and that an unrelated provider is not selected.
+3. Change the selection rule in the service only if the evidence identifies the
+   correct source. Preserve unknown results for unrecognized providers.
+4. Run the focused test from the repository root:
+
+   ```bash
+   flutter test test/core/services/legion_sysfs_service_fan_discovery_test.dart
+   ```
+
+5. Ask the owner to verify the readout and attach that result to the issue.
+   Record fan readings as tested; fan writes and other features remain untested
+   unless separately checked.
+
+The broader discovery work adds `sysfsRoot` and `procRoot` constructor inputs.
+After that change is integrated, the same fixture pattern can use
+`LegionSysfsService(sysfsRoot: '${root.path}/sys', procRoot: '${root.path}/proc')`.
+For example, hypothetical fixture files under `sys/class/hwmon/` belong inside
+that temporary `sys` directory, not the host `/sys`. Use the constructor inputs
+available in your checkout; the existing fan tests use `hwmonRoot` and
+`fanHwmonRoot`. Keep all fixture writes and symlink targets inside the test tree.
+
 ## Tested-model entry template
 
 Copy this template for an actual test report. Do not fill unknown fields by
@@ -43,7 +77,3 @@ inference, and do not claim untested features work.
 - Known gaps: <unsupported, failed, or not tested>
 - Evidence: <linked issue/PR and sanitized diagnostics or fixture>
 ```
-
-An empty table is more accurate than fabricated support. Add entries only when
-there is an issue/PR or other reviewable evidence. This guide intentionally does
-not assert a tested-model list until contributors provide those reports.
