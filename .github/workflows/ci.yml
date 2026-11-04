@@ -58,3 +58,44 @@ jobs:
 
       - name: Run native tests
         run: ctest --test-dir build/native --output-on-failure --no-tests=error
+
+  linux-integration:
+    name: Linux native app integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build g++ pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Install Flutter dependencies
+        run: flutter pub get --enforce-lockfile
+
+      - name: Run native app integration journey
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a --server-args='-screen 0 1280x800x24' \
+            flutter test integration_test/app_test.dart -d linux --no-pub \
+            2>&1 | tee linux-integration.log
+
+      - name: Upload integration log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-native-integration-log
+          path: linux-integration.log
+          if-no-files-found: ignore

@@ -16,7 +16,7 @@ Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integra
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth
 ```
 
 Package names vary by distribution. You do not need the Android SDK.
@@ -46,35 +46,55 @@ services, or administrator access.
 From a Linux desktop session, run:
 
 ```bash
-flutter test integration_test/battery_health_test.dart -d linux
+flutter pub get --enforce-lockfile
+flutter test integration_test/app_test.dart -d linux --no-pub
 ```
 
-This builds and opens the actual GTK/Flutter application window, then presses
-controls in it. It cancels the Dashboard's Battery health confirmation, applies
-the change, navigates to Battery, presses Refresh, and checks Conservation mode.
-Battery currently retains its earlier snapshot until polling or explicit refresh
-after a Dashboard change (tracked in `lllf-kmd`). Although the test uses Flutter's
-`testWidgets` API, `-d linux` and the integration-test binding run it in the native
-app, not the widget-test host.
-Interaction is injected through Flutter; it does not move your desktop pointer
-or automate native Polkit dialogs.
+The `app_test.dart` entrypoint registers five scenarios. The battery journey
+cancels and applies the Dashboard's Battery health confirmation, then navigates
+to Battery, presses Refresh, and checks Conservation mode. The recovery journey
+checks retry after permission-denied, unavailable-service, and failed-command
+responses, plus verifies that the switch stays disabled and unchanged until a
+controlled pending write completes.
+
+The entrypoint runs all five scenarios in sequence in one native build/process.
+Do not run concurrent Flutter commands in the same checkout while this journey
+is running; they can interfere with its native build and debug connection.
+
+This builds and opens the actual GTK/Flutter application window and drives the
+app through Flutter's integration-test binding, not the widget-test host. It uses
+the app widget and navigation shell with test overrides; it does not exercise all
+application sections or full production `main` initialization. Flutter-driven
+interaction does not move your OS pointer or automate native Polkit dialogs.
 
 The test backend lives only under `integration_test/`. It redirects sysfs/proc
-reads to a temporary fixture and uses the real providers, Blocs, repositories,
-bridge, and control client for the setting under test. A fake control transport
-writes only the fixture and rejects other operations. System service status and
-live sensors use fixed repository results because they contain direct host
-reads. CLI execution, display access, and system telemetry are blocked. Hive
-data is temporary, not your saved preferences or history.
+reads and the real `AutomationRepository` config file to temporary fixture
+storage. The real providers, Blocs, repositories, bridge, and control client are
+used for the setting under test. A fake control transport writes only the
+fixture and rejects other operations. System service status and live sensors
+use fixed repository results because they contain direct host reads. CLI
+execution, display access, system telemetry, HID access, and OpenRGB access are
+blocked. HID and OpenRGB are blocked because app-wide automation now starts in
+`NavigationShell`, even though these journeys do not test lighting or hardware
+automation. Hive data is temporary, not your saved preferences or history.
 
 No sudo, installed service, or Legion hardware is needed. This journey does not
 verify real D-Bus policy, Polkit authorization, firmware, or hardware changes.
-It requires the normal Linux build dependencies and an available display; on a
-headless Linux machine with Xvfb installed, use:
+It requires the normal Linux build dependencies and an available display. On a
+headless Linux machine, install Xvfb (for example, `sudo apt-get install xvfb` on
+Debian/Ubuntu) and run:
 
 ```bash
-xvfb-run -a flutter test integration_test/battery_health_test.dart -d linux
+flutter pub get --enforce-lockfile
+xvfb-run -a --server-args='-screen 0 1280x800x24' \
+  flutter test integration_test/app_test.dart -d linux --no-pub
 ```
+
+The Linux native integration journey runs as a separate CI job with the same
+Flutter SDK pin and Linux desktop dependencies. It runs the single entrypoint
+in a fresh checkout under Xvfb and retains its command log when it fails.
+Headless runs need both Xvfb and `xauth`. The runner does not capture screenshots
+for these tests.
 
 Plain `flutter test` still runs the separate unit/widget suite under `test/`.
 
