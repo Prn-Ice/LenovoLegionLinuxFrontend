@@ -6,7 +6,6 @@ import '../../features/dashboard/models/system_status.dart';
 import '../models/cpu_policy_snapshot.dart';
 
 class LegionSysfsService {
-  static const String _hwmonBasePath = '/sys/class/hwmon';
   static const List<String> _defaultLegionPlatformRoots = [
     '/sys/module/legion_laptop/drivers/platform:legion/legion',
     '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00',
@@ -24,26 +23,36 @@ class LegionSysfsService {
   final String _procRoot;
 
   LegionSysfsService({
-    String hwmonRoot = _hwmonBasePath,
-    List<String> legionPlatformRoots = _defaultLegionPlatformRoots,
+    String? hwmonRoot,
+    List<String>? legionPlatformRoots,
     String? fanHwmonRoot,
-    String cpuPolicyRoot = '/sys/devices/system/cpu/cpufreq/policy0',
-    String amdPstateRoot = '/sys/devices/system/cpu/amd_pstate',
-    String cpuFreqRoot = '/sys/devices/system/cpu/cpufreq',
+    String? cpuPolicyRoot,
+    String? amdPstateRoot,
+    String? cpuFreqRoot,
     String sysRoot = '/sys',
     String procRoot = '/proc',
-  }) : _hwmonRoot = hwmonRoot,
-       _legionPlatformRoots = legionPlatformRoots,
+  }) : _hwmonRoot = hwmonRoot ?? '$sysRoot/class/hwmon',
+       _legionPlatformRoots = legionPlatformRoots ?? _platformRoots(sysRoot),
        _fanHwmonRoots = fanHwmonRoot == null
-           ? [for (final root in legionPlatformRoots) '$root/hwmon']
+           ? [
+               for (final root
+                   in legionPlatformRoots ?? _platformRoots(sysRoot))
+                 '$root/hwmon',
+             ]
            : [fanHwmonRoot],
-       _cpuPolicyRoot = cpuPolicyRoot,
-       _amdPstateRoot = amdPstateRoot,
-       _cpuFreqRoot = cpuFreqRoot,
+       _cpuPolicyRoot =
+           cpuPolicyRoot ?? '$sysRoot/devices/system/cpu/cpufreq/policy0',
+       _amdPstateRoot =
+           amdPstateRoot ?? '$sysRoot/devices/system/cpu/amd_pstate',
+       _cpuFreqRoot = cpuFreqRoot ?? '$sysRoot/devices/system/cpu/cpufreq',
        _sysRoot = sysRoot,
        _procRoot = procRoot;
 
   String _sys(String path) => path.replaceFirst('/sys', _sysRoot);
+  static List<String> _platformRoots(String sysRoot) => [
+    for (final root in _defaultLegionPlatformRoots)
+      root.replaceFirst('/sys', sysRoot),
+  ];
   String _proc(String path) => path.replaceFirst('/proc', _procRoot);
 
   /// Convert hwmon millidegrees Celsius to degrees Celsius.
@@ -128,7 +137,7 @@ class LegionSysfsService {
   }
 
   Future<bool?> readBatteryConservationMode() async {
-    return _readBoolFile(_sys(_batteryConservationPath));
+    return _readIdeapadBool(_batteryConservationPath);
   }
 
   Future<bool?> readRapidChargingMode() async {
@@ -136,14 +145,12 @@ class LegionSysfsService {
   }
 
   Future<bool?> readAlwaysOnUsbChargingMode() async {
-    return _readBoolFile(_sys(_alwaysOnUsbChargingPath));
+    return _readIdeapadBool(_alwaysOnUsbChargingPath);
   }
 
   Future<bool?> readTouchpadMode() async {
-    return _readBoolFromPaths([
-      _sys(_touchpadIdeapadPath),
-      ..._legionPaths('touchpad'),
-    ]);
+    return await _readIdeapadBool(_touchpadIdeapadPath) ??
+        await _readLegionBoolFile('touchpad');
   }
 
   Future<bool?> readWinKeyMode() async {
@@ -151,23 +158,23 @@ class LegionSysfsService {
   }
 
   Future<bool?> readCameraPowerMode() async {
-    return _readBoolFile(_sys(_cameraPowerPath));
+    return _readIdeapadBool(_cameraPowerPath);
   }
 
   Future<bool?> readFnLockMode() async {
-    return _readBoolFile(_sys(_fnLockPath));
+    return _readIdeapadBool(_fnLockPath);
   }
 
   Future<bool?> readWhiteKeyboardBacklightMode() async {
-    return _readEnabledFromBrightnessFile(_sys(_whiteKeyboardBacklightPath));
+    return _readLedBrightness(_whiteKeyboardBacklightPath);
   }
 
   Future<bool?> readYLogoLightMode() async {
-    return _readEnabledFromBrightnessFile(_sys(_yLogoLightPath));
+    return _readLedBrightness(_yLogoLightPath);
   }
 
   Future<bool?> readIoPortLightMode() async {
-    return _readEnabledFromBrightnessFile(_sys(_ioPortLightPath));
+    return _readLedBrightness(_ioPortLightPath);
   }
 
   Future<bool?> readOnPowerSupplyMode() async {
@@ -603,7 +610,7 @@ class LegionSysfsService {
 
   /// legion_laptop module version, or null when the module is absent.
   Future<String?> readLegionModuleVersion() async =>
-      _readTrimmedFile('/sys/module/legion_laptop/version');
+      _readTrimmedFile(_sys('/sys/module/legion_laptop/version'));
 
   /// System uptime in seconds, or null if unreadable.
   Future<int?> readUptimeSeconds() async {
@@ -809,6 +816,49 @@ class LegionSysfsService {
       return await _readBoolFile(path);
     } on FormatException {
       return null;
+    }
+  }
+
+  // Preserve the established node first, then scan bound devices in stable order.
+  Future<bool?> _readIdeapadBool(String legacyPath) async {
+    final legacy = await _readBoolFile(_sys(legacyPath));
+    if (legacy != null) return legacy;
+    final attribute = legacyPath.split('/').last;
+    for (final directory in await _sortedDirectories(
+      _sys('/sys/bus/platform/drivers/ideapad_acpi'),
+    )) {
+      final value = await _readBoolFile('${directory.path}/$attribute');
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  Future<bool?> _readLedBrightness(String legacyPath) async {
+    final legacy = await _readEnabledFromBrightnessFile(_sys(legacyPath));
+    if (legacy != null) return legacy;
+    final function = legacyPath
+        .split('/')
+        .reversed
+        .elementAt(1)
+        .split(':')
+        .last;
+    for (final directory in await _sortedDirectories(_sys('/sys/class/leds'))) {
+      if (!directory.path.split('/').last.endsWith(':$function')) continue;
+      final value = await _readEnabledFromBrightnessFile(
+        '${directory.path}/brightness',
+      );
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  Future<List<Directory>> _sortedDirectories(String path) async {
+    try {
+      final entries = await Directory(path).list(followLinks: true).toList();
+      return entries.whereType<Directory>().toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+    } on FileSystemException {
+      return [];
     }
   }
 

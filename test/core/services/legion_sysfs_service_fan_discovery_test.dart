@@ -18,6 +18,34 @@ void main() {
 
   tearDown(() => root.delete(recursive: true));
 
+  test('rejects unrelated and unnamed fan providers', () async {
+    for (final name in ['amdgpu', 'unrelated', '']) {
+      final provider = Directory('${hwmonRoot.path}/hwmon${name.length}');
+      await provider.create();
+      if (name.isNotEmpty) {
+        await File('${provider.path}/name').writeAsString(name);
+      }
+      await File('${provider.path}/fan1_input').writeAsString('9999');
+      await File('${provider.path}/fan2_input').writeAsString('8888');
+    }
+    final service = LegionSysfsService(
+      hwmonRoot: hwmonRoot.path,
+      fanHwmonRoot: controllerRoot.path,
+    );
+    expect(await service.readFan1Rpm(), isNull);
+    expect(await service.readFan2Rpm(), isNull);
+    final yoga = Directory('${hwmonRoot.path}/hwmon20')..createSync();
+    File('${yoga.path}/name').writeAsStringSync('yogafan\n');
+    File('${yoga.path}/fan1_input').writeAsStringSync('2300');
+    File('${yoga.path}/fan2_input').writeAsStringSync('2400');
+    expect(await service.readFan1Rpm(), 2300);
+    expect(await service.readFan2Rpm(), 2400);
+    final controller = Directory('${controllerRoot.path}/hwmon0')..createSync();
+    File('${controller.path}/fan1_input').writeAsStringSync('0');
+    expect(await service.readFan1Rpm(), 0);
+    expect(await service.readFan2Rpm(), 2400);
+  });
+
   test('follows controller hwmon symlinks for live RPMs', () async {
     final provider = Directory('${hwmonRoot.path}/hwmon0');
     await provider.create();
