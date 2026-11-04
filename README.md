@@ -71,7 +71,7 @@ then builds with `--no-pub`. It rejects source changes during the build. The
 archive contains tracked application source and the resolved runtime dependency
 sources, including local package edits and `handy_window/linux/libhandy`.
 `SOURCE-MANIFEST.json` records the commit, lockfile checksum, bundle checksums,
-package contents, and exact Flutter framework/engine versions. `REBUILD.md` and
+package contents, and SDK-reported Flutter framework/engine versions. `REBUILD.md` and
 `dependency-overrides.yaml` explain how to rebuild using the archived packages.
 
 Application source follows `.gitattributes`: private `.beads` and `.env` files,
@@ -81,7 +81,10 @@ Dependency-root `.git`, `.beads`,
 directories, `.envrc`, file modes, and internal symlinks are retained. Links
 escaping a dependency root stop packaging.
 
-Flutter SDK source is identified by version and revision rather than included.
+Flutter SDK source is identified by its reported version and revisions rather
+than included. Distributor builds can report a placeholder framework revision
+(the tested Nix SDK does); in that case the framework Git commit remains unknown
+and the distributor's SDK source must be obtained separately.
 Host libraries are obtained separately; downstream packages must add source and
 notices for any extra libraries they redistribute. Publish the source companion
 alongside the binary from `build/linux/x64/release/bundle`.

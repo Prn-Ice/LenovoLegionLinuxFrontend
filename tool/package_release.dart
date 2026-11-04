@@ -96,7 +96,9 @@ Future<Map<String, Object>> packageReleaseSource(
     await File('${staging.path}/REBUILD.md').writeAsString(
       '''# Rebuild this release
 
-Use the Flutter version and framework/engine revisions in SOURCE-MANIFEST.json.
+Use the SDK-reported Flutter version and framework/engine revisions in
+SOURCE-MANIFEST.json. Distributor SDKs can report a placeholder framework
+revision; obtain that SDK's source from its distributor in that case.
 Install the Linux build dependencies listed in source/CONTRIBUTING.md.
 
 From this archive directory:

@@ -108,6 +108,7 @@ Keep both notice locations when packaging. Use `tool/package_release.sh` to
 build the bundle and its source companion, including the resolved libhandy
 subtree and local dependency edits. Publish both together; see the
 [release instructions](README.md#running) for archive contents and rebuild
-instructions. Flutter SDK source is identified by exact revisions and must be
-obtained separately, along with source for any host libraries a downstream
-package adds.
+instructions. Flutter SDK source is identified by SDK-reported versions and
+revisions and must be obtained separately, along with source for any host
+libraries a downstream package adds. Distributor SDKs can report placeholder
+framework revisions; see the release instructions for this limitation.
