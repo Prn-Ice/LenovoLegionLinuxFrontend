@@ -66,6 +66,8 @@
           glib
           polkit
           libthai
+          fribidi
+          gsettings-desktop-schemas
           jdk17
           dbus
           xvfb-run
@@ -74,6 +76,9 @@
         # JNI build hooks compile against this JDK and load its JVM at runtime.
         JAVA_HOME = "${pkgs.jdk17}";
         LD_LIBRARY_PATH = "${pkgs.jdk17}/lib/server";
+        # handy_window's bundled libhandy includes fribidi headers directly.
+        NIX_CFLAGS_COMPILE = "-I${pkgs.lib.getDev pkgs.fribidi}/include/fribidi";
+        GSETTINGS_SCHEMA_DIR = "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}/glib-2.0/schemas";
       };
 
       formatter.${system} = pkgs.nixfmt;
