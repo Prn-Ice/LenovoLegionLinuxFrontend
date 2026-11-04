@@ -130,3 +130,19 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Keep dependency font/native notices alongside Flutter's generated NOTICES.Z.
+# Use the build's Dart SDK and resolved packages; no network or extra tool needed.
+get_directory_property(FLUTTER_SDK_DIR DIRECTORY "${FLUTTER_MANAGED_DIR}"
+  DEFINITION FLUTTER_ROOT)
+install(CODE "
+  execute_process(
+    COMMAND \"${FLUTTER_SDK_DIR}/bin/dart\"
+      \"${CMAKE_CURRENT_SOURCE_DIR}/../tool/bundle_notices.dart\"
+      \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}\"
+    RESULT_VARIABLE notices_result
+    ERROR_VARIABLE notices_error)
+  if(NOT notices_result EQUAL 0)
+    message(FATAL_ERROR \"Could not package release notices: \${notices_error}\")
+  endif()
+  " COMPONENT Runtime)
