@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 
@@ -296,6 +297,31 @@ class _PeerTransport implements LegionControlTransport {
 
   final DBusClient client;
   bool _closed = false;
+
+  @override
+  Future<ControlCapabilities> getCapabilities() async {
+    if (_closed) throw StateError('private peer is closed');
+    final reply = await client
+        .callMethod(
+          path: DBusObjectPath(_objectPath),
+          interface: _interface,
+          name: 'GetCapabilities',
+          replySignature: DBusSignature('uas'),
+        )
+        .timeout(_operationTimeout);
+    final advertised = reply.returnValues[1].asStringArray().toSet();
+    return ControlCapabilities(
+      protocolVersion: reply.returnValues[0].asUint32(),
+      supported: {
+        if (advertised.contains('interactive-control'))
+          ControlCapability.interactiveControl,
+        if (advertised.contains('persistent-services'))
+          ControlCapability.persistentServices,
+        if (advertised.contains('next-boot-graphics'))
+          ControlCapability.nextBootGraphics,
+      },
+    );
+  }
 
   @override
   Future<void> authorize() => _call('Authorize', const []);

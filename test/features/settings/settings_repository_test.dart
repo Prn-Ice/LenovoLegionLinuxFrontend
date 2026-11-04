@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:dbus/dbus.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
 import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
@@ -9,6 +10,12 @@ class _Transport implements LegionControlTransport {
   Object? failure;
   String? method;
   List<Object>? arguments;
+
+  @override
+  Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(
+    protocolVersion: ControlCapabilities.currentProtocolVersion,
+    supported: ControlCapability.values,
+  );
 
   @override
   Future<void> authorize() async {}

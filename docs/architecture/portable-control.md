@@ -7,10 +7,17 @@ The AppImage goal is: install the supported driver and CLI, download the app,
 open it, and authorize interactive hardware changes without installing our
 system service.
 
-The VM experiment now connects approved administrator startup to the real typed
-control API with a synthetic CLI. Backend process containment and shared write
-locking are implemented. Production desktop integration and release packages
-remain to be implemented. See the [public backlog](../../BACKLOG.md).
+The VM experiment connects approved administrator startup to the real typed
+control API with a synthetic CLI. The desktop checks protocol compatibility
+before authorization. Backend process containment and shared write locking are
+implemented. Production portable startup and release packages remain to be
+implemented. See the [public backlog](../../BACKLOG.md).
+
+The intended default for all formats is a temporary authorized helper.
+Persistent features can use optional system integration. Deprecating the
+installed interactive service requires desktop and distribution qualification,
+feature coverage, and a migration path. The production app currently uses that
+installed service.
 
 ## Installation experience
 
@@ -18,8 +25,8 @@ The intended release experience is:
 
 | Format | Desktop app | Hardware control |
 | --- | --- | --- |
-| NixOS | Nix package | NixOS module installs and configures the system service |
-| Debian | Desktop package | Service package supplies systemd, D-Bus, and Polkit integration |
+| NixOS | Nix package | Bundled session helper; optional module for persistent features |
+| Debian | Desktop package | Bundled session helper; optional integration for persistent features |
 | AppImage | Download and run | Bundled helper runs for the authorized app session |
 
 Nix on another distribution can supply the desktop package. Driver setup and
@@ -34,9 +41,9 @@ unprivileged. When a write needs authorization, the intended flow is:
 4. Send the existing typed `LegionControl1` operations.
 5. End the helper and its backend processes when the connection ends.
 
-The installed service should be used when available and compatible. Select the
-connection mode before writes. A denied request, incompatible service, or failed
-backend command must not trigger a second privilege mechanism automatically.
+During migration the installed service remains available. Select the connection
+mode before writes. A denied request, incompatible service, or failed backend
+command must not trigger a second privilege mechanism automatically.
 
 Boot-time graphics reconciliation requires persistent system integration.
 Optional power telemetry and direct keyboard HID access also need explicit
@@ -55,16 +62,33 @@ running arbitrary commands or accepting an arbitrary backend executable.
 Polkit authorizes launching the helper; the helper and its supervisor enforce
 the session lifetime.
 
-Before enabling writes, the production client must check protocol compatibility
-and required capabilities. An AppImage may be newer than an installed service
-or the host CLI. A version mismatch needs an actionable setup message.
+Before requesting authorization, `LegionControlClient` checks protocol
+compatibility and required capabilities through its selected transport. It
+shares the initial metadata request between concurrent callers and caches a
+successful result for that connection. Unknown capabilities are ignored.
+An older service, malformed reply, incompatible protocol, or missing interactive
+controls produces setup guidance before any authorization or writes.
 
 `GetCapabilities` now returns protocol version 1 and supported operations.
 Installed mode advertises `interactive-control`, `persistent-services`, and
 `next-boot-graphics` when configured. Portable mode advertises interactive
 controls and rejects service changes and next-boot requests. Metadata can be
 read before `Authorize`. An older service without this method needs an
-incompatible-service message; it must not trigger portable elevation.
+incompatible-service message; it must not trigger portable elevation. The Dart
+client rejects service changes when `persistent-services` is absent.
+
+The installed transport uses the fixed host system-bus socket. It resolves the
+service's unique D-Bus owner and sends metadata, authorization, and writes to
+that owner. Each request checks that the public service name still belongs to
+it. A replacement service cannot inherit cached compatibility or authorization;
+the user must restart the app to establish a new connection.
+
+Compatibility checks and service lookup have five-second deadlines. Closing
+the client rejects pending requests immediately, including a pending metadata
+reply or authorization. If opening the bus connection finishes after disposal,
+the transport closes it again. A write-queue timeout also closes control access
+and prevents retries in that session. A late authorization reply cannot dispatch
+the timed-out write. Read current settings and restart the app before retrying.
 
 CLI discovery also needs a shared rule. The desktop currently searches `PATH`,
 the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module receives

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
@@ -32,6 +33,12 @@ class _Xrandr extends Mock implements XrandrService {}
 
 class _Transport implements LegionControlTransport {
   final calls = <(String, List<Object>)>[];
+  @override
+  Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(
+    protocolVersion: ControlCapabilities.currentProtocolVersion,
+    supported: ControlCapability.values,
+  );
+
   @override
   Future<void> authorize() async {}
   @override

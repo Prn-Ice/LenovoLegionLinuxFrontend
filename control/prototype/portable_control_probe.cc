@@ -84,6 +84,10 @@ void probe_call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
                 const gchar *method, GVariant *parameters,
                 GDBusMethodInvocation *invocation, gpointer data) {
   auto *probe = static_cast<Probe *>(data);
+  if (g_str_equal(method, "GetCapabilities")) {
+    reply_capabilities(&probe->control, invocation);
+    return;
+  }
   if (g_str_equal(method, "Authorize")) {
     if (!probe->peer_verified) {
       g_dbus_method_invocation_return_dbus_error(

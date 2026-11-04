@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
@@ -9,7 +10,24 @@ import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 class _FakeTransport implements LegionControlTransport {
   final calls = <(String, List<Object>)>[];
   var authorizationCalls = 0;
+  var capabilityCalls = 0;
+  var closeCalls = 0;
+  var capabilities = ControlCapabilities(
+    protocolVersion: ControlCapabilities.currentProtocolVersion,
+    supported: ControlCapability.values,
+  );
+  Future<ControlCapabilities>? pendingCapabilities;
+  Object? capabilityFailure;
   Object? callFailure;
+
+  @override
+  Future<ControlCapabilities> getCapabilities() async {
+    capabilityCalls++;
+    if (capabilityFailure != null) throw capabilityFailure!;
+    return pendingCapabilities != null
+        ? await pendingCapabilities!
+        : capabilities;
+  }
 
   @override
   Future<void> authorize() async {
@@ -23,10 +41,185 @@ class _FakeTransport implements LegionControlTransport {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closeCalls++;
+  }
 }
 
 void main() {
+  test(
+    'checks capabilities once before concurrent authorization and writes',
+    () async {
+      final transport = _FakeTransport();
+      final metadata = Completer<ControlCapabilities>();
+      transport.pendingCapabilities = metadata.future;
+      final client = LegionControlClient(transport: transport);
+      addTearDown(client.close);
+      final writes = Future.wait([
+        client.setToggle(ControlToggle.hybridMode, true),
+        client.applyFanPreset(ControlFanPreset.quietAc),
+      ]);
+      expect(transport.capabilityCalls, 1);
+      expect(transport.authorizationCalls, 0);
+      expect(transport.calls, isEmpty);
+      metadata.complete(transport.capabilities);
+      await writes;
+      await client.setToggle(ControlToggle.hybridMode, false);
+      expect(transport.capabilityCalls, 1);
+      expect(transport.authorizationCalls, 1);
+      expect(transport.calls, hasLength(3));
+    },
+  );
+
+  test('reading capabilities never requests authorization', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+    addTearDown(client.close);
+    await client.getCapabilities();
+    expect(transport.authorizationCalls, 0);
+    expect(transport.calls, isEmpty);
+  });
+
+  test(
+    'incompatible and incomplete helpers cannot authorize or write',
+    () async {
+      for (final capabilities in [
+        ControlCapabilities(
+          protocolVersion: 2,
+          supported: ControlCapability.values,
+        ),
+        ControlCapabilities(protocolVersion: 1, supported: const []),
+      ]) {
+        final transport = _FakeTransport()..capabilities = capabilities;
+        final client = LegionControlClient(transport: transport);
+        addTearDown(client.close);
+        await expectLater(
+          client.setToggle(ControlToggle.hybridMode, true),
+          throwsA(isA<LegionControlSetupException>()),
+        );
+        expect(transport.authorizationCalls, 0);
+        expect(transport.calls, isEmpty);
+      }
+    },
+  );
+
+  test('older helper reports update guidance before authorization', () async {
+    final transport = _FakeTransport()
+      ..capabilityFailure = DBusMethodResponseException(
+        DBusMethodErrorResponse.unknownMethod(),
+      );
+    final client = LegionControlClient(transport: transport);
+    addTearDown(client.close);
+    await expectLater(
+      client.setToggle(ControlToggle.hybridMode, true),
+      throwsA(
+        isA<LegionControlSetupException>().having(
+          (error) => error.message,
+          'message',
+          contains('Update the app and control helper together'),
+        ),
+      ),
+    );
+    expect(transport.authorizationCalls, 0);
+    expect(transport.calls, isEmpty);
+  });
+
+  test(
+    'interactive helper refuses persistent writes before authorization',
+    () async {
+      final transport = _FakeTransport()
+        ..capabilities = ControlCapabilities(
+          protocolVersion: 1,
+          supported: const [ControlCapability.interactiveControl],
+        );
+      final client = LegionControlClient(transport: transport);
+      addTearDown(client.close);
+      await expectLater(
+        client.setServiceEnabled(ControlService.legiondStack, true),
+        throwsA(isA<LegionControlNotSupportedException>()),
+      );
+      expect(transport.authorizationCalls, 0);
+      expect(transport.calls, isEmpty);
+      await client.setToggle(ControlToggle.hybridMode, true);
+      expect(transport.calls.single.$1, 'SetToggle');
+    },
+  );
+
+  test('failed metadata can be retried without caching its failure', () async {
+    final transport = _FakeTransport()
+      ..capabilityFailure = const LegionControlUnavailableException('offline');
+    final client = LegionControlClient(transport: transport);
+    addTearDown(client.close);
+    await expectLater(
+      client.setToggle(ControlToggle.hybridMode, true),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    transport.capabilityFailure = null;
+    await client.setToggle(ControlToggle.hybridMode, true);
+    expect(transport.capabilityCalls, 2);
+    expect(transport.authorizationCalls, 1);
+    expect(transport.calls, hasLength(1));
+  });
+
+  test(
+    'closing during metadata prevents later authorization and writes',
+    () async {
+      final transport = _FakeTransport();
+      final metadata = Completer<ControlCapabilities>();
+      transport.pendingCapabilities = metadata.future;
+      final client = LegionControlClient(transport: transport);
+      final rejected = expectLater(
+        client.setToggle(ControlToggle.hybridMode, true),
+        throwsA(isA<LegionControlUnavailableException>()),
+      );
+      await client.close();
+      await client.close();
+      metadata.complete(transport.capabilities);
+      await rejected;
+      expect(transport.closeCalls, 1);
+      expect(transport.authorizationCalls, 0);
+      expect(transport.calls, isEmpty);
+    },
+  );
+
+  test('closing during authorization prevents the pending write', () async {
+    final transport = _PendingAuthorizationTransport();
+    final client = LegionControlClient(transport: transport);
+    final rejected = expectLater(
+      client.setToggle(ControlToggle.hybridMode, true),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    await transport.started.future;
+    await client.close();
+    transport.authorization.complete();
+    await rejected;
+    expect(transport.calls, isEmpty);
+  });
+
+  testWidgets('metadata timeout closes the session and rejects a late reply', (
+    tester,
+  ) async {
+    final transport = _FakeTransport();
+    final metadata = Completer<ControlCapabilities>();
+    transport.pendingCapabilities = metadata.future;
+    final client = LegionControlClient(transport: transport);
+    final rejected = expectLater(
+      client.setToggle(ControlToggle.hybridMode, true),
+      throwsA(isA<LegionControlTimeoutException>()),
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await rejected;
+    metadata.complete(transport.capabilities);
+    await tester.pump();
+    await expectLater(
+      client.getCapabilities(),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    expect(transport.closeCalls, 1);
+    expect(transport.authorizationCalls, 0);
+    expect(transport.calls, isEmpty);
+  });
+
   test(
     'maps feature, toggles, fan, conservation and restore commands',
     () async {
@@ -310,6 +503,10 @@ void main() {
     final transport = DBusLegionControlTransport();
     await transport.close();
     await expectLater(
+      transport.getCapabilities(),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    await expectLater(
       transport.authorize(),
       throwsA(isA<LegionControlUnavailableException>()),
     );
@@ -350,6 +547,18 @@ void main() {
       expect(transport.authorizationCalls, 2);
     },
   );
+}
+
+class _PendingAuthorizationTransport extends _FakeTransport {
+  final started = Completer<void>();
+  final authorization = Completer<void>();
+
+  @override
+  Future<void> authorize() {
+    authorizationCalls++;
+    started.complete();
+    return authorization.future;
+  }
 }
 
 class _RetryTransport extends _FakeTransport {

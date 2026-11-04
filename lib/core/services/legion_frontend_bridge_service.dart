@@ -44,7 +44,7 @@ class LegionBridgeException implements Exception {
       LegionBridgeErrorCode.busy =>
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
-        'The privileged command timed out. Retry and check system load or blocking prompts.',
+        'The command timed out. Read the current settings before retrying.',
       LegionBridgeErrorCode.graphicsBlocked =>
         'The graphics change was blocked before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
       LegionBridgeErrorCode.graphicsPending =>
@@ -97,6 +97,7 @@ class LegionFrontendBridgeService {
 
   /// Queues a typed control call. [args] are history and duplicate-key metadata,
   /// never executable commands. The timeout begins when the operation starts.
+  /// A timed-out write closes control access; it requires a fresh app session.
   Future<void> runControlOperation({
     required Future<void> Function(LegionControlClient) operation,
     required String method,
@@ -264,6 +265,7 @@ class LegionFrontendBridgeService {
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
+          stderr: 'Control access was closed. Restart the app before retrying.',
         );
       } on LegionControlException catch (error) {
         failure = _translateControlError(method, error);
@@ -275,9 +277,11 @@ class LegionFrontendBridgeService {
           stderr: '$error',
         );
       }
-      if (attempt >= retries ||
-          (failure.code != LegionBridgeErrorCode.busy &&
-              failure.code != LegionBridgeErrorCode.timeout)) {
+      if (failure.code == LegionBridgeErrorCode.timeout) {
+        await _controlClient?.close();
+        throw failure;
+      }
+      if (attempt >= retries || failure.code != LegionBridgeErrorCode.busy) {
         throw failure;
       }
     }
@@ -304,7 +308,9 @@ class LegionFrontendBridgeService {
     return LegionBridgeException(
       code: code,
       method: method,
-      message: 'Failed to run $method.',
+      message: code == LegionBridgeErrorCode.timeout
+          ? 'Control access timed out. Restart the app before retrying.'
+          : 'Failed to run $method.',
       stderr: error.message,
     );
   }
