@@ -4,25 +4,29 @@ Use stable packages that work together, not the largest version numbers at any
 cost. The application keeps its resolved graph in `pubspec.lock`; do not add
 dependency overrides to force incompatible versions.
 
-## Flutter and Nix
+## Flutter and development environments
 
-`.envrc` selects the `linux` shell of the shared flake at
-`/home/prnice/Projects/personal/nix_flakes/flutter_flake`, not a file in this repo.
-It reuses the default shell's Linux dependencies without downloading the Android
-SDK and emulator images. The full default shell remains available separately.
-The owner approved updating that shared environment for this upgrade. CI pins
-Flutter **3.47.9**, whose bundled Dart is **3.13.7**.
+Use Flutter **3.47.9** or newer on the stable channel; CI pins 3.47.9, whose
+bundled Dart is 3.13.7. Install the Linux desktop compiler, CMake, Ninja,
+pkg-config, GTK development headers, and native development libraries required
+by Flutter. Native service builds additionally need GLib/GIO, and control-service
+builds need Polkit development files. Package names depend on the distribution.
 
-Nixpkgs currently packages Flutter 3.47.4. The shared flake temporarily packages
+Nix and direnv are optional. `.envrc` only activates a development shell when
+`LLLF_DEV_FLAKE` is set to a flake reference by the contributor. There is no
+project flake or required shared SDK, and the repository does not update or
+install a system-wide SDK for you.
+
+Nixpkgs previously packaged Flutter 3.47.4. A custom flake may package
 3.47.9 using Nixpkgs' Flutter builder, patches, and wrapper, with pinned source,
 Dart, and engine artifact hashes. Remove that custom pin once Nixpkgs packages
 3.47.9 or newer. Its verified target is x86_64-linux; do not assume a successful
 Linux build proves Android, another host architecture, or macOS support.
 
-Update the shared lockfile deliberately:
+Update your own flake and lockfile deliberately, if you maintain one:
 
 ```bash
-nix flake update --flake /home/prnice/Projects/personal/nix_flakes/flutter_flake
+nix flake update
 direnv reload
 direnv exec . flutter --version
 ```
@@ -89,7 +93,7 @@ the exact resolved implementation when documentation is stale. Probe major
 version conflicts in a disposable directory before editing the working graph.
 Update the manifest and lock together, preserving unrelated work.
 
-Run these inside the shared environment:
+Run these in the Flutter environment used for the change:
 
 ```bash
 flutter pub upgrade

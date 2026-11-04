@@ -16,11 +16,19 @@ A Flutter-based desktop frontend for [LenovoLegionLinux](https://github.com/john
 
 ## Requirements
 
-- `legion_linux` kernel module installed (provides sysfs interface)
-- `legion_cli` installed (the privileged service uses its validated hardware operations)
-- `legion-control.service`, its D-Bus policy, and its Polkit action installed
-- A desktop Polkit authentication agent
-- NVIDIA driver (optional, for dGPU features)
+For development and hardware-free tests, install Flutter (stable; this project
+currently requires Flutter 3.47.9 or newer) and the Linux desktop build tools
+required by Flutter: CMake, Ninja, a C/C++ compiler, pkg-config, GTK 3
+development headers, and the usual Linux desktop libraries. Native service
+checks additionally need GLib/GIO development files; building the control service
+also needs Polkit development files. Package names vary by distribution. See
+[Contributing](CONTRIBUTING.md) for commands and a hardware-free workflow.
+
+To use hardware features, separately install and configure the supported
+`legion_linux` module and `legion_cli` backend. Privileged writes require the
+`legion-control` service, its system D-Bus policy and Polkit action, plus a
+desktop Polkit authentication agent. These are not required to build or run the
+test suite. NVIDIA drivers are optional for dGPU features.
 
 On NixOS, import `packaging/nixos/legion-telemetry.nix` and enable the control service:
 
@@ -46,11 +54,10 @@ flutter build linux --release
 
 ## Development
 
-Use Flutter **3.47.9** or newer on the stable channel. On this machine, `.envrc`
-loads `/home/prnice/Projects/personal/nix_flakes/flutter_flake#linux`; there is no flake
-in this repository. See [dependency notes](docs/dependencies.md) for SDK updates,
-retained package constraints, and verification commands, and
-[Contributing](CONTRIBUTING.md) for setup and code patterns.
+See [Contributing](CONTRIBUTING.md) for portable setup, testing, and the
+[model-support guide](docs/model-support.md). Optional Nix users may set
+`LLLF_DEV_FLAKE` to their own Flutter/Linux development flake before allowing
+direnv. See [dependency notes](docs/dependencies.md) for retained constraints.
 
 ```bash
 flutter test
@@ -61,4 +68,6 @@ flutter analyze
 
 Read operations use direct sysfs file reads or the read-only telemetry D-Bus service. Privileged writes use the typed `io.github.prnice.LegionControl1` system-bus API. That root service accepts only allow-listed operations, asks Polkit to authorize the frontend's D-Bus connection, and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. Dart never writes sysfs directly and never launches a privilege-elevation helper.
 
-See `docs/architecture/` for detailed documentation.
+See [the architecture overview](docs/architecture/overview.md) for the main
+boundaries. Report problems or propose changes through GitHub issues and pull
+requests.
