@@ -1,7 +1,6 @@
-/// Recorded CPU/GPU power and temperature limits shown as "Hardware default"
-/// labels and slider markers on the Power page. Each product/BIOS pair maps
-/// power-limit IDs to values in watts or °C. Capture details are in
-/// docs/power-defaults-evidence.md.
+/// Power and temperature settings recorded from an 82Y4 laptop with M1CN48WW
+/// BIOS, then chosen as the app's defaults for that model and BIOS.
+/// The Power page shows them beside the current settings, in watts or °C.
 const _referenceLimits = <(String, String), Map<String, int>>{
   ('82Y4', 'M1CN48WW'): {
     'cpu_longterm': 54,

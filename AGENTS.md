@@ -22,8 +22,10 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
 - Prefer the latest mutually compatible stable dependencies. Do not force
   prereleases or incompatible overrides to erase constraints. Document retained
   versions in [docs/dependencies.md](docs/dependencies.md).
-- Write documentation and handoffs in plain language. Separate what changed,
-  what was tested, and what remains unverified.
+- Say what things are and what we use them for, in ordinary language. For data,
+  say where it came from and why we chose it. Apply this to comments, docs, UI
+  copy, and handoffs. See the writing examples in the project code patterns.
+- Separate what changed, what was tested, and what remains unverified.
 
 ## UI Standards
 

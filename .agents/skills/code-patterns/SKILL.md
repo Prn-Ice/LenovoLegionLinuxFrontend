@@ -47,6 +47,19 @@ UI standards, and completion rules remain authoritative.
   related occurrences. Ask before behavior changes or broader migrations; link
   exact locations and a proposed correction in Beads when outside this task.
 
+## Say what things are
+
+Use ordinary language in comments, docs, UI copy, and handoffs. Say what the
+thing is, where it came from, and what we use it for when those facts matter.
+
+For example: "These power settings were recorded from one laptop and chosen as
+the app's defaults" explains more than "display reference values for an exact
+product and BIOS match."
+
+State choices directly. Do not make the reader decode abstract labels or a list
+of things something is not. Include a limitation when it affects how someone
+should use the thing, beside the relevant instruction.
+
 ## Respect the hardware boundary
 
 Repositories use services for hardware access. Read-only sysfs and telemetry
