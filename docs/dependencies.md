@@ -64,6 +64,11 @@ Recheck when Flutter's test pins and a released generator/build graph accept the
 same newer analyzer. Leave transitive build/formatter packages to Pub rather
 than pinning or overriding them individually.
 
+Rechecked on 2026-11-04: the installed SDK and latest generator/build releases
+still have this boundary. Pub metadata reports `test` 1.33.0 supports analyzer
+14, but requires `test_api` 0.7.15 rather than Flutter's pinned 0.7.12. Keep the
+compatible graph above until the SDK test pins align (tracked in `lllf-db5`).
+
 The app retains its Dart 3.11 **source language** floor so generators can parse
 its source. This does not select an old runtime: the Flutter 3.47.9 minimum requires
 Dart 3.13, and the environment supplies 3.13.7. Raise the source language and apply
