@@ -178,7 +178,7 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
               if (snapshot.spectrumHid.profile != null)
                 _StatusLine(
                   label: 'Profile / protocol',
-                  value: 'Spectrum / ${snapshot.spectrumHid.protocol}',
+                  value: 'Spectrum / ${snapshot.spectrumHid.protocol?.name}',
                   status: AboutDiagnosticStatus.ok,
                 ),
               if (snapshot.spectrumHid.selectedHidrawPath != null)
@@ -324,21 +324,21 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
       case SpectrumHidDiscoveryOutcome.missing:
         return 'Missing';
       case SpectrumHidDiscoveryOutcome.rootMissing:
-        return 'HID root missing';
+        return 'HID device directory missing';
       case SpectrumHidDiscoveryOutcome.rootUnreadable:
-        return 'HID root unreadable';
+        return 'Could not list HID devices';
       case SpectrumHidDiscoveryOutcome.unknown:
         return 'Unknown discovery error';
       case SpectrumHidDiscoveryOutcome.unsupported:
-        return 'Unsupported HID ID';
+        return 'USB ID has no keyboard profile';
       case SpectrumHidDiscoveryOutcome.unreadable:
-        return 'Unreadable uevent';
+        return 'Could not read device identity';
       case SpectrumHidDiscoveryOutcome.malformed:
-        return 'Malformed HID ID';
+        return 'Invalid HID ID';
       case SpectrumHidDiscoveryOutcome.malformedUtf8:
-        return 'Malformed UTF-8';
+        return 'Invalid device text';
       case SpectrumHidDiscoveryOutcome.supported:
-        return 'Supported';
+        return 'Keyboard profile found';
     }
   }
 

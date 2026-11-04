@@ -115,7 +115,8 @@ Diagnostics also read Linux HID `uevent` files under `/sys/class/hidraw` to
 record the vendor/product IDs, selected hidraw node, known profile, protocol,
 and a clear missing/unsupported/unreadable/malformed result. This discovery is
 read-only and does not open the device or send keyboard packets. Copied report
-JSON redacts the selected path and never includes serial or `HID_UNIQ` data.
+JSON includes normal `/dev/hidrawN` paths, hides custom directory names, and
+omits serial and `HID_UNIQ` data.
 
 For a new keyboard, record its exact USB IDs and verify its LED addresses,
 layout, and brightness behavior. Add a profile and a small `uevent` sample under
@@ -130,6 +131,28 @@ Run the data and keyboard tests without connecting hardware:
 ```bash
 flutter test test/features/power/power_model_defaults_test.dart test/features/lighting
 ```
+
+## Recorded read-only check: 82Y4 / M1CN48WW
+
+On 2026-11-04, the app's readers were checked on the project owner's Legion Slim
+7 16APH8 with kernel `7.3.1`, running on battery in `low-power` mode. They found
+both fan readings through `legion_hwmon`, the selected CPU/GPU power files, and
+the adapter and battery-conservation state. Native keyboard discovery found
+`048d:c987` at `/dev/hidraw0` using the Gen 7/8 profile without opening the device.
+
+The control and telemetry services were active. The module version file was
+absent, and the installed CLI rejected `--version`, so their versions remain
+unknown. `minifancurve` was unreadable; camera and white-backlight files were
+absent.
+
+A separately approved battery-conservation test used `LegionControlClient` over
+system D-Bus to change the setting from off to on, read back on, then restore
+off and read back off. Authorization and both writes succeeded. Other hardware
+write operations remain untested.
+
+The [recorded sample](../test/fixtures/sysfs/82y4-m1cn48ww-readonly.json) and
+[capture notes](../test/fixtures/sysfs/README.md) preserve the paths and readings
+used by the hardware-free replay test.
 
 ## Tested-model entry template
 

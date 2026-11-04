@@ -68,9 +68,7 @@ class DevicesPage extends ConsumerWidget {
           children: [
             AppSwitchTile(
               value: state.cameraEnabled ?? false,
-              // Camera writes are not exposed by the backend yet. Keep this
-              // action disabled even if a future snapshot reports write
-              // capability until the repository operation exists.
+              // The backend can read camera power but has no write operation.
               onChanged: null,
               title: 'Camera',
               subtitle: state.cameraSupported

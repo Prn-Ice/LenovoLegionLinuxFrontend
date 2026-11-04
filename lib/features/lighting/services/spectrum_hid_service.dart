@@ -62,15 +62,14 @@ class SpectrumHidService {
     final dir = Directory(sysfsHidrawRoot);
     List<FileSystemEntity> entries;
     try {
-      if (!dir.existsSync()) {
-        return const SpectrumHidDiscovery(
-          outcome: SpectrumHidDiscoveryOutcome.rootMissing,
-        );
-      }
       entries = dir.listSync()..sort((a, b) => a.path.compareTo(b.path));
-    } on FileSystemException {
-      return const SpectrumHidDiscovery(
-        outcome: SpectrumHidDiscoveryOutcome.rootUnreadable,
+    } on FileSystemException catch (error) {
+      return SpectrumHidDiscovery(
+        outcome: switch (error.osError?.errorCode) {
+          2 => SpectrumHidDiscoveryOutcome.rootMissing,
+          1 || 13 || 20 => SpectrumHidDiscoveryOutcome.rootUnreadable,
+          _ => SpectrumHidDiscoveryOutcome.unknown,
+        },
       );
     } on Object {
       return const SpectrumHidDiscovery(
@@ -78,11 +77,13 @@ class SpectrumHidService {
       );
     }
     final attempts = <SpectrumHidAttempt>[];
-    var sawTargetUnreadable = false;
+    var sawUnreadable = false;
+    var sawUnknown = false;
     var sawMalformed = false;
     var sawMalformedUtf8 = false;
     for (final entry in entries) {
       final name = entry.path.split('/').last;
+      if (!RegExp(r'^hidraw[0-9]+$').hasMatch(name)) continue;
       try {
         final uevent = utf8.decode(
           File('${entry.path}/device/uevent').readAsBytesSync(),
@@ -119,7 +120,6 @@ class SpectrumHidService {
             vendorId: identity.vendorId,
             productId: identity.productId,
             selectedHidrawPath: '$devRoot/$name',
-            selectedHidrawPathJson: _jsonPath(name),
             profile: found,
             attempts: [
               ...attempts,
@@ -155,7 +155,7 @@ class SpectrumHidService {
             outcome: SpectrumHidDiscoveryOutcome.unreadable,
           ),
         );
-        sawTargetUnreadable = true;
+        sawUnreadable = true;
       } on Object {
         attempts.add(
           SpectrumHidAttempt(
@@ -163,6 +163,7 @@ class SpectrumHidService {
             outcome: SpectrumHidDiscoveryOutcome.unknown,
           ),
         );
+        sawUnknown = true;
       }
     }
     if (profile == null) {
@@ -173,7 +174,13 @@ class SpectrumHidService {
         attempts: attempts,
       );
     }
-    if (sawTargetUnreadable) {
+    if (sawUnknown) {
+      return SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.unknown,
+        attempts: List.unmodifiable(attempts),
+      );
+    }
+    if (sawUnreadable) {
       return SpectrumHidDiscovery(
         outcome: SpectrumHidDiscoveryOutcome.unreadable,
         attempts: attempts,
@@ -196,9 +203,6 @@ class SpectrumHidService {
       attempts: attempts,
     );
   }
-
-  String _jsonPath(String name) =>
-      devRoot == '/dev' ? '/dev/$name' : '<custom-dev-root>/$name';
 
   /// Opens the keyboard's hidraw node. False when absent or permission-denied.
   bool open() {

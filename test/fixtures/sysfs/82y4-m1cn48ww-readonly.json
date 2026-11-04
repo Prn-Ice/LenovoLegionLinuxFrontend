@@ -1,0 +1,19 @@
+{
+  "sys/class/dmi/id/product_family": "Legion Slim 7 16APH8",
+  "sys/class/dmi/id/product_name": "82Y4",
+  "sys/class/dmi/id/bios_version": "M1CN48WW",
+  "proc/sys/kernel/osrelease": "7.3.1",
+  "sys/firmware/acpi/platform_profile": "low-power",
+  "sys/firmware/acpi/platform_profile_choices": "low-power balanced performance custom",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/cpu_longterm_powerlimit": "54",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/cpu_shortterm_powerlimit": "54",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/cpu_peak_powerlimit": "65",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/cpu_cross_loading_powerlimit": "45",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/gpu_ctgp_powerlimit": "60",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/hwmon/hwmon2/fan1_input": "1800",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/hwmon/hwmon2/fan2_input": "1500",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/hwmon/hwmon2/name": "legion_hwmon",
+  "sys/class/power_supply/ACAD/type": "Mains",
+  "sys/class/power_supply/ACAD/online": "0",
+  "sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode": "0"
+}

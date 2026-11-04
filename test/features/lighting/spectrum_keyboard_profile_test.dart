@@ -120,7 +120,7 @@ void main() {
         expect(discovery.outcome, SpectrumHidDiscoveryOutcome.supported);
         expect(discovery.vendorId, kSpectrumVendorId);
         expect(discovery.productId, kSpectrumC987ProductId);
-        expect(discovery.protocol, SpectrumProtocol.gen7And8.name);
+        expect(discovery.protocol, SpectrumProtocol.gen7And8);
         expect(
           discovery.toJson()['selected_hidraw_path'],
           '<custom-dev-root>/hidraw3',
@@ -154,6 +154,36 @@ void main() {
       expect(discovery.outcome, SpectrumHidDiscoveryOutcome.malformed);
       expect(discovery.selectedHidrawPath, isNull);
       expect(service.isOpen, isFalse);
+    });
+
+    test('reports a non-directory root as unreadable', () {
+      File('${root.path}/sys').writeAsStringSync('not a directory');
+      expect(
+        service.inspectHidraw().outcome,
+        SpectrumHidDiscoveryOutcome.rootUnreadable,
+      );
+    });
+
+    test('unexpected root failure remains unknown', () {
+      Link('${root.path}/sys').createSync('${root.path}/sys');
+      expect(
+        service.inspectHidraw().outcome,
+        SpectrumHidDiscoveryOutcome.unknown,
+      );
+    });
+
+    test('exports normal device path and ignores non-hidraw entries', () {
+      addDevice('PRIVATE-NAME', _fixture('c987'));
+      addDevice('hidraw4', _fixture('c987'));
+      final standardDev = SpectrumHidService(
+        sysfsHidrawRoot: '${root.path}/sys',
+      );
+      final discovery = standardDev.inspectHidraw();
+      expect(discovery.selectedHidrawPath, '/dev/hidraw4');
+      expect(discovery.toJson()['selected_hidraw_path'], '/dev/hidraw4');
+      expect(discovery.attempts.single.hidrawName, 'hidraw4');
+      expect(discovery.toJson().toString(), isNot(contains('PRIVATE-NAME')));
+      expect(standardDev.isOpen, isFalse);
     });
 
     test('reports invalid UTF-8 without aborting discovery', () {

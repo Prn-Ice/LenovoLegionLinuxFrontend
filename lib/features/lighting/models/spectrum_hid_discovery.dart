@@ -46,7 +46,6 @@ class SpectrumHidDiscovery extends Equatable {
     this.productId,
     this.selectedHidrawPath,
     this.profile,
-    this.selectedHidrawPathJson,
     this.attempts = const [],
   });
 
@@ -57,14 +56,22 @@ class SpectrumHidDiscovery extends Equatable {
   final int? vendorId;
   final int? productId;
 
-  /// This is for the on-screen diagnostic only. It is deliberately redacted
-  /// by AboutSnapshot.toJson because fixtures and custom roots may be private.
+  /// The device path used by the service. JSON hides custom directory names.
   final String? selectedHidrawPath;
   final SpectrumKeyboardProfile? profile;
-  final String? selectedHidrawPathJson;
   final List<SpectrumHidAttempt> attempts;
 
-  String? get protocol => profile?.protocol.name;
+  SpectrumProtocol? get protocol => profile?.protocol;
+
+  String? get _exportPath {
+    final path = selectedHidrawPath;
+    if (path == null) return null;
+    if (RegExp(r'^/dev/hidraw[0-9]+$').hasMatch(path)) return path;
+    final name = path.split('/').last;
+    return RegExp(r'^hidraw[0-9]+$').hasMatch(name)
+        ? '<custom-dev-root>/$name'
+        : '<custom-dev-root>/hidraw';
+  }
 
   @override
   List<Object?> get props => [
@@ -74,7 +81,6 @@ class SpectrumHidDiscovery extends Equatable {
     selectedHidrawPath,
     profile?.vendorId,
     profile?.productId,
-    selectedHidrawPathJson,
     attempts,
   ];
 
@@ -86,13 +92,11 @@ class SpectrumHidDiscovery extends Equatable {
     'product_id': productId == null
         ? null
         : '0x${productId!.toRadixString(16).padLeft(4, '0')}',
-    'selected_hidraw_path': selectedHidrawPath == null
-        ? null
-        : selectedHidrawPathJson ?? '<custom-dev-root>/hidraw',
+    'selected_hidraw_path': _exportPath,
     'profile': profile == null
         ? null
-        : 'spectrum_${productId!.toRadixString(16).padLeft(4, '0')}',
-    'protocol': protocol,
+        : 'spectrum_${profile!.productId.toRadixString(16).padLeft(4, '0')}',
+    'protocol': protocol?.name,
     'attempts': attempts.map((attempt) => attempt.toJson()).toList(),
   };
 }
