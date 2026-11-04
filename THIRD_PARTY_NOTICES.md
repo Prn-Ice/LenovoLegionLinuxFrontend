@@ -112,3 +112,14 @@ instructions. Flutter SDK source is identified by SDK-reported versions and
 revisions and must be obtained separately, along with source for any host
 libraries a downstream package adds. Distributor SDKs can report placeholder
 framework revisions; see the release instructions for this limitation.
+
+### Nix Flutter SDK source provenance
+
+The release source manifest does not copy the Flutter SDK. When the SDK is
+installed from Nix and its derivations are available, the manifest records the
+Flutter source fetch URL and ref, the recursive Nix SHA-256 content hash, the
+relevant derivation store names, and identifiers plus SHA-256 hashes for the
+SDK patch files. Store names are identifiers only; local derivation paths and
+the unfiltered build environment are not published. The Nix hash identifies
+the fetched archive bytes and does not claim that a tag is a Git commit. A
+non-Nix SDK or collected derivations is reported as unavailable.

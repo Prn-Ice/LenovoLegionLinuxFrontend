@@ -85,7 +85,9 @@ then builds with `--no-pub`. It rejects source changes during the build. The
 archive contains tracked application source and the resolved runtime dependency
 sources, including local package edits and `handy_window/linux/libhandy`.
 `SOURCE-MANIFEST.json` records the commit, lockfile checksum, bundle checksums,
-package contents, and SDK-reported Flutter framework/engine versions. `REBUILD.md` and
+package contents, SDK-reported Flutter framework/engine versions, and (for a
+Nix-installed SDK) the public source archive URL/ref/hash, derivation IDs, and
+patch identifiers/content hashes. `REBUILD.md` and
 `dependency-overrides.yaml` explain how to rebuild using the archived packages.
 
 Application source follows `.gitattributes`: private `.beads` and `.env` files,
@@ -96,9 +98,13 @@ directories, `.envrc`, file modes, and internal symlinks are retained. Links
 escaping a dependency root stop packaging.
 
 Flutter SDK source is identified by its reported version and revisions rather
-than included. Distributor builds can report a placeholder framework revision
-(the tested Nix SDK does); in that case the framework Git commit remains unknown
-and the distributor's SDK source must be obtained separately.
+than included. For the tested Nix SDK, the manifest also records the exact
+distributor archive ref and Nix content hash; the archive hash identifies bytes,
+not a Git commit. Distributor builds can report a placeholder framework revision
+(the tested Nix SDK does), so the framework Git commit remains unknown. If Nix
+derivations have been garbage-collected, or the SDK is not Nix-installed,
+provenance is marked unavailable rather than inferred; obtain SDK source
+separately in that case.
 Host libraries are obtained separately; downstream packages must add source and
 notices for any extra libraries they redistribute. Publish the source companion
 alongside the binary from `build/linux/x64/release/bundle`.

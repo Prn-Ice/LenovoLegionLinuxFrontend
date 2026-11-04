@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'bundle_notices.dart' show bundleNotices;
+import 'nix_flutter_provenance.dart' show nixFlutterProvenance;
 
 Future<void> main(List<String> args) async {
   try {
@@ -360,7 +361,7 @@ Future<String> _sha256(File file) async {
   return (result.stdout as String).substring(0, 64);
 }
 
-Future<Map<String, String>> _flutterMetadata(Directory sdk) async {
+Future<Map<String, Object>> _flutterMetadata(Directory sdk) async {
   final result = await Process.run('${sdk.path}/bin/flutter', [
     '--version',
     '--machine',
@@ -380,5 +381,6 @@ Future<Map<String, String>> _flutterMetadata(Directory sdk) async {
         final String value when value.isNotEmpty => value,
         _ => throw StateError('Flutter metadata lacks $key.'),
       },
+    'source_provenance': await nixFlutterProvenance(sdk),
   };
 }
