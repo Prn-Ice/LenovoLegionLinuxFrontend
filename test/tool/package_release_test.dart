@@ -61,11 +61,13 @@ void main() {
     write('${root.path}/.gitignore', '/build/\n/.dart_tool/\n.env\n.beads/\n');
     write(
       '${root.path}/.gitattributes',
-      '/inspiration export-ignore\n/.beads export-ignore\n/.env export-ignore\n/.env.* export-ignore\n',
+      '/inspiration export-ignore\n/.beads export-ignore\n/.env export-ignore\n/.env.* export-ignore\n/.agent export-ignore\n',
     );
     write('${root.path}/inspiration/reference.png', 'reference');
     write('${root.path}/.env', 'SECRET=do-not-ship');
     write('${root.path}/.beads/credentials', 'private');
+    Directory('${root.path}/.agent').createSync();
+    Link('${root.path}/.agent/local-skill').createSync('/private/home/skill');
     await _run(root, 'git', ['init', '-q']);
     await _run(root, 'git', ['config', 'user.email', 'test@example.invalid']);
     await _run(root, 'git', ['config', 'user.name', 'Test']);
@@ -103,7 +105,13 @@ void main() {
         contains('./dependencies/handy_window/linux/libhandy/src/COPYING'),
       );
       expect(listing, contains('./source/.envrc'));
-      for (final excluded in ['.env', '.beads', 'inspiration', '.dart_tool']) {
+      for (final excluded in [
+        '.env',
+        '.beads',
+        '.agent',
+        'inspiration',
+        '.dart_tool',
+      ]) {
         expect(
           listing.any(
             (path) =>

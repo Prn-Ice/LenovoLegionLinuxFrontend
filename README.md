@@ -74,8 +74,9 @@ sources, including local package edits and `handy_window/linux/libhandy`.
 package contents, and exact Flutter framework/engine versions. `REBUILD.md` and
 `dependency-overrides.yaml` explain how to rebuild using the archived packages.
 
-Application source follows `.gitattributes`: private `.beads` and `.env` files
-and the inspiration screenshots are excluded. Dependency-root `.git`, `.beads`,
+Application source follows `.gitattributes`: private `.beads` and `.env` files,
+machine-local `.agent` links, and inspiration screenshots are excluded.
+Dependency-root `.git`, `.beads`,
 `.dart_tool`, `build`, `coverage`, `.env`, and `.env.*` are excluded; nested build
 directories, `.envrc`, file modes, and internal symlinks are retained. Links
 escaping a dependency root stop packaging.

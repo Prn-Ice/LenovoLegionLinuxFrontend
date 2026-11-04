@@ -4,3 +4,5 @@
 /.beads export-ignore
 /.env export-ignore
 /.env.* export-ignore
+# These development-tool links point to a local home directory.
+/.agent export-ignore
