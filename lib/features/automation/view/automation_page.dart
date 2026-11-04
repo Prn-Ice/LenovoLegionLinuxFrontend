@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/surface_card.dart';
 import '../bloc/automation_event.dart';
 import '../providers/automation_provider.dart';
 
@@ -13,40 +14,48 @@ class AutomationPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(automationBlocProvider);
-    final bloc = ref.read(automationBlocProvider.bloc);
 
     if (state.isLoading) {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
+    final contextTriggers = [
+      if (state.config.triggerOnProfileChange) 'profile changes',
+      if (state.config.triggerOnPowerSourceChange) 'power source changes',
+    ];
+
     return AppPageBody(
-      title: 'Automation',
       errorMessage: state.errorMessage,
       children: [
-        // ── Enable card ──────────────────────────────────────────────────────
-        AppControlCard(
-          icon: Icons.smart_toy,
-          title: 'Enable',
+        // The runner is infrastructure for the rules, not another rule.
+        _AutomationCard(
+          icon: YaruIcons.power,
+          title: 'Automation runner',
           children: [
             AppSwitchTile(
               value: state.config.runnerEnabled,
-              onChanged: (enabled) =>
-                  bloc.add(AutomationRunnerToggled(enabled)),
-              title: 'Automation runner',
+              onChanged: (enabled) => ref
+                  .read(automationBlocProvider.bloc)
+                  .add(AutomationRunnerToggled(enabled)),
+              title: 'Run automation rules',
               subtitle: state.config.runnerEnabled
                   ? 'Running every ${state.config.pollIntervalSeconds}s'
                   : 'Stopped',
             ),
             YaruListTile(
-              title: const Text('Poll interval (seconds)'),
+              title: Text(
+                'Poll interval: ${state.config.pollIntervalSeconds} seconds',
+              ),
               subtitle: Slider(
                 value: state.config.pollIntervalSeconds.toDouble(),
                 min: 2,
-                max: 60,
-                divisions: 58,
+                max: 300,
+                divisions: 298,
                 label: '${state.config.pollIntervalSeconds}',
                 onChanged: (value) {
-                  bloc.add(AutomationPollIntervalUpdated(value.round()));
+                  ref
+                      .read(automationBlocProvider.bloc)
+                      .add(AutomationPollIntervalUpdated(value.round()));
                 },
               ),
             ),
@@ -68,7 +77,9 @@ class AutomationPage extends ConsumerWidget {
                       if (!context.mounted || !confirmed) {
                         return;
                       }
-                      bloc.add(const AutomationRunNowRequested());
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(const AutomationRunNowRequested());
                     },
               icon: state.isExecuting
                   ? const SizedBox(
@@ -76,45 +87,63 @@ class AutomationPage extends ConsumerWidget {
                       height: 16,
                       child: YaruCircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.play_arrow),
+                  : const Icon(YaruIcons.media_play),
               label: const Text('Run now'),
             ),
           ],
         ),
         const SizedBox(height: 16),
 
-        // ── Rules card ───────────────────────────────────────────────────────
-        AppControlCard(
-          icon: Icons.rule_folder,
+        _AutomationCard(
+          icon: YaruIcons.settings,
           title: 'Rules',
           children: [
+            Text(
+              'Choose what changes trigger actions, then enable the actions '
+              'you want the runner to apply.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             YaruExpandable(
               isExpanded: false,
               expandButtonPosition: YaruExpandableButtonPosition.end,
-              header: const Text('On power-context change'),
+              header: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    contextTriggers.isEmpty
+                        ? 'No context triggers enabled'
+                        : 'When ${contextTriggers.join(' or ')}',
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Fan preset ${state.config.applyFanPresetOnContextChange ? 'enabled' : 'disabled'} · '
+                    'Rapid charging ${state.config.applyRapidChargingPolicy ? 'enabled' : 'disabled'}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Triggers sub-heading
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      'TRIGGERS',
-                      style:
-                          Theme.of(context).textTheme.labelSmall?.copyWith(
-                                letterSpacing: 1.1,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.5),
-                              ),
+                      'WHEN',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
                   AppSwitchTile(
                     value: state.config.triggerOnProfileChange,
                     onChanged: (enabled) {
-                      bloc.add(
-                          AutomationTriggerOnProfileChangeToggled(enabled));
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(
+                            AutomationTriggerOnProfileChangeToggled(enabled),
+                          );
                     },
                     title: 'Trigger on profile change',
                     subtitle: 'quiet/balanced/performance transitions',
@@ -122,51 +151,49 @@ class AutomationPage extends ConsumerWidget {
                   AppSwitchTile(
                     value: state.config.triggerOnPowerSourceChange,
                     onChanged: (enabled) {
-                      bloc.add(
-                          AutomationTriggerOnPowerSourceChangeToggled(enabled));
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(
+                            AutomationTriggerOnPowerSourceChangeToggled(
+                              enabled,
+                            ),
+                          );
                     },
                     title: 'Trigger on power-source change',
                     subtitle: 'AC plugged/unplugged',
                   ),
                   const SizedBox(height: 8),
-                  // Actions sub-heading
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
-                      'ACTIONS',
-                      style:
-                          Theme.of(context).textTheme.labelSmall?.copyWith(
-                                letterSpacing: 1.1,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface
-                                    .withValues(alpha: 0.5),
-                              ),
+                      'THEN',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.5),
+                      ),
                     ),
                   ),
                   AppSwitchTile(
                     value: state.config.applyFanPresetOnContextChange,
                     onChanged: (enabled) {
-                      bloc.add(AutomationFanPresetRuleToggled(enabled));
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(AutomationFanPresetRuleToggled(enabled));
                     },
                     title: 'Apply fan preset on power-context change',
-                    subtitle: 'Trigger: AC/profile changes',
-                  ),
-                  AppSwitchTile(
-                    value: state.config.applyCustomConservation,
-                    onChanged: (enabled) {
-                      bloc.add(AutomationConservationRuleToggled(enabled));
-                    },
-                    title: 'Apply custom conservation policy',
-                    subtitle: 'Trigger: each automation cycle',
+                    subtitle: 'When profile or AC power changes',
                   ),
                   AppSwitchTile(
                     value: state.config.applyRapidChargingPolicy,
                     onChanged: (enabled) {
-                      bloc.add(AutomationRapidChargingPolicyToggled(enabled));
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(AutomationRapidChargingPolicyToggled(enabled));
                     },
                     title: 'Apply rapid-charging policy',
-                    subtitle: 'Trigger: selected context changes',
+                    subtitle:
+                        'When an enabled profile or power-source trigger changes',
                   ),
                   if (state.config.applyRapidChargingPolicy)
                     Padding(
@@ -177,13 +204,15 @@ class AutomationPage extends ConsumerWidget {
                             contentPadding: EdgeInsets.zero,
                             value: state.config.rapidChargingOnAc,
                             onChanged: (enabled) {
-                              bloc.add(
-                                AutomationRapidChargingTargetsUpdated(
-                                  onAc: enabled,
-                                  onBattery:
-                                      state.config.rapidChargingOnBattery,
-                                ),
-                              );
+                              ref
+                                  .read(automationBlocProvider.bloc)
+                                  .add(
+                                    AutomationRapidChargingTargetsUpdated(
+                                      onAc: enabled,
+                                      onBattery:
+                                          state.config.rapidChargingOnBattery,
+                                    ),
+                                  );
                             },
                             title: 'Enable rapid charging on AC',
                           ),
@@ -191,60 +220,18 @@ class AutomationPage extends ConsumerWidget {
                             contentPadding: EdgeInsets.zero,
                             value: state.config.rapidChargingOnBattery,
                             onChanged: (enabled) {
-                              bloc.add(
-                                AutomationRapidChargingTargetsUpdated(
-                                  onAc: state.config.rapidChargingOnAc,
-                                  onBattery: enabled,
-                                ),
-                              );
+                              ref
+                                  .read(automationBlocProvider.bloc)
+                                  .add(
+                                    AutomationRapidChargingTargetsUpdated(
+                                      onAc: state.config.rapidChargingOnAc,
+                                      onBattery: enabled,
+                                    ),
+                                  );
                             },
                             title: 'Enable rapid charging on battery',
                           ),
                         ],
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  // Conservation limits (kept within Rules card)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _LimitField(
-                          label: 'Lower %',
-                          initialValue: state.config.conservationLowerLimit,
-                          onSubmitted: (value) {
-                            bloc.add(
-                              AutomationConservationLimitsUpdated(
-                                lower: value,
-                                upper: state.config.conservationUpperLimit,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _LimitField(
-                          label: 'Upper %',
-                          initialValue: state.config.conservationUpperLimit,
-                          onSubmitted: (value) {
-                            bloc.add(
-                              AutomationConservationLimitsUpdated(
-                                lower: state.config.conservationLowerLimit,
-                                upper: value,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (!state.config.hasValidConservationRange)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Invalid limits: lower limit must be <= upper limit.',
-                        style: TextStyle(
-                            color: Theme.of(context).colorScheme.error),
                       ),
                     ),
                 ],
@@ -253,25 +240,94 @@ class AutomationPage extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 16),
+        _AutomationCard(
+          icon: YaruIcons.battery,
+          title: 'Battery conservation',
+          children: [
+            AppSwitchTile(
+              value: state.config.applyCustomConservation,
+              onChanged: (enabled) {
+                ref
+                    .read(automationBlocProvider.bloc)
+                    .add(AutomationConservationRuleToggled(enabled));
+              },
+              title: 'Apply custom conservation policy',
+              subtitle: 'Apply on every automation cycle',
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                SizedBox(
+                  width: 180,
+                  child: _LimitField(
+                    label: 'Conservation lower limit (%)',
+                    initialValue: state.config.conservationLowerLimit,
+                    onSubmitted: (value) => ref
+                        .read(automationBlocProvider.bloc)
+                        .add(
+                          AutomationConservationLimitsUpdated(
+                            lower: value,
+                            upper: state.config.conservationUpperLimit,
+                          ),
+                        ),
+                  ),
+                ),
+                SizedBox(
+                  width: 180,
+                  child: _LimitField(
+                    label: 'Conservation upper limit (%)',
+                    initialValue: state.config.conservationUpperLimit,
+                    onSubmitted: (value) => ref
+                        .read(automationBlocProvider.bloc)
+                        .add(
+                          AutomationConservationLimitsUpdated(
+                            lower: state.config.conservationLowerLimit,
+                            upper: value,
+                          ),
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            if (!state.config.hasValidConservationRange)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Invalid limits: lower limit must be <= upper limit.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
 
-        // ── Quick Actions card ───────────────────────────────────────────────
-        AppControlCard(
-          icon: Icons.bolt,
-          title: 'Quick Actions',
+        _AutomationCard(
+          icon: YaruIcons.gears,
+          title: 'Run command…',
           children: [
             YaruExpandable(
               isExpanded: false,
               expandButtonPosition: YaruExpandableButtonPosition.end,
-              header: const Text('Run external command'),
+              header: Text(
+                !state.config.runExternalCommand
+                    ? 'Disabled · ${state.config.externalCommandOnContextChange ? 'on context changes' : 'every cycle'}'
+                    : state.config.externalCommandOnContextChange
+                    ? 'Run command on context changes'
+                    : 'Run command every cycle',
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AppSwitchTile(
                     value: state.config.runExternalCommand,
                     onChanged: (enabled) {
-                      bloc.add(AutomationExternalCommandRuleToggled(enabled));
+                      ref
+                          .read(automationBlocProvider.bloc)
+                          .add(AutomationExternalCommandRuleToggled(enabled));
                     },
-                    title: 'Run external command',
+                    title: 'Enable command action',
                     subtitle: 'Execute a shell command as your user account',
                   ),
                   if (state.config.runExternalCommand) ...[
@@ -283,15 +339,13 @@ class AutomationPage extends ConsumerWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              const Icon(Icons.warning_amber_outlined,
-                                  size: 16),
+                              const Icon(YaruIcons.warning, size: 16),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
                                   'Runs as your user account, not as root. '
                                   'Avoid commands that require admin privileges.',
-                                  style:
-                                      Theme.of(context).textTheme.bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ),
                             ],
@@ -300,8 +354,11 @@ class AutomationPage extends ConsumerWidget {
                           _CommandField(
                             initialValue: state.config.externalCommand,
                             onSubmitted: (command) {
-                              bloc.add(
-                                  AutomationExternalCommandUpdated(command));
+                              ref
+                                  .read(automationBlocProvider.bloc)
+                                  .add(
+                                    AutomationExternalCommandUpdated(command),
+                                  );
                             },
                           ),
                           const SizedBox(height: 8),
@@ -309,15 +366,17 @@ class AutomationPage extends ConsumerWidget {
                             contentPadding: EdgeInsets.zero,
                             value: state.config.externalCommandOnContextChange,
                             onChanged: (onContextChange) {
-                              bloc.add(
-                                AutomationExternalCommandTriggerUpdated(
-                                  onContextChange,
-                                ),
-                              );
+                              ref
+                                  .read(automationBlocProvider.bloc)
+                                  .add(
+                                    AutomationExternalCommandTriggerUpdated(
+                                      onContextChange,
+                                    ),
+                                  );
                             },
                             title: 'Only on context change',
-                            subtitle: state
-                                    .config.externalCommandOnContextChange
+                            subtitle:
+                                state.config.externalCommandOnContextChange
                                 ? 'Runs when profile or power source changes'
                                 : 'Runs every automation cycle',
                           ),
@@ -332,24 +391,85 @@ class AutomationPage extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
 
-        // ── Status card ──────────────────────────────────────────────────────
-        AppControlCard(
-          icon: Icons.info_outline,
-          title: 'Status',
+        _AutomationCard(
+          icon: YaruIcons.information,
+          title: 'Recent run',
           children: [
-            Text(
-              'Current profile: ${state.currentSnapshot?.platformProfile ?? 'Unknown'}',
+            _StatusLine(
+              label: 'Last run',
+              value: state.lastRunAt?.toLocal().toString() ?? 'Never',
             ),
-            Text(
-              'On power supply: ${state.currentSnapshot?.onPowerSupply?.toString() ?? 'Unknown'}',
+            _StatusLine(
+              label: 'Result',
+              value: state.lastRunSummary ?? 'No run recorded',
             ),
-            Text(
-              'Last run: ${state.lastRunAt?.toLocal().toString() ?? 'Never'}',
+            _StatusLine(
+              label: 'Profile',
+              value: state.currentSnapshot?.platformProfile ?? 'Unknown',
             ),
-            Text('Last result: ${state.lastRunSummary ?? 'None'}'),
+            _StatusLine(
+              label: 'Power source',
+              value: state.currentSnapshot?.onPowerSupply == null
+                  ? 'Unknown'
+                  : state.currentSnapshot!.onPowerSupply!
+                  ? 'AC'
+                  : 'Battery',
+            ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Wrap(
+      spacing: 6,
+      children: [
+        Text('$label:', style: Theme.of(context).textTheme.bodySmall),
+        Text(value, style: Theme.of(context).textTheme.bodyMedium),
+      ],
+    ),
+  );
+}
+
+class _AutomationCard extends StatelessWidget {
+  const _AutomationCard({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: theme.textTheme.titleMedium)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
+      ),
     );
   }
 }

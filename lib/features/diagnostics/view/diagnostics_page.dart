@@ -45,7 +45,6 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     final snapshot = aboutState.snapshot;
 
     return AppPageBody(
-      title: 'Diagnostics',
       errorMessage: aboutState.errorMessage ?? analyticsState.errorMessage,
       children: [
         // ── Live Sensors ─────────────────────────────────────────────────────

@@ -8,13 +8,10 @@ abstract final class NavShellEntries {
     AppSection.power,
     AppSection.fans,
     AppSection.battery,
-    AppSection.devices,
-    AppSection.dgpu,
-    AppSection.display,
     AppSection.lighting,
+    AppSection.dgpu,
     AppSection.automation,
     AppSection.settings,
-    AppSection.diagnostics,
   ];
 
   /// Index of [section] within [sections] (-1 if absent).

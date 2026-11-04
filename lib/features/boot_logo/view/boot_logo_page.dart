@@ -5,7 +5,6 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
-import '../bloc/boot_logo_bloc.dart';
 import '../bloc/boot_logo_event.dart';
 import '../providers/boot_logo_provider.dart';
 
@@ -47,7 +46,7 @@ class BootLogoPage extends ConsumerWidget {
                 selectedPath: state.selectedImagePath,
                 validationError: state.validationError,
                 isApplying: state.isApplying,
-                onPick: () => _pickFile(bloc),
+                onPick: () => _pickFile(context, ref),
                 onClear: () => bloc.add(const BootLogoFileSelected('')),
               ),
               const SizedBox(height: 8),
@@ -63,8 +62,8 @@ class BootLogoPage extends ConsumerWidget {
               _ActionRow(
                 canApply: state.canApply,
                 isApplying: state.isApplying,
-                onApply: () => _applyLogo(context, bloc),
-                onRestore: () => _restoreLogo(context, bloc),
+                onApply: () => _applyLogo(context, ref),
+                onRestore: () => _restoreLogo(context, ref),
               ),
             ],
           ],
@@ -80,19 +79,20 @@ class BootLogoPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickFile(BootLogoBloc bloc) async {
+  Future<void> _pickFile(BuildContext context, WidgetRef ref) async {
     final files = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['png', 'jpg', 'jpeg', 'bmp'],
       dialogTitle: 'Select Boot Logo Image',
     );
     final path = files.firstOrNull?.path;
-    if (path != null) {
-      bloc.add(BootLogoFileSelected(path));
+    if (context.mounted && path != null) {
+      ref.read(bootLogoBlocProvider.bloc).add(BootLogoFileSelected(path));
     }
   }
 
-  Future<void> _applyLogo(BuildContext context, BootLogoBloc bloc) async {
+  Future<void> _applyLogo(BuildContext context, WidgetRef ref) async {
+    final selectedPath = ref.read(bootLogoBlocProvider).selectedImagePath;
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Apply Boot Logo',
@@ -100,12 +100,14 @@ class BootLogoPage extends ConsumerWidget {
           'This writes the selected image to EFI and updates UEFI variables. Changes appear after reboot.',
       confirmLabel: 'Apply',
     );
-    if (confirmed && context.mounted) {
-      bloc.add(const BootLogoApplyRequested());
+    if (confirmed &&
+        context.mounted &&
+        ref.read(bootLogoBlocProvider).selectedImagePath == selectedPath) {
+      ref.read(bootLogoBlocProvider.bloc).add(const BootLogoApplyRequested());
     }
   }
 
-  Future<void> _restoreLogo(BuildContext context, BootLogoBloc bloc) async {
+  Future<void> _restoreLogo(BuildContext context, WidgetRef ref) async {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Restore Default Logo',
@@ -113,8 +115,11 @@ class BootLogoPage extends ConsumerWidget {
           'This clears the custom boot logo flag in UEFI variables and restores the stock logo after reboot.',
       confirmLabel: 'Restore',
     );
-    if (confirmed && context.mounted) {
-      bloc.add(const BootLogoRestoreRequested());
+    if (confirmed &&
+        context.mounted &&
+        ref.read(bootLogoBlocProvider).status != null &&
+        !ref.read(bootLogoBlocProvider).isApplying) {
+      ref.read(bootLogoBlocProvider.bloc).add(const BootLogoRestoreRequested());
     }
   }
 }
@@ -237,7 +242,9 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
       children: [
         FilledButton.icon(
           onPressed: canApply ? onApply : null,
@@ -250,7 +257,6 @@ class _ActionRow extends StatelessWidget {
               : const Icon(Icons.image_outlined),
           label: const Text('Apply Custom Logo'),
         ),
-        const SizedBox(width: 12),
         OutlinedButton(
           onPressed: isApplying ? null : onRestore,
           child: const Text('Restore Default'),

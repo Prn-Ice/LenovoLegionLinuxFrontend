@@ -41,14 +41,14 @@ status. That epic predates this handoff.
 | Scope | Status | Evidence / Remaining Work |
 |---|---|---|
 | Phase 0 — Repository hygiene | Complete | Orphaned combined modules deleted; `PrivilegedRepository` extracted. |
-| Phase 1 — Shared visual foundation | Mostly complete | Accent tokens, Legion mark, metric widgets, responsive grid, Dashboard application, and shell polish landed. Target navigation migration is intentionally incomplete while controls still need new homes. |
+| Phase 1 — Shared visual foundation | Complete | Accent tokens, Legion mark, metric widgets, responsive grid, Dashboard application, and shell polish landed. The eight-destination navigation now preserves selection across compact/wide layouts; migrated controls remain reachable in Settings. |
 | Phase 2 — Dashboard | Substantially complete | Mode hero, telemetry gauges, quick controls, product information, responsive cards, typography, and power-mode accent behavior landed. |
 | Phase 3 — Lighting | Complete | Per-key preview/editor, scopes, software effects, profiles, persistence, native Spectrum HID, power limiting, brightness-aware white balance, static painting, key mapping, and animated frame streaming are implemented and hardware-validated. Native Spectrum remains available when OpenRGB is missing or its probe fails. |
 | Phase 4 — Fans | UI complete; hardware deployment tracked | Curve-first CPU/GPU editor, semantic presets, live telemetry, privileged safeguards, bounded Custom edits, truthful unavailable states, and compact/wide light/dark coverage landed. The frontend discovers both legacy and Kernel 7 Legion platform roots. The dev machine still needs its stale backend pin replaced; see `docs/architecture/fan-controller-kernel-7-handoff.md`. |
 | Phase 5 — Power | Complete | Responsive semantic mode cards, mode-aware accents, primary limit sliders, advanced limits, capability-gated overclock controls, adjacent warnings, and title-bar refresh landed with compact/wide light/dark coverage. |
-| Phase 6a — Battery & dGPU | Not yet given the new handoff pass | Existing pages predate this handoff; Always-on USB has not been migrated. |
-| Phase 6b — Automation, Settings & About | Not yet given the new handoff pass | Existing pages predate this handoff; Diagnostics/Devices/Display absorption remains. |
-| Phase 7 — Platform surfaces | Not started | OSD, tray, and notification integration remain. |
+| Phase 6a — Battery & dGPU | UI complete | Battery health, Always-on USB, dGPU capability-aware controls, telemetry and follow-up visual polish landed; see closed `lllf-cqn.4`, `lllf-cqn.17` and `lllf-cqn.18`. Graphics deployment and hardware validation remain separate Beads work. |
+| Phase 6b — Automation, Settings & About | Existing feature migration complete; appearance extension tracked | Automation uses truthful trigger/action summaries, separate conservation rules and retained runner controls. Settings contains Appearance, Backend, Boot Logo, Devices, Display and About, with Diagnostics/export detail. Persistent appearance and optional mode-following accent remain `lllf-cqn.21`; desktop General preferences depend on Phase 7 native integration. |
+| Phase 7 — Platform surfaces | Isolated UI and integration handoff complete; native integration tracked | Null-safe, accent-aware OSD and typed event values are tested. Native OSD windows, tray registration and notifications remain `lllf-cqn.7.1`–`.7.3`; see `docs/platform-surfaces.md`. Nothing is emitted to the desktop yet. |
 
 ### Completed Hardware Validation
 

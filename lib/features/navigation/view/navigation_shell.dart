@@ -13,21 +13,29 @@ import '../../battery/view/battery_page.dart';
 import '../../dashboard/bloc/dashboard_event.dart';
 import '../../dashboard/providers/dashboard_provider.dart';
 import '../../dashboard/view/dashboard_page.dart';
-import '../../devices/view/devices_page.dart';
-import '../../dgpu/view/dgpu_page.dart';
+import '../../about/bloc/about_event.dart';
+import '../../about/providers/about_provider.dart';
+import '../../boot_logo/bloc/boot_logo_event.dart';
+import '../../boot_logo/providers/boot_logo_provider.dart';
+import '../../devices/bloc/devices_event.dart';
+import '../../devices/providers/devices_provider.dart';
+import '../../display/bloc/display_event.dart';
+import '../../display/providers/display_provider.dart';
 import '../../dgpu/bloc/dgpu_event.dart';
 import '../../dgpu/providers/dgpu_provider.dart';
-import '../../diagnostics/view/diagnostics_page.dart';
-import '../../display/view/display_page.dart';
+import '../../dgpu/view/dgpu_page.dart';
 import '../../fans/view/fans_page.dart';
 import '../../lighting/view/lighting_page.dart';
 import '../../power/bloc/power_event.dart';
 import '../../power/providers/power_provider.dart';
 import '../../power/view/power_page.dart';
+import '../../settings/bloc/settings_event.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../../settings/view/settings_page.dart';
 import '../bloc/navigation_event.dart';
 import '../models/app_section.dart';
 import '../models/nav_entry.dart';
+import '../models/settings_refresh_targets.dart';
 import '../providers/navigation_provider.dart';
 
 const _pageColor = Color(0xffFAF9F8);
@@ -74,6 +82,61 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
 
   /// Refresh actions live in the title bar rather than page content.
   List<Widget> _titleBarActions(AppSection section) {
+    if (section == AppSection.settings) {
+      final settings = ref.watch(settingsBlocProvider);
+      final bootLogo = ref.watch(bootLogoBlocProvider);
+      final about = ref.watch(aboutBlocProvider);
+      final devices = ref.watch(devicesBlocProvider);
+      final display = ref.watch(displayBlocProvider);
+      final refreshTargets = SettingsRefreshTargets.fromBusyStates(
+        settingsLoading: settings.isLoading,
+        settingsApplying: settings.isApplying,
+        bootLogoLoading: bootLogo.isLoading,
+        bootLogoApplying: bootLogo.isApplying,
+        aboutLoading: about.isLoading,
+        devicesLoading: devices.isLoading,
+        devicesApplying: devices.isApplying,
+        displayLoading: display.isLoading,
+        displayApplying: display.isApplying,
+      );
+
+      return [
+        IconButton(
+          icon: const Icon(YaruIcons.refresh, size: 18),
+          tooltip: 'Refresh',
+          onPressed: refreshTargets.canRefresh
+              ? () {
+                  if (refreshTargets.settings) {
+                    ref
+                        .read(settingsBlocProvider.bloc)
+                        .add(const SettingsRefreshRequested());
+                  }
+                  if (refreshTargets.bootLogo) {
+                    ref
+                        .read(bootLogoBlocProvider.bloc)
+                        .add(const BootLogoRefreshRequested());
+                  }
+                  if (refreshTargets.about) {
+                    ref
+                        .read(aboutBlocProvider.bloc)
+                        .add(const AboutRefreshRequested());
+                  }
+                  if (refreshTargets.devices) {
+                    ref
+                        .read(devicesBlocProvider.bloc)
+                        .add(const DevicesRefreshRequested());
+                  }
+                  if (refreshTargets.display) {
+                    ref
+                        .read(displayBlocProvider.bloc)
+                        .add(const DisplayRefreshRequested());
+                  }
+                }
+              : null,
+        ),
+      ];
+    }
+
     final VoidCallback? onRefresh = switch (section) {
       AppSection.dashboard =>
         () => ref
@@ -239,32 +302,16 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     );
   }
 
-  Widget _buildPage(AppSection section) {
-    switch (section) {
-      case AppSection.dashboard:
-        return const DashboardPage();
-      case AppSection.power:
-        return const PowerPage();
-      case AppSection.fans:
-        return const FansPage();
-      case AppSection.battery:
-        return const BatteryPage();
-      case AppSection.devices:
-        return const DevicesPage();
-      case AppSection.dgpu:
-        return const DgpuPage();
-      case AppSection.display:
-        return const DisplayPage();
-      case AppSection.lighting:
-        return const LightingPage();
-      case AppSection.automation:
-        return const AutomationPage();
-      case AppSection.settings:
-        return const SettingsPage();
-      case AppSection.diagnostics:
-        return const DiagnosticsPage();
-    }
-  }
+  Widget _buildPage(AppSection section) => switch (section) {
+    AppSection.dashboard => const DashboardPage(),
+    AppSection.power => const PowerPage(),
+    AppSection.fans => const FansPage(),
+    AppSection.battery => const BatteryPage(),
+    AppSection.lighting => const LightingPage(),
+    AppSection.dgpu => const DgpuPage(),
+    AppSection.automation => const AutomationPage(),
+    AppSection.settings => SettingsPage(),
+  };
 }
 
 /// Sidebar footer: AC/charging status with the battery percentage, matching the

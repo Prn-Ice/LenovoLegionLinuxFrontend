@@ -49,6 +49,19 @@ flutter analyze                 # static analysis
 
 Tests run without a connected device or kernel module — all I/O is unit-tested with mocks.
 
+For a hardware-free rendered review of Settings, Automation, the navigation shell,
+and the isolated OSD, run:
+
+```bash
+flutter test test/visual_handoff_review_test.dart --dart-define=VISUAL_REVIEW=true
+```
+
+The opt-in fixture writes PNGs to `/tmp/opencode/visual-handoff/` in light and dark
+themes at wide and compact desktop sizes. It loads the application's fonts and
+uses controlled feature states. Inspect the images; passing capture tests alone
+does not establish visual quality, native desktop integration, or hardware behavior.
+The capture cases are skipped during the ordinary test suite.
+
 The shared Linux shell also includes Polkit headers for native service checks:
 
 ```bash
