@@ -93,8 +93,9 @@ xvfb-run -a --server-args='-screen 0 1280x800x24' \
 The Linux native integration journey runs as a separate CI job with the same
 Flutter SDK pin and Linux desktop dependencies. It runs the single entrypoint
 in a fresh checkout under Xvfb and retains its command log when it fails.
-Headless runs need both Xvfb and `xauth`. The runner does not capture screenshots
-for these tests.
+Headless runs need Xvfb, `xauth`, and `gsettings-desktop-schemas` for Yaru's GNOME
+settings reads. CI uses an in-memory settings backend. The runner does not
+capture screenshots for these tests.
 
 Plain `flutter test` still runs the separate unit/widget suite under `test/`.
 
