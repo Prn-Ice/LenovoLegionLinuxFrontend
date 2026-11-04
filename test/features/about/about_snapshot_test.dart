@@ -120,7 +120,7 @@ void main() {
         )
         .toJson();
     final text = json.toString();
-    expect(text, contains('<hidraw>'));
+    expect(text, contains('<custom-dev-root>/hidraw'));
     expect(text, isNot(contains('/private/test')));
     expect(text, isNot(contains('HID_UNIQ')));
   });

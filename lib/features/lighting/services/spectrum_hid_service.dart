@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
@@ -59,18 +60,41 @@ class SpectrumHidService {
   SpectrumHidDiscovery inspectHidraw() {
     final profile = keyboardProfile;
     final dir = Directory(sysfsHidrawRoot);
-    if (!dir.existsSync()) return const SpectrumHidDiscovery.missing();
-    var sawEntry = false;
-    var sawUnreadable = false;
+    List<FileSystemEntity> entries;
+    try {
+      if (!dir.existsSync()) {
+        return const SpectrumHidDiscovery(
+          outcome: SpectrumHidDiscoveryOutcome.rootMissing,
+        );
+      }
+      entries = dir.listSync()..sort((a, b) => a.path.compareTo(b.path));
+    } on FileSystemException {
+      return const SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.rootUnreadable,
+      );
+    } on Object {
+      return const SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.unknown,
+      );
+    }
+    final attempts = <SpectrumHidAttempt>[];
+    var sawTargetUnreadable = false;
     var sawMalformed = false;
-    SpectrumHidDiscovery? unsupported;
-    for (final entry in dir.listSync()) {
+    var sawMalformedUtf8 = false;
+    for (final entry in entries) {
       final name = entry.path.split('/').last;
-      sawEntry = true;
       try {
-        final uevent = File('${entry.path}/device/uevent').readAsStringSync();
+        final uevent = utf8.decode(
+          File('${entry.path}/device/uevent').readAsBytesSync(),
+        );
         final identity = spectrumHidIdentityFromUevent(uevent);
         if (identity == null) {
+          attempts.add(
+            SpectrumHidAttempt(
+              hidrawName: name,
+              outcome: SpectrumHidDiscoveryOutcome.malformed,
+            ),
+          );
           sawMalformed = true;
           continue;
         }
@@ -79,10 +103,13 @@ class SpectrumHidService {
           identity.productId,
         );
         if (found == null) {
-          unsupported ??= SpectrumHidDiscovery(
-            outcome: SpectrumHidDiscoveryOutcome.unsupported,
-            vendorId: identity.vendorId,
-            productId: identity.productId,
+          attempts.add(
+            SpectrumHidAttempt(
+              hidrawName: name,
+              outcome: SpectrumHidDiscoveryOutcome.unsupported,
+              vendorId: identity.vendorId,
+              productId: identity.productId,
+            ),
           );
           continue;
         }
@@ -92,26 +119,86 @@ class SpectrumHidService {
             vendorId: identity.vendorId,
             productId: identity.productId,
             selectedHidrawPath: '$devRoot/$name',
+            selectedHidrawPathJson: _jsonPath(name),
             profile: found,
+            attempts: [
+              ...attempts,
+              SpectrumHidAttempt(
+                hidrawName: name,
+                outcome: SpectrumHidDiscoveryOutcome.supported,
+                vendorId: identity.vendorId,
+                productId: identity.productId,
+              ),
+            ],
           );
         }
+        attempts.add(
+          SpectrumHidAttempt(
+            hidrawName: name,
+            outcome: SpectrumHidDiscoveryOutcome.supported,
+            vendorId: identity.vendorId,
+            productId: identity.productId,
+          ),
+        );
+      } on FormatException {
+        attempts.add(
+          SpectrumHidAttempt(
+            hidrawName: name,
+            outcome: SpectrumHidDiscoveryOutcome.malformedUtf8,
+          ),
+        );
+        sawMalformedUtf8 = true;
       } on FileSystemException {
-        sawUnreadable = true;
+        attempts.add(
+          SpectrumHidAttempt(
+            hidrawName: name,
+            outcome: SpectrumHidDiscoveryOutcome.unreadable,
+          ),
+        );
+        sawTargetUnreadable = true;
+      } on Object {
+        attempts.add(
+          SpectrumHidAttempt(
+            hidrawName: name,
+            outcome: SpectrumHidDiscoveryOutcome.unknown,
+          ),
+        );
       }
     }
-    if (unsupported != null) return unsupported;
-    if (sawUnreadable) {
-      return const SpectrumHidDiscovery(
+    if (profile == null) {
+      return SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.unsupported,
+        vendorId: vendorId,
+        productId: productId,
+        attempts: attempts,
+      );
+    }
+    if (sawTargetUnreadable) {
+      return SpectrumHidDiscovery(
         outcome: SpectrumHidDiscoveryOutcome.unreadable,
+        attempts: attempts,
       );
     }
-    if (sawMalformed || sawEntry) {
-      return const SpectrumHidDiscovery(
+    if (sawMalformedUtf8) {
+      return SpectrumHidDiscovery(
+        outcome: SpectrumHidDiscoveryOutcome.malformedUtf8,
+        attempts: attempts,
+      );
+    }
+    if (sawMalformed) {
+      return SpectrumHidDiscovery(
         outcome: SpectrumHidDiscoveryOutcome.malformed,
+        attempts: attempts,
       );
     }
-    return const SpectrumHidDiscovery.missing();
+    return SpectrumHidDiscovery(
+      outcome: SpectrumHidDiscoveryOutcome.missing,
+      attempts: attempts,
+    );
   }
+
+  String _jsonPath(String name) =>
+      devRoot == '/dev' ? '/dev/$name' : '<custom-dev-root>/$name';
 
   /// Opens the keyboard's hidraw node. False when absent or permission-denied.
   bool open() {

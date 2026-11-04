@@ -7,6 +7,7 @@ import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
+import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 
 void main() {
   late Directory root;
@@ -52,6 +53,10 @@ void main() {
       ),
       cli: cli,
       bridge: LegionFrontendBridgeService(cliService: cli),
+      spectrumHid: SpectrumHidService(
+        sysfsHidrawRoot: '${root.path}/sys/class/hidraw',
+        devRoot: '${root.path}/dev',
+      ),
       processRunner: (executable, arguments) async {
         expect(executable, anyOf('which', 'systemctl'));
         return ProcessResult(0, 1, '', '');
@@ -88,6 +93,9 @@ void main() {
         await file.writeAsString('${entry.value}\n');
       }
       final report = (await repository.loadSnapshot()).toJson();
+      final hid = report['spectrum_hid'] as Map<String, Object?>;
+      expect(hid['outcome'], 'rootMissing');
+      expect(hid['selected_hidraw_path'], isNull);
       final checks = {
         for (final item in report['diagnostics'] as List)
           (item as Map<String, Object?>)['id']: item,

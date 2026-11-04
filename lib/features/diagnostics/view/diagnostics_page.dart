@@ -187,6 +187,16 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                   value: snapshot.spectrumHid.selectedHidrawPath!,
                   status: AboutDiagnosticStatus.ok,
                 ),
+              ...snapshot.spectrumHid.attempts.map(
+                (attempt) => _StatusLine(
+                  label: '${attempt.hidrawName} attempt',
+                  value: _hidOutcomeLabel(attempt.outcome),
+                  status:
+                      attempt.outcome == SpectrumHidDiscoveryOutcome.supported
+                      ? AboutDiagnosticStatus.ok
+                      : AboutDiagnosticStatus.unavailable,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -313,12 +323,20 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
     switch (outcome) {
       case SpectrumHidDiscoveryOutcome.missing:
         return 'Missing';
+      case SpectrumHidDiscoveryOutcome.rootMissing:
+        return 'HID root missing';
+      case SpectrumHidDiscoveryOutcome.rootUnreadable:
+        return 'HID root unreadable';
+      case SpectrumHidDiscoveryOutcome.unknown:
+        return 'Unknown discovery error';
       case SpectrumHidDiscoveryOutcome.unsupported:
         return 'Unsupported HID ID';
       case SpectrumHidDiscoveryOutcome.unreadable:
         return 'Unreadable uevent';
       case SpectrumHidDiscoveryOutcome.malformed:
         return 'Malformed HID ID';
+      case SpectrumHidDiscoveryOutcome.malformedUtf8:
+        return 'Malformed UTF-8';
       case SpectrumHidDiscoveryOutcome.supported:
         return 'Supported';
     }

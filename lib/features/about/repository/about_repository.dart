@@ -13,12 +13,12 @@ class AboutRepository {
     required LegionSysfsService sysfs,
     required LegionCliService cli,
     required LegionFrontendBridgeService bridge,
-    SpectrumHidService? spectrumHid,
+    required SpectrumHidService spectrumHid,
     ProcessRunner? processRunner,
   }) : _sysfs = sysfs,
        _cli = cli,
        _bridge = bridge,
-       _spectrumHid = spectrumHid ?? SpectrumHidService(),
+       _spectrumHid = spectrumHid,
        _processRunner = processRunner ?? Process.run;
 
   final LegionSysfsService _sysfs;

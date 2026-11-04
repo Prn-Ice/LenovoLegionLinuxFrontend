@@ -51,9 +51,11 @@ final spectrumRgbRepositoryProvider = Provider<SpectrumRgbRepository>(
 );
 
 /// Shared read-only discovery and native HID lifetime for lighting and reports.
-final spectrumHidServiceProvider = Provider<SpectrumHidService>(
-  (ref) => SpectrumHidService(),
-);
+final spectrumHidServiceProvider = Provider<SpectrumHidService>((ref) {
+  final service = SpectrumHidService();
+  ref.onDispose(service.close);
+  return service;
+});
 
 /// Software animated-effect engine (drives region effects over the native path).
 final spectrumEffectEngineProvider = Provider<SpectrumEffectEngine>((ref) {

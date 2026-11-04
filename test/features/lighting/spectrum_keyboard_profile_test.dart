@@ -91,12 +91,16 @@ void main() {
       expect(service.findHidrawPath(), isNull);
       expect(
         service.inspectHidraw().outcome,
-        SpectrumHidDiscoveryOutcome.missing,
+        SpectrumHidDiscoveryOutcome.rootMissing,
       );
       addDevice('hidraw0', _fixture('unknown-product'));
       expect(service.findHidrawPath(), isNull);
       expect(
         service.inspectHidraw().outcome,
+        SpectrumHidDiscoveryOutcome.missing,
+      );
+      expect(
+        service.inspectHidraw().attempts.single.outcome,
         SpectrumHidDiscoveryOutcome.unsupported,
       );
     });
@@ -117,6 +121,16 @@ void main() {
         expect(discovery.vendorId, kSpectrumVendorId);
         expect(discovery.productId, kSpectrumC987ProductId);
         expect(discovery.protocol, SpectrumProtocol.gen7And8.name);
+        expect(
+          discovery.toJson()['selected_hidraw_path'],
+          '<custom-dev-root>/hidraw3',
+        );
+        expect(discovery.attempts.map((attempt) => attempt.hidrawName), [
+          'hidraw0',
+          'hidraw1',
+          'hidraw2',
+          'hidraw3',
+        ]);
         expect(service.isOpen, isFalse);
         expect(Directory('${root.path}/dev').existsSync(), isFalse);
       },
@@ -141,5 +155,39 @@ void main() {
       expect(discovery.selectedHidrawPath, isNull);
       expect(service.isOpen, isFalse);
     });
+
+    test('reports invalid UTF-8 without aborting discovery', () {
+      final device = Directory('${root.path}/sys/hidraw0/device')
+        ..createSync(recursive: true);
+      File('${device.path}/uevent').writeAsBytesSync([0xff, 0xfe]);
+      final discovery = service.inspectHidraw();
+      expect(discovery.outcome, SpectrumHidDiscoveryOutcome.malformedUtf8);
+      expect(
+        discovery.attempts.single.outcome,
+        SpectrumHidDiscoveryOutcome.malformedUtf8,
+      );
+      expect(service.isOpen, isFalse);
+    });
+
+    test(
+      'unknown configured ID stays unsupported while known device is reported',
+      () {
+        addDevice('hidraw0', _fixture('c987'));
+        final unknown = SpectrumHidService(
+          vendorId: 0x048d,
+          productId: 0xc988,
+          sysfsHidrawRoot: '${root.path}/sys',
+          devRoot: '${root.path}/dev',
+        );
+        final discovery = unknown.inspectHidraw();
+        expect(discovery.outcome, SpectrumHidDiscoveryOutcome.unsupported);
+        expect(
+          discovery.attempts.single.outcome,
+          SpectrumHidDiscoveryOutcome.supported,
+        );
+        expect(discovery.selectedHidrawPath, isNull);
+        expect(unknown.isOpen, isFalse);
+      },
+    );
   });
 }
