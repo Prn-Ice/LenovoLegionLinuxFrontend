@@ -1,6 +1,13 @@
 # Model support and testing
 
-Some features may not work on every model. Run diagnostics to find out why.
+Development and hardware testing currently use one physical laptop: the project
+owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every feature has
+been verified on it. Other models and BIOS versions are unverified, even when
+the upstream driver supports them. See [feature readiness](../README.md#features-and-readiness)
+and the [community backlog](../BACKLOG.md) for current limits and work.
+
+Diagnostics help identify available readings and missing support; they do not
+certify a model or verify hardware writes.
 
 ## Collect a discovery report
 

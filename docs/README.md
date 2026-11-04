@@ -3,6 +3,7 @@
 ## Development
 
 - [Setup and usage](../README.md)
+- [Community backlog and current work](../BACKLOG.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Architecture](architecture/overview.md)
 - [Model support and testing](model-support.md)

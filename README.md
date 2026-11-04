@@ -2,17 +2,32 @@
 
 A Linux desktop app for controlling Lenovo Legion laptops with [LenovoLegionLinux](https://github.com/johnfanv2/LenovoLegionLinux).
 
-## Features
+**In development, with only one physical device used for development and testing:**
+the project owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every
+feature has been verified even on that laptop. Other models and BIOS versions
+are unverified; upstream driver support does not mean this frontend has been
+tested on them. See [model support and recorded checks](docs/model-support.md).
 
-- Fan curve editor
-- Power modes
-- Battery conservation and rapid charging
-- Fn-lock and touchpad controls; camera status
-- Boot logo customization
-- Discrete GPU monitoring
-- [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md)
-- Keyboard lighting through Spectrum HID or OpenRGB
-- Real-time dashboard
+## Features and readiness
+
+Status checked on **2026-11-04**. “Implemented” means the app has the feature,
+not that every hardware path is verified. We do not yet claim any feature is
+complete across Lenovo Legion models.
+
+| Feature | Current state | Remaining limits |
+| --- | --- | --- |
+| Fan curve editor | Editor, presets, and hardware-write path implemented | Correct curve reporting and write/readback validation still need driver work on the test device. Fan RPM readings have been checked separately. |
+| Power modes | Mode selection and supported power-limit controls implemented | A controlled CPU PL1 write/readback/restore passed on the test device; other limits need validation. Verified factory-default restoration is not ready. |
+| Battery conservation and rapid charging | Both controls implemented; conservation on/off write and readback verified on the test device | Rapid-charging writes still need hardware verification. The Battery page can briefly show stale conservation state after a Dashboard change; use Refresh. |
+| Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented | Fn-lock and touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
+| Boot logo customization | Image upload and restore paths implemented | Applying a logo, restoring it, and checking the next boot still need recorded hardware verification. |
+| Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
+| [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented | The app must stay open. Native end-to-end persistence/restart checks and visual polish remain. |
+| Keyboard lighting through Spectrum HID or OpenRGB | Both backends implemented | Native Spectrum currently targets USB `048d:c987` with the Gen 7/8 protocol. Other keyboards need device-specific verification; OpenRGB depends on its device support and setup. |
+| Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device, not a multi-model test matrix. |
+
+See the **[public backlog](BACKLOG.md)** for work in progress, known gaps, and
+ways to help. No issue-tracker setup is needed to read it.
 
 ## Requirements
 
