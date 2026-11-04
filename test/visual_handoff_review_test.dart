@@ -1,6 +1,6 @@
 // Opt-in rendered evidence, not golden baselines or hardware integration tests.
 // flutter test test/visual_handoff_review_test.dart --dart-define=VISUAL_REVIEW=true
-// Output: /tmp/opencode/visual-handoff/*.png. Run after feature owners finish.
+// Output: build/visual-review/*.png.
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -81,7 +81,7 @@ class _Settings extends MockBloc<SettingsEvent, SettingsState>
 const _enabled = bool.fromEnvironment('VISUAL_REVIEW');
 const _output = String.fromEnvironment(
   'VISUAL_REVIEW_DIR',
-  defaultValue: '/tmp/opencode/visual-handoff',
+  defaultValue: 'build/visual-review',
 );
 
 void main() {

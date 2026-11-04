@@ -88,21 +88,21 @@ void main() {
   });
 
   test('registers the exported object with an existing watcher', () async {
+    final directory = await Directory.systemTemp.createTemp('tray-');
+    addTearDown(() => directory.delete(recursive: true));
     final server = DBusServer();
+    addTearDown(server.close);
     final address = await server.listenAddress(
-      DBusAddress.unix(dir: Directory('/tmp/opencode')),
+      DBusAddress.unix(dir: directory),
     );
     final watcherClient = DBusClient(address);
+    addTearDown(watcherClient.close);
     final watcher = FakeWatcher();
     await watcherClient.registerObject(watcher);
     await watcherClient.requestName('org.kde.StatusNotifierWatcher');
     final client = DBusClient(address);
     final tray = PlatformTray(DBusTrayTransport(client: client));
-    addTearDown(() async {
-      await tray.dispose();
-      await watcherClient.close();
-      await server.close();
-    });
+    addTearDown(tray.dispose);
     final registered = tray.changes.firstWhere(
       (state) => state == TrayRegistration.registered,
     );
@@ -114,9 +114,12 @@ void main() {
   });
 
   test('exported menu has native layout and ignores disabled clicks', () async {
+    final directory = await Directory.systemTemp.createTemp('tray-');
+    addTearDown(() => directory.delete(recursive: true));
     final server = DBusServer();
+    addTearDown(server.close);
     final address = await server.listenAddress(
-      DBusAddress.unix(dir: Directory('/tmp/opencode')),
+      DBusAddress.unix(dir: directory),
     );
     final client = DBusClient(address);
     final peer = DBusClient(address);
@@ -124,7 +127,6 @@ void main() {
     addTearDown(() async {
       await transport.close();
       await peer.close();
-      await server.close();
     });
     await transport.open();
     var calls = 0;

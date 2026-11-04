@@ -29,14 +29,11 @@ void main() {
     late Box<dynamic> box;
 
     setUp(() async {
-      directory = await Directory('/tmp/opencode').createTemp('appearance-');
+      directory = await Directory.systemTemp.createTemp('appearance-');
+      addTearDown(() => directory.delete(recursive: true));
+      addTearDown(Hive.close);
       Hive.init(directory.path);
       box = await Hive.openBox<dynamic>('preferences');
-    });
-
-    tearDown(() async {
-      await Hive.close();
-      await directory.delete(recursive: true);
     });
 
     test('round-trips all choices through a closed and reopened box', () async {
