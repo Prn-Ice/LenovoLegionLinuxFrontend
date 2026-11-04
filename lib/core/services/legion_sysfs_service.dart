@@ -20,6 +20,8 @@ class LegionSysfsService {
   final String _cpuPolicyRoot;
   final String _amdPstateRoot;
   final String _cpuFreqRoot;
+  final String _sysRoot;
+  final String _procRoot;
 
   LegionSysfsService({
     String hwmonRoot = _hwmonBasePath,
@@ -28,6 +30,8 @@ class LegionSysfsService {
     String cpuPolicyRoot = '/sys/devices/system/cpu/cpufreq/policy0',
     String amdPstateRoot = '/sys/devices/system/cpu/amd_pstate',
     String cpuFreqRoot = '/sys/devices/system/cpu/cpufreq',
+    String sysRoot = '/sys',
+    String procRoot = '/proc',
   }) : _hwmonRoot = hwmonRoot,
        _legionPlatformRoots = legionPlatformRoots,
        _fanHwmonRoots = fanHwmonRoot == null
@@ -35,7 +39,12 @@ class LegionSysfsService {
            : [fanHwmonRoot],
        _cpuPolicyRoot = cpuPolicyRoot,
        _amdPstateRoot = amdPstateRoot,
-       _cpuFreqRoot = cpuFreqRoot;
+       _cpuFreqRoot = cpuFreqRoot,
+       _sysRoot = sysRoot,
+       _procRoot = procRoot;
+
+  String _sys(String path) => path.replaceFirst('/sys', _sysRoot);
+  String _proc(String path) => path.replaceFirst('/proc', _procRoot);
 
   /// Convert hwmon millidegrees Celsius to degrees Celsius.
   static double milliDegreesToC(int milliDegrees) => milliDegrees / 1000.0;
@@ -89,11 +98,11 @@ class LegionSysfsService {
   }
 
   Future<String?> readPlatformProfile() async {
-    return _readTrimmedFile(_platformProfilePath);
+    return _readTrimmedFile(_sys(_platformProfilePath));
   }
 
   Future<List<String>> readPlatformProfileChoices() async {
-    final raw = await _readTrimmedFile(_platformProfileChoicesPath);
+    final raw = await _readTrimmedFile(_sys(_platformProfileChoicesPath));
     if (raw == null || raw.isEmpty) {
       return const [];
     }
@@ -119,7 +128,7 @@ class LegionSysfsService {
   }
 
   Future<bool?> readBatteryConservationMode() async {
-    return _readBoolFile(_batteryConservationPath);
+    return _readBoolFile(_sys(_batteryConservationPath));
   }
 
   Future<bool?> readRapidChargingMode() async {
@@ -127,12 +136,12 @@ class LegionSysfsService {
   }
 
   Future<bool?> readAlwaysOnUsbChargingMode() async {
-    return _readBoolFile(_alwaysOnUsbChargingPath);
+    return _readBoolFile(_sys(_alwaysOnUsbChargingPath));
   }
 
   Future<bool?> readTouchpadMode() async {
     return _readBoolFromPaths([
-      _touchpadIdeapadPath,
+      _sys(_touchpadIdeapadPath),
       ..._legionPaths('touchpad'),
     ]);
   }
@@ -142,23 +151,23 @@ class LegionSysfsService {
   }
 
   Future<bool?> readCameraPowerMode() async {
-    return _readBoolFile(_cameraPowerPath);
+    return _readBoolFile(_sys(_cameraPowerPath));
   }
 
   Future<bool?> readFnLockMode() async {
-    return _readBoolFile(_fnLockPath);
+    return _readBoolFile(_sys(_fnLockPath));
   }
 
   Future<bool?> readWhiteKeyboardBacklightMode() async {
-    return _readEnabledFromBrightnessFile(_whiteKeyboardBacklightPath);
+    return _readEnabledFromBrightnessFile(_sys(_whiteKeyboardBacklightPath));
   }
 
   Future<bool?> readYLogoLightMode() async {
-    return _readEnabledFromBrightnessFile(_yLogoLightPath);
+    return _readEnabledFromBrightnessFile(_sys(_yLogoLightPath));
   }
 
   Future<bool?> readIoPortLightMode() async {
-    return _readEnabledFromBrightnessFile(_ioPortLightPath);
+    return _readEnabledFromBrightnessFile(_sys(_ioPortLightPath));
   }
 
   Future<bool?> readOnPowerSupplyMode() async {
@@ -167,7 +176,10 @@ class LegionSysfsService {
       final online = await readIntFile('$acDir/online');
       if (online != null) return online == 1;
     }
-    return _readBoolFromPaths([_onPowerSupplyAdp0Path, _onPowerSupplyAcPath]);
+    return _readBoolFromPaths([
+      _sys(_onPowerSupplyAdp0Path),
+      _sys(_onPowerSupplyAcPath),
+    ]);
   }
 
   /// Battery charge percentage (0–100) from the discovered battery supply.
@@ -181,7 +193,7 @@ class LegionSysfsService {
   /// Base dir of the first Battery-type power supply (BAT0, BAT1, …), falling
   /// back to the legacy fixed path when discovery finds nothing.
   Future<String> _batteryBase() async =>
-      (await _powerSupplyDirOfType('Battery')) ?? _legacyBatteryPath;
+      (await _powerSupplyDirOfType('Battery')) ?? _sys(_legacyBatteryPath);
 
   /// First `/sys/class/power_supply/*` whose `type` equals [type] (e.g.
   /// 'Battery', 'Mains'). Cached per type so the directory scan runs once.
@@ -191,7 +203,7 @@ class LegionSysfsService {
     }
     String? found;
     try {
-      final root = Directory('/sys/class/power_supply');
+      final root = Directory(_sys('/sys/class/power_supply'));
       if (root.existsSync()) {
         for (final entry in root.listSync()) {
           if (await _readTrimmedFile('${entry.path}/type') == type) {
@@ -420,7 +432,7 @@ class LegionSysfsService {
   /// Average clock speed across all online CPUs in GHz.
   Future<double?> readAverageCpuClockGhz() async {
     try {
-      final cpuDir = Directory('/sys/devices/system/cpu');
+      final cpuDir = Directory(_sys('/sys/devices/system/cpu'));
       if (!await cpuDir.exists()) return null;
 
       final clocks = <int>[];
@@ -551,23 +563,23 @@ class LegionSysfsService {
   // ── Device identity (DMI) ─────────────────────────────────────────────────
 
   Future<String?> readDeviceProductFamily() async =>
-      _readTrimmedFile('$_dmiPath/product_family');
+      _readTrimmedFile('${_sys(_dmiPath)}/product_family');
 
   Future<String?> readDeviceProductName() async =>
-      _readTrimmedFile('$_dmiPath/product_name');
+      _readTrimmedFile('${_sys(_dmiPath)}/product_name');
 
   Future<String?> readDeviceSerial() async =>
-      _readTrimmedFile('$_dmiPath/product_serial');
+      _readTrimmedFile('${_sys(_dmiPath)}/product_serial');
 
   Future<String?> readBiosVersion() async =>
-      _readTrimmedFile('$_dmiPath/bios_version');
+      _readTrimmedFile('${_sys(_dmiPath)}/bios_version');
 
   // ── CPU identity ──────────────────────────────────────────────────────────
 
   /// CPU model name from /proc/cpuinfo.
   Future<String?> readCpuName() async {
     try {
-      final file = File('/proc/cpuinfo');
+      final file = File(_proc('/proc/cpuinfo'));
       if (!await file.exists()) return null;
       await for (final line
           in file
@@ -587,7 +599,7 @@ class LegionSysfsService {
 
   /// Kernel release string, e.g. `7.0.12`.
   Future<String?> readKernelRelease() async =>
-      _readTrimmedFile('/proc/sys/kernel/osrelease');
+      _readTrimmedFile(_proc('/proc/sys/kernel/osrelease'));
 
   /// legion_laptop module version, or null when the module is absent.
   Future<String?> readLegionModuleVersion() async =>
@@ -595,7 +607,7 @@ class LegionSysfsService {
 
   /// System uptime in seconds, or null if unreadable.
   Future<int?> readUptimeSeconds() async {
-    final raw = await _readTrimmedFile('/proc/uptime');
+    final raw = await _readTrimmedFile(_proc('/proc/uptime'));
     if (raw == null) return null;
     final first = raw.split(RegExp(r'\s+')).first;
     return double.tryParse(first)?.round();
@@ -689,6 +701,8 @@ class LegionSysfsService {
     try {
       await for (final entity in root.list(followLinks: true)) {
         if (entity is! Directory) continue;
+        final name = await _readTrimmedFile('${entity.path}/name');
+        if (name?.toLowerCase() != 'yogafan') continue;
         final input = File('${entity.path}/fan${fanNumber}_input');
         if (!await input.exists()) continue;
         final rpm = await readIntFile(input.path);
@@ -707,7 +721,7 @@ class LegionSysfsService {
 
   Future<String?> _readFirstCpuStatLine() async {
     try {
-      final file = File('/proc/stat');
+      final file = File(_proc('/proc/stat'));
       if (!await file.exists()) return null;
       final lines = await file.readAsLines();
       return lines.firstWhere((l) => l.startsWith('cpu '), orElse: () => '');
