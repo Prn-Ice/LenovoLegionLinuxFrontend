@@ -36,6 +36,10 @@ UI standards, and completion rules remain authoritative.
   behavior being preserved before choosing a pattern.
 - Prefer product-language names and straightforward statements. Extract helpers
   for meaningful responsibilities or repeated contracts, not file-size targets.
+- Always prefer enums to strings for named choices such as commands, settings,
+  modes, and states. Reuse an existing enum when one fits. Convert to protocol
+  strings in the service that sends them, so callers get autocomplete and
+  compiler checks instead of having to copy the right spelling.
 - Keep cohesive behavior together. Do not introduce wrappers, DTO/entity pairs,
   providers per field, or a second dependency-injection tree without a real need.
 - Use ordinary co-located Riverbloc providers. Bloc/Cubit owns feature behavior;

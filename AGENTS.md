@@ -11,6 +11,8 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
 
 - Prefer plain names, direct control flow, focused functions, and a visible happy
   path. Optimize for the next reader, not the fewest lines.
+- Always prefer enums to strings for named choices such as commands, settings,
+  modes, and states. Convert to protocol strings at the service boundary.
 - Add an abstraction only when it clarifies a responsibility, isolates an external
   boundary, or centralizes a repeated contract. No empty layers or forwarding
   providers for their own sake.
