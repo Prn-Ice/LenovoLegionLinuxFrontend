@@ -18,7 +18,7 @@ complete across Lenovo Legion models.
 | Fan curve editor | Editor, presets, and hardware-write path implemented | Correct curve reporting and write/readback validation still need driver work on the test device. Fan RPM readings have been checked separately. |
 | Power modes | Mode selection and supported power-limit controls implemented | A controlled CPU PL1 write/readback/restore passed on the test device; other limits need validation. Verified factory-default restoration is not ready. |
 | Battery conservation and rapid charging | Both controls implemented; conservation on/off write and readback verified on the test device | Rapid-charging writes still need hardware verification. The Battery page can briefly show stale conservation state after a Dashboard change; use Refresh. |
-| Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented | Fn-lock and touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
+| Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented; Fn-lock write/readback/restore verified | Touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
 | Boot logo customization | Image upload and restore paths implemented | Applying a logo, restoring it, and checking the next boot still need recorded hardware verification. |
 | Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
 | [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented | The app must stay open. Native end-to-end persistence/restart checks and visual polish remain. |
@@ -99,9 +99,9 @@ escaping a dependency root stop packaging.
 
 Flutter SDK source is identified by its reported version and revisions rather
 than included. For the tested Nix SDK, the manifest also records the exact
-distributor archive ref and Nix hash of the unpacked source tree (NAR format),
-not a hash of the downloaded tarball or a Git commit. Distributor builds can
-report a placeholder framework revision
+distributor archive ref and Nix hash of the unpacked source tree (NAR format).
+Check that hash with `nix hash path` on the unpacked directory. Distributor builds
+can report a placeholder framework revision
 (the tested Nix SDK does), so the framework Git commit remains unknown. If Nix
 derivations have been garbage-collected, or the SDK is not Nix-installed,
 Nix provenance is marked unavailable or not applicable rather than inferred.

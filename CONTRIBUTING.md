@@ -28,8 +28,8 @@ flutter --version
 flutter pub get
 ```
 
-If you use Nix and direnv, set `LLLF_DEV_FLAKE` to a flake with Flutter and Linux
-build tools. Then run `direnv allow`.
+Run `nix develop` for the project's development shell, or `direnv allow` to load
+it automatically with nix-direnv.
 
 ## Test without hardware
 
