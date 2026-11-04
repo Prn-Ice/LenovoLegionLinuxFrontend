@@ -154,8 +154,21 @@ absent.
 
 A separately approved battery-conservation test used `LegionControlClient` over
 system D-Bus to change the setting from off to on, read back on, then restore
-off and read back off. Authorization and both writes succeeded. Other hardware
-write operations remain untested.
+off and read back off. Authorization and both writes succeeded.
+
+Later that day, with the laptop on AC, two more separately approved tests used
+the same system D-Bus client and the production sysfs readers:
+
+| Setting | Confirmed readback sequence | Restored value |
+| --- | --- | --- |
+| Fn-lock | off → on → off | off |
+| Always-on USB charging | on → off → on | on |
+
+Each setting was tested and restored before the next test started. These checks
+confirm authorization, command execution, and the driver's reported value. They
+did not measure USB charging current or test physical Fn-key behavior. Rapid
+charging had no readable value, so it was not changed. Other hardware write
+operations remain untested.
 
 The [recorded sample](../test/fixtures/sysfs/82y4-m1cn48ww-readonly.json) and
 [capture notes](../test/fixtures/sysfs/README.md) preserve the paths and readings
