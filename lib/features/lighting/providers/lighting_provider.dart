@@ -70,14 +70,16 @@ final rgbLightingStoreProvider = Provider<RgbLightingStore>(
 );
 
 /// Per-key RGB bloc; auto-loads the keyboard on creation.
-final rgbLightingBlocProvider =
-    BlocProvider.autoDispose<RgbLightingBloc, RgbLightingState>((ref) {
-      final repository = ref.watch(rgbLightingRepositoryProvider);
-      final native = ref.watch(spectrumRgbRepositoryProvider);
-      final store = ref.watch(rgbLightingStoreProvider);
-      return RgbLightingBloc(
-        repository: repository,
-        nativeRepository: native,
-        store: store,
-      )..add(const RgbLightingStarted());
-    });
+final rgbLightingBlocProvider = BlocProvider<RgbLightingBloc, RgbLightingState>(
+  (ref) {
+    final repository = ref.watch(rgbLightingRepositoryProvider);
+    final native = ref.watch(spectrumRgbRepositoryProvider);
+    final store = ref.watch(rgbLightingStoreProvider);
+    return RgbLightingBloc(
+      repository: repository,
+      nativeRepository: native,
+      store: store,
+      effectEngine: ref.watch(spectrumEffectEngineProvider),
+    )..add(const RgbLightingStarted());
+  },
+);

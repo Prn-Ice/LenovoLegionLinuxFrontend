@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/cpu_policy_snapshot.dart';
+import 'package:legion_frontend/features/battery/models/battery_snapshot.dart';
+import 'package:legion_frontend/features/battery/repository/battery_repository.dart';
+import 'package:legion_frontend/features/battery/providers/battery_provider.dart';
 import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
 import 'package:legion_frontend/core/models/power_profiles_daemon_snapshot.dart';
@@ -23,7 +26,85 @@ class _MockPowerRepository extends Mock implements PowerRepository {}
 
 class _MockLiveSensorRepository extends Mock implements LiveSensorRepository {}
 
+class _ChargingRepository implements BatteryRepository {
+  bool enabled = false;
+  bool supported = true;
+  int writes = 0;
+  @override
+  Future<BatterySnapshot> loadSnapshot() async => BatterySnapshot(
+    batteryConservationEnabled: false,
+    batteryConservationSupported: true,
+    rapidChargingEnabled: supported ? enabled : null,
+    rapidChargingSupported: supported,
+    batteryPercent: 50,
+    batteryCharging: false,
+    batteryPowerDrawW: null,
+    cycleCounts: null,
+    fullCapacityWh: null,
+    designCapacityWh: null,
+    currentCapacityWh: null,
+    batteryTempC: null,
+  );
+  @override
+  Future<void> setRapidCharging(bool value) async {
+    writes++;
+    enabled = value;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
+  testWidgets(
+    'rapid charging on battery is a preference with confirmation and readback',
+    (tester) async {
+      final charging = _ChargingRepository();
+      await _pumpPage(
+        tester,
+        width: 420,
+        snapshot: _snapshot(onPowerSupply: false),
+        charging: charging,
+      );
+      await tester.pumpAndSettle();
+      final control = find.text('Rapid charging');
+      await tester.ensureVisible(control);
+      await tester.pumpAndSettle();
+      await tester.tap(control);
+      await tester.pumpAndSettle();
+      expect(charging.writes, 0);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(charging.writes, 0);
+      await tester.tap(control);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enable'));
+      await tester.pumpAndSettle();
+      expect(charging.writes, 1);
+      expect(charging.enabled, isTrue);
+      expect(
+        tester
+            .widget<YaruSwitchListTile>(find.byType(YaruSwitchListTile))
+            .value,
+        isTrue,
+      );
+      expect(
+        find.textContaining('charging starts only with external power'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('unsupported rapid charging is hidden', (tester) async {
+    await _pumpPage(
+      tester,
+      width: 900,
+      charging: _ChargingRepository()..supported = false,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Rapid charging'), findsNothing);
+  });
   setUpAll(() {
     registerFallbackValue(const PowerMode('test'));
     registerFallbackValue(PowerRepository.allPowerLimits.first);
@@ -472,6 +553,7 @@ Future<_PowerHarness> _pumpPage(
   bool dark = false,
   PowerSnapshot? snapshot,
   LiveSensorSnapshot? sensorSnapshot,
+  _ChargingRepository? charging,
 }) async {
   tester.view.physicalSize = Size(width, 1200);
   tester.view.devicePixelRatio = 1;
@@ -513,6 +595,9 @@ Future<_PowerHarness> _pumpPage(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        batteryRepositoryProvider.overrideWithValue(
+          charging ?? _ChargingRepository(),
+        ),
         powerBlocProvider.overrideWith((ref) => bloc),
         liveSensorBlocProvider.overrideWith((ref) => sensorBloc),
       ],

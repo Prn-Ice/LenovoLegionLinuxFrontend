@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show Color;
 
 import 'package:bloc_test/bloc_test.dart';
@@ -14,6 +15,7 @@ import 'package:legion_frontend/features/lighting/repository/spectrum_rgb_reposi
 import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
+import 'package:legion_frontend/features/lighting/services/spectrum_effect_engine.dart';
 
 const _kbd = RgbLightingDevice(
   index: 0,
@@ -120,6 +122,50 @@ class _FailingHid extends SpectrumHidService {
   String? findHidrawPath() => throw StateError('hidraw probe failed');
 }
 
+class _ControlledRepo extends _FakeRepo {
+  final firstWrite = Completer<void>();
+  final started = Completer<void>();
+  final writes = <List<Color>>[];
+  bool fail = false;
+  @override
+  Future<void> applyDirect(
+    RgbLightingDevice device,
+    List<Color> colors, {
+    int? brightness,
+  }) async {
+    writes.add(colors);
+    if (writes.length == 1) {
+      started.complete();
+      await firstWrite.future;
+    }
+    if (fail) throw StateError('write failed');
+    await super.applyDirect(device, colors, brightness: brightness);
+  }
+}
+
+class _PendingKeyboard extends _FakeRepo {
+  final loaded = Completer<RgbLightingDevice?>();
+  @override
+  Future<RgbLightingDevice?> loadKeyboard() => loaded.future;
+}
+
+class _NativeKeyboard extends SpectrumRgbRepository {
+  int writes = 0;
+  bool fail = false;
+  @override
+  bool get isAvailable => true;
+  @override
+  SpectrumKeyboardProfile get keyboardProfile => kSpectrumC987Profile;
+  @override
+  bool paint(List<String> leds, List<Color> colors) {
+    writes++;
+    return !fail;
+  }
+
+  @override
+  bool setBrightness(int percent) => !fail;
+}
+
 /// act() that loads the device, then runs [more].
 Future<void> _startThen(RgbLightingBloc bloc, void Function() more) async {
   bloc.add(const RgbLightingStarted());
@@ -128,6 +174,207 @@ Future<void> _startThen(RgbLightingBloc bloc, void Function() more) async {
 }
 
 void main() {
+  test('closing during discovery prevents queued profile writes', () async {
+    final repo = _PendingKeyboard();
+    final store = _FakeStore();
+    store.profiles['Night'] = const RgbLightingSnapshot(
+      keyColors: [Color(0xFF0000FF), Color(0xFF0000FF), Color(0xFF0000FF)],
+      selectedColor: Color(0xFF0000FF),
+      brightness: 40,
+      activeMode: 'Direct',
+      effects: [],
+    );
+    final bloc = RgbLightingBloc(repository: repo, store: store);
+    final loading = bloc.stream.firstWhere((s) => s.isLoading);
+    bloc.add(const RgbLightingStarted());
+    await loading;
+    bloc.add(const RgbProfileLoaded('Night'));
+    final closed = bloc.close();
+    repo.loaded.complete(_kbd);
+    await closed;
+    expect(repo.lastDirect, isNull);
+  });
+
+  test('profiles for another keyboard fail without writing colors', () async {
+    final repo = _FakeRepo();
+    final store = _FakeStore();
+    store.profiles['Other keyboard'] = const RgbLightingSnapshot(
+      keyColors: [Color(0xFF0000FF)],
+      selectedColor: Color(0xFF0000FF),
+      brightness: 40,
+      activeMode: 'Direct',
+      effects: [],
+    );
+    final bloc = RgbLightingBloc(repository: repo, store: store);
+    final failed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+    bloc.add(const RgbLightingStarted());
+    bloc.add(const RgbProfileLoaded('Other keyboard'));
+    expect(
+      (await failed).errorMessage!.details,
+      contains('different keyboard'),
+    );
+    expect(repo.lastDirect, isNull);
+    await bloc.close();
+  });
+
+  test(
+    'profile writes are ordered and a failed profile can be retried',
+    () async {
+      final repo = _ControlledRepo();
+      final store = _FakeStore();
+      store.profiles['Night'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFF0000FF), Color(0xFF0000FF), Color(0xFF0000FF)],
+        selectedColor: Color(0xFF0000FF),
+        brightness: 40,
+        activeMode: 'Direct',
+        effects: [],
+      );
+      store.profiles['Gaming'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFFFF0000), Color(0xFFFF0000), Color(0xFFFF0000)],
+        selectedColor: Color(0xFFFF0000),
+        brightness: 90,
+        activeMode: 'Direct',
+        effects: [],
+      );
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      addTearDown(bloc.close);
+      bloc.add(const RgbLightingStarted());
+      bloc.add(const RgbProfileLoaded('Night'));
+      await repo.started.future;
+      bloc.add(const RgbProfileLoaded('Gaming'));
+      expect(repo.writes, hasLength(1));
+      final gaming = bloc.stream.firstWhere(
+        (s) => s.brightness == 90 && !s.isApplying,
+      );
+      repo.firstWrite.complete();
+      await gaming;
+      expect(repo.writes, [
+        store.profiles['Night']!.keyColors,
+        store.profiles['Gaming']!.keyColors,
+      ]);
+      repo.fail = true;
+      final failure = bloc.stream.firstWhere((s) => s.errorMessage != null);
+      bloc.add(const RgbProfileLoaded('Night'));
+      expect((await failure).brightness, 90);
+      repo.fail = false;
+      final retry = bloc.stream.firstWhere(
+        (s) => s.brightness == 40 && !s.isApplying,
+      );
+      bloc.add(const RgbProfileLoaded('Night'));
+      expect((await retry).errorMessage, isNull);
+    },
+  );
+
+  test(
+    'animated profiles run without a page and stop on write failure and close',
+    () async {
+      final native = _NativeKeyboard();
+      final engine = SpectrumEffectEngine(native);
+      final store = _FakeStore();
+      store.profiles['Pulse'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFF0000FF), Color(0xFF0000FF), Color(0xFF0000FF)],
+        selectedColor: Color(0xFF0000FF),
+        brightness: 40,
+        activeMode: 'Direct',
+        effects: [
+          SpectrumRegionEffect(
+            ledIndices: [0, 1],
+            effect: SpectrumEffect.pulse,
+            color: Color(0xFF0000FF),
+          ),
+        ],
+      );
+      final bloc = RgbLightingBloc(
+        repository: _FakeRepo(),
+        nativeRepository: native,
+        store: store,
+        effectEngine: engine,
+      );
+      final applied = bloc.stream.firstWhere(
+        (s) => s.brightness == 40 && !s.isApplying,
+      );
+      bloc.add(const RgbLightingStarted());
+      bloc.add(const RgbProfileLoaded('Pulse'));
+      await applied;
+      expect(engine.isRunning, isTrue);
+      final writes = native.writes;
+      final frame = Completer<void>();
+      void onFrame() {
+        if (engine.frame.value != null && !frame.isCompleted) frame.complete();
+      }
+
+      engine.frame.addListener(onFrame);
+      await frame.future;
+      engine.frame.removeListener(onFrame);
+      expect(native.writes, greaterThan(writes));
+      final failed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+      native.fail = true;
+      await failed;
+      expect(engine.isRunning, isFalse);
+      expect(bloc.state.errorMessage, isNotNull);
+      native.fail = false;
+      final retried = bloc.stream.firstWhere(
+        (s) => !s.isApplying && s.errorMessage == null,
+      );
+      bloc.add(const RgbProfileLoaded('Pulse'));
+      await retried;
+      expect(engine.isRunning, isTrue);
+      await bloc.close();
+      expect(engine.isRunning, isFalse);
+      engine.dispose();
+    },
+  );
+
+  test(
+    'profile load queued at startup applies its saved firmware mode',
+    () async {
+      final repo = _FakeRepo(
+        device: const RgbLightingDevice(
+          index: 0,
+          name: 'Keyboard',
+          type: 'Keyboard',
+          modes: ['Direct', 'Rainbow Wave'],
+          leds: ['a', 'b', 'c'],
+        ),
+      );
+      final store = _FakeStore();
+      store.profiles['Gaming'] = const RgbLightingSnapshot(
+        keyColors: [Color(0xFFFF0000), Color(0xFFFF0000), Color(0xFFFF0000)],
+        selectedColor: Color(0xFFFF0000),
+        brightness: 60,
+        activeMode: 'Rainbow Wave',
+        effects: [],
+      );
+      final bloc = RgbLightingBloc(repository: repo, store: store);
+      final applied = bloc.stream.firstWhere(
+        (s) => s.activeMode == 'Rainbow Wave' && !s.isApplying,
+      );
+      bloc.add(const RgbLightingStarted());
+      bloc.add(const RgbProfileLoaded('Gaming'));
+      await applied;
+      expect(repo.lastMode, 'Rainbow Wave');
+      expect(repo.lastBrightness, 60);
+      expect(repo.lastDirect, isNull);
+      await bloc.close();
+    },
+  );
+
+  test(
+    'deleted profile reports failure instead of silently succeeding',
+    () async {
+      final bloc = RgbLightingBloc(
+        repository: _FakeRepo(),
+        store: _FakeStore(),
+      );
+      bloc.add(const RgbLightingStarted());
+      await bloc.stream.firstWhere((s) => s.available);
+      final failed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+      bloc.add(const RgbProfileLoaded('Deleted'));
+      expect((await failed).errorMessage.toString(), contains('Deleted'));
+      await bloc.close();
+    },
+  );
+
   group('RgbLightingBloc', () {
     late _FakeRepo repo;
     setUp(() => repo = _FakeRepo());

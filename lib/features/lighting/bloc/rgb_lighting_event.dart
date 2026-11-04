@@ -11,6 +11,13 @@ sealed class RgbLightingEvent extends Equatable {
   List<Object?> get props => const [];
 }
 
+final class RgbAnimationFailed extends RgbLightingEvent {
+  const RgbAnimationFailed(this.error);
+  final Object error;
+  @override
+  List<Object?> get props => [error];
+}
+
 /// Load the keyboard device and initialize the buffer.
 final class RgbLightingStarted extends RgbLightingEvent {
   const RgbLightingStarted();

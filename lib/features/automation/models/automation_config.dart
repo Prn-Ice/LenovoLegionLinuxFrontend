@@ -1,206 +1,63 @@
 import 'package:equatable/equatable.dart';
 
-class AutomationConfig extends Equatable {
-  const AutomationConfig({
-    required this.runnerEnabled,
-    required this.pollIntervalSeconds,
-    required this.applyFanPresetOnContextChange,
-    required this.triggerOnProfileChange,
-    required this.triggerOnPowerSourceChange,
-    required this.applyCustomConservation,
-    required this.applyRapidChargingPolicy,
-    required this.rapidChargingOnAc,
-    required this.rapidChargingOnBattery,
-    required this.conservationLowerLimit,
-    required this.conservationUpperLimit,
-    required this.runExternalCommand,
-    required this.externalCommand,
-    required this.externalCommandOnContextChange,
-  });
+enum KeyboardPowerMode {
+  quiet('Quiet'),
+  balanced('Balanced'),
+  performance('Performance'),
+  custom('Custom');
 
-  factory AutomationConfig.defaults() => const AutomationConfig(
-    runnerEnabled: false,
-    pollIntervalSeconds: 10,
-    applyFanPresetOnContextChange: true,
-    triggerOnProfileChange: true,
-    triggerOnPowerSourceChange: true,
-    applyCustomConservation: false,
-    applyRapidChargingPolicy: false,
-    rapidChargingOnAc: true,
-    rapidChargingOnBattery: false,
-    conservationLowerLimit: 60,
-    conservationUpperLimit: 80,
-    runExternalCommand: false,
-    externalCommand: '',
-    externalCommandOnContextChange: true,
-  );
+  const KeyboardPowerMode(this.label);
+  final String label;
+
+  static KeyboardPowerMode? fromPlatformProfile(String? value) =>
+      switch (value) {
+        'quiet' || 'low-power' || 'power-saver' => quiet,
+        'balanced' => balanced,
+        'performance' => performance,
+        'custom' || 'balanced-performance' => custom,
+        _ => null,
+      };
+}
+
+/// Only named keyboard profiles are read. Legacy fan, charge and command rules
+/// are deliberately ignored, including their old enabled flags.
+class AutomationConfig extends Equatable {
+  AutomationConfig({Map<KeyboardPowerMode, String> profiles = const {}})
+    : profiles = Map.unmodifiable(profiles);
+
+  factory AutomationConfig.defaults() => AutomationConfig();
 
   factory AutomationConfig.fromJson(Map<String, dynamic> json) {
-    final defaults = AutomationConfig.defaults();
-    final poll =
-        _asInt(json['pollIntervalSeconds']) ?? defaults.pollIntervalSeconds;
-    final lower =
-        _asInt(json['conservationLowerLimit']) ??
-        defaults.conservationLowerLimit;
-    final upper =
-        _asInt(json['conservationUpperLimit']) ??
-        defaults.conservationUpperLimit;
-
+    final raw = json['keyboardProfiles'];
     return AutomationConfig(
-      runnerEnabled: _asBool(json['runnerEnabled']) ?? defaults.runnerEnabled,
-      pollIntervalSeconds: poll.clamp(2, 300),
-      applyFanPresetOnContextChange:
-          _asBool(json['applyFanPresetOnContextChange']) ??
-          defaults.applyFanPresetOnContextChange,
-      triggerOnProfileChange:
-          _asBool(json['triggerOnProfileChange']) ??
-          defaults.triggerOnProfileChange,
-      triggerOnPowerSourceChange:
-          _asBool(json['triggerOnPowerSourceChange']) ??
-          defaults.triggerOnPowerSourceChange,
-      applyCustomConservation:
-          _asBool(json['applyCustomConservation']) ??
-          defaults.applyCustomConservation,
-      applyRapidChargingPolicy:
-          _asBool(json['applyRapidChargingPolicy']) ??
-          defaults.applyRapidChargingPolicy,
-      rapidChargingOnAc:
-          _asBool(json['rapidChargingOnAc']) ?? defaults.rapidChargingOnAc,
-      rapidChargingOnBattery:
-          _asBool(json['rapidChargingOnBattery']) ??
-          defaults.rapidChargingOnBattery,
-      conservationLowerLimit: lower.clamp(0, 100),
-      conservationUpperLimit: upper.clamp(0, 100),
-      runExternalCommand:
-          _asBool(json['runExternalCommand']) ?? defaults.runExternalCommand,
-      externalCommand:
-          _asString(json['externalCommand']) ?? defaults.externalCommand,
-      externalCommandOnContextChange:
-          _asBool(json['externalCommandOnContextChange']) ??
-          defaults.externalCommandOnContextChange,
+      profiles: {
+        if (raw is Map)
+          for (final mode in KeyboardPowerMode.values)
+            if (raw[mode.name] case final String name
+                when name.trim().isNotEmpty)
+              mode: name,
+      },
     );
   }
 
-  final bool runnerEnabled;
-  final int pollIntervalSeconds;
-  final bool applyFanPresetOnContextChange;
-  final bool triggerOnProfileChange;
-  final bool triggerOnPowerSourceChange;
-  final bool applyCustomConservation;
-  final bool applyRapidChargingPolicy;
-  final bool rapidChargingOnAc;
-  final bool rapidChargingOnBattery;
-  final int conservationLowerLimit;
-  final int conservationUpperLimit;
-  final bool runExternalCommand;
-  final String externalCommand;
-  final bool externalCommandOnContextChange;
+  final Map<KeyboardPowerMode, String> profiles;
 
-  Map<String, dynamic> toJson() {
-    return {
-      'runnerEnabled': runnerEnabled,
-      'pollIntervalSeconds': pollIntervalSeconds,
-      'applyFanPresetOnContextChange': applyFanPresetOnContextChange,
-      'triggerOnProfileChange': triggerOnProfileChange,
-      'triggerOnPowerSourceChange': triggerOnPowerSourceChange,
-      'applyCustomConservation': applyCustomConservation,
-      'applyRapidChargingPolicy': applyRapidChargingPolicy,
-      'rapidChargingOnAc': rapidChargingOnAc,
-      'rapidChargingOnBattery': rapidChargingOnBattery,
-      'conservationLowerLimit': conservationLowerLimit,
-      'conservationUpperLimit': conservationUpperLimit,
-      'runExternalCommand': runExternalCommand,
-      'externalCommand': externalCommand,
-      'externalCommandOnContextChange': externalCommandOnContextChange,
-    };
-  }
+  AutomationConfig assign(KeyboardPowerMode mode, String? profile) =>
+      AutomationConfig(
+        profiles: {
+          for (final entry in profiles.entries)
+            if (entry.key != mode) entry.key: entry.value,
+          if (profile != null && profile.trim().isNotEmpty) mode: profile,
+        },
+      );
 
-  AutomationConfig copyWith({
-    bool? runnerEnabled,
-    int? pollIntervalSeconds,
-    bool? applyFanPresetOnContextChange,
-    bool? triggerOnProfileChange,
-    bool? triggerOnPowerSourceChange,
-    bool? applyCustomConservation,
-    bool? applyRapidChargingPolicy,
-    bool? rapidChargingOnAc,
-    bool? rapidChargingOnBattery,
-    int? conservationLowerLimit,
-    int? conservationUpperLimit,
-    bool? runExternalCommand,
-    String? externalCommand,
-    bool? externalCommandOnContextChange,
-  }) {
-    return AutomationConfig(
-      runnerEnabled: runnerEnabled ?? this.runnerEnabled,
-      pollIntervalSeconds: (pollIntervalSeconds ?? this.pollIntervalSeconds)
-          .clamp(2, 300),
-      applyFanPresetOnContextChange:
-          applyFanPresetOnContextChange ?? this.applyFanPresetOnContextChange,
-      triggerOnProfileChange:
-          triggerOnProfileChange ?? this.triggerOnProfileChange,
-      triggerOnPowerSourceChange:
-          triggerOnPowerSourceChange ?? this.triggerOnPowerSourceChange,
-      applyCustomConservation:
-          applyCustomConservation ?? this.applyCustomConservation,
-      applyRapidChargingPolicy:
-          applyRapidChargingPolicy ?? this.applyRapidChargingPolicy,
-      rapidChargingOnAc: rapidChargingOnAc ?? this.rapidChargingOnAc,
-      rapidChargingOnBattery:
-          rapidChargingOnBattery ?? this.rapidChargingOnBattery,
-      conservationLowerLimit:
-          (conservationLowerLimit ?? this.conservationLowerLimit).clamp(0, 100),
-      conservationUpperLimit:
-          (conservationUpperLimit ?? this.conservationUpperLimit).clamp(0, 100),
-      runExternalCommand: runExternalCommand ?? this.runExternalCommand,
-      externalCommand: externalCommand ?? this.externalCommand,
-      externalCommandOnContextChange:
-          externalCommandOnContextChange ?? this.externalCommandOnContextChange,
-    );
-  }
-
-  bool get hasValidConservationRange =>
-      conservationLowerLimit <= conservationUpperLimit;
+  Map<String, dynamic> toJson() => {
+    'version': 2,
+    'keyboardProfiles': {
+      for (final entry in profiles.entries) entry.key.name: entry.value,
+    },
+  };
 
   @override
-  List<Object?> get props => [
-    runnerEnabled,
-    pollIntervalSeconds,
-    applyFanPresetOnContextChange,
-    triggerOnProfileChange,
-    triggerOnPowerSourceChange,
-    applyCustomConservation,
-    applyRapidChargingPolicy,
-    rapidChargingOnAc,
-    rapidChargingOnBattery,
-    conservationLowerLimit,
-    conservationUpperLimit,
-    runExternalCommand,
-    externalCommand,
-    externalCommandOnContextChange,
-  ];
-
-  static bool? _asBool(dynamic value) {
-    if (value is bool) {
-      return value;
-    }
-    return null;
-  }
-
-  static int? _asInt(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is String) {
-      return int.tryParse(value);
-    }
-    return null;
-  }
-
-  static String? _asString(dynamic value) {
-    if (value is String) {
-      return value;
-    }
-    return null;
-  }
+  List<Object?> get props => [profiles];
 }

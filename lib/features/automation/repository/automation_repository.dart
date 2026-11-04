@@ -1,142 +1,38 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import '../../../core/data/privileged_repository.dart';
-import '../../../core/models/app_failure.dart';
-import '../../../core/models/control_selectors.dart';
-import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
-import '../models/automation_trigger_snapshot.dart';
 
-class AutomationRepositoryException extends AppFailure {
-  const AutomationRepositoryException(
-    super.message, {
-    super.kind,
-    super.details,
-  });
-}
+/// Stores keyboard assignments in the existing file, replacing obsolete rules
+/// on the next save. No legacy rule has an execution path in the application.
+class AutomationRepository {
+  AutomationRepository({File? configFile})
+    : _configFile =
+          configFile ??
+          File(
+            '${Platform.environment['XDG_CONFIG_HOME'] ?? '${Platform.environment['HOME']}/.config'}/legion_frontend/automation_rules.json',
+          );
 
-class AutomationRepository extends PrivilegedRepository {
-  const AutomationRepository({
-    required LegionSysfsService sysfsService,
-    required super.bridgeService,
-  }) : _sysfsService = sysfsService;
-
-  @override
-  Exception wrapBridgeError(AppFailure failure) =>
-      AutomationRepositoryException(
-        failure.message,
-        kind: failure.kind,
-        details: failure.details,
-      );
-
-  final LegionSysfsService _sysfsService;
+  final File _configFile;
 
   Future<AutomationConfig> loadConfig() async {
-    final file = _configFile;
-    if (!await file.exists()) {
-      return AutomationConfig.defaults();
+    if (!await _configFile.exists()) return AutomationConfig.defaults();
+    final parsed = jsonDecode(await _configFile.readAsString());
+    if (parsed is! Map<String, dynamic>) {
+      throw const FormatException(
+        'Keyboard assignments must be a JSON object.',
+      );
     }
-
-    try {
-      final raw = await file.readAsString();
-      final parsed = jsonDecode(raw);
-      if (parsed is Map<String, dynamic>) {
-        return AutomationConfig.fromJson(parsed);
-      }
-      if (parsed is Map) {
-        return AutomationConfig.fromJson(parsed.cast<String, dynamic>());
-      }
-      return AutomationConfig.defaults();
-    } catch (_) {
-      return AutomationConfig.defaults();
-    }
+    return AutomationConfig.fromJson(parsed);
   }
 
   Future<void> saveConfig(AutomationConfig config) async {
-    final file = _configFile;
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
+    await _configFile.parent.create(recursive: true);
+    final pending = File('${_configFile.path}.pending');
+    await pending.writeAsString(
       const JsonEncoder.withIndent('  ').convert(config.toJson()),
+      flush: true,
     );
-  }
-
-  Future<AutomationTriggerSnapshot> readTriggerSnapshot() async {
-    final profile = await _sysfsService.readPlatformProfile();
-    final onSupply = await _sysfsService.readOnPowerSupplyMode();
-
-    return AutomationTriggerSnapshot(
-      platformProfile: profile,
-      onPowerSupply: onSupply,
-    );
-  }
-
-  Future<void> applyFanPresetForCurrentContext() async {
-    await runControlOperation(
-      (client) => client.applyCurrentFanPreset(),
-      method: 'fan_curve.apply_context_preset',
-      failurePrefix: 'Failed to apply fan preset for current context',
-    );
-  }
-
-  Future<void> applyCustomConservation({
-    required int lowerLimit,
-    required int upperLimit,
-  }) async {
-    await runControlOperation(
-      (client) => client.applyCustomConservation(lowerLimit, upperLimit),
-      args: ['$lowerLimit', '$upperLimit'],
-      method: 'battery_conservation.custom_apply',
-      failurePrefix: 'Failed to apply custom conservation automation',
-    );
-  }
-
-  Future<void> setRapidChargingEnabled(bool enabled) async {
-    await runControlOperation(
-      (client) => client.setToggle(ControlToggle.rapidCharging, enabled),
-      args: ['$enabled'],
-      method: 'rapid_charging.set',
-      failurePrefix:
-          'Failed to set rapid charging to ${enabled ? 'on' : 'off'} in automation',
-    );
-  }
-
-  /// Runs [command] as the current user (NOT privileged — no pkexec).
-  /// Returns the trimmed stdout on success.
-  /// Throws [AutomationRepositoryException] on non-zero exit or timeout.
-  Future<String> runShellCommand(String command) async {
-    try {
-      final result = await Process.run('sh', [
-        '-c',
-        command,
-      ]).timeout(const Duration(seconds: 30));
-      if (result.exitCode == 0) {
-        return '${result.stdout}'.trim();
-      }
-      final stderr = '${result.stderr}'.trim();
-      final detail = stderr.isNotEmpty ? ': $stderr' : '';
-      throw AutomationRepositoryException(
-        'External command exited with code ${result.exitCode}$detail',
-      );
-    } on TimeoutException {
-      throw const AutomationRepositoryException(
-        'External command timed out after 30 seconds.',
-      );
-    } on ProcessException catch (e) {
-      throw AutomationRepositoryException(
-        'Failed to start external command: ${e.message}',
-      );
-    }
-  }
-
-  File get _configFile {
-    final home = Platform.environment['HOME'];
-    final baseDir = home != null && home.isNotEmpty
-        ? Directory(home)
-        : Directory('/tmp');
-    return File(
-      '${baseDir.path}/.config/legion_frontend/automation_rules.json',
-    );
+    await pending.rename(_configFile.path);
   }
 }

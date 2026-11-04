@@ -2,298 +2,86 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
-import 'package:legion_frontend/features/automation/models/automation_trigger_snapshot.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
-import 'package:legion_frontend/features/automation/repository/automation_repository.dart';
 import 'package:legion_frontend/features/automation/view/automation_page.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:legion_frontend/features/dashboard/providers/dashboard_provider.dart';
+import 'package:legion_frontend/features/lighting/providers/lighting_provider.dart';
 
-class _AutomationRepo extends Mock implements AutomationRepository {}
-
-class _AutomationConfigFake extends Fake implements AutomationConfig {}
+import '../../support/keyboard_automation_fakes.dart';
 
 void main() {
-  late _AutomationRepo repository;
-
-  setUpAll(() {
-    registerFallbackValue(_AutomationConfigFake());
-    WidgetController.hitTestWarningShouldBeFatal = true;
-  });
-  tearDownAll(() => WidgetController.hitTestWarningShouldBeFatal = false);
-
+  late MemoryAssignments assignments;
+  late MemoryLightingProfiles profiles;
   setUp(() {
-    repository = _AutomationRepo();
-    when(repository.loadConfig).thenAnswer(
-      (_) async => AutomationConfig.defaults().copyWith(
-        runExternalCommand: true,
-        externalCommand: 'notify-send "Automation ran"',
-      ),
-    );
-    when(repository.readTriggerSnapshot).thenAnswer(
-      (_) async => const AutomationTriggerSnapshot(
-        platformProfile: 'balanced',
-        onPowerSupply: true,
-      ),
-    );
-    when(() => repository.saveConfig(any())).thenAnswer((_) async {});
-    when(repository.applyFanPresetForCurrentContext).thenAnswer((_) async {});
-    when(
-      () => repository.applyCustomConservation(
-        lowerLimit: any(named: 'lowerLimit'),
-        upperLimit: any(named: 'upperLimit'),
-      ),
-    ).thenAnswer((_) async {});
-    when(
-      () => repository.setRapidChargingEnabled(any()),
-    ).thenAnswer((_) async {});
-    when(
-      () => repository.runShellCommand(any()),
-    ).thenAnswer((_) async => 'done');
+    assignments = MemoryAssignments();
+    profiles = MemoryLightingProfiles();
   });
-
-  Future<void> pumpPage(
-    WidgetTester tester, {
-    ThemeMode mode = ThemeMode.light,
-  }) async {
+  Future<void> pumpPage(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [automationRepositoryProvider.overrideWithValue(repository)],
-        child: MaterialApp(
-          themeMode: mode,
-          theme: ThemeData.light(),
-          darkTheme: ThemeData.dark(),
-          home: const Scaffold(body: AutomationPage()),
-        ),
+        overrides: [
+          automationRepositoryProvider.overrideWithValue(assignments),
+          dashboardRepositoryProvider.overrideWithValue(ObservedPowerMode()),
+          rgbLightingRepositoryProvider.overrideWithValue(RecordingKeyboard()),
+          spectrumRgbRepositoryProvider.overrideWithValue(NoNativeKeyboard()),
+          rgbLightingStoreProvider.overrideWithValue(profiles),
+        ],
+        child: const MaterialApp(home: Scaffold(body: AutomationPage())),
       ),
     );
     await tester.pumpAndSettle();
   }
 
   testWidgets(
-    'explains setup with visible power choices and advanced details',
+    'assigns and clears a named profile with the production provider',
     (tester) async {
       await pumpPage(tester);
-      expect(find.textContaining('Let Legion adjust'), findsOneWidget);
-      expect(find.text('When power changes'), findsOneWidget);
-      expect(find.text('When this happens'), findsOneWidget);
-      expect(find.text('Do this'), findsOneWidget);
-      expect(find.text('Power mode changes'), findsOneWidget);
-      expect(find.text('Charger connected or disconnected'), findsOneWidget);
-      expect(find.text('Apply matching fan preset'), findsOneWidget);
-      expect(find.text('Maintain charge limits'), findsOneWidget);
-      expect(find.text('Set rapid charging'), findsOneWidget);
-      expect(find.text('Apply now'), findsOneWidget);
-
-      await tester.ensureVisible(find.text('Advanced'));
+      expect(find.text('Keyboard profiles by power mode'), findsOneWidget);
+      expect(find.text('Current mode: Balanced'), findsOneWidget);
+      final quiet = find.byType(DropdownButtonFormField<String>).first;
+      await tester.ensureVisible(quiet);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Advanced'));
+      await tester.tap(quiet);
       await tester.pumpAndSettle();
-      expect(find.text('Check every 10 seconds'), findsOneWidget);
-      await tester.ensureVisible(find.text('Run a shell command'));
+      await tester.tap(find.text('Night').last);
       await tester.pumpAndSettle();
-      expect(find.text('Run a shell command').hitTestable(), findsOneWidget);
-      expect(find.text('Only after a selected power change'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-
-  testWidgets('missing power changes explain the next step and save a choice', (
-    tester,
-  ) async {
-    when(repository.loadConfig).thenAnswer(
-      (_) async => AutomationConfig.defaults().copyWith(
-        triggerOnProfileChange: false,
-        triggerOnPowerSourceChange: false,
-      ),
-    );
-    await pumpPage(tester);
-    expect(
-      find.text(
-        'Choose at least one change to apply these actions automatically.',
-      ),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Power mode changes'));
-    await tester.pumpAndSettle();
-    verify(
-      () => repository.saveConfig(
-        any(
-          that: isA<AutomationConfig>().having(
-            (config) => config.triggerOnProfileChange,
-            'power mode changes',
-            true,
-          ),
-        ),
-      ),
-    ).called(1);
-    expect(
-      find.text(
-        'Choose at least one change to apply these actions automatically.',
-      ),
-      findsNothing,
-    );
-    verifyNever(repository.applyFanPresetForCurrentContext);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets(
-    'charge limits are revealed on request and saved before running',
-    (tester) async {
-      await pumpPage(tester);
-      expect(
-        find.widgetWithText(TextField, 'Lower limit (%)').hitTestable(),
-        findsNothing,
-      );
-      await tester.ensureVisible(find.text('Maintain charge limits'));
+      expect(assignments.config.profiles[KeyboardPowerMode.quiet], 'Night');
+      await tester.tap(quiet);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Maintain charge limits'));
+      await tester.tap(find.text('Leave unchanged').last);
       await tester.pumpAndSettle();
-      final lower = find.widgetWithText(TextField, 'Lower limit (%)');
-      await tester.ensureVisible(lower);
-      await tester.pumpAndSettle();
-      await tester.enterText(lower, '50');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-      verify(
-        () => repository.saveConfig(
-          any(
-            that: isA<AutomationConfig>().having(
-              (config) => config.conservationLowerLimit,
-              'lower limit',
-              50,
-            ),
-          ),
-        ),
-      ).called(1);
-      verifyNever(
-        () => repository.applyCustomConservation(
-          lowerLimit: any(named: 'lowerLimit'),
-          upperLimit: any(named: 'upperLimit'),
-        ),
-      );
+      expect(assignments.config.profiles, isEmpty);
       await tester.pumpWidget(const SizedBox());
     },
   );
 
   testWidgets(
-    'automatic checks and interval persist through production provider',
+    'empty and deleted profiles have actionable guidance at compact size',
     (tester) async {
-      await pumpPage(tester);
-      await tester.ensureVisible(find.text('Enable automation'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable automation'));
-      await tester.pumpAndSettle();
-      verify(
-        () => repository.saveConfig(
-          any(
-            that: isA<AutomationConfig>().having(
-              (c) => c.runnerEnabled,
-              'runnerEnabled',
-              true,
-            ),
-          ),
-        ),
-      ).called(1);
-
-      await tester.ensureVisible(find.text('Advanced'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Advanced'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byType(Slider));
-      clearInteractions(repository);
-      final slider = tester.getRect(find.byType(Slider));
-      await tester.tapAt(Offset(slider.center.dx + 40, slider.center.dy));
-      await tester.pumpAndSettle();
-      verify(
-        () => repository.saveConfig(
-          any(
-            that: isA<AutomationConfig>().having(
-              (c) => c.pollIntervalSeconds,
-              'poll interval',
-              greaterThan(10),
-            ),
-          ),
-        ),
-      ).called(1);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-
-  testWidgets('renders the full persisted poll interval range', (tester) async {
-    when(repository.loadConfig).thenAnswer(
-      (_) async =>
-          AutomationConfig.defaults().copyWith(pollIntervalSeconds: 300),
-    );
-    await pumpPage(tester);
-    await tester.ensureVisible(find.text('Advanced'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Advanced'));
-    await tester.pumpAndSettle();
-    expect(find.text('Check every 300 seconds'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('apply now requires confirmation and reports the completed run', (
-    tester,
-  ) async {
-    await pumpPage(tester);
-    await tester.ensureVisible(find.text('Apply now'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Apply now'));
-    await tester.pumpAndSettle();
-    expect(find.text('Apply enabled actions now'), findsOneWidget);
-    verifyNever(() => repository.applyFanPresetForCurrentContext());
-
-    await tester.ensureVisible(find.text('Apply now').last);
-    await tester.tap(find.text('Apply now').last);
-    await tester.pumpAndSettle();
-    verify(() => repository.applyFanPresetForCurrentContext()).called(1);
-    expect(find.text('Activity'), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  for (final mode in ThemeMode.values) {
-    testWidgets('fits compact width with enlarged text in $mode', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(420, 900);
+      tester.view.physicalSize = const Size(420, 500);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            automationRepositoryProvider.overrideWithValue(repository),
-          ],
-          child: MaterialApp(
-            themeMode: mode,
-            theme: ThemeData.light(),
-            darkTheme: ThemeData.dark(),
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: const TextScaler.linear(1.6)),
-              child: child!,
-            ),
-            home: const Scaffold(body: AutomationPage()),
-          ),
-        ),
+      profiles.profiles.clear();
+      assignments.config = assignments.config.assign(
+        KeyboardPowerMode.quiet,
+        'Deleted',
       );
+      await pumpPage(tester);
+      expect(find.text('Deleted (missing)'), findsOneWidget);
+      expect(find.textContaining('This profile was deleted'), findsOneWidget);
+      await tester.ensureVisible(find.text('Manage lighting profiles'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Advanced'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Advanced'));
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('Activity'),
-        250,
-        scrollable: find.byType(Scrollable).first,
+      expect(
+        find.text('Manage lighting profiles').hitTestable(),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Save a named profile in Lighting'),
+        findsOneWidget,
       );
       expect(tester.takeException(), isNull);
-      expect(find.text('Apply now'), findsOneWidget);
-      expect(find.text('Set rapid charging'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
-    });
-  }
+    },
+  );
 }

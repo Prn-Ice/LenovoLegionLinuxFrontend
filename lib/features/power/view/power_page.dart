@@ -10,6 +10,8 @@ import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../dashboard/widgets/mode_hero.dart';
 import '../../dashboard/widgets/quick_controls.dart';
+import '../../battery/bloc/battery_event.dart';
+import '../../battery/providers/battery_provider.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/power_bloc.dart';
@@ -38,6 +40,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(powerBlocProvider);
+    final battery = ref.watch(batteryBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(powerBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
@@ -47,7 +50,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
     }
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? battery.errorMessage,
       children: [
         ModeHero(
           accent: accent,
@@ -68,6 +71,46 @@ class _PowerPageState extends ConsumerState<PowerPage> {
           packagePowerW: sensors.cpuPackagePowerW,
         ),
         const SizedBox(height: 16),
+        if (battery.rapidChargingSupported) ...[
+          SurfaceCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                YaruSwitchListTile(
+                  value: battery.rapidChargingEnabled ?? false,
+                  onChanged: battery.isApplying || battery.isLoading
+                      ? null
+                      : (enabled) async {
+                          final confirmed = await confirmPrivilegedAction(
+                            context,
+                            title:
+                                '${enabled ? 'Enable' : 'Disable'} rapid charging',
+                            message:
+                                'Rapid charging charges the battery faster when the charger is connected.',
+                            confirmLabel: enabled ? 'Enable' : 'Disable',
+                          );
+                          if (!context.mounted || !confirmed) return;
+                          final current = ref.read(batteryBlocProvider);
+                          if (current.isApplying ||
+                              !current.rapidChargingSupported) {
+                            return;
+                          }
+                          ref
+                              .read(batteryBlocProvider.bloc)
+                              .add(RapidChargingSetRequested(enabled));
+                        },
+                  title: const Text('Rapid charging'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Charge faster when plugged in. You can set this preference while on battery; charging starts only with external power.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         _PowerLimitsCard(
           readings: state.powerLimits,
           accent: accent,

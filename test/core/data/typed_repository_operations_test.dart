@@ -9,7 +9,6 @@ import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dar
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
 import 'package:legion_frontend/core/services/xrandr_service.dart';
-import 'package:legion_frontend/features/automation/repository/automation_repository.dart';
 import 'package:legion_frontend/features/battery/repository/battery_repository.dart';
 import 'package:legion_frontend/features/boot_logo/repository/boot_logo_repository.dart';
 import 'package:legion_frontend/features/dashboard/repository/dashboard_repository.dart';
@@ -74,10 +73,6 @@ void main() {
       bridgeService: bridge,
     );
     final fans = FansRepository(sysfsService: sysfs, bridgeService: bridge);
-    final automation = AutomationRepository(
-      sysfsService: sysfs,
-      bridgeService: bridge,
-    );
     final dashboard = DashboardRepository(
       sysfsService: sysfs,
       bridgeService: bridge,
@@ -127,22 +122,6 @@ void main() {
         () => fans.setMaximumFanSpeed(true),
         'SetToggle',
         ['maximum-fan-speed', true],
-      ),
-      (
-        () => automation.applyFanPresetForCurrentContext(),
-        'ApplyCurrentFanPreset',
-        [],
-      ),
-      (
-        () =>
-            automation.applyCustomConservation(lowerLimit: 40, upperLimit: 80),
-        'ApplyCustomConservation',
-        [40, 80],
-      ),
-      (
-        () => automation.setRapidChargingEnabled(true),
-        'SetToggle',
-        ['rapid-charging', true],
       ),
       (
         () => dashboard.setHybridMode(false),

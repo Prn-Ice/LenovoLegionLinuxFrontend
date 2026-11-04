@@ -23,6 +23,18 @@ import 'package:legion_frontend/features/automation/bloc/automation_bloc.dart';
 import 'package:legion_frontend/features/automation/bloc/automation_event.dart';
 import 'package:legion_frontend/features/automation/bloc/automation_state.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
+import 'package:legion_frontend/features/automation/models/automation_config.dart';
+import 'package:legion_frontend/features/lighting/providers/lighting_provider.dart';
+import 'support/keyboard_automation_fakes.dart';
+import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
+import 'package:legion_frontend/features/power/bloc/power_event.dart';
+import 'package:legion_frontend/features/power/bloc/power_state.dart';
+import 'package:legion_frontend/features/power/models/power_mode.dart';
+import 'package:legion_frontend/features/power/providers/power_provider.dart';
+import 'package:legion_frontend/features/sensors/bloc/live_sensor_bloc.dart';
+import 'package:legion_frontend/features/sensors/bloc/live_sensor_event.dart';
+import 'package:legion_frontend/features/sensors/bloc/live_sensor_state.dart';
+import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_bloc.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_event.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_state.dart';
@@ -59,6 +71,11 @@ import 'package:legion_frontend/features/settings/models/appearance_theme.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 
 class _About extends MockBloc<AboutEvent, AboutState> implements AboutBloc {}
+
+class _Power extends MockBloc<PowerEvent, PowerState> implements PowerBloc {}
+
+class _Sensors extends MockBloc<LiveSensorEvent, LiveSensorState>
+    implements LiveSensorBloc {}
 
 class _Automation extends MockBloc<AutomationEvent, AutomationState>
     implements AutomationBloc {}
@@ -114,12 +131,37 @@ void main() {
     for (final size in [const Size(1280, 900), const Size(420, 500)]) {
       final variant =
           '${brightness.name}-${size.width.toInt()}x${size.height.toInt()}';
-      for (final section in [AppSection.settings, AppSection.automation]) {
+      for (final section in [
+        AppSection.settings,
+        AppSection.automation,
+        AppSection.power,
+      ]) {
         testWidgets('${section.name} $variant', (tester) async {
           final navigation = NavigationBloc()
             ..add(NavigationSectionSelected(section));
           await tester.pump();
           final about = _About();
+          final power = _Power();
+          final sensors = _Sensors();
+          whenListen(
+            power,
+            const Stream<PowerState>.empty(),
+            initialState: PowerState.initial().copyWith(
+              currentMode: const PowerMode('balanced'),
+              availableModes: const [
+                PowerMode('quiet'),
+                PowerMode('balanced'),
+                PowerMode('performance'),
+                PowerMode('custom'),
+              ],
+              onPowerSupply: false,
+            ),
+          );
+          whenListen(
+            sensors,
+            const Stream<LiveSensorState>.empty(),
+            initialState: LiveSensorState.initial().copyWith(isLoading: false),
+          );
           final automation = _Automation();
           final battery = _Battery();
           final boot = _BootLogo();
@@ -135,7 +177,15 @@ void main() {
           whenListen(
             automation,
             const Stream<AutomationState>.empty(),
-            initialState: AutomationState.initial(),
+            initialState: AutomationState.initial().copyWith(
+              hasLoaded: true,
+              config: AutomationConfig(
+                profiles: {
+                  KeyboardPowerMode.quiet: 'Night',
+                  KeyboardPowerMode.performance: 'Gaming',
+                },
+              ),
+            ),
           );
           whenListen(
             battery,
@@ -143,6 +193,8 @@ void main() {
             initialState: BatteryState.initial().copyWith(
               batteryPercent: 78,
               batteryCharging: false,
+              rapidChargingSupported: true,
+              rapidChargingEnabled: true,
             ),
           );
           whenListen(
@@ -204,6 +256,17 @@ void main() {
             brightness,
             ProviderScope(
               overrides: [
+                powerBlocProvider.overrideWith((ref) => power),
+                liveSensorBlocProvider.overrideWith((ref) => sensors),
+                rgbLightingRepositoryProvider.overrideWithValue(
+                  RecordingKeyboard(),
+                ),
+                spectrumRgbRepositoryProvider.overrideWithValue(
+                  NoNativeKeyboard(),
+                ),
+                rgbLightingStoreProvider.overrideWithValue(
+                  MemoryLightingProfiles(),
+                ),
                 navigationBlocProvider.overrideWith((ref) => navigation),
                 aboutBlocProvider.overrideWith((ref) => about),
                 automationBlocProvider.overrideWith((ref) => automation),
@@ -218,17 +281,6 @@ void main() {
             ),
           );
           await _capture(tester, '${section.name}-$variant-top');
-          if (section == AppSection.automation) {
-            final expandables = find.byType(YaruExpandable);
-            if (expandables.evaluate().isNotEmpty) {
-              final header = find.text('Advanced');
-              await tester.ensureVisible(header);
-              await tester.pumpAndSettle();
-              await tester.tap(header);
-              await tester.pumpAndSettle();
-              await _capture(tester, '${section.name}-$variant-advanced');
-            }
-          }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
           final scrollables = find.descendant(
@@ -274,8 +326,7 @@ void main() {
                     SizedBox(height: 24),
                     PlatformOsd(
                       event: AutomationChanged(
-                        description:
-                            'Power context changed; fan preset applied.',
+                        description: 'Performance keyboard profile applied.',
                       ),
                     ),
                   ],

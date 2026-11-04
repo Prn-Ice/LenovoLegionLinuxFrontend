@@ -1,76 +1,45 @@
 import 'package:equatable/equatable.dart';
-
 import '../../../core/models/app_failure.dart';
 import '../models/automation_config.dart';
-import '../models/automation_trigger_snapshot.dart';
 
 class AutomationState extends Equatable {
   const AutomationState({
     required this.config,
-    required this.currentSnapshot,
-    required this.isLoading,
-    required this.isExecuting,
-    required this.lastRunAt,
-    required this.lastRunSummary,
-    required this.errorMessage,
+    this.hasLoaded = false,
+    this.isLoading = false,
+    this.isSaving = false,
+    this.errorMessage,
   });
 
-  factory AutomationState.initial() => AutomationState(
-    config: AutomationConfig.defaults(),
-    currentSnapshot: null,
-    isLoading: false,
-    isExecuting: false,
-    lastRunAt: null,
-    lastRunSummary: null,
-    errorMessage: null,
-  );
-
-  static const _unset = Object();
+  factory AutomationState.initial() =>
+      AutomationState(config: AutomationConfig.defaults());
 
   final AutomationConfig config;
-  final AutomationTriggerSnapshot? currentSnapshot;
+  final bool hasLoaded;
   final bool isLoading;
-  final bool isExecuting;
-  final DateTime? lastRunAt;
-  final String? lastRunSummary;
+  final bool isSaving;
   final AppFailure? errorMessage;
-
-  bool get isRunnerActive => config.runnerEnabled;
 
   AutomationState copyWith({
     AutomationConfig? config,
-    Object? currentSnapshot = _unset,
+    bool? hasLoaded,
     bool? isLoading,
-    bool? isExecuting,
-    Object? lastRunAt = _unset,
-    Object? lastRunSummary = _unset,
-    Object? errorMessage = _unset,
-  }) {
-    return AutomationState(
-      config: config ?? this.config,
-      currentSnapshot: currentSnapshot == _unset
-          ? this.currentSnapshot
-          : currentSnapshot as AutomationTriggerSnapshot?,
-      isLoading: isLoading ?? this.isLoading,
-      isExecuting: isExecuting ?? this.isExecuting,
-      lastRunAt: lastRunAt == _unset ? this.lastRunAt : lastRunAt as DateTime?,
-      lastRunSummary: lastRunSummary == _unset
-          ? this.lastRunSummary
-          : lastRunSummary as String?,
-      errorMessage: errorMessage == _unset
-          ? this.errorMessage
-          : AppFailure.optional(errorMessage),
-    );
-  }
+    bool? isSaving,
+    Object? errorMessage,
+  }) => AutomationState(
+    config: config ?? this.config,
+    hasLoaded: hasLoaded ?? this.hasLoaded,
+    isLoading: isLoading ?? this.isLoading,
+    isSaving: isSaving ?? this.isSaving,
+    errorMessage: AppFailure.optional(errorMessage),
+  );
 
   @override
   List<Object?> get props => [
     config,
-    currentSnapshot,
+    hasLoaded,
     isLoading,
-    isExecuting,
-    lastRunAt,
-    lastRunSummary,
+    isSaving,
     errorMessage,
   ];
 }

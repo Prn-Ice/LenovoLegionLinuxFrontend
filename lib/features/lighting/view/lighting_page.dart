@@ -94,18 +94,6 @@ class _LightingPageState extends ConsumerState<LightingPage> {
     final theme = Theme.of(context);
     final accent = theme.colorScheme.primary;
 
-    // Keep the animation engine in sync with the painting + effect assignments.
-    ref.listen(rgbLightingBlocProvider, (_, next) {
-      final dev = next.device;
-      if (next.available && dev != null) {
-        engine.configure(
-          base: next.keyColors,
-          leds: dev.leds,
-          effects: next.effects,
-        );
-      }
-    });
-
     final scopeIndices = _scopeIndices(device?.leds ?? const []);
     final isCustom = _scope == _customKeysScope;
 

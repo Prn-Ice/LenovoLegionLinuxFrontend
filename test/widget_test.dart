@@ -31,7 +31,11 @@ import 'package:legion_frontend/features/display/models/display_snapshot.dart';
 import 'package:legion_frontend/features/display/providers/display_provider.dart';
 import 'package:legion_frontend/features/display/repository/display_repository.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
-import 'package:legion_frontend/features/automation/models/automation_trigger_snapshot.dart';
+import 'package:legion_frontend/features/lighting/providers/lighting_provider.dart';
+import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
+import 'package:legion_frontend/features/lighting/repository/rgb_lighting_store.dart';
+import 'package:legion_frontend/features/lighting/repository/spectrum_rgb_repository.dart';
+import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
 import 'package:legion_frontend/features/automation/repository/automation_repository.dart';
 import 'package:legion_frontend/features/automation/view/automation_page.dart';
@@ -212,13 +216,16 @@ class _FakeAutomationRepository implements AutomationRepository {
 
   @override
   Future<AutomationConfig> loadConfig() async => AutomationConfig.defaults();
+}
 
+class _NoRgb extends RgbLightingRepository {
   @override
-  Future<AutomationTriggerSnapshot> readTriggerSnapshot() async =>
-      const AutomationTriggerSnapshot(
-        platformProfile: null,
-        onPowerSupply: null,
-      );
+  Future<RgbLightingDevice?> loadKeyboard() async => null;
+}
+
+class _NoNative extends SpectrumRgbRepository {
+  @override
+  bool get isAvailable => false;
 }
 
 final _aboutRepository = _FakeAboutRepository();
@@ -231,6 +238,9 @@ final _automationRepository = _FakeAutomationRepository();
 
 Widget _testApp() => ProviderScope(
   overrides: [
+    rgbLightingRepositoryProvider.overrideWithValue(_NoRgb()),
+    spectrumRgbRepositoryProvider.overrideWithValue(_NoNative()),
+    rgbLightingStoreProvider.overrideWithValue(RgbLightingStore(null)),
     legionCliServiceProvider.overrideWith(
       (_) => throw StateError('Shell tests must not launch legion_cli'),
     ),

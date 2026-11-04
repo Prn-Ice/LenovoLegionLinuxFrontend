@@ -4,6 +4,10 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_format.dart';
+import '../../../core/widgets/app_shell_components.dart';
+import '../../automation/providers/automation_runtime_provider.dart';
+import '../../automation/providers/automation_provider.dart';
+import '../../lighting/providers/lighting_provider.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/bloc/battery_state.dart';
 import '../../battery/bloc/battery_event.dart';
@@ -141,9 +145,10 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         () => ref
             .read(dashboardBlocProvider.bloc)
             .add(const DashboardRefreshRequested()),
-      AppSection.power =>
-        () =>
-            ref.read(powerBlocProvider.bloc).add(const PowerRefreshRequested()),
+      AppSection.power => () {
+        ref.read(powerBlocProvider.bloc).add(const PowerRefreshRequested());
+        ref.read(batteryBlocProvider.bloc).add(const BatteryRefreshRequested());
+      },
       AppSection.battery =>
         () => ref
             .read(batteryBlocProvider.bloc)
@@ -174,6 +179,13 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(automationRuntimeProvider);
+    final keyboardError =
+        ref.watch(automationBlocProvider).config.profiles.isNotEmpty
+        ? ref.watch(
+            rgbLightingBlocProvider.select((state) => state.errorMessage),
+          )
+        : null;
     // Keep controllers in sync with the navigation bloc.
     ref.listen(navigationBlocProvider, (prev, next) {
       if (prev?.section == next.section) return;
@@ -182,6 +194,16 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       if (_narrowController.index != idx) _narrowController.index = idx;
     });
 
+    return AppErrorDialogListener(
+      errorMessage:
+          ref.watch(navigationBlocProvider).section == AppSection.lighting
+          ? null
+          : keyboardError,
+      child: _buildLayout(context),
+    );
+  }
+
+  Widget _buildLayout(BuildContext context) {
     final accent = Theme.of(context).colorScheme.primary;
     // The sidebar pane reads a touch darker than the content, per the design.
     final isDark = Theme.of(context).brightness == Brightness.dark;

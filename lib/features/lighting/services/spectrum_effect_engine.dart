@@ -25,6 +25,8 @@ class SpectrumEffectEngine {
   List<Color> _base = const [];
   List<String> _leds = const [];
   List<SpectrumRegionEffect> _effects = const [];
+  void Function(Object)? _onError;
+  bool _disposed = false;
 
   bool get isRunning => _timer != null;
 
@@ -34,10 +36,13 @@ class SpectrumEffectEngine {
     required List<Color> base,
     required List<String> leds,
     required List<SpectrumRegionEffect> effects,
+    void Function(Object)? onError,
   }) {
+    if (_disposed) return;
     _base = base;
     _leds = leds;
     _effects = effects;
+    _onError = onError;
     if (effects.isEmpty) {
       _stop();
     } else {
@@ -57,8 +62,15 @@ class SpectrumEffectEngine {
   void _tick() {
     _t += 1 / fps;
     final composed = composeEffectFrame(base: _base, effects: _effects, t: _t);
-    _native.paint(_leds, composed);
-    frame.value = composed;
+    try {
+      if (!_native.paint(_leds, composed)) {
+        throw StateError('The keyboard stopped accepting animation frames.');
+      }
+      frame.value = composed;
+    } catch (error) {
+      _stop();
+      _onError?.call(error);
+    }
   }
 
   void _stop() {
@@ -68,6 +80,7 @@ class SpectrumEffectEngine {
   }
 
   void dispose() {
+    _disposed = true;
     _timer?.cancel();
     frame.dispose();
   }

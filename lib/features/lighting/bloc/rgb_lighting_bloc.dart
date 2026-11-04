@@ -2,6 +2,7 @@ import 'dart:ui' show Color;
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../models/keyboard_layout.dart';
 import '../models/rgb_lighting_device.dart';
 import '../models/rgb_lighting_snapshot.dart';
@@ -9,6 +10,7 @@ import '../repository/rgb_lighting_repository.dart';
 import '../repository/rgb_lighting_store.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/spectrum_effects.dart';
+import '../services/spectrum_effect_engine.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
 
@@ -18,31 +20,75 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     required RgbLightingRepository repository,
     SpectrumRgbRepository? nativeRepository,
     RgbLightingStore? store,
+    SpectrumEffectEngine? effectEngine,
   }) : _repository = repository,
        _native = nativeRepository,
        _store = store,
+       _effectEngine = effectEngine,
        super(const RgbLightingState()) {
-    on<RgbLightingStarted>(_onStarted);
-    on<RgbLightingRefreshRequested>(_onStarted);
-    on<RgbModeSelected>(_onModeSelected);
-    on<RgbColorSelected>(_onColorSelected);
-    on<RgbBrightnessChanged>(_onBrightnessChanged);
-    on<RgbKeyPainted>(_onKeyPainted);
-    on<RgbKeyErased>(_onKeyErased);
-    on<RgbKeyPicked>(_onKeyPicked);
-    on<RgbRegionFilled>(_onRegionFilled);
-    on<RgbAllKeysFilled>(_onAllKeysFilled);
-    on<RgbEffectAssigned>(_onEffectAssigned);
-    on<RgbEffectsCleared>(_onEffectsCleared);
-    on<RgbScopeEffectCleared>(_onScopeEffectCleared);
-    on<RgbProfileSaved>(_onProfileSaved);
-    on<RgbProfileLoaded>(_onProfileLoaded);
-    on<RgbProfileDeleted>(_onProfileDeleted);
+    // Startup, manual edits and mode-triggered profiles share one write queue.
+    on<RgbLightingEvent>((event, emit) async {
+      if (_closing) return;
+      try {
+        switch (event) {
+          case RgbAnimationFailed():
+            emit(
+              state.copyWith(
+                errorMessage: AppFailure(
+                  'Keyboard animation stopped. Check the keyboard connection in Lighting, then apply the profile again.',
+                  details: '${event.error}',
+                ),
+              ),
+            );
+          case RgbLightingStarted() || RgbLightingRefreshRequested():
+            await _onStarted(event, emit);
+          case RgbModeSelected():
+            await _onModeSelected(event, emit);
+          case RgbColorSelected():
+            await _onColorSelected(event, emit);
+          case RgbBrightnessChanged():
+            await _onBrightnessChanged(event, emit);
+          case RgbKeyPainted():
+            await _onKeyPainted(event, emit);
+          case RgbKeyErased():
+            await _onKeyErased(event, emit);
+          case RgbKeyPicked():
+            _onKeyPicked(event, emit);
+          case RgbRegionFilled():
+            await _onRegionFilled(event, emit);
+          case RgbAllKeysFilled():
+            await _onAllKeysFilled(event, emit);
+          case RgbEffectAssigned():
+            _onEffectAssigned(event, emit);
+          case RgbEffectsCleared():
+            await _onEffectsCleared(event, emit);
+          case RgbScopeEffectCleared():
+            await _onScopeEffectCleared(event, emit);
+          case RgbProfileSaved():
+            await _onProfileSaved(event, emit);
+          case RgbProfileLoaded():
+            await _onProfileLoaded(event, emit);
+          case RgbProfileDeleted():
+            await _onProfileDeleted(event, emit);
+        }
+        if (!_closing &&
+            state.available &&
+            !state.isLoading &&
+            state.errorMessage == null) {
+          await _store?.save(_snapshotOf(state));
+        }
+      } catch (error) {
+        if (_closing) return;
+        emit(state.copyWith(isApplying: false, errorMessage: error));
+      }
+    }, transformer: (events, mapper) => events.asyncExpand(mapper));
   }
 
   final RgbLightingRepository _repository;
   final SpectrumRgbRepository? _native;
   final RgbLightingStore? _store;
+  final SpectrumEffectEngine? _effectEngine;
+  bool _closing = false;
 
   static const Color _off = Color(0xFF000000);
 
@@ -50,9 +96,23 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   void onChange(Change<RgbLightingState> change) {
     super.onChange(change);
     final next = change.nextState;
-    if (next.available && next.device != null && !next.isLoading) {
-      _store?.save(_snapshotOf(next));
-    }
+    _effectEngine?.configure(
+      base: next.keyColors,
+      leds: next.device?.leds ?? const [],
+      effects:
+          !_closing &&
+              next.available &&
+              next.nativeAvailable &&
+              !next.isLoading &&
+              !next.isApplying &&
+              next.errorMessage == null &&
+              next.activeMode == 'Direct'
+          ? next.effects
+          : const [],
+      onError: (error) {
+        if (!_closing) add(RgbAnimationFailed(error));
+      },
+    );
   }
 
   RgbLightingSnapshot _snapshotOf(RgbLightingState s) => RgbLightingSnapshot(
@@ -67,7 +127,13 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     RgbLightingEvent event,
     Emitter<RgbLightingState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true, errorMessage: null));
+    emit(
+      state.copyWith(
+        isLoading: true,
+        errorMessage: null,
+        profileNames: _store?.profileNames() ?? const [],
+      ),
+    );
     String? nativeError;
     try {
       var nativeOk = false;
@@ -85,6 +151,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         if (!nativeOk) rethrow;
       }
       device ??= _syntheticNativeDevice(nativeOk);
+      if (_closing) return;
       if (device == null) {
         emit(
           state.copyWith(
@@ -107,6 +174,17 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           snapshot?.keyColors ?? List<Color>.filled(device.ledCount, _off);
       emit(
         state.copyWith(
+          device: device,
+          available: true,
+          nativeAvailable: nativeOk,
+        ),
+      );
+      if (snapshot != null) {
+        await _writeSnapshot(device, snapshot, nativeAvailable: nativeOk);
+        if (_closing) return;
+      }
+      emit(
+        state.copyWith(
           available: true,
           device: device,
           activeMode: snapshot?.activeMode ?? device.activeMode,
@@ -123,23 +201,11 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           nativeAvailabilityError: nativeError,
         ),
       );
-      // Persist & re-apply: push the remembered painting back to the keyboard.
-      if (snapshot != null) {
-        if (nativeOk && _native != null) {
-          _native.paint(device.leds, keyColors);
-          _native.setBrightness(snapshot.brightness);
-        } else {
-          await _repository.applyDirect(
-            device,
-            keyColors,
-            brightness: snapshot.brightness,
-          );
-        }
-      }
     } catch (error) {
+      if (_closing) return;
       emit(
         state.copyWith(
-          available: false,
+          available: state.device != null,
           isLoading: false,
           errorMessage: error,
           nativeAvailabilityError: nativeError,
@@ -310,7 +376,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         label: event.scope,
       ),
     ];
-    emit(state.copyWith(effects: updated));
+    emit(state.copyWith(effects: updated, activeMode: 'Direct'));
   }
 
   Future<void> _onEffectsCleared(
@@ -340,10 +406,14 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     }
   }
 
-  void _onProfileSaved(RgbProfileSaved event, Emitter<RgbLightingState> emit) {
+  Future<void> _onProfileSaved(
+    RgbProfileSaved event,
+    Emitter<RgbLightingState> emit,
+  ) async {
     final name = event.name.trim();
     if (name.isEmpty) return;
-    _store?.saveProfile(name, _snapshotOf(state));
+    await _store?.saveProfile(name, _snapshotOf(state));
+    if (_closing) return;
     if (!state.profileNames.contains(name)) {
       emit(state.copyWith(profileNames: [...state.profileNames, name]));
     }
@@ -353,39 +423,106 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     RgbProfileLoaded event,
     Emitter<RgbLightingState> emit,
   ) async {
-    final device = state.device;
-    final snapshot = _store?.loadProfile(event.name);
-    if (device == null ||
-        snapshot == null ||
-        snapshot.keyColors.length != device.ledCount) {
-      return;
+    emit(state.copyWith(isApplying: true, errorMessage: null));
+    try {
+      final device = state.device;
+      final snapshot = _store?.loadProfile(event.name);
+      if (snapshot == null) {
+        throw StateError(
+          'Saved profile "${event.name}" no longer exists. Choose another profile in Automation or save it again in Lighting.',
+        );
+      }
+      if (device == null || !state.available) {
+        throw StateError(
+          'No RGB keyboard is available. Open Lighting and reconnect the keyboard backend, then retry.',
+        );
+      }
+      await _writeSnapshot(
+        device,
+        snapshot,
+        nativeAvailable: state.nativeAvailable,
+      );
+      if (_closing) return;
+      emit(
+        state.copyWith(
+          isApplying: false,
+          keyColors: snapshot.keyColors,
+          directColors: snapshot.keyColors,
+          selectedColor: snapshot.selectedColor,
+          brightness: snapshot.brightness,
+          activeMode: snapshot.activeMode ?? 'Direct',
+          effects: snapshot.effects,
+        ),
+      );
+    } catch (error) {
+      if (_closing) return;
+      emit(
+        state.copyWith(
+          isApplying: false,
+          errorMessage: AppFailure.from(
+            error,
+            message:
+                'Could not apply keyboard profile "${event.name}". The keyboard may be partly updated. Check the profile in Lighting, then retry from Automation.',
+          ),
+        ),
+      );
     }
-    emit(
-      state.copyWith(
-        keyColors: snapshot.keyColors,
-        selectedColor: snapshot.selectedColor,
-        brightness: snapshot.brightness,
-        activeMode: snapshot.activeMode,
-        effects: snapshot.effects,
-      ),
-    );
-    if (state.nativeAvailable && _native != null) {
-      _native.paint(device.leds, snapshot.keyColors);
-      _native.setBrightness(snapshot.brightness);
-    } else {
+  }
+
+  Future<void> _writeSnapshot(
+    RgbLightingDevice device,
+    RgbLightingSnapshot snapshot, {
+    required bool nativeAvailable,
+  }) async {
+    if (snapshot.keyColors.length != device.ledCount) {
+      throw StateError(
+        'This profile was saved for a different keyboard. Save a new profile in Lighting.',
+      );
+    }
+    final mode = snapshot.activeMode ?? 'Direct';
+    if (!device.modes.contains(mode)) {
+      throw StateError(
+        'The keyboard backend does not support the saved "$mode" effect.',
+      );
+    }
+    if (mode == 'Direct' &&
+        snapshot.effects.isNotEmpty &&
+        (!nativeAvailable || _effectEngine == null)) {
+      throw StateError(
+        'This profile needs the native Spectrum animation backend.',
+      );
+    }
+    if (nativeAvailable &&
+        _native != null &&
+        (mode == 'Direct' || mode == 'Static')) {
+      if (!_native.paint(device.leds, snapshot.keyColors)) {
+        throw StateError('The keyboard did not accept its colors.');
+      }
+      if (!_native.setBrightness(snapshot.brightness)) {
+        throw StateError('The keyboard did not accept its brightness.');
+      }
+    } else if (mode == 'Direct') {
       await _repository.applyDirect(
         device,
         snapshot.keyColors,
         brightness: snapshot.brightness,
       );
+    } else {
+      await _repository.applyMode(
+        device,
+        mode,
+        color: snapshot.selectedColor,
+        brightness: snapshot.brightness,
+      );
     }
   }
 
-  void _onProfileDeleted(
+  Future<void> _onProfileDeleted(
     RgbProfileDeleted event,
     Emitter<RgbLightingState> emit,
-  ) {
-    _store?.deleteProfile(event.name);
+  ) async {
+    await _store?.deleteProfile(event.name);
+    if (_closing) return;
     emit(
       state.copyWith(
         profileNames: state.profileNames
@@ -473,9 +610,18 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   ) async {
     try {
       await action();
+      if (_closing) return;
       emit(state.copyWith(isApplying: false, errorMessage: null));
     } catch (error) {
+      if (_closing) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
+  }
+
+  @override
+  Future<void> close() {
+    _closing = true;
+    _effectEngine?.configure(base: const [], leds: const [], effects: const []);
+    return super.close();
   }
 }

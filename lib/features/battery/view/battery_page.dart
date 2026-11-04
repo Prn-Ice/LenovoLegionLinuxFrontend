@@ -457,9 +457,7 @@ class _BatteryControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth >= 940
-            ? (constraints.maxWidth - 24) / 3
-            : constraints.maxWidth >= 620
+        final width = constraints.maxWidth >= 620
             ? (constraints.maxWidth - 12) / 2
             : constraints.maxWidth;
         return Wrap(
@@ -479,20 +477,6 @@ class _BatteryControls extends StatelessWidget {
                     state.batteryConservationSupported && !state.isApplying
                     ? (enabled) =>
                           bloc.add(BatteryConservationSetRequested(enabled))
-                    : null,
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: _ControlTile(
-                icon: YaruIcons.thunderbolt,
-                title: 'Rapid charge',
-                subtitle: state.rapidChargingSupported
-                    ? 'Charge to full faster'
-                    : 'Not supported on this device',
-                value: state.rapidChargingEnabled ?? false,
-                onChanged: state.rapidChargingSupported && !state.isApplying
-                    ? (enabled) => bloc.add(RapidChargingSetRequested(enabled))
                     : null,
               ),
             ),

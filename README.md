@@ -10,7 +10,7 @@ A Linux desktop app for controlling Lenovo Legion laptops with [LenovoLegionLinu
 - Fn-lock and touchpad controls; camera status
 - Boot logo customization
 - Discrete GPU monitoring
-- Run programs when the power mode changes
+- [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md)
 - Keyboard lighting through Spectrum HID or OpenRGB
 - Real-time dashboard
 
