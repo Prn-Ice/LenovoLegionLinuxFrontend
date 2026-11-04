@@ -39,15 +39,19 @@ class SafeApp {
     this.directory,
     this.conservationFile, {
     required bool ownsDirectory,
+    required this.hasFanFixture,
   }) : _ownsDirectory = ownsDirectory;
 
   final Directory directory;
   final File conservationFile;
   final bool _ownsDirectory;
+  final bool hasFanFixture;
   final writes = <bool>[];
   final requests = <bool>[];
   final platformProfileWrites = <FixturePlatformProfile>[];
   final platformProfileRequests = <FixturePlatformProfile>[];
+  final fanPresetWrites = <ControlFanPreset>[];
+  final fanPresetRequests = <ControlFanPreset>[];
   ControlFailure? nextFailure;
   Completer<void>? writeCompletion;
   bool _controlCreated = false;
@@ -59,6 +63,7 @@ class SafeApp {
   static Future<SafeApp> create({
     Directory? fixtureDirectory,
     bool acOnline = true,
+    bool includeFanFixture = false,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
       FixturePlatformProfile.balanced,
@@ -81,6 +86,7 @@ class SafeApp {
       directory,
       profileChoices: profileChoices,
       acOnline: acOnline,
+      includeFanFixture: includeFanFixture,
     );
     Hive.init('${directory.path}/storage');
     if (!Hive.isAdapterRegistered(1)) {
@@ -96,6 +102,7 @@ class SafeApp {
         'VPC2004:00/conservation_mode',
       ),
       ownsDirectory: ownsDirectory,
+      hasFanFixture: includeFanFixture,
     );
   }
 
@@ -103,6 +110,7 @@ class SafeApp {
     Directory directory, {
     required List<FixturePlatformProfile> profileChoices,
     required bool acOnline,
+    required bool includeFanFixture,
   }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -123,6 +131,39 @@ class SafeApp {
     await File('${ac.path}/type').writeAsString('Mains\n');
     await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
     await Directory('${directory.path}/proc').create(recursive: true);
+    if (includeFanFixture) {
+      await _prepareFanFixture(directory);
+    }
+  }
+
+  static Future<void> _prepareFanFixture(Directory directory) async {
+    final controller = Directory(
+      '${directory.path}/sys/module/legion_laptop/drivers/platform:legion/'
+      'legion/hwmon/hwmon0',
+    );
+    await controller.create(recursive: true);
+    await File('${controller.path}/name').writeAsString('legion_hwmon\n');
+    await File('${controller.path}/fan1_max').writeAsString('10000\n');
+    await File('${controller.path}/fan2_max').writeAsString('9000\n');
+    for (var point = 1; point <= 10; point++) {
+      final values = <String, int>{
+        'pwm1_auto_point${point}_pwm': point * 20,
+        'pwm2_auto_point${point}_pwm': point * 20,
+        'pwm1_auto_point${point}_temp_hyst': 3,
+        'pwm1_auto_point${point}_temp': 30 + point * 5,
+        'pwm2_auto_point${point}_temp_hyst': 3,
+        'pwm2_auto_point${point}_temp': 32 + point * 5,
+        'pwm3_auto_point${point}_temp_hyst': 2,
+        'pwm3_auto_point${point}_temp': 35 + point * 5,
+        'pwm1_auto_point${point}_accel': 4,
+        'pwm1_auto_point${point}_decel': 8,
+      };
+      for (final entry in values.entries) {
+        await File(
+          '${controller.path}/${entry.key}',
+        ).writeAsString('${entry.value}\n');
+      }
+    }
   }
 
   Future<void> launch({List<Override> additionalOverrides = const []}) async {
@@ -239,6 +280,28 @@ class _FixtureControl implements LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'ApplyFanPreset' &&
+        app.hasFanFixture &&
+        arguments.length == 1 &&
+        arguments.single is String) {
+      final preset = ControlFanPreset.values
+          .where((value) => value.wireValue == arguments.single)
+          .firstOrNull;
+      if (preset == null) {
+        throw StateError('Unexpected fan preset: ${arguments.single}');
+      }
+      app.fanPresetRequests.add(preset);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the write. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      await _writeFanPreset(app, preset);
+      app.fanPresetWrites.add(preset);
+      return;
+    }
     if (method == 'SetFeature' &&
         arguments.length == 2 &&
         arguments.first == ControlFeature.platformProfile.wireValue &&
@@ -281,6 +344,29 @@ class _FixtureControl implements LegionControlTransport {
     await app.writeCompletion?.future;
     await app.conservationFile.writeAsString(enabled ? '1\n' : '0\n');
     app.writes.add(enabled);
+  }
+
+  Future<void> _writeFanPreset(SafeApp app, ControlFanPreset preset) async {
+    final controller =
+        '${app.directory.path}/sys/module/legion_laptop/'
+        'drivers/platform:legion/legion/hwmon/hwmon0';
+    final pwmStep = switch (preset) {
+      ControlFanPreset.quietBattery || ControlFanPreset.quietAc => 12,
+      ControlFanPreset.balancedBattery || ControlFanPreset.balancedAc => 16,
+      ControlFanPreset.performanceBattery ||
+      ControlFanPreset.performanceAc => 24,
+      ControlFanPreset.balancedPerformanceBattery ||
+      ControlFanPreset.balancedPerformanceAc => 18,
+    };
+    for (var point = 1; point <= 10; point++) {
+      final pwm = (point * pwmStep).clamp(0, 255);
+      await File(
+        '$controller/pwm1_auto_point${point}_pwm',
+      ).writeAsString('$pwm\n');
+      await File(
+        '$controller/pwm2_auto_point${point}_pwm',
+      ).writeAsString('$pwm\n');
+    }
   }
 
   @override
