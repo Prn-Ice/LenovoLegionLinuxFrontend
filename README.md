@@ -62,10 +62,9 @@ flutter build linux --release
 
 ## Development
 
-See [Contributing](CONTRIBUTING.md) for portable setup, testing, and the
-[model-support guide](docs/model-support.md). Optional Nix users may set
-`LLLF_DEV_FLAKE` to their own Flutter/Linux development flake before allowing
-direnv. See [dependency notes](docs/dependencies.md) for retained constraints.
+- [Contributor setup and tests](CONTRIBUTING.md)
+- [Adding model support](docs/model-support.md)
+- [Project documentation](docs/README.md)
 
 ```bash
 flutter test
@@ -76,9 +75,7 @@ flutter analyze
 
 Read operations use direct sysfs file reads or the read-only telemetry D-Bus service. Privileged writes use the typed `io.github.prnice.LegionControl1` system-bus API. That root service accepts only allow-listed operations, asks Polkit to authorize the frontend's D-Bus connection, and invokes fixed `legion_cli` or `systemctl` argument vectors without a shell. Dart never writes sysfs directly and never launches a privilege-elevation helper.
 
-See [the architecture overview](docs/architecture/overview.md) for the main
-boundaries. Report problems or propose changes through GitHub issues and pull
-requests.
+See the [architecture overview](docs/architecture/overview.md).
 
 ## License
 

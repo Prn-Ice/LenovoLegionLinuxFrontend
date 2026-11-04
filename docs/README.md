@@ -18,6 +18,3 @@
 - [Firmware power-defaults evidence](power-defaults-evidence.md)
 - [Poweroff diagnostics after dGPU detach](architecture/poweroff-stall-investigation.md)
 - [PipeWire logout crash](architecture/pipewire-logout-crash.md)
-
-Hardware findings are scoped to their recorded model, firmware, and revisions.
-They do not imply support on every Legion laptop.

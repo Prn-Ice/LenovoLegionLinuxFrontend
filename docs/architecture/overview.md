@@ -9,8 +9,7 @@ privilege-elevation helper. Optional desktop automation runs as the user.
 
 The keyboard lighting feature also has a native HID boundary: it communicates
 with supported keyboard devices through HID rather than the privileged control
-service. Device identity, protocol, layout, and calibration must be backed by
-testing; an unknown device is not implicitly supported.
+service.
 
 ## Code boundaries
 
@@ -25,7 +24,7 @@ testing; an unknown device is not implicitly supported.
 
 Keep UI behavior in the existing feature patterns. Repositories isolate external
 I/O; Bloc/Cubit handles feature behavior; Riverpod supplies dependencies and
-lifetime. Add layers only when they clarify a responsibility or boundary.
+lifetime.
 
 ## Following a request
 
