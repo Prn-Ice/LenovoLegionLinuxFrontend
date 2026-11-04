@@ -85,7 +85,12 @@ void main() {
       await tester.pumpAndSettle();
       modes.add(observed('balanced'));
       await tester.pumpAndSettle();
-      expectAccent(LegionAccent.balanced.color);
+      final balancedApp = tester.widget<MaterialApp>(find.byType(MaterialApp));
+      expect(balancedApp.theme!.colorScheme.primary, const Color(0xFF555555));
+      expect(
+        balancedApp.darkTheme!.colorScheme.primary,
+        LegionAccent.balanced.color,
+      );
       modes.add(observed('custom'));
       await tester.pumpAndSettle();
       expectAccent(LegionAccent.custom.color);

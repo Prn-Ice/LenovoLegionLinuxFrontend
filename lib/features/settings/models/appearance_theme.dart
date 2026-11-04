@@ -10,10 +10,14 @@ import '../../../core/theme/legion_accent.dart';
   YaruThemeData fallback,
 ) {
   final accent = LegionAccent.fromPowerModeValue(mode?.trim());
+  // White mode indicators need a dark interaction color on light surfaces.
+  final lightAccent = accent == LegionAccent.balanced
+      ? const Color(0xFF555555)
+      : accent?.color;
   return (
     theme: accent == null
         ? fallback.theme
-        : createYaruLightTheme(primaryColor: accent.color),
+        : createYaruLightTheme(primaryColor: lightAccent!),
     darkTheme: accent == null
         ? fallback.darkTheme
         : createYaruDarkTheme(primaryColor: accent.color),

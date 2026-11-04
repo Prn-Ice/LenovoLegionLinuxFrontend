@@ -229,11 +229,19 @@ void main() {
         const YaruThemeData(variant: YaruVariant.blue),
       );
       // App theme resolution generates component subthemes, not just primary.
-      for (final theme in [themes.theme, themes.darkTheme]) {
-        expect(theme.colorScheme.primary, entry.value.color);
+      for (final (theme, color) in [
+        (
+          themes.theme,
+          entry.value == LegionAccent.balanced
+              ? const Color(0xFF555555)
+              : entry.value.color,
+        ),
+        (themes.darkTheme, entry.value.color),
+      ]) {
+        expect(theme.colorScheme.primary, color);
         expect(
           theme.textSelectionTheme.selectionColor,
-          entry.value.color.withValues(alpha: 0.4),
+          color.withValues(alpha: 0.4),
         );
       }
     }

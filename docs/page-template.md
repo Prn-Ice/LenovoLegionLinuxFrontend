@@ -107,9 +107,11 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
 - Muted hierarchy: **0.7** (label/caption) · **0.56** (subtitle/meta) ·
   **0.5** (micro label) · **0.08** (track/hairline).
 - The app resolves the observed power mode once in `appearanceThemes`
-  (quiet=teal, balanced=green, performance=orange, custom=violet), generating both
+  (quiet=blue, balanced=white, performance=red, custom=violet), generating both
   Yaru themes and their component subthemes. Every page and the navigation shell
   uses `Theme.of(context).colorScheme.primary` for its interaction accent.
+  Balanced uses dark gray for light-theme interactions so controls remain visible.
+  The mode colors are approximations based on a laptop's power-button photos.
   Pages must not resolve their own mode or assign a page colour, including Battery
   and Automation. The HTML reference's page-specific accents are not authoritative.
 - Mode choices may show the colour of the mode they represent. Status colours,

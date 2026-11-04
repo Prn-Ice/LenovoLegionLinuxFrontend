@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// The four mode accents from the Yaru handoff. [custom] covers manual/custom
+/// Mode colors approximated from photos of a Legion laptop's power button.
+/// [custom] covers manual/custom
 /// tuning (including the `balanced-performance` platform profile, which the app
 /// already surfaces as "Custom").
 enum LegionAccentMode { quiet, balanced, performance, custom }
 
-/// A single source of truth for the handoff's mode-accent styling.
+/// A single source of truth for the app's mode-accent styling.
 ///
 /// Kept dependency-free of the `features/` layer: callers map their own power
 /// mode to an accent via [fromPowerModeValue] (pass `PowerMode.value`), and fall
@@ -23,25 +24,25 @@ class LegionAccent {
 
   static const LegionAccent quiet = LegionAccent(
     mode: LegionAccentMode.quiet,
-    color: Color(0xFF12A4B8),
+    color: Color(0xFF1677FF),
     label: 'Quiet',
   );
 
   static const LegionAccent balanced = LegionAccent(
     mode: LegionAccentMode.balanced,
-    color: Color(0xFF3A9D4F),
+    color: Color(0xFFFFFFFF),
     label: 'Balanced',
   );
 
   static const LegionAccent performance = LegionAccent(
     mode: LegionAccentMode.performance,
-    color: Color(0xFFEC5F2A),
+    color: Color(0xFFFF6675),
     label: 'Performance',
   );
 
   static const LegionAccent custom = LegionAccent(
     mode: LegionAccentMode.custom,
-    color: Color(0xFF8056D6),
+    color: Color(0xFFC65CFF),
     label: 'Custom',
   );
 

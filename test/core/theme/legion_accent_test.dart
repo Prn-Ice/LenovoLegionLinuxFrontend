@@ -3,28 +3,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/theme/legion_accent.dart';
 
 void main() {
-  group('LegionAccent palette matches the handoff tokens', () {
+  group('LegionAccent palette matches the laptop-inspired colors', () {
     test('quiet', () {
       expect(LegionAccent.quiet.mode, LegionAccentMode.quiet);
-      expect(LegionAccent.quiet.color, const Color(0xFF12A4B8));
+      expect(LegionAccent.quiet.color, const Color(0xFF1677FF));
       expect(LegionAccent.quiet.label, 'Quiet');
     });
 
     test('balanced', () {
       expect(LegionAccent.balanced.mode, LegionAccentMode.balanced);
-      expect(LegionAccent.balanced.color, const Color(0xFF3A9D4F));
+      expect(LegionAccent.balanced.color, const Color(0xFFFFFFFF));
       expect(LegionAccent.balanced.label, 'Balanced');
     });
 
     test('performance', () {
       expect(LegionAccent.performance.mode, LegionAccentMode.performance);
-      expect(LegionAccent.performance.color, const Color(0xFFEC5F2A));
+      expect(LegionAccent.performance.color, const Color(0xFFFF6675));
       expect(LegionAccent.performance.label, 'Performance');
     });
 
     test('custom', () {
       expect(LegionAccent.custom.mode, LegionAccentMode.custom);
-      expect(LegionAccent.custom.color, const Color(0xFF8056D6));
+      expect(LegionAccent.custom.color, const Color(0xFFC65CFF));
       expect(LegionAccent.custom.label, 'Custom');
     });
   });
@@ -65,7 +65,7 @@ void main() {
       expect(
         LegionAccent.performance.soft(scheme),
         Color.alphaBlend(
-          const Color(0xFFEC5F2A).withValues(alpha: 0.14),
+          const Color(0xFFFF6675).withValues(alpha: 0.14),
           scheme.surface,
         ),
       );
@@ -75,7 +75,7 @@ void main() {
       expect(
         LegionAccent.performance.soft(scheme, alpha: 0.30),
         Color.alphaBlend(
-          const Color(0xFFEC5F2A).withValues(alpha: 0.30),
+          const Color(0xFFFF6675).withValues(alpha: 0.30),
           scheme.surface,
         ),
       );
@@ -86,7 +86,7 @@ void main() {
     });
 
     test('onSoft returns the accent color', () {
-      expect(LegionAccent.custom.onSoft(scheme), const Color(0xFF8056D6));
+      expect(LegionAccent.custom.onSoft(scheme), const Color(0xFFC65CFF));
     });
   });
 }

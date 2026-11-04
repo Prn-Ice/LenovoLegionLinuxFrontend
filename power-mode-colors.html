@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Legion power mode colors</title>
+  <style>
+    body { max-width: 720px; margin: 3rem auto; padding: 0 1.5rem; background: #18191d; color: #f5f5f5; font: 16px/1.5 system-ui, sans-serif; }
+    h1 { margin-bottom: .25rem; }
+    p { color: #b9bbc3; }
+    .colors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 2rem; }
+    .card { overflow: hidden; border: 1px solid #41434c; border-radius: 12px; background: #24262c; }
+    .swatch { height: 120px; background: var(--color); }
+    .label { padding: 1rem; }
+    .label strong, .label code { display: block; }
+    .label code { margin-top: .25rem; color: #c7c9d1; }
+  </style>
+</head>
+<body>
+  <h1>Legion power mode colors</h1>
+  <p>Visual approximations from your laptop photos, not official Lenovo color values.</p>
+  <div class="colors">
+    <div class="card"><div class="swatch" style="--color: #1677FF"></div><div class="label"><strong>Quiet</strong><code>#1677FF</code></div></div>
+    <div class="card"><div class="swatch" style="--color: #FFFFFF"></div><div class="label"><strong>Balanced</strong><code>#FFFFFF</code></div></div>
+    <div class="card"><div class="swatch" style="--color: #FF6675"></div><div class="label"><strong>Performance</strong><code>#FF6675</code></div></div>
+    <div class="card"><div class="swatch" style="--color: #C65CFF"></div><div class="label"><strong>Custom</strong><code>#C65CFF</code></div></div>
+  </div>
+</body>
+</html>
