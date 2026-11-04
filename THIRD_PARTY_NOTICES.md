@@ -104,8 +104,10 @@ dart tool/bundle_notices.dart --check build/linux/x64/release/bundle
 gzip -dc build/linux/x64/release/bundle/data/flutter_assets/NOTICES.Z | less
 ```
 
-Keep both notice locations when packaging. Release downloads also need
-corresponding source for the application and covered dependencies, including
-the libhandy subtree in the
-[handy_window 0.4.2 source archive](https://pub.dev/api/archives/handy_window-0.4.2.tar.gz),
-as required by their licenses.
+Keep both notice locations when packaging. Use `tool/package_release.sh` to
+build the bundle and its source companion, including the resolved libhandy
+subtree and local dependency edits. Publish both together; see the
+[release instructions](README.md#running) for archive contents and rebuild
+instructions. Flutter SDK source is identified by exact revisions and must be
+obtained separately, along with source for any host libraries a downstream
+package adds.

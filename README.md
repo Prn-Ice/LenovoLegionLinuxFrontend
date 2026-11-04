@@ -59,6 +59,32 @@ Or build a release binary:
 flutter build linux --release
 ```
 
+To build the binary, add its resolved notices, and create a matching source
+companion in one command (the worktree must be clean):
+
+```bash
+tool/package_release.sh --output build/release/legion-frontend-source.tar.gz
+```
+
+The command resolves packages with `--enforce-lockfile`, records their contents,
+then builds with `--no-pub`. It rejects source changes during the build. The
+archive contains tracked application source and the resolved runtime dependency
+sources, including local package edits and `handy_window/linux/libhandy`.
+`SOURCE-MANIFEST.json` records the commit, lockfile checksum, bundle checksums,
+package contents, and exact Flutter framework/engine versions. `REBUILD.md` and
+`dependency-overrides.yaml` explain how to rebuild using the archived packages.
+
+Application source follows `.gitattributes`: private `.beads` and `.env` files
+and the inspiration screenshots are excluded. Dependency-root `.git`, `.beads`,
+`.dart_tool`, `build`, `coverage`, `.env`, and `.env.*` are excluded; nested build
+directories, `.envrc`, file modes, and internal symlinks are retained. Links
+escaping a dependency root stop packaging.
+
+Flutter SDK source is identified by version and revision rather than included.
+Host libraries are obtained separately; downstream packages must add source and
+notices for any extra libraries they redistribute. Publish the source companion
+alongside the binary from `build/linux/x64/release/bundle`.
+
 ## Development
 
 - [Contributor setup and tests](CONTRIBUTING.md)

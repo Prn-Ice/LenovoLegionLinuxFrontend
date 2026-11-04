@@ -1,3 +1,6 @@
 # Design references have unverified redistribution rights; keep them out of
 # release source archives. They remain available in the development repository.
 /inspiration export-ignore
+/.beads export-ignore
+/.env export-ignore
+/.env.* export-ignore
