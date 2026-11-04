@@ -106,13 +106,15 @@ Telemetry numbers are Ubuntu Mono. Use the named roles in
   Define semantic and vendor colours once per page or card.
 - Muted hierarchy: **0.7** (label/caption) · **0.56** (subtitle/meta) ·
   **0.5** (micro label) · **0.08** (track/hairline).
-- The default page accent comes from
-  [`LegionAccent.fromPowerModeValue`](../lib/core/theme/legion_accent.dart)
-  (quiet=teal, balanced=green, performance=orange, custom=violet). Pass the resolved
-  `Color accent` to cards. A card may use a fixed colour when it has a clear
-  meaning, such as green for Battery.
-- Use violet for custom or unsaved values, not for an entire page of advanced
-  settings.
+- The app resolves the observed power mode once in `appearanceThemes`
+  (quiet=teal, balanced=green, performance=orange, custom=violet), generating both
+  Yaru themes and their component subthemes. Every page and the navigation shell
+  uses `Theme.of(context).colorScheme.primary` for its interaction accent.
+  Pages must not resolve their own mode or assign a page colour, including Battery
+  and Automation. The HTML reference's page-specific accents are not authoritative.
+- Mode choices may show the colour of the mode they represent. Status colours,
+  GPU logos and selected keyboard RGB colours retain their own meaning. An unsaved
+  fan curve does not change the page accent.
 - A nested `ColorScheme.copyWith(primary: …)` does not rebuild Yaru's generated
   component subthemes. When a chip or another generated component needs a
   semantic state colour, set that component's selected properties directly and
@@ -122,7 +124,7 @@ Keep these colour roles separate:
 
 | Role | Purpose | Example |
 |---|---|---|
-| Interaction accent | Selected controls, chart series, focus | Current power-mode accent or the surface's explicit semantic accent |
+| Interaction accent | Selected controls, chart series, focus | App-wide power-mode accent |
 | Semantic status | A proven state or consequence | Active green, warning, destructive error |
 | Vendor identity | Hardware manufacturer recognition only | NVIDIA/AMD/Intel mark in a device identity header |
 
@@ -134,7 +136,9 @@ when the current interaction accent is another colour.
 
 Use **`YaruIcons.*`**, not Material `Icons.*`, for generic navigation and action
 icons so the app stays Yaru-native. The nav rail already does this via each
-section's `yaruIcon`.
+section's `icon`. The Fans tab uses the shared `FanIcon` because Yaru has no fan
+glyph. Dashboard uses a grid, Power a power symbol, Battery a battery, Lighting
+a keyboard, Discrete GPU a chip, Automation a play symbol, and Settings a gear.
 
 For detected hardware, use the manufacturer's logo in its vendor colour, with a
 neutral background and accessible label. Use a generic device icon when the

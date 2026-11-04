@@ -2,20 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
-import '../bloc/settings_state.dart';
 
-/// Follow only known observed modes; never discard the saved manual choice.
-LegionAccent? appearancePowerAccent(SettingsState settings, String? mode) =>
-    settings.accentFollowsPowerMode
-    ? LegionAccent.fromPowerModeValue(mode)
-    : null;
-
+/// Power mode owns the app accent. Older manual preferences are only a fallback
+/// while the observed mode is unavailable, regardless of the legacy follow flag.
 ({ThemeData theme, ThemeData darkTheme}) appearanceThemes(
-  SettingsState settings,
   String? mode,
   YaruThemeData fallback,
 ) {
-  final accent = appearancePowerAccent(settings, mode);
+  final accent = LegionAccent.fromPowerModeValue(mode?.trim());
   return (
     theme: accent == null
         ? fallback.theme

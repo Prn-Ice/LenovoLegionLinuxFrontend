@@ -5,36 +5,40 @@ class PrivilegedActionNotice extends StatelessWidget {
   const PrivilegedActionNotice({
     super.key,
     this.message = 'Admin privileges required',
+    this.compact = false,
   });
 
   final String message;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final foreground = compact
+        ? scheme.onSurface.withValues(alpha: 0.7)
+        : scheme.onSecondaryContainer;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: compact
+          ? const EdgeInsets.symmetric(vertical: 4)
+          : const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
+        color: compact ? null : scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.admin_panel_settings_outlined,
-            size: 16,
-            color: scheme.onSecondaryContainer,
-          ),
+          Icon(YaruIcons.lock, size: 16, color: foreground),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
               message,
-              style: TextStyle(
-                color: scheme.onSecondaryContainer,
-                fontWeight: FontWeight.w600,
-              ),
+              style: compact
+                  ? Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: foreground)
+                  : TextStyle(color: foreground, fontWeight: FontWeight.w600),
             ),
           ),
         ],

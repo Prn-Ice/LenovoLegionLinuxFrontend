@@ -24,6 +24,9 @@ void main() {
     tester,
   ) async {
     await _pumpPage(tester, width: 360);
+    final accent = Theme.of(
+      tester.element(find.byType(BatteryPage)),
+    ).colorScheme.primary;
 
     expect(find.text('Battery & energy'), findsNothing);
     expect(find.text('Full'), findsWidgets);
@@ -44,15 +47,12 @@ void main() {
     for (final theme in tester.widgetList<YaruCheckboxTheme>(
       find.byType(YaruCheckboxTheme),
     )) {
-      expect(
-        theme.data.color?.resolve({WidgetState.selected}),
-        const Color(0xff3A9D4F),
-      );
+      expect(theme.data.color?.resolve({WidgetState.selected}), accent);
     }
     for (final widget in tester.widgetList<YaruSwitch>(
       find.byType(YaruSwitch),
     )) {
-      expect(widget.selectedColor, const Color(0xff3A9D4F));
+      expect(widget.selectedColor, accent);
     }
     await tester.tap(find.text('Last hour'));
     await tester.pumpAndSettle();
@@ -62,7 +62,7 @@ void main() {
       YaruCheckboxTheme.of(
         tester.element(checkedItem),
       ).color?.resolve({WidgetState.selected}),
-      const Color(0xff3A9D4F),
+      accent,
     );
     expect(tester.takeException(), isNull);
   });
@@ -97,17 +97,20 @@ void main() {
     );
 
     expect(find.text('Not exposed by battery driver'), findsOneWidget);
+    final accent = Theme.of(
+      tester.element(find.byType(BatteryPage)),
+    ).colorScheme.primary;
     expect(find.text('Battery power'), findsOneWidget);
     final selector = tester.widget<SegmentedButton<int>>(
       find.byType(SegmentedButton<int>),
     );
     expect(
       selector.style?.foregroundColor?.resolve({WidgetState.selected}),
-      const Color(0xff3A9D4F),
+      accent,
     );
     expect(
       selector.style?.backgroundColor?.resolve({WidgetState.selected}),
-      const Color(0xff3A9D4F).withValues(alpha: 0.18),
+      accent.withValues(alpha: 0.18),
     );
   });
 }

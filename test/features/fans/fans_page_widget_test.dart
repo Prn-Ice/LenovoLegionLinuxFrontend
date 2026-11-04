@@ -111,13 +111,16 @@ void main() {
     verify(() => harness.fansRepository.applyPreset('balanced-ac')).called(1);
   });
 
-  testWidgets('fan workspace follows profile until the curve is edited', (
+  testWidgets('editing a fan curve preserves the app interaction accent', (
     tester,
   ) async {
     final harness = await _pumpPage(tester, width: 800);
 
     var editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    expect(editor.accent, LegionAccent.balanced.color);
+    final appAccent = Theme.of(
+      tester.element(find.byType(FansPage)),
+    ).colorScheme.primary;
+    expect(editor.accent, appAccent);
 
     final curve = harness.fansBloc.state.fanCurve!;
     harness.fansBloc.add(
@@ -129,7 +132,7 @@ void main() {
     await tester.pump();
 
     editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    expect(editor.accent, LegionAccent.custom.color);
+    expect(editor.accent, appAccent);
   });
 
   testWidgets('recommended preset is distinct from explicit selection', (

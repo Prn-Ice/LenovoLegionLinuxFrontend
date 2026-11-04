@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yaru/yaru.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
 import 'package:legion_frontend/features/automation/models/automation_trigger_snapshot.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
@@ -71,78 +70,154 @@ void main() {
   }
 
   testWidgets(
-    'renders rule vocabulary and preserves actions and run controls',
+    'explains setup with visible power choices and advanced details',
     (tester) async {
       await pumpPage(tester);
-      expect(find.text('Automation runner'), findsOneWidget);
-      expect(find.text('Rules'), findsOneWidget);
-      expect(find.text('Run command…'), findsOneWidget);
-      expect(find.text('Run now'), findsOneWidget);
-      expect(find.text('Poll interval: 10 seconds'), findsOneWidget);
-      expect(find.text('Battery conservation'), findsOneWidget);
-      expect(find.text('Recent run'), findsOneWidget);
+      expect(find.textContaining('Let Legion adjust'), findsOneWidget);
+      expect(find.text('When power changes'), findsOneWidget);
+      expect(find.text('When this happens'), findsOneWidget);
+      expect(find.text('Do this'), findsOneWidget);
+      expect(find.text('Power mode changes'), findsOneWidget);
+      expect(find.text('Charger connected or disconnected'), findsOneWidget);
+      expect(find.text('Apply matching fan preset'), findsOneWidget);
+      expect(find.text('Maintain charge limits'), findsOneWidget);
+      expect(find.text('Set rapid charging'), findsOneWidget);
+      expect(find.text('Apply now'), findsOneWidget);
 
-      await tester.tap(find.byType(YaruExpandable).first);
+      await tester.ensureVisible(find.text('Advanced'));
       await tester.pumpAndSettle();
-      expect(find.text('WHEN'), findsOneWidget);
-      expect(find.text('THEN'), findsOneWidget);
-      expect(find.text('Trigger on profile change'), findsOneWidget);
-      expect(find.text('Trigger on power-source change'), findsOneWidget);
-      expect(
-        find.text('Apply fan preset on power-context change'),
-        findsOneWidget,
-      );
-      expect(find.text('Apply custom conservation policy'), findsOneWidget);
-      expect(find.text('Apply rapid-charging policy'), findsOneWidget);
-
-      await tester.ensureVisible(find.text('Run command on context changes'));
+      await tester.tap(find.text('Advanced'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Run command on context changes'));
+      expect(find.text('Check every 10 seconds'), findsOneWidget);
+      await tester.ensureVisible(find.text('Run a shell command'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Enable command action'));
-      await tester.pumpAndSettle();
-      expect(find.text('Enable command action').hitTestable(), findsOneWidget);
-      expect(find.text('Only on context change'), findsOneWidget);
+      expect(find.text('Run a shell command').hitTestable(), findsOneWidget);
+      expect(find.text('Only after a selected power change'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );
 
-  testWidgets('runner and poll interval persist through production provider', (
+  testWidgets('missing power changes explain the next step and save a choice', (
     tester,
   ) async {
+    when(repository.loadConfig).thenAnswer(
+      (_) async => AutomationConfig.defaults().copyWith(
+        triggerOnProfileChange: false,
+        triggerOnPowerSourceChange: false,
+      ),
+    );
     await pumpPage(tester);
-    await tester.tap(find.text('Run automation rules'));
+    expect(
+      find.text(
+        'Choose at least one change to apply these actions automatically.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Power mode changes'));
     await tester.pumpAndSettle();
     verify(
       () => repository.saveConfig(
         any(
           that: isA<AutomationConfig>().having(
-            (c) => c.runnerEnabled,
-            'runnerEnabled',
+            (config) => config.triggerOnProfileChange,
+            'power mode changes',
             true,
           ),
         ),
       ),
     ).called(1);
-
-    await tester.ensureVisible(find.byType(Slider));
-    clearInteractions(repository);
-    final slider = tester.getRect(find.byType(Slider));
-    await tester.tapAt(Offset(slider.center.dx + 40, slider.center.dy));
-    await tester.pumpAndSettle();
-    verify(
-      () => repository.saveConfig(
-        any(
-          that: isA<AutomationConfig>().having(
-            (c) => c.pollIntervalSeconds,
-            'poll interval',
-            greaterThan(10),
-          ),
-        ),
+    expect(
+      find.text(
+        'Choose at least one change to apply these actions automatically.',
       ),
-    ).called(1);
+      findsNothing,
+    );
+    verifyNever(repository.applyFanPresetForCurrentContext);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'charge limits are revealed on request and saved before running',
+    (tester) async {
+      await pumpPage(tester);
+      expect(
+        find.widgetWithText(TextField, 'Lower limit (%)').hitTestable(),
+        findsNothing,
+      );
+      await tester.ensureVisible(find.text('Maintain charge limits'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Maintain charge limits'));
+      await tester.pumpAndSettle();
+      final lower = find.widgetWithText(TextField, 'Lower limit (%)');
+      await tester.ensureVisible(lower);
+      await tester.pumpAndSettle();
+      await tester.enterText(lower, '50');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      verify(
+        () => repository.saveConfig(
+          any(
+            that: isA<AutomationConfig>().having(
+              (config) => config.conservationLowerLimit,
+              'lower limit',
+              50,
+            ),
+          ),
+        ),
+      ).called(1);
+      verifyNever(
+        () => repository.applyCustomConservation(
+          lowerLimit: any(named: 'lowerLimit'),
+          upperLimit: any(named: 'upperLimit'),
+        ),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'automatic checks and interval persist through production provider',
+    (tester) async {
+      await pumpPage(tester);
+      await tester.ensureVisible(find.text('Enable automation'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enable automation'));
+      await tester.pumpAndSettle();
+      verify(
+        () => repository.saveConfig(
+          any(
+            that: isA<AutomationConfig>().having(
+              (c) => c.runnerEnabled,
+              'runnerEnabled',
+              true,
+            ),
+          ),
+        ),
+      ).called(1);
+
+      await tester.ensureVisible(find.text('Advanced'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Advanced'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byType(Slider));
+      clearInteractions(repository);
+      final slider = tester.getRect(find.byType(Slider));
+      await tester.tapAt(Offset(slider.center.dx + 40, slider.center.dy));
+      await tester.pumpAndSettle();
+      verify(
+        () => repository.saveConfig(
+          any(
+            that: isA<AutomationConfig>().having(
+              (c) => c.pollIntervalSeconds,
+              'poll interval',
+              greaterThan(10),
+            ),
+          ),
+        ),
+      ).called(1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('renders the full persisted poll interval range', (tester) async {
     when(repository.loadConfig).thenAnswer(
@@ -150,25 +225,31 @@ void main() {
           AutomationConfig.defaults().copyWith(pollIntervalSeconds: 300),
     );
     await pumpPage(tester);
-    expect(find.text('Poll interval: 300 seconds'), findsOneWidget);
+    await tester.ensureVisible(find.text('Advanced'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Advanced'));
+    await tester.pumpAndSettle();
+    expect(find.text('Check every 300 seconds'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('run now requires confirmation and reports the completed run', (
+  testWidgets('apply now requires confirmation and reports the completed run', (
     tester,
   ) async {
     await pumpPage(tester);
-    await tester.tap(find.text('Run now'));
+    await tester.ensureVisible(find.text('Apply now'));
     await tester.pumpAndSettle();
-    expect(find.text('Run automation now'), findsOneWidget);
+    await tester.tap(find.text('Apply now'));
+    await tester.pumpAndSettle();
+    expect(find.text('Apply enabled actions now'), findsOneWidget);
     verifyNever(() => repository.applyFanPresetForCurrentContext());
 
-    await tester.ensureVisible(find.text('Run now').last);
-    await tester.tap(find.text('Run now').last);
+    await tester.ensureVisible(find.text('Apply now').last);
+    await tester.tap(find.text('Apply now').last);
     await tester.pumpAndSettle();
     verify(() => repository.applyFanPresetForCurrentContext()).called(1);
-    expect(find.text('Recent run'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -200,21 +281,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final rule = tester.widget<YaruExpandable>(
-        find.byType(YaruExpandable).first,
-      );
-      await tester.ensureVisible(find.byWidget(rule.header));
+      await tester.ensureVisible(find.text('Advanced'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byWidget(rule.header));
+      await tester.tap(find.text('Advanced'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.text('Recent run'),
+        find.text('Activity'),
         250,
         scrollable: find.byType(Scrollable).first,
       );
       expect(tester.takeException(), isNull);
-      expect(find.text('Run now'), findsOneWidget);
-      expect(find.text('Apply rapid-charging policy'), findsOneWidget);
+      expect(find.text('Apply now'), findsOneWidget);
+      expect(find.text('Set rapid charging'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
   }

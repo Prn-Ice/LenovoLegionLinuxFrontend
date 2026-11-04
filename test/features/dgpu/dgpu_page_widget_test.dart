@@ -41,6 +41,9 @@ void main() {
     tester,
   ) async {
     await _pumpPage(tester, width: 360, processes: const []);
+    final accent = Theme.of(
+      tester.element(find.byType(DgpuPage)),
+    ).colorScheme.primary;
 
     expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
     expect(find.text('P2'), findsOneWidget);
@@ -66,13 +69,13 @@ void main() {
       tester
           .widget<TelemetryHistoryCard>(find.byType(TelemetryHistoryCard))
           .accentColor,
-      const Color(0xFF3A9D4F),
+      accent,
     );
     expect(find.byType(YaruSwitch), findsOneWidget);
     for (final toggle in tester.widgetList<YaruSwitch>(
       find.byType(YaruSwitch),
     )) {
-      expect(toggle.selectedColor, const Color(0xFF3A9D4F));
+      expect(toggle.selectedColor, accent);
     }
     expect(find.text('No process targets'), findsOneWidget);
     final killButton = tester.widget<OutlinedButton>(

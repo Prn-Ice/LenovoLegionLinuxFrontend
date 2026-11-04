@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
+import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 import 'package:yaru/yaru.dart';
 
 import 'package:legion_frontend/features/about/bloc/about_bloc.dart';
@@ -54,6 +55,7 @@ import 'package:legion_frontend/features/settings/bloc/settings_bloc.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
+import 'package:legion_frontend/features/settings/models/appearance_theme.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 
 class _About extends MockBloc<AboutEvent, AboutState> implements AboutBloc {}
@@ -90,6 +92,7 @@ void main() {
 
   setUpAll(() async {
     if (!_enabled) return;
+    WidgetController.hitTestWarningShouldBeFatal = true;
     // Use Flutter's generated manifest so package-qualified family names and
     // icon fonts match the application, rather than the test runner's Ahem font.
     final manifest =
@@ -105,6 +108,7 @@ void main() {
       await loader.load();
     }
   });
+  tearDownAll(() => WidgetController.hitTestWarningShouldBeFatal = false);
 
   for (final brightness in Brightness.values) {
     for (final size in [const Size(1280, 900), const Size(420, 500)]) {
@@ -217,25 +221,22 @@ void main() {
           if (section == AppSection.automation) {
             final expandables = find.byType(YaruExpandable);
             if (expandables.evaluate().isNotEmpty) {
-              final expandable = tester.widget<YaruExpandable>(
-                expandables.first,
-              );
-              final header = find.byWidget(expandable.header);
+              final header = find.text('Advanced');
               await tester.ensureVisible(header);
+              await tester.pumpAndSettle();
               await tester.tap(header);
               await tester.pumpAndSettle();
-              await _capture(tester, '${section.name}-$variant-rules');
+              await _capture(tester, '${section.name}-$variant-advanced');
             }
           }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
-          final scrollables = find.byWidgetPredicate(
-            (widget) =>
-                widget is Scrollable &&
-                widget.axisDirection == AxisDirection.down,
+          final scrollables = find.descendant(
+            of: find.byType(AppPageBody),
+            matching: find.byType(Scrollable),
           );
           if (scrollables.evaluate().isNotEmpty) {
-            final pageScroll = scrollables.last;
+            final pageScroll = scrollables.first;
             await tester.drag(pageScroll, const Offset(0, -2400));
             await tester.pumpAndSettle();
             await _capture(tester, '${section.name}-$variant-bottom');
@@ -304,18 +305,24 @@ Future<void> _render(
   await tester.pumpWidget(
     YaruTheme(
       data: const YaruThemeData(),
-      builder: (context, yaru, _) => MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: yaru.theme,
-        darkTheme: yaru.darkTheme,
-        themeMode: brightness == Brightness.dark
-            ? ThemeMode.dark
-            : ThemeMode.light,
-        home: RepaintBoundary(
-          key: const ValueKey('review-capture'),
-          child: child,
-        ),
-      ),
+      builder: (context, yaru, _) {
+        final themes = appearanceThemes(
+          brightness == Brightness.dark ? 'performance' : 'quiet',
+          yaru,
+        );
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: themes.theme,
+          darkTheme: themes.darkTheme,
+          themeMode: brightness == Brightness.dark
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          home: RepaintBoundary(
+            key: const ValueKey('review-capture'),
+            child: child,
+          ),
+        );
+      },
     ),
   );
   await tester.pumpAndSettle();

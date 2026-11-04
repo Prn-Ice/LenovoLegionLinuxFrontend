@@ -25,7 +25,7 @@ class _Settings extends MockBloc<SettingsEvent, SettingsState>
 
 void main() {
   testWidgets(
-    'real app themes track observed dashboard modes and preserve manual fallback',
+    'real app follows every power mode despite a legacy manual preference',
     (tester) async {
       final dashboard = _Dashboard();
       final settings = _Settings();
@@ -54,12 +54,6 @@ void main() {
           dashboardBlocProvider.overrideWith((ref) => dashboard),
           settingsBlocProvider.overrideWith((ref) => settings),
         ],
-      );
-      // The real navigation shell keeps the observed dashboard alive even when
-      // appearance following is disabled.
-      final shellObservation = container.listen(
-        dashboardBlocProvider,
-        (_, _) {},
       );
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -91,12 +85,11 @@ void main() {
       await tester.pumpAndSettle();
       modes.add(observed('balanced'));
       await tester.pumpAndSettle();
-      expectAccent(YaruVariant.blue.color);
-      preferences.add(follow);
-      await tester.pumpAndSettle();
       expectAccent(LegionAccent.balanced.color);
+      modes.add(observed('custom'));
+      await tester.pumpAndSettle();
+      expectAccent(LegionAccent.custom.color);
       await tester.pumpWidget(const SizedBox());
-      shellObservation.close();
       container.dispose();
       await preferences.close();
       await modes.close();

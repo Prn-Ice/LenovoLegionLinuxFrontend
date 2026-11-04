@@ -53,7 +53,7 @@ class BootLogoControls extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
-          const PrivilegedActionNotice(),
+          const PrivilegedActionNotice(compact: true),
           const SizedBox(height: 8),
           _ActionRow(
             canApply: state.canApply,

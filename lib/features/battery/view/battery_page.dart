@@ -42,7 +42,7 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
     }
 
     final health = _batteryHealth(state);
-    final accent = const Color(0xff3A9D4F);
+    final accent = Theme.of(context).colorScheme.primary;
 
     return AppPageBody(
       errorMessage: state.errorMessage ?? analytics.errorMessage,
@@ -257,16 +257,12 @@ class _HistoryCollectionCard extends StatelessWidget {
             children: [
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: const Color(0xff3A9D4F).withValues(alpha: 0.13),
+                  color: accent.withValues(alpha: 0.13),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Padding(
-                  padding: EdgeInsets.all(9),
-                  child: Icon(
-                    Icons.show_chart,
-                    size: 20,
-                    color: Color(0xff2F8443),
-                  ),
+                child: Padding(
+                  padding: const EdgeInsets.all(9),
+                  child: Icon(Icons.show_chart, size: 20, color: accent),
                 ),
               ),
               const SizedBox(width: 12),
@@ -547,12 +543,12 @@ class _ControlTile extends StatelessWidget {
         children: [
           DecoratedBox(
             decoration: BoxDecoration(
-              color: const Color(0xff3A9D4F).withValues(alpha: 0.13),
+              color: scheme.primary.withValues(alpha: 0.13),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Padding(
               padding: const EdgeInsets.all(9),
-              child: Icon(icon, size: 19, color: const Color(0xff2F8443)),
+              child: Icon(icon, size: 19, color: scheme.primary),
             ),
           ),
           const SizedBox(width: 12),
@@ -579,7 +575,7 @@ class _ControlTile extends StatelessWidget {
           const SizedBox(width: 8),
           YaruSwitch(
             value: value,
-            selectedColor: const Color(0xff3A9D4F),
+            selectedColor: scheme.primary,
             onChanged: onChanged,
           ),
         ],

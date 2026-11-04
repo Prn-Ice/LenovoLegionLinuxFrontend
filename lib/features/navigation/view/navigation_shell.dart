@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
-import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/legion_mark.dart';
 import '../../../core/widgets/metric_format.dart';
 import '../../automation/view/automation_page.dart';
@@ -183,13 +182,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       if (_narrowController.index != idx) _narrowController.index = idx;
     });
 
-    // The selected sidebar item re-tints with the current power-mode accent.
-    final mode = ref.watch(
-      dashboardBlocProvider.select((s) => s.snapshot.status.powerProfile),
-    );
-    final accent =
-        LegionAccent.fromPowerModeValue(mode)?.color ??
-        Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
     // The sidebar pane reads a touch darker than the content, per the design.
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sidebarColor = isDark
@@ -225,7 +218,10 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         body: YaruNavigationPage(
           controller: _narrowController,
           itemBuilder: (context, index, selected) => YaruNavigationRailItem(
-            icon: Icon(NavShellEntries.sections[index].yaruIcon),
+            icon: IconTheme.merge(
+              data: IconThemeData(color: selected ? accent : null),
+              child: NavShellEntries.sections[index].icon,
+            ),
             label: Text(NavShellEntries.sections[index].label),
             tooltip: NavShellEntries.sections[index].label,
             style: style,
@@ -260,7 +256,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
               borderRadius: BorderRadius.all(Radius.circular(8)),
             ),
             child: YaruMasterTile(
-              leading: Icon(section.yaruIcon),
+              leading: section.icon,
               title: Text(section.label),
             ),
           );

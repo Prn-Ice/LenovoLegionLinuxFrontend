@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
-import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../bloc/dashboard_event.dart';
@@ -50,10 +49,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       );
     }
 
-    final accentObj = LegionAccent.fromPowerModeValue(
-      snapshot.status.powerProfile?.trim(),
-    );
-    final accent = accentObj?.color ?? Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
     final modeFacts = _modeFacts(
       cpuPackageWatts: sensors.cpuPackagePowerW,
       gpuWatts: sensors.gpuPowerDrawW,

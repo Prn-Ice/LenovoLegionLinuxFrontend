@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/models/cpu_policy_snapshot.dart';
-import '../../../core/theme/legion_accent.dart';
 import '../../../core/models/power_profiles_daemon_snapshot.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
@@ -41,9 +40,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
     final state = ref.watch(powerBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(powerBlocProvider.bloc);
-    final accent =
-        LegionAccent.fromPowerModeValue(state.currentMode?.value)?.color ??
-        Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
 
     if (state.isLoading && !state.hasLoaded) {
       return const Center(child: YaruCircularProgressIndicator());

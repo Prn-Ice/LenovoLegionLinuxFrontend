@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
-import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
-import '../../dashboard/providers/dashboard_provider.dart';
 import '../bloc/lighting_bloc.dart';
 import '../bloc/lighting_event.dart';
 import '../bloc/lighting_state.dart';
@@ -93,15 +91,8 @@ class _LightingPageState extends ConsumerState<LightingPage> {
     final engine = ref.watch(spectrumEffectEngineProvider);
     final device = rgb.device;
 
-    // Tint the whole page with the current power-mode accent, like the sidebar.
     final theme = Theme.of(context);
-    final accent =
-        LegionAccent.fromPowerModeValue(
-          ref.watch(
-            dashboardBlocProvider.select((s) => s.snapshot.status.powerProfile),
-          ),
-        )?.color ??
-        theme.colorScheme.primary;
+    final accent = theme.colorScheme.primary;
 
     // Keep the animation engine in sync with the painting + effect assignments.
     ref.listen(rgbLightingBlocProvider, (_, next) {

@@ -37,10 +37,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final state = ref.watch(fansBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
     final bloc = ref.read(fansBlocProvider.bloc);
-    final accent = state.fanCurveDirty
-        ? LegionAccent.custom.color
-        : LegionAccent.fromPowerModeValue(state.platformProfile)?.color ??
-              Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
     final hasFanControls =
         state.miniFanCurveEnabled != null ||
         state.maximumFanSpeedEnabled != null ||
@@ -147,8 +144,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Apply fan curve',
-      message:
-          'Apply this fan curve? You may be asked to authenticate.',
+      message: 'Apply this fan curve? You may be asked to authenticate.',
       confirmLabel: 'Apply curve',
     );
     if (!context.mounted || !confirmed) return;

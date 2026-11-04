@@ -18,8 +18,6 @@ import 'package:legion_frontend/features/display/models/display_snapshot.dart';
 import 'package:legion_frontend/features/display/providers/display_provider.dart';
 import 'package:legion_frontend/features/display/repository/display_repository.dart';
 import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
-import 'package:yaru/yaru.dart';
 import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
@@ -166,53 +164,15 @@ void main() {
         expect(find.text(label), findsWidgets);
       }
       if (scenario == 'appearance') {
-        container
-            .read(settingsBlocProvider.bloc)
-            .add(const YaruVariantChanged(YaruVariant.blue));
+        expect(find.text('Accent follows power mode'), findsOneWidget);
+        await tester.tap(find.text('Dark'));
         await tester.pumpAndSettle();
-        final follow = find.text('Follow power mode accent');
-        await tester.ensureVisible(follow);
-        await tester.pumpAndSettle();
-        await tester.tap(follow);
+        expect(container.read(settingsBlocProvider).themeMode, ThemeMode.dark);
+        await tester.tap(find.text('System'));
         await tester.pumpAndSettle();
         expect(
-          container.read(settingsBlocProvider).accentFollowsPowerMode,
-          isTrue,
-        );
-        expect(find.textContaining('Manual accent is saved'), findsOneWidget);
-        final system = tester.widget<ChoiceChip>(
-          find.widgetWithText(ChoiceChip, 'System accent'),
-        );
-        expect(system.onSelected, isNull);
-        final blue = find.bySemanticsLabel('blue accent colour');
-        expect(blue, findsOneWidget);
-        await tester.ensureVisible(blue);
-        await tester.pumpAndSettle();
-        await tester.tap(blue);
-        await tester.pumpAndSettle();
-        expect(
-          container.read(settingsBlocProvider).yaruVariant,
-          YaruVariant.blue,
-        );
-        await tester.ensureVisible(follow);
-        await tester.pumpAndSettle();
-        await tester.tap(follow);
-        await tester.pumpAndSettle();
-        expect(
-          container.read(settingsBlocProvider).accentFollowsPowerMode,
-          isFalse,
-        );
-        expect(
-          container.read(settingsBlocProvider).yaruVariant,
-          YaruVariant.blue,
-        );
-        expect(
-          tester
-              .widget<ChoiceChip>(
-                find.widgetWithText(ChoiceChip, 'System accent'),
-              )
-              .onSelected,
-          isNotNull,
+          container.read(settingsBlocProvider).themeMode,
+          ThemeMode.system,
         );
       } else if (scenario == 'boot logo') {
         await tester.ensureVisible(find.text('Browse...'));

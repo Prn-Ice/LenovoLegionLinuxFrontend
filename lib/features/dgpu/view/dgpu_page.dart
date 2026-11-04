@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:yaru/yaru.dart';
 
-import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -49,9 +48,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final powerState = ref.watch(powerBlocProvider);
     final bloc = ref.read(dgpuBlocProvider.bloc);
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
-    final accent =
-        LegionAccent.fromPowerModeValue(powerState.currentMode?.value)?.color ??
-        Theme.of(context).colorScheme.primary;
+    final accent = Theme.of(context).colorScheme.primary;
 
     if (!state.hasLoaded || (state.isAvailable && sensorState.isLoading)) {
       return const Center(child: YaruCircularProgressIndicator());

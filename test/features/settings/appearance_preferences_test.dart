@@ -218,20 +218,13 @@ void main() {
   );
 
   test('power accent precedence covers all known and unavailable modes', () {
-    final manual = SettingsState.initial().copyWith(
-      yaruVariant: YaruVariant.blue,
-    );
-    expect(appearancePowerAccent(manual, 'performance'), isNull);
-    final follow = manual.copyWith(accentFollowsPowerMode: true);
     for (final entry in {
       'quiet': LegionAccent.quiet,
       'balanced': LegionAccent.balanced,
       'performance': LegionAccent.performance,
       'balanced-performance': LegionAccent.custom,
     }.entries) {
-      expect(appearancePowerAccent(follow, entry.key), entry.value);
       final themes = appearanceThemes(
-        follow,
         entry.key,
         const YaruThemeData(variant: YaruVariant.blue),
       );
@@ -245,22 +238,12 @@ void main() {
       }
     }
     for (final unknown in [null, '', 'unsupported']) {
-      expect(appearancePowerAccent(follow, unknown), isNull);
-      expect(follow.yaruVariant, YaruVariant.blue);
       final themes = appearanceThemes(
-        follow,
         unknown,
         const YaruThemeData(variant: YaruVariant.blue),
       );
       expect(themes.theme.colorScheme.primary, YaruVariant.blue.color);
       expect(themes.darkTheme.colorScheme.primary, YaruVariant.blue.color);
     }
-    expect(
-      appearancePowerAccent(
-        SettingsState.initial().copyWith(accentFollowsPowerMode: true),
-        null,
-      ),
-      isNull,
-    );
   });
 }

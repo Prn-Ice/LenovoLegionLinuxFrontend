@@ -25,11 +25,5 @@ void main() {
         );
       }
     });
-
-    test('every section has a yaruIcon', () {
-      for (final section in AppSection.values) {
-        expect(section.yaruIcon, isNotNull);
-      }
-    });
   });
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/widgets/fan_icon.dart';
+
 enum AppSection {
   dashboard,
   power,
@@ -34,45 +36,24 @@ extension AppSectionUi on AppSection {
     }
   }
 
-  IconData get icon {
+  Widget get icon {
     switch (this) {
       case AppSection.dashboard:
-        return Icons.dashboard_outlined;
+        return const Icon(YaruIcons.app_grid, size: 20);
       case AppSection.power:
-        return Icons.bolt_outlined;
+        return const Icon(YaruIcons.shutdown, size: 20);
       case AppSection.fans:
-        return Icons.air_outlined;
+        return const FanIcon();
       case AppSection.battery:
-        return Icons.battery_charging_full_outlined;
+        return const Icon(YaruIcons.battery, size: 20);
       case AppSection.dgpu:
-        return Icons.memory_outlined;
+        return const Icon(YaruIcons.chip, size: 20);
       case AppSection.lighting:
-        return Icons.light_mode_outlined;
+        return const Icon(YaruIcons.keyboard, size: 20);
       case AppSection.automation:
-        return Icons.auto_mode_outlined;
+        return const Icon(YaruIcons.media_play, size: 20);
       case AppSection.settings:
-        return Icons.settings_outlined;
-    }
-  }
-
-  IconData get yaruIcon {
-    switch (this) {
-      case AppSection.dashboard:
-        return YaruIcons.chip;
-      case AppSection.power:
-        return YaruIcons.thunderbolt;
-      case AppSection.fans:
-        return YaruIcons.gears;
-      case AppSection.battery:
-        return YaruIcons.battery_full_charging;
-      case AppSection.dgpu:
-        return YaruIcons.chip;
-      case AppSection.lighting:
-        return YaruIcons.color_select;
-      case AppSection.automation:
-        return YaruIcons.gear_dots;
-      case AppSection.settings:
-        return YaruIcons.gear;
+        return const Icon(YaruIcons.gear, size: 20);
     }
   }
 }

@@ -15,15 +15,17 @@ class LegionFrontendApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsBlocProvider);
-    final mode = settings.accentFollowsPowerMode
-        ? ref.watch(dashboardBlocProvider).snapshot.status.powerProfile
-        : null;
+    final mode = ref.watch(
+      dashboardBlocProvider.select(
+        (state) => state.snapshot.status.powerProfile,
+      ),
+    );
     return YaruTheme(
       data: settings.yaruVariant != null
           ? YaruThemeData(variant: settings.yaruVariant)
           : const YaruThemeData(),
       builder: (context, yaru, child) {
-        final themes = appearanceThemes(settings, mode, yaru);
+        final themes = appearanceThemes(mode, yaru);
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'Lenovo Legion Linux',

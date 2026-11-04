@@ -37,6 +37,228 @@ class SettingsPage extends ConsumerWidget {
 
     final textTheme = Theme.of(context).textTheme;
 
+    final appearance = _SettingsSection(
+      title: 'Appearance',
+      children: [
+        Text('Theme', style: textTheme.titleSmall),
+        const SizedBox(height: 12),
+        _AppearanceSelector(
+          selected: state.themeMode,
+          onChanged: (mode) =>
+              ref.read(settingsBlocProvider.bloc).add(ThemeModeChanged(mode)),
+        ),
+        const Divider(height: 32),
+        Text('Accent follows power mode', style: textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          'Quiet, Balanced, Performance or Custom sets the accent '
+          'throughout the app.',
+          style: textTheme.bodySmall?.copyWith(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.56),
+          ),
+        ),
+      ],
+    );
+    final backend = _SettingsSection(
+      title: 'Backend',
+      description: 'Manage Legion services.',
+      children: [
+        if (about.snapshot case final snapshot?) ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Module version'),
+            subtitle: Text(snapshot.moduleVersion ?? 'Unknown'),
+          ),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('CLI'),
+            subtitle: SelectableText(
+              '${snapshot.cliPath}\n${snapshot.cliHealthSummary}',
+            ),
+          ),
+        ],
+        const PrivilegedActionNotice(compact: true),
+        const SizedBox(height: 8),
+        if (state.services.isEmpty)
+          const Text('No service controls available.'),
+        ...state.services.map(
+          (service) => _ServiceTile(
+            service: service,
+            isBusy: state.isApplying,
+            onChanged: (enabled) async {
+              final confirmed = await confirmPrivilegedAction(
+                context,
+                title: 'Update ${service.label}',
+                message: 'Changing services may ask you to authenticate.',
+                confirmLabel: 'Apply',
+              );
+              if (!context.mounted || !confirmed) {
+                return;
+              }
+              final current = ref.read(settingsBlocProvider);
+              if (current.isApplying ||
+                  !current.services.any(
+                    (item) => item.service == service.service && item.supported,
+                  )) {
+                return;
+              }
+              ref
+                  .read(settingsBlocProvider.bloc)
+                  .add(
+                    SettingsServiceToggled(
+                      serviceId: service.service.wireValue,
+                      enabled: enabled,
+                    ),
+                  );
+            },
+          ),
+        ),
+      ],
+    );
+    final bootLogo = _SettingsSection(
+      title: 'Boot Logo',
+      description:
+          'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
+      children: const [BootLogoControls()],
+    );
+    final deviceControls = _SettingsSection(
+      title: 'Devices',
+      children: [
+        if (devices.isLoading && !devices.hasLoaded)
+          const Center(child: YaruCircularProgressIndicator())
+        else ...[
+          AppSwitchTile(
+            title: 'Win Key',
+            value: devices.winKeyEnabled ?? false,
+            subtitle: devices.winKeySupported
+                ? boolEnabledLabel(devices.winKeyEnabled)
+                : 'Not supported on this device',
+            onChanged: devices.winKeySupported && !devices.isApplying
+                ? (enabled) async {
+                    final confirmed = await confirmPrivilegedAction(
+                      context,
+                      title: 'Change Win Key',
+                      message:
+                          'Changing the Win Key uses privileged access and may prompt for authentication.',
+                      confirmLabel: 'Apply',
+                    );
+                    if (!context.mounted || !confirmed) return;
+                    final current = ref.read(devicesBlocProvider);
+                    if (current.winKeySupported && !current.isApplying) {
+                      ref
+                          .read(devicesBlocProvider.bloc)
+                          .add(WinKeySetRequested(enabled));
+                    }
+                  }
+                : null,
+          ),
+          const Divider(height: 16),
+          AppSwitchTile(
+            title: 'Camera',
+            value: devices.cameraEnabled ?? false,
+            subtitle: devices.cameraSupported
+                ? '${boolEnabledLabel(devices.cameraEnabled)} (read-only)'
+                : 'Not supported on this device',
+            onChanged: null,
+          ),
+        ],
+      ],
+    );
+    final displayControls = _SettingsSection(
+      title: 'Display',
+      children: [
+        if (display.isLoading && !display.hasLoaded)
+          const Center(child: YaruCircularProgressIndicator())
+        else ...[
+          AppSwitchTile(
+            title: 'Overdrive',
+            value: display.overdriveEnabled ?? false,
+            subtitle: display.overdriveSupported
+                ? boolEnabledLabel(display.overdriveEnabled)
+                : 'Not supported on this device',
+            onChanged: display.overdriveSupported && !display.isApplying
+                ? (enabled) async {
+                    final confirmed = await confirmPrivilegedAction(
+                      context,
+                      title: 'Toggle overdrive',
+                      message:
+                          'Changing overdrive uses privileged access and may prompt for authentication.',
+                      confirmLabel: 'Apply',
+                    );
+                    if (!context.mounted || !confirmed) return;
+                    final current = ref.read(displayBlocProvider);
+                    if (current.overdriveSupported && !current.isApplying) {
+                      ref
+                          .read(displayBlocProvider.bloc)
+                          .add(OverdriveModeSetRequested(enabled));
+                    }
+                  }
+                : null,
+          ),
+          const Divider(height: 24),
+          Text('Refresh Rate', style: textTheme.labelMedium),
+          const SizedBox(height: 8),
+          if (display.availableRefreshRates == null ||
+              display.availableRefreshRates!.isEmpty)
+            const Text('Unavailable — xrandr not accessible on this session.')
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final rate in display.availableRefreshRates!)
+                  _SettingsChoiceChip(
+                    label: '${rate.round()} Hz',
+                    selected: rate == display.currentRefreshRate,
+                    onSelected: display.isApplying
+                        ? null
+                        : () => ref
+                              .read(displayBlocProvider.bloc)
+                              .add(RefreshRateSetRequested(rate)),
+                  ),
+              ],
+            ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+    final aboutSection = _SettingsSection(
+      title: 'About',
+      children: [
+        Row(
+          children: [
+            LegionMark(color: Theme.of(context).colorScheme.primary, size: 32),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Lenovo Legion Linux Frontend',
+                style: textTheme.titleMedium,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(about.snapshot?.hardwareModel ?? 'Device identity unavailable'),
+        Text('Kernel: ${about.snapshot?.kernelVersion ?? 'Unknown'}'),
+        const _AboutLinks(),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const Scaffold(
+                appBar: _DiagnosticsTitleBar(),
+                body: DiagnosticsPage(),
+              ),
+            ),
+          ),
+          icon: const Icon(YaruIcons.document),
+          label: const Text('Diagnostics and export'),
+        ),
+      ],
+    );
+
     return AppPageBody(
       errorMessage:
           state.appearanceErrorMessage ??
@@ -47,319 +269,26 @@ class SettingsPage extends ConsumerWidget {
           display.errorMessage,
       children: [
         ResponsiveCardGrid(
-          minCardWidth: 380,
+          minCardWidth: 360,
           children: [
-            _SettingsSection(
-              icon: YaruIcons.settings,
-              title: 'Appearance',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 4),
-                Text('Theme', style: textTheme.labelMedium),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final mode in ThemeMode.values)
-                      _SettingsChoiceChip(
-                        label: switch (mode) {
-                          ThemeMode.system => 'System',
-                          ThemeMode.light => 'Light',
-                          ThemeMode.dark => 'Dark',
-                        },
-                        selected: state.themeMode == mode,
-                        onSelected: () => ref
-                            .read(settingsBlocProvider.bloc)
-                            .add(ThemeModeChanged(mode)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                AppSwitchTile(
-                  title: 'Follow power mode accent',
-                  value: state.accentFollowsPowerMode,
-                  subtitle:
-                      'Use the current power mode colour. If the mode is '
-                      'unavailable, use your saved manual or system accent.',
-                  onChanged: (enabled) => ref
-                      .read(settingsBlocProvider.bloc)
-                      .add(AccentFollowsPowerModeChanged(enabled)),
-                ),
-                if (state.accentFollowsPowerMode)
-                  Text(
-                    'Manual accent is saved. Turn off Follow power mode accent '
-                    'to restore or change it.',
-                    style: textTheme.bodySmall,
-                  ),
-                Text('Accent colour', style: textTheme.labelMedium),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _SettingsChoiceChip(
-                      label: 'System accent',
-                      selected: state.yaruVariant == null,
-                      onSelected: state.accentFollowsPowerMode
-                          ? null
-                          : () => ref
-                                .read(settingsBlocProvider.bloc)
-                                .add(const YaruVariantChanged(null)),
-                    ),
-                    ...YaruVariant.accents.map((variant) {
-                      final selected = state.yaruVariant == variant;
-                      return Semantics(
-                        label: '${variant.name} accent colour',
-                        button: true,
-                        selected: selected,
-                        enabled: !state.accentFollowsPowerMode,
-                        child: Opacity(
-                          opacity: state.accentFollowsPowerMode ? 0.38 : 1,
-                          child: InkWell(
-                            onTap: state.accentFollowsPowerMode
-                                ? null
-                                : () => ref
-                                      .read(settingsBlocProvider.bloc)
-                                      .add(
-                                        YaruVariantChanged(
-                                          selected ? null : variant,
-                                        ),
-                                      ),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: variant.color,
-                                border: selected
-                                    ? Border.all(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurface,
-                                        width: 2.5,
-                                      )
-                                    : null,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
+                appearance,
+                const SizedBox(height: 24),
+                deviceControls,
+                const SizedBox(height: 24),
+                displayControls,
               ],
             ),
-            _SettingsSection(
-              icon: YaruIcons.settings,
-              title: 'Backend',
-              description: 'Manage Legion services.',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (about.snapshot case final snapshot?) ...[
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Module version'),
-                    subtitle: Text(snapshot.moduleVersion ?? 'Unknown'),
-                  ),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('CLI'),
-                    subtitle: SelectableText(
-                      '${snapshot.cliPath}\n${snapshot.cliHealthSummary}',
-                    ),
-                  ),
-                ],
-                const PrivilegedActionNotice(),
-                const SizedBox(height: 8),
-                if (state.services.isEmpty)
-                  const Text('No service controls available.'),
-                ...state.services.map(
-                  (service) => _ServiceTile(
-                    service: service,
-                    isBusy: state.isApplying,
-                    onChanged: (enabled) async {
-                      final confirmed = await confirmPrivilegedAction(
-                        context,
-                        title: 'Update ${service.label}',
-                        message:
-                            'Changing services may ask you to authenticate.',
-                        confirmLabel: 'Apply',
-                      );
-                      if (!context.mounted || !confirmed) {
-                        return;
-                      }
-                      final current = ref.read(settingsBlocProvider);
-                      if (current.isApplying ||
-                          !current.services.any(
-                            (item) => item.service == service.service && item.supported,
-                          )) {
-                        return;
-                      }
-                      ref
-                          .read(settingsBlocProvider.bloc)
-                          .add(
-                            SettingsServiceToggled(
-                              serviceId: service.service.wireValue,
-                              enabled: enabled,
-                            ),
-                          );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            _SettingsSection(
-              icon: YaruIcons.image,
-              title: 'Boot Logo',
-              description:
-                  'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
-              children: const [BootLogoControls()],
-            ),
-            _SettingsSection(
-              icon: YaruIcons.keyboard,
-              title: 'Devices',
-              children: [
-                if (devices.isLoading && !devices.hasLoaded)
-                  const Center(child: YaruCircularProgressIndicator())
-                else ...[
-                  AppSwitchTile(
-                    title: 'Win Key',
-                    value: devices.winKeyEnabled ?? false,
-                    subtitle: devices.winKeySupported
-                        ? boolEnabledLabel(devices.winKeyEnabled)
-                        : 'Not supported on this device',
-                    onChanged: devices.winKeySupported && !devices.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Change Win Key',
-                              message:
-                                  'Changing the Win Key uses privileged access and may prompt for authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) return;
-                            final current = ref.read(devicesBlocProvider);
-                            if (current.winKeySupported &&
-                                !current.isApplying) {
-                              ref
-                                  .read(devicesBlocProvider.bloc)
-                                  .add(WinKeySetRequested(enabled));
-                            }
-                          }
-                        : null,
-                  ),
-                  AppSwitchTile(
-                    title: 'Camera',
-                    value: devices.cameraEnabled ?? false,
-                    subtitle: devices.cameraSupported
-                        ? '${boolEnabledLabel(devices.cameraEnabled)} (read-only)'
-                        : 'Not supported on this device',
-                    onChanged: null,
-                  ),
-                ],
-              ],
-            ),
-            _SettingsSection(
-              icon: YaruIcons.monitor,
-              title: 'Display',
-              children: [
-                if (display.isLoading && !display.hasLoaded)
-                  const Center(child: YaruCircularProgressIndicator())
-                else ...[
-                  AppSwitchTile(
-                    title: 'Overdrive',
-                    value: display.overdriveEnabled ?? false,
-                    subtitle: display.overdriveSupported
-                        ? boolEnabledLabel(display.overdriveEnabled)
-                        : 'Not supported on this device',
-                    onChanged: display.overdriveSupported && !display.isApplying
-                        ? (enabled) async {
-                            final confirmed = await confirmPrivilegedAction(
-                              context,
-                              title: 'Toggle overdrive',
-                              message:
-                                  'Changing overdrive uses privileged access and may prompt for authentication.',
-                              confirmLabel: 'Apply',
-                            );
-                            if (!context.mounted || !confirmed) return;
-                            final current = ref.read(displayBlocProvider);
-                            if (current.overdriveSupported &&
-                                !current.isApplying) {
-                              ref
-                                  .read(displayBlocProvider.bloc)
-                                  .add(OverdriveModeSetRequested(enabled));
-                            }
-                          }
-                        : null,
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Refresh Rate', style: textTheme.labelMedium),
-                  const SizedBox(height: 8),
-                  if (display.availableRefreshRates == null ||
-                      display.availableRefreshRates!.isEmpty)
-                    const Text(
-                      'Unavailable — xrandr not accessible on this session.',
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final rate in display.availableRefreshRates!)
-                          _SettingsChoiceChip(
-                            label: '${rate.round()} Hz',
-                            selected: rate == display.currentRefreshRate,
-                            onSelected: display.isApplying
-                                ? null
-                                : () => ref
-                                      .read(displayBlocProvider.bloc)
-                                      .add(RefreshRateSetRequested(rate)),
-                          ),
-                      ],
-                    ),
-                  const SizedBox(height: 8),
-                ],
-              ],
-            ),
-            _SettingsSection(
-              icon: YaruIcons.information,
-              title: 'About',
-              children: [
-                Row(
-                  children: [
-                    LegionMark(
-                      color: Theme.of(context).colorScheme.primary,
-                      size: 32,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Lenovo Legion Linux Frontend',
-                        style: textTheme.titleMedium,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  about.snapshot?.hardwareModel ??
-                      'Device identity unavailable',
-                ),
-                Text('Kernel: ${about.snapshot?.kernelVersion ?? 'Unknown'}'),
-                const _AboutLinks(),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const Scaffold(
-                        appBar: _DiagnosticsTitleBar(),
-                        body: DiagnosticsPage(),
-                      ),
-                    ),
-                  ),
-                  icon: const Icon(YaruIcons.image),
-                  label: const Text('Diagnostics and export'),
-                ),
+                backend,
+                const SizedBox(height: 24),
+                bootLogo,
+                const SizedBox(height: 24),
+                aboutSection,
               ],
             ),
           ],
@@ -367,6 +296,50 @@ class SettingsPage extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _AppearanceSelector extends StatelessWidget {
+  const _AppearanceSelector({required this.selected, required this.onChanged});
+
+  final ThemeMode selected;
+  final ValueChanged<ThemeMode> onChanged;
+
+  static String _label(ThemeMode mode) => switch (mode) {
+    ThemeMode.system => 'System',
+    ThemeMode.light => 'Light',
+    ThemeMode.dark => 'Dark',
+  };
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      if (constraints.maxWidth <
+          300 * MediaQuery.textScalerOf(context).scale(1)) {
+        return DropdownButtonFormField<ThemeMode>(
+          initialValue: selected,
+          key: ValueKey(selected),
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Appearance'),
+          items: [
+            for (final mode in ThemeMode.values)
+              DropdownMenuItem(value: mode, child: Text(_label(mode))),
+          ],
+          onChanged: (mode) {
+            if (mode != null) onChanged(mode);
+          },
+        );
+      }
+      return SegmentedButton<ThemeMode>(
+        showSelectedIcon: false,
+        segments: [
+          for (final mode in ThemeMode.values)
+            ButtonSegment(value: mode, label: Text(_label(mode))),
+        ],
+        selected: {selected},
+        onSelectionChanged: (modes) => onChanged(modes.single),
+      );
+    },
+  );
 }
 
 class _SettingsChoiceChip extends StatelessWidget {
@@ -395,42 +368,46 @@ class _SettingsChoiceChip extends StatelessWidget {
 
 class _SettingsSection extends StatelessWidget {
   const _SettingsSection({
-    required this.icon,
     required this.title,
     this.description,
     required this.children,
   });
-  final IconData icon;
   final String title;
   final String? description;
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => SurfaceCard(
-    child: Column(
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.56);
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(icon, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-          ],
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
+          child: Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(color: muted),
+          ),
         ),
-        if (description != null) ...[
-          const SizedBox(height: 4),
-          Text(description!, style: Theme.of(context).textTheme.bodySmall),
-        ],
-        const SizedBox(height: 12),
-        ...children,
+        SurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (description != null) ...[
+                Text(
+                  description!,
+                  style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                ),
+                const SizedBox(height: 12),
+              ],
+              ...children,
+            ],
+          ),
+        ),
       ],
-    ),
-  );
+    );
+  }
 }
 
 class _AboutLinks extends StatefulWidget {
