@@ -17,6 +17,16 @@ a distinction between an implemented source, actual model/BIOS records, and a
 complete frontend restore contract. No model gains complete restore eligibility
 from this investigation alone.
 
+### Subsequent staged backend implementation
+
+Backend branch `feature/power-defaults-contract`, commit `3a84dcd`, now exports
+cached firmware rows through the read-only `power_defaults_v1` diagnostic
+attribute. Lookup fixtures cover missing, unsupported, valid-zero and invalid
+records. The branch is pushed separately and is **not merged or deployed**.
+Kernel compilation remains unverified because matching headers were unavailable;
+exact-model coverage and PPAB provenance still block a restore preset. See that
+branch's `doc/POWER_DEFAULTS.md` and `lllf-dok` for the contract and next checks.
+
 ## Evidence versions and scope
 
 - Frontend baseline map last changed in commit
