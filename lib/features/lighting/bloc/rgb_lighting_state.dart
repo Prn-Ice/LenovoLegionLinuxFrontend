@@ -3,6 +3,7 @@ import 'dart:ui' show Color;
 import 'package:equatable/equatable.dart';
 
 import '../../../core/models/app_failure.dart';
+import '../models/keyboard_layout.dart';
 import '../models/rgb_lighting_device.dart';
 import '../services/spectrum_effects.dart';
 
@@ -20,6 +21,7 @@ class RgbLightingState extends Equatable {
     this.isApplying = false,
     this.errorMessage,
     this.nativeAvailable = false,
+    this.keyboardLayout = kLegionAnsiLayout,
     this.nativeAvailabilityError,
     this.directColors = const [],
     this.effects = const [],
@@ -54,6 +56,10 @@ class RgbLightingState extends Equatable {
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
   final bool nativeAvailable;
 
+  /// The native profile's geometry, or the existing approximate OpenRGB preview.
+  /// Preview geometry alone never enables native hardware support.
+  final KeyboardLayout keyboardLayout;
+
   /// A probe failure is distinct from a missing native device. This lets the
   /// UI avoid suggesting OpenRGB when the native backend needs attention.
   final String? nativeAvailabilityError;
@@ -79,6 +85,7 @@ class RgbLightingState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     bool? nativeAvailable,
+    KeyboardLayout? keyboardLayout,
     Object? nativeAvailabilityError = _unset,
     List<Color>? directColors,
     List<SpectrumRegionEffect>? effects,
@@ -99,6 +106,7 @@ class RgbLightingState extends Equatable {
           ? this.errorMessage
           : AppFailure.optional(errorMessage),
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
+      keyboardLayout: keyboardLayout ?? this.keyboardLayout,
       nativeAvailabilityError: nativeAvailabilityError == _unset
           ? this.nativeAvailabilityError
           : nativeAvailabilityError as String?,
@@ -120,6 +128,7 @@ class RgbLightingState extends Equatable {
     isApplying,
     errorMessage,
     nativeAvailable,
+    keyboardLayout,
     nativeAvailabilityError,
     directColors,
     effects,

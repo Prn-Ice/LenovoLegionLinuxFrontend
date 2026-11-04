@@ -11,11 +11,11 @@ import '../bloc/lighting_bloc.dart';
 import '../bloc/lighting_event.dart';
 import '../bloc/lighting_state.dart';
 import '../bloc/rgb_lighting_event.dart';
+import '../models/keyboard_layout.dart';
 import '../models/rgb_lighting_device.dart';
 import '../providers/lighting_provider.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../services/spectrum_effects.dart';
-import 'keyboard_layout.dart';
 import 'keyboard_preview.dart';
 
 /// This page's accent — the current power-mode accent (matching the sidebar),
@@ -166,6 +166,7 @@ class _LightingPageState extends ConsumerState<LightingPage> {
             ValueListenableBuilder<List<Color>?>(
               valueListenable: engine.frame,
               builder: (context, liveFrame, _) => _KeyboardCard(
+                layout: rgb.keyboardLayout,
                 leds: device.leds,
                 keyColors: liveFrame ?? rgb.keyColors,
                 enabled: isCustom && !rgb.isApplying,
@@ -434,6 +435,7 @@ class _DeviceCard extends StatelessWidget {
 /// The keyboard preview on a darker surface so the keys pop, like the design.
 class _KeyboardCard extends StatelessWidget {
   const _KeyboardCard({
+    required this.layout,
     required this.leds,
     required this.keyColors,
     required this.enabled,
@@ -443,6 +445,7 @@ class _KeyboardCard extends StatelessWidget {
     required this.onPick,
   });
 
+  final KeyboardLayout layout;
   final List<String> leds;
   final List<Color> keyColors;
   final bool enabled;
@@ -461,6 +464,7 @@ class _KeyboardCard extends StatelessWidget {
         scheme.surface,
       ),
       child: KeyboardPreview(
+        layout: layout,
         leds: leds,
         keyColors: keyColors,
         enabled: enabled,

@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
-import 'package:legion_frontend/features/lighting/services/spectrum_led_map.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_led_map.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
-import 'package:legion_frontend/features/lighting/view/keyboard_layout.dart';
+import 'package:legion_frontend/features/lighting/models/keyboard_layout.dart';
 
 final _func = RegExp(r'^Key: (Escape|F\d)');
 final _num = RegExp(r'^Key: [0-9`\-=]$');

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HardwareKeyboard;
 
-import 'keyboard_layout.dart';
+import '../models/keyboard_layout.dart';
 
 /// A stylized, paintable keyboard. Each key is colored from [keyColors] (by the
 /// LED index of its name in [leds]). Click a key — or press and **drag** across
@@ -18,9 +18,11 @@ class KeyboardPreview extends StatefulWidget {
     required this.onErase,
     required this.onPick,
     this.highlighted = const {},
+    this.layout = kLegionAnsiLayout,
   });
 
   final List<String> leds;
+  final KeyboardLayout layout;
   final List<Color> keyColors;
   final bool enabled;
   final ValueChanged<int> onPaint;
@@ -36,9 +38,6 @@ class KeyboardPreview extends StatefulWidget {
 }
 
 class _KeyboardPreviewState extends State<KeyboardPreview> {
-  static const double _totalUnits =
-      kMainUnits + kGroupGap + kNavUnits + kGroupGap + kNumpadUnits;
-
   bool _painting = false;
 
   int _indexOf(String led) {
@@ -63,13 +62,17 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final layout = widget.layout;
     return Listener(
       onPointerDown: (_) => setState(() => _painting = true),
       onPointerUp: (_) => setState(() => _painting = false),
       onPointerCancel: (_) => setState(() => _painting = false),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final unit = (constraints.maxWidth / _totalUnits).clamp(16.0, 34.0);
+          final unit = (constraints.maxWidth / layout.totalUnits).clamp(
+            16.0,
+            34.0,
+          );
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -85,23 +88,23 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
               ),
               _neonStrip(),
               const SizedBox(height: 12),
-              for (final row in kKeyboardLayout)
+              for (final row in layout.rows)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
                     children: [
                       SizedBox(
-                        width: kMainUnits * unit,
+                        width: layout.mainUnits * unit,
                         child: _group(row.main, unit),
                       ),
-                      SizedBox(width: kGroupGap * unit),
+                      SizedBox(width: layout.groupGap * unit),
                       SizedBox(
-                        width: kNavUnits * unit,
+                        width: layout.navUnits * unit,
                         child: _group(row.nav, unit),
                       ),
-                      SizedBox(width: kGroupGap * unit),
+                      SizedBox(width: layout.groupGap * unit),
                       SizedBox(
-                        width: kNumpadUnits * unit,
+                        width: layout.numpadUnits * unit,
                         child: _group(row.numpad, unit),
                       ),
                     ],
@@ -183,7 +186,7 @@ class _KeyboardPreviewState extends State<KeyboardPreview> {
     final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        for (final name in kNeonLeds)
+        for (final name in widget.layout.neonLeds)
           Expanded(
             child: Builder(
               builder: (context) {

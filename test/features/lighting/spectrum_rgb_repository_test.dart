@@ -1,11 +1,14 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_keyboard_profile.dart';
 import 'package:legion_frontend/features/lighting/repository/spectrum_rgb_repository.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 
 class _FakeService extends SpectrumHidService {
+  _FakeService({super.productId});
+
   String? path = '/dev/hidraw0';
   List<SpectrumLed>? lastFrame;
   int? lastBrightness;
@@ -52,10 +55,36 @@ void main() {
   });
 
   group('spectrumLedsFor', () {
+    test('uses the supplied mapping and calibration, not c987 defaults', () {
+      final fixtureProfile = SpectrumKeyboardProfile(
+        vendorId: 0,
+        productId: 0,
+        protocol: SpectrumProtocol.gen7And8,
+        ledValues: const {'Fixture key': 0x1234},
+        layout: kSpectrumC987Profile.layout,
+        calibration: const SpectrumCalibration(
+          maxLedSum: 300,
+          dimGreenGain: 1,
+          fullGreenGain: 1,
+          dimBrightnessLevel: 3,
+          maxBrightnessLevel: 9,
+        ),
+      );
+      final leds = spectrumLedsFor(
+        const ['Fixture key', 'Key: Escape'],
+        const [Color(0xFFFFFFFF), Color(0xFFFFFFFF)],
+        profile: fixtureProfile,
+      );
+      expect(leds, hasLength(1));
+      expect(leds.single.number, 0x1234);
+      expect([leds.single.r, leds.single.g, leds.single.b], [100, 100, 100]);
+    });
+
     test('maps known names + RGB and skips unknown', () {
       final leds = spectrumLedsFor(
         const ['Key: Escape', 'Bogus'],
         const [Color(0xFFFF0000), Color(0xFFFFFFFF)],
+        profile: kSpectrumC987Profile,
       );
       expect(leds.length, 1);
       expect(leds.single.number, 0x01);
@@ -66,6 +95,7 @@ void main() {
       final led = spectrumLedsFor(
         const ['Key: Escape'],
         const [Color(0xFFFFFFFF)],
+        profile: kSpectrumC987Profile,
       ).single;
       expect(led.r + led.g + led.b, lessThanOrEqualTo(720)); // lit (power cap)
       expect([led.r, led.g, led.b], everyElement(greaterThan(150))); // all on
@@ -74,6 +104,65 @@ void main() {
   });
 
   group('SpectrumRgbRepository', () {
+    test('unknown IDs cannot inherit the c987 mapping or calibration', () {
+      final fake = _FakeService(productId: 0xC988);
+      final repo = SpectrumRgbRepository(service: fake);
+      expect(repo.keyboardProfile, isNull);
+      expect(repo.isAvailable, isFalse);
+      expect(
+        repo.paint(const ['Key: Escape'], const [Color(0xFFFFFFFF)]),
+        isFalse,
+      );
+      expect(repo.setBrightness(50), isFalse);
+      expect(fake.frameCount, 0);
+      expect(fake.lastBrightness, isNull);
+    });
+
+    test(
+      'c987 keeps exact calibrated frame values across brightness levels',
+      () {
+        final fake = _FakeService();
+        final repo = SpectrumRgbRepository(service: fake);
+        repo.paint(
+          const ['Key: Escape', 'Neon group 10'],
+          const [Color(0xFFFFFFFF), Color(0xFF00FF00)],
+        );
+        expect(spectrumDirectFramePacket(fake.lastFrame!).take(14), [
+          7,
+          0xA1,
+          0xC0,
+          3,
+          1,
+          0,
+          250,
+          220,
+          250,
+          0xFE,
+          0,
+          0,
+          224,
+          0,
+        ]);
+        repo.setBrightness(33);
+        expect(spectrumDirectFramePacket(fake.lastFrame!).take(14), [
+          7,
+          0xA1,
+          0xC0,
+          3,
+          1,
+          0,
+          245,
+          230,
+          245,
+          0xFE,
+          0,
+          0,
+          240,
+          0,
+        ]);
+      },
+    );
+
     test('isAvailable reflects hidraw presence', () {
       final fake = _FakeService();
       final repo = SpectrumRgbRepository(service: fake);

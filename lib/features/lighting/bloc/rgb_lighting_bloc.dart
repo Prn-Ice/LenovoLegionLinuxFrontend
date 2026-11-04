@@ -2,13 +2,13 @@ import 'dart:ui' show Color;
 
 import 'package:riverbloc/riverbloc.dart';
 
+import '../models/keyboard_layout.dart';
 import '../models/rgb_lighting_device.dart';
 import '../models/rgb_lighting_snapshot.dart';
 import '../repository/rgb_lighting_repository.dart';
 import '../repository/rgb_lighting_store.dart';
 import '../repository/spectrum_rgb_repository.dart';
 import '../services/spectrum_effects.dart';
-import '../services/spectrum_led_map.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
 
@@ -117,6 +117,9 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
           profileNames: _store?.profileNames() ?? const [],
           isLoading: false,
           nativeAvailable: nativeOk,
+          keyboardLayout: nativeOk
+              ? _native!.keyboardProfile!.layout
+              : kLegionAnsiLayout,
           nativeAvailabilityError: nativeError,
         ),
       );
@@ -149,13 +152,15 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   /// running but the keyboard is present — makes native fully standalone.
   RgbLightingDevice? _syntheticNativeDevice(bool nativeOk) {
     if (!nativeOk) return null;
+    final profile = _native?.keyboardProfile;
+    if (profile == null) return null;
     return RgbLightingDevice(
       index: 0,
       name: 'Legion Keyboard',
       type: 'Keyboard',
       modes: const ['Direct', 'Static'],
       activeMode: 'Direct',
-      leds: kSpectrumLedValues.keys.toList(),
+      leds: profile.ledValues.keys.toList(),
     );
   }
 

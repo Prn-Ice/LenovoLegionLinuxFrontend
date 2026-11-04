@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/features/lighting/services/spectrum_led_map.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_led_map.dart';
 
 void main() {
   group('kSpectrumLedValues', () {

@@ -7,6 +7,7 @@ import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_event.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_state.dart';
 import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 import 'package:legion_frontend/features/lighting/models/rgb_lighting_snapshot.dart';
+import 'package:legion_frontend/features/lighting/models/spectrum_keyboard_profile.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_repository.dart';
 import 'package:legion_frontend/features/lighting/repository/rgb_lighting_store.dart';
 import 'package:legion_frontend/features/lighting/repository/spectrum_rgb_repository.dart';
@@ -95,6 +96,8 @@ class _FakeStore extends RgbLightingStore {
 }
 
 class _RecordingHid extends SpectrumHidService {
+  _RecordingHid({super.productId});
+
   List<SpectrumLed>? lastFrame;
   int paints = 0;
 
@@ -148,6 +151,22 @@ void main() {
     );
 
     blocTest<RgbLightingBloc, RgbLightingState>(
+      'unknown native identity cannot synthesize a c987 keyboard',
+      build: () => RgbLightingBloc(
+        repository: _FakeRepo(device: null),
+        nativeRepository: SpectrumRgbRepository(
+          service: _RecordingHid(productId: 0xC988),
+        ),
+      ),
+      act: (b) => b.add(const RgbLightingStarted()),
+      verify: (b) {
+        expect(b.state.available, isFalse);
+        expect(b.state.nativeAvailable, isFalse);
+        expect(b.state.device, isNull);
+      },
+    );
+
+    blocTest<RgbLightingBloc, RgbLightingState>(
       'Started keeps the native keyboard when OpenRGB is absent',
       build: () => RgbLightingBloc(
         repository: _FakeRepo(device: null),
@@ -157,6 +176,11 @@ void main() {
       verify: (b) {
         expect(b.state.available, isTrue);
         expect(b.state.nativeAvailable, isTrue);
+        expect(
+          b.state.device!.leds,
+          kSpectrumC987Profile.ledValues.keys.toList(),
+        );
+        expect(b.state.keyboardLayout, same(kSpectrumC987Profile.layout));
         expect(b.state.device?.name, 'Legion Keyboard');
       },
     );

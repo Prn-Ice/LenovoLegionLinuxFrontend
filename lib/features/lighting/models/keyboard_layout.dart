@@ -1,3 +1,33 @@
+/// Preview geometry, independent of a rendering widget or hardware protocol.
+class KeyboardLayout {
+  const KeyboardLayout({
+    required this.rows,
+    required this.neonLeds,
+    required this.mainUnits,
+    required this.navUnits,
+    required this.numpadUnits,
+    required this.groupGap,
+  });
+
+  final List<KeyRow> rows;
+  final List<String> neonLeds;
+  final double mainUnits;
+  final double navUnits;
+  final double numpadUnits;
+  final double groupGap;
+
+  double get totalUnits => mainUnits + navUnits + numpadUnits + 2 * groupGap;
+}
+
+const kLegionAnsiLayout = KeyboardLayout(
+  rows: kKeyboardLayout,
+  neonLeds: kNeonLeds,
+  mainUnits: kMainUnits,
+  navUnits: kNavUnits,
+  numpadUnits: kNumpadUnits,
+  groupGap: kGroupGap,
+);
+
 /// A single key in the visual keyboard layout. [led] is the exact OpenRGB LED
 /// name (matched against `RgbLightingDevice.leds`); [label] is the short cap text;
 /// [width] is in key units. A gap has an empty [led].

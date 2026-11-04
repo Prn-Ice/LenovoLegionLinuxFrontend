@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import '../models/spectrum_keyboard_profile.dart';
 import 'spectrum_protocol.dart';
 
 typedef _OpenNative = Int32 Function(Pointer<Utf8>, Int32);
@@ -19,13 +20,23 @@ const int _oRdwr = 2;
 /// `ioctl(HIDIOCSFEATURE/HIDIOCGFEATURE)` — no libhidapi. Real-time: a full
 /// per-key frame is one direct-mode enable + one frame write.
 ///
-/// Frame bytes come from `spectrum_protocol.dart`; this is the thin (untestable)
-/// I/O layer.
+/// Frame bytes come from `spectrum_protocol.dart`. Discovery is read-only and
+/// accepts fixture roots; only open/write methods access the native transport.
 class SpectrumHidService {
-  SpectrumHidService({this.vendorId = 0x048D, this.productId = 0xC987});
+  SpectrumHidService({
+    this.vendorId = kSpectrumVendorId,
+    this.productId = kSpectrumC987ProductId,
+    this.sysfsHidrawRoot = '/sys/class/hidraw',
+    this.devRoot = '/dev',
+  });
 
   final int vendorId;
   final int productId;
+  final String sysfsHidrawRoot;
+  final String devRoot;
+
+  SpectrumKeyboardProfile? get keyboardProfile =>
+      spectrumKeyboardProfile(vendorId, productId);
 
   static final DynamicLibrary _libc = DynamicLibrary.process();
   static final _open = _libc.lookupFunction<_OpenNative, _OpenDart>('open');
@@ -40,19 +51,19 @@ class SpectrumHidService {
   /// The `/dev/hidraw*` node whose HID_ID matches [vendorId]:[productId], or
   /// null when the keyboard isn't present.
   String? findHidrawPath() {
-    final dir = Directory('/sys/class/hidraw');
+    final profile = keyboardProfile;
+    if (profile == null || profile.protocol != SpectrumProtocol.gen7And8) {
+      return null;
+    }
+    final dir = Directory(sysfsHidrawRoot);
     if (!dir.existsSync()) return null;
     for (final entry in dir.listSync()) {
       final name = entry.path.split('/').last;
       try {
         final uevent = File('${entry.path}/device/uevent').readAsStringSync();
-        final match = RegExp(
-          r'HID_ID=[0-9A-Fa-f]+:([0-9A-Fa-f]+):([0-9A-Fa-f]+)',
-        ).firstMatch(uevent);
-        if (match != null &&
-            int.parse(match.group(1)!, radix: 16) == vendorId &&
-            int.parse(match.group(2)!, radix: 16) == productId) {
-          return '/dev/$name';
+        final found = spectrumKeyboardProfileFromUevent(uevent);
+        if (found == profile) {
+          return '$devRoot/$name';
         }
       } on FileSystemException {
         // hidraw without a readable uevent — skip.
@@ -63,6 +74,10 @@ class SpectrumHidService {
 
   /// Opens the keyboard's hidraw node. False when absent or permission-denied.
   bool open() {
+    final profile = keyboardProfile;
+    if (profile == null || profile.protocol != SpectrumProtocol.gen7And8) {
+      return false;
+    }
     if (_fd >= 0) return true;
     final path = findHidrawPath();
     if (path == null) return false;

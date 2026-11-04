@@ -26,10 +26,15 @@ const int kSpectrumMaxLedSum = 720;
 /// Caps an LED's [r],[g],[b] to the per-key power budget, scaling all channels
 /// proportionally (so hue is preserved) only when the total exceeds the budget.
 /// Colors under it pass through unchanged.
-(int, int, int) capPowerRgb(int r, int g, int b) {
+(int, int, int) capPowerRgb(
+  int r,
+  int g,
+  int b, {
+  int maxLedSum = kSpectrumMaxLedSum,
+}) {
   final sum = r + g + b;
-  if (sum <= kSpectrumMaxLedSum || sum == 0) return (r, g, b);
-  final scale = kSpectrumMaxLedSum / sum;
+  if (sum <= maxLedSum || sum == 0) return (r, g, b);
+  final scale = maxLedSum / sum;
   return ((r * scale).round(), (g * scale).round(), (b * scale).round());
 }
 
