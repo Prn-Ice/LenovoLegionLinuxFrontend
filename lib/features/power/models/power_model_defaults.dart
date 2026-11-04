@@ -1,7 +1,7 @@
-/// Display reference values for an exact product and BIOS match.
-///
-/// Sources and remaining gaps: docs/power-defaults-evidence.md. These values
-/// are not a complete firmware restore preset.
+/// Recorded CPU/GPU power and temperature limits shown as "Hardware default"
+/// labels and slider markers on the Power page. Each product/BIOS pair maps
+/// power-limit IDs to values in watts or °C. Capture details are in
+/// docs/power-defaults-evidence.md.
 const _referenceLimits = <(String, String), Map<String, int>>{
   ('82Y4', 'M1CN48WW'): {
     'cpu_longterm': 54,
