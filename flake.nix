@@ -53,8 +53,13 @@
       };
     in
     {
-      checks.${system}.control-lifecycle = import ./control/test/control_lifecycle.nix {
-        inherit pkgs;
+      checks.${system} = {
+        control-lifecycle = import ./control/test/control_lifecycle.nix {
+          inherit pkgs;
+        };
+        portable-bootstrap = import ./control/test/portable_bootstrap.nix {
+          inherit pkgs;
+        };
       };
 
       devShells.${system}.default = pkgs.mkShell {

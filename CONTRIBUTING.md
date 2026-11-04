@@ -124,7 +124,7 @@ To build and test native service code without installing it:
 
 ```bash
 cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test
 ctest --test-dir build/native --output-on-failure
 ```
 
@@ -142,6 +142,17 @@ nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
 This uses QEMU/KVM and synthetic backend commands inside NixOS. See
 [backend process containment](docs/architecture/portable-control.md#backend-process-containment)
 for the lifecycle cases it covers.
+
+To test administrator startup from an immutable helper snapshot:
+
+```bash
+nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+```
+
+This separate disposable VM uses real systemd and Polkit with deterministic test
+policies. The startup probe has no hardware operations and refuses host execution.
+See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
+for its trust boundary and remaining checks.
 
 To capture screenshots for visual review:
 

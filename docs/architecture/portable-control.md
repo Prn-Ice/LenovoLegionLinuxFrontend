@@ -94,21 +94,59 @@ The production design must establish:
 Stopping the helper ends access; it does not undo hardware settings already
 applied. A timed-out or interrupted write needs a fresh read before retrying.
 
-### Bootstrap still to resolve
+### Administrator startup experiment
 
-The host's `pkexec` supports its generic Polkit action without installing a new
-action. It displays an executable path, sanitizes the environment, and does not
-validate that program's arguments. Our launcher would invoke only the fixed
-helper, and the helper would retain the typed allow-list.
+The VM-only `portable_bootstrap_probe` tests systemd's existing
+`org.freedesktop.systemd1.manage-units` Polkit action. Its launcher requests one
+fixed helper through `StartTransientUnit`, with interactive authorization enabled.
+The probe exports no hardware operations and refuses to run outside the marked
+disposable VM. Production portable control still needs integration and review.
 
-Executing directly from an AppImage's user FUSE mount cannot assume root can
-access it. Extraction solves that accessibility problem. User-writable extracted
-code still needs an integrity design across the authentication wait.
+Before requesting approval, the launcher copies its own executable into a sealed
+memory file and disables process dumping to prevent another ordinary process
+from replacing its descriptor. systemd executes that snapshot through the live
+launcher's `/proc` descriptor path. Replacing the downloaded file after this
+point cannot change the snapshot. This also avoids asking root to traverse an
+AppImage FUSE mount. FUSE launch still needs separate qualification.
 
-An immutable executable snapshot is a candidate to investigate. It must cover
-dependencies and work with host execution policies and `pkexec`; sealing bytes
-alone does not establish their origin. The prototype deliberately has no
-production elevation path while this choice is unresolved.
+The snapshot validator accepts x86-64 ELF executables. It requires a
+root-controlled interpreter and library search directories, rejects relative
+paths and `$ORIGIN`, and rejects path-bearing dependency names and ELF audit,
+filter, or configuration objects. The privileged helper uses host libraries;
+the desktop app may bundle its own. The host's loader, library cache, and
+installed libraries remain part of the trusted host environment. Sealing fixes
+the approved bytes; users still choose which download to trust.
+
+The launcher connects to the fixed host system-bus socket. Its AppImage library,
+module, and bus environment is not forwarded to the root helper. The systemd
+authorization belongs to the launcher process. The host controls its policy and
+authorization caching; production must keep the launcher limited to this fixed
+request and explain the administrator session in the app.
+
+The earlier direct `pkexec` snapshot idea is unsuitable: Polkit 127 resolves the
+executable with `realpath()` before execution, turning a memory-file descriptor
+path into a deleted-file name. Launching through a generic shell or dynamic
+loader would add another privilege interface. The systemd experiment uses the
+snapshot as the executable directly.
+
+Run the guarded startup experiment with:
+
+```bash
+nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+```
+
+The VM supplies deterministic allow, deny, and authentication-required policies
+for disposable test users. It tests startup from a user-owned path with spaces,
+source replacement after sealing, root execution, environment isolation, missing
+authentication agents, and launcher death during running and queued startup.
+It also runs the ELF validation suite with normal root ownership. The probe
+target is disabled by default and excluded from product installation.
+The startup VM passed on 2026-11-04 with systemd 262, GLib 2.88.3, and Polkit 127.
+
+Root-to-app peer authentication, cancellation during a live authentication
+dialog, idle-helper shutdown, multiple app instances, real desktop prompts,
+Debian qualification, and production transport remain required before enabling
+portable hardware writes.
 
 ### Backend process containment
 
@@ -126,6 +164,13 @@ When next-boot graphics requests are enabled, command units also retain the
 private `legion-graphics-boot` state directory used by the installed helper.
 The future portable administrator helper must itself run as a transient service.
 These units are created at runtime and require no installed unit files.
+
+The startup experiment also places its ordinary-user launcher in a transient
+scope. A helper bound to that scope stops after launcher death. A temporary
+cleanup service cancels a helper start still waiting on ordering dependencies;
+the scope triggers it with replacement job mode when the launcher exits.
+A runtime limit alone does not
+cover queued startup. The root probe also watches a launcher pidfd.
 
 The runner pins the system manager's D-Bus owner and gives each operation a unique
 unit name. It waits for terminal state, no pending job, and systemd's release of
@@ -196,7 +241,8 @@ whether GTK is bundled, and which helper libraries come from the host. Include
 their source and notices wherever libraries are redistributed.
 
 The AppImage acceptance environment is a clean supported Debian-family desktop
-with the driver, CLI, and host Polkit/`pkexec` installed and our services absent.
+with the driver, CLI, systemd, host libraries, and a Polkit authentication agent,
+with our installed services absent.
 Begin distribution qualification on Debian/Ubuntu and publish the exact tested
 versions; extend that matrix as other distributions are checked. Verify:
 
