@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:integration_test/integration_test.dart';
-import 'package:legion_frontend/core/widgets/surface_card.dart';
 import 'package:legion_frontend/features/battery/view/battery_page.dart';
 import 'package:yaru/yaru.dart';
 
-import 'support/safe_app.dart';
+import '../support/safe_app.dart';
+import '../support/journey.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-
   testWidgets('cancel then apply battery health and read it on Battery', (
     tester,
   ) async {
@@ -21,7 +18,11 @@ void main() {
     await app.launch();
 
     final healthSwitch = switchInCard('Battery health');
-    await waitFor(tester, () => healthSwitch.evaluate().isNotEmpty);
+    await waitFor(
+      tester,
+      () => healthSwitch.evaluate().isNotEmpty,
+      description: 'Dashboard Battery health control',
+    );
     await tester.ensureVisible(healthSwitch);
     await tester.pumpAndSettle();
     expect(tester.widget<YaruSwitch>(healthSwitch).value, isFalse);
@@ -40,7 +41,11 @@ void main() {
     await tester.tap(healthSwitch);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Apply'));
-    await waitFor(tester, () => tester.widget<YaruSwitch>(healthSwitch).value);
+    await waitFor(
+      tester,
+      () => tester.widget<YaruSwitch>(healthSwitch).value,
+      description: 'Dashboard conservation readback',
+    );
     expect(app.writes, [true]);
     expect(app.authorizations, 1);
     expect(await app.conservationFile.readAsString(), '1\n');
@@ -52,9 +57,17 @@ void main() {
           ? batteryNavigation.first
           : find.byTooltip('Battery'),
     );
-    await waitFor(tester, () => find.byType(BatteryPage).evaluate().isNotEmpty);
+    await waitFor(
+      tester,
+      () => find.byType(BatteryPage).evaluate().isNotEmpty,
+      description: 'Battery page navigation',
+    );
     final conservationSwitch = switchInCard('Conservation mode');
-    await waitFor(tester, () => conservationSwitch.evaluate().isNotEmpty);
+    await waitFor(
+      tester,
+      () => conservationSwitch.evaluate().isNotEmpty,
+      description: 'Battery conservation control',
+    );
     await tester.ensureVisible(conservationSwitch);
     await tester.pumpAndSettle();
     // The sidebar keeps Battery's earlier snapshot alive. Explicit refresh is
@@ -63,24 +76,10 @@ void main() {
     await waitFor(
       tester,
       () => tester.widget<YaruSwitch>(conservationSwitch).value,
+      description: 'refreshed Battery conservation readback',
     );
     expect(tester.widget<YaruSwitch>(conservationSwitch).value, isTrue);
     expect(app.writes, [true]);
     expect(tester.takeException(), isNull);
   });
-}
-
-Finder switchInCard(String label) => find.descendant(
-  of: find.ancestor(of: find.text(label), matching: find.byType(SurfaceCard)),
-  matching: find.byType(YaruSwitch),
-);
-
-Future<void> waitFor(WidgetTester tester, bool Function() ready) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 15));
-  while (!ready()) {
-    if (DateTime.now().isAfter(deadline)) {
-      fail('The app did not reach the expected state within 15 seconds');
-    }
-    await tester.pump(const Duration(milliseconds: 50));
-  }
 }
