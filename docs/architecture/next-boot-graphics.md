@@ -326,3 +326,38 @@ This validates a requested boot-time return to Hybrid, not live hot-attach or
 recovery after an actually failed/interrupted hardware transition. Live pending
 request cancellation and subsequent sleep coverage remain separate unperformed
 checks; no further mode or sleep operation was initiated by the agent.
+
+### Repeat dark-screen incident (2026-11-04)
+
+The user reported the perceived hibernate hang again before the requested next
+reboot. Boot ID remains `b4c098f2-8822-4116-8114-5b3edec9e3b4`, and the sleep
+logs still show Hybrid/attached/settled status. The newly queued iGPU-only
+request has not applied. Planned detached sleep validation is paused under
+`lllf-p4q` and `lllf-j9t.6.7`; do not reboot into a different graphics policy as
+part of diagnosing this incident without reviewing/cancelling the request.
+
+The log records PowerDevil requesting suspend-then-hibernate at 00:00:09,
+hibernate entry after the configured delay at 00:30:13, and return at 01:42:36.
+Realtime advances about 4343.139 seconds across hibernation while monotonic time
+advances about 17.854 seconds, consistent with image restore. Nevertheless,
+KWin logs repeated `drmGetDeviceFromDevId failed! No such file or directory`
+errors at 01:42:37-38. At 01:43:07, PowerDevil requests **another ordinary
+suspend**, approximately 30 seconds after user sessions thawed. This suspend
+returns at 01:48:42; KWin then reports output-configuration `EACCESS` and
+`drmModeListLessees` permission errors. The trigger for the second suspend
+(button, lid, idle action, or power event) is unknown. Do not label it an
+automatic-idle loop without evidence, or dismiss the user's report because the
+sleep units returned success and current failed-unit lists are empty.
+
+The known Wi-Fi restore timeout and Hybrid post-hook client rejection also
+recur. Neither is established as the cause of the display problem. No new
+policy changes, intentional sleep test, diagnostic write, reboot, or graphics
+operation was initiated by the agent while collecting the evidence.
+
+Private evidence is retained at
+`~/.local/state/legion-sleep-incidents/20261104-b4c098f2-rn5kuneg/`: sleep-unit,
+logind, kernel, PowerDevil and compositor logs, JSON timing records, and a
+snapshot of the user power configuration. The available logs and profile
+configuration do not establish why PowerDevil issued the second request.
+Preserve the incident and clarify the user's wake/button sequence before
+changing power policy or running further sleep tests.
