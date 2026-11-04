@@ -47,17 +47,34 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev libpolkit-gobject-1-dev dbus
 
+      - name: Set up Flutter for the portable control probe
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.9'
+
+      - name: Resolve probe dependencies
+        run: flutter pub get --enforce-lockfile
+
       - name: Configure
-        run: cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_TESTING=ON
+        run: >-
+          cmake -S telemetry -B build/native -G Ninja
+          -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_TESTING=ON
+          -DBUILD_PORTABLE_CONTROL_PROTOTYPE=ON
 
       - name: Build services and tests
         run: >-
           cmake --build build/native --parallel 2 --target
           legion_telemetry_service legion_control_service
           package_power_sampler_test control_commands_test graphics_boot_service_test
+          portable_control_probe
 
       - name: Run native tests
         run: ctest --test-dir build/native --output-on-failure --no-tests=error
+
+      - name: Probe portable control without hardware
+        timeout-minutes: 2
+        run: dart run tool/probe_portable_control.dart --helper build/native/portable_control_probe
 
   linux-integration:
     name: Linux native app integration

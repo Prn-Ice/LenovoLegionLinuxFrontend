@@ -115,6 +115,11 @@ cmake --build build/native --target legion_telemetry_service legion_control_serv
 ctest --test-dir build/native --output-on-failure
 ```
 
+For the AppImage control experiment, run the
+[hardware-free portable-control probe](docs/architecture/portable-control.md#hardware-free-prototype).
+It tests a private D-Bus connection with simulated authorization and a synthetic
+backend, using an opt-in native build.
+
 To capture screenshots for visual review:
 
 ```bash

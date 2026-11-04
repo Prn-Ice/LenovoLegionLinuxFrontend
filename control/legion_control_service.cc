@@ -263,7 +263,8 @@ void invoke(Ctx *c, GDBusMethodInvocation *i,
   operation->output =
       G_INPUT_STREAM(g_object_ref(g_subprocess_get_stdout_pipe(p)));
   operation->temp_path = temp_path;
-  operation->sender = g_dbus_method_invocation_get_sender(i);
+  const char *sender = g_dbus_method_invocation_get_sender(i);
+  operation->sender = sender ? sender : "";
   operation->graphics_operation = graphics;
   operation->return_output = return_output;
   Ctx::ActiveOperation *q = operation.get();
@@ -308,40 +309,7 @@ bool bounded(const char *value, const char *label, std::string *error) {
   *error = std::string(label) + " exceeds maximum length";
   return false;
 }
-void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
-          const gchar *m, GVariant *v, GDBusMethodInvocation *i, gpointer d) {
-  auto *c = static_cast<Ctx *>(d);
-  if (!g_strcmp0(m, "Authorize")) {
-    const std::string sender = g_dbus_method_invocation_get_sender(i);
-    if (c->auth.count(sender)) {
-      done(i);
-      return;
-    }
-    if (!c->authority) {
-      reply_error(i, "Authorization", "polkit unavailable");
-      return;
-    }
-    if (c->pending.count(sender)) {
-      reply_error(i, "Busy", "authorization is already pending");
-      return;
-    }
-    PolkitSubject *s =
-        polkit_system_bus_name_new(g_dbus_method_invocation_get_sender(i));
-    PolkitDetails *x = polkit_details_new();
-    auto *cancel = g_cancellable_new();
-    c->pending.emplace(sender, G_CANCELLABLE(g_object_ref(cancel)));
-    auto *q = new std::pair<Ctx *, GDBusMethodInvocation *>(c, g_object_ref(i));
-    polkit_authority_check_authorization(
-        c->authority, s, "io.github.prnice.legion-control.manage", x,
-        POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION, cancel,
-        auth_done, q);
-    g_object_unref(x);
-    g_object_unref(s);
-    g_object_unref(cancel);
-    return;
-  }
-  if (!authorized(c, i))
-    return;
+void dispatch(Ctx *c, const gchar *m, GVariant *v, GDBusMethodInvocation *i) {
   std::string err;
   const gchar *f_raw = nullptr;
   const gchar *val_raw = nullptr;
@@ -498,6 +466,42 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
            CommandBackend::kSystemctl);
   } else
     reply_error(i, "InvalidArgs", "unknown method");
+}
+void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
+          const gchar *m, GVariant *v, GDBusMethodInvocation *i, gpointer d) {
+  auto *c = static_cast<Ctx *>(d);
+  if (!g_strcmp0(m, "Authorize")) {
+    const std::string sender = g_dbus_method_invocation_get_sender(i);
+    if (c->auth.count(sender)) {
+      done(i);
+      return;
+    }
+    if (!c->authority) {
+      reply_error(i, "Authorization", "polkit unavailable");
+      return;
+    }
+    if (c->pending.count(sender)) {
+      reply_error(i, "Busy", "authorization is already pending");
+      return;
+    }
+    PolkitSubject *s =
+        polkit_system_bus_name_new(g_dbus_method_invocation_get_sender(i));
+    PolkitDetails *x = polkit_details_new();
+    auto *cancel = g_cancellable_new();
+    c->pending.emplace(sender, G_CANCELLABLE(g_object_ref(cancel)));
+    auto *q = new std::pair<Ctx *, GDBusMethodInvocation *>(c, g_object_ref(i));
+    polkit_authority_check_authorization(
+        c->authority, s, "io.github.prnice.legion-control.manage", x,
+        POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION, cancel,
+        auth_done, q);
+    g_object_unref(x);
+    g_object_unref(s);
+    g_object_unref(cancel);
+    return;
+  }
+  if (!authorized(c, i))
+    return;
+  dispatch(c, m, v, i);
 }
 const GDBusInterfaceVTable vt = {call, nullptr, nullptr, {nullptr}};
 bool trusted_executable(const std::string &input, std::string *resolved) {

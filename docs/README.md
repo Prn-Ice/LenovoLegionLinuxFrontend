@@ -6,6 +6,7 @@
 - [Community backlog and current work](../BACKLOG.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Architecture](architecture/overview.md)
+- [Release formats and portable control](architecture/portable-control.md)
 - [Model support and testing](model-support.md)
 - [Dependencies](dependencies.md)
 - [Page patterns](page-template.md) and [error feedback](error-and-feedback-standard.md)

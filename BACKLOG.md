@@ -12,6 +12,10 @@ not establish real-device support.
 
 ## In progress
 
+- **Release formats:** support Nix, Debian packages, and AppImage from the first
+  release. Prove portable hardware control with a session-scoped helper so
+  AppImage users with the driver and CLI can authorize changes without installing
+  our service. See the [design and prototype](docs/architecture/portable-control.md).
 - **Fan curves:** finish driver support for truthful curve readings on the test
   device, then verify applying a curve, reading it back, and restoring it.
   Working fan RPM readings do not prove curve control works.

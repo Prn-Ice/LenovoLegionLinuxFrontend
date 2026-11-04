@@ -4,6 +4,7 @@ project(legion_telemetry LANGUAGES CXX)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 option(BUILD_LEGION_CONTROL_SERVICE "Build the privileged Legion control service" OFF)
+option(BUILD_PORTABLE_CONTROL_PROTOTYPE "Build the hardware-free private-peer control probe" OFF)
 
 add_library(package_power_sampler STATIC package_power_sampler.cc)
 target_compile_features(package_power_sampler PUBLIC cxx_std_14)
@@ -28,12 +29,15 @@ target_link_libraries(legion_telemetry_service
   PRIVATE telemetry_snapshot PkgConfig::GIO
 )
 
-if(BUILD_LEGION_CONTROL_SERVICE)
+if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_PROTOTYPE)
   pkg_check_modules(POLKIT REQUIRED IMPORTED_TARGET polkit-gobject-1)
   add_library(control_commands STATIC ../control/control_commands.cc)
   target_compile_features(control_commands PUBLIC cxx_std_14)
   target_compile_options(control_commands PRIVATE -Wall -Wextra -Werror)
   target_include_directories(control_commands PUBLIC ../control)
+endif()
+
+if(BUILD_LEGION_CONTROL_SERVICE)
   add_executable(legion_control_service ../control/legion_control_service.cc)
   set_target_properties(legion_control_service PROPERTIES OUTPUT_NAME "legion-control-service")
   target_compile_features(legion_control_service PRIVATE cxx_std_14)
@@ -44,6 +48,13 @@ if(BUILD_LEGION_CONTROL_SERVICE)
   target_compile_features(graphics_next_boot PRIVATE cxx_std_14)
   target_compile_options(graphics_next_boot PRIVATE -Wall -Wextra -Werror)
   target_link_libraries(graphics_next_boot PRIVATE control_commands PkgConfig::GIO)
+endif()
+
+if(BUILD_PORTABLE_CONTROL_PROTOTYPE)
+  add_executable(portable_control_probe ../control/prototype/portable_control_probe.cc)
+  target_compile_features(portable_control_probe PRIVATE cxx_std_14)
+  target_compile_options(portable_control_probe PRIVATE -Wall -Wextra -Werror)
+  target_link_libraries(portable_control_probe PRIVATE control_commands PkgConfig::GIO PkgConfig::POLKIT)
 endif()
 
 install(TARGETS legion_telemetry_service
