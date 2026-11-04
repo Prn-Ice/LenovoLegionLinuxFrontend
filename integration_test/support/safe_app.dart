@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/app.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
@@ -29,6 +30,8 @@ import 'package:yaru/yaru.dart';
 
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
 
+enum FixturePlatformProfile { quiet, balanced, performance, maxPower }
+
 /// Synthetic readings, not defaults or measurements from a supported laptop.
 /// All writes stay inside this instance's temporary directory.
 class SafeApp {
@@ -38,13 +41,23 @@ class SafeApp {
   final File conservationFile;
   final writes = <bool>[];
   final requests = <bool>[];
+  final platformProfileWrites = <FixturePlatformProfile>[];
+  final platformProfileRequests = <FixturePlatformProfile>[];
   ControlFailure? nextFailure;
   Completer<void>? writeCompletion;
   bool _controlCreated = false;
   final _controlClosed = Completer<void>();
   int authorizations = 0;
 
-  static Future<SafeApp> create() async {
+  static Future<SafeApp> create({
+    bool acOnline = true,
+    List<FixturePlatformProfile> profileChoices = const [
+      FixturePlatformProfile.quiet,
+      FixturePlatformProfile.balanced,
+      FixturePlatformProfile.performance,
+      FixturePlatformProfile.maxPower,
+    ],
+  }) async {
     final directory = await Directory.systemTemp.createTemp('legion_journey_');
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -57,7 +70,13 @@ class SafeApp {
     );
     await profile.parent.create(recursive: true);
     await profile.writeAsString('balanced\n');
-    await File('${profile.path}_choices').writeAsString('quiet balanced\n');
+    await File('${profile.path}_choices').writeAsString(
+      '${profileChoices.map((choice) => choice.wireValue).join(' ')}\n',
+    );
+    final ac = Directory('${directory.path}/sys/class/power_supply/AC');
+    await ac.create(recursive: true);
+    await File('${ac.path}/type').writeAsString('Mains\n');
+    await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
     await Directory('${directory.path}/proc').create();
 
     Hive.init('${directory.path}/storage');
@@ -70,7 +89,7 @@ class SafeApp {
     return SafeApp._(directory, file);
   }
 
-  Future<void> launch() async {
+  Future<void> launch({List<Override> additionalOverrides = const []}) async {
     await YaruWindowTitleBar.ensureInitialized();
     final sysfs = LegionSysfsService(
       sysRoot: '${directory.path}/sys',
@@ -78,7 +97,7 @@ class SafeApp {
     );
     runApp(
       ProviderScope(
-        overrides: [
+        overrides: _mergeOverrides([
           legionSysfsServiceProvider.overrideWithValue(sysfs),
           legionControlClientProvider.overrideWith((ref) {
             final client = LegionControlClient(
@@ -124,10 +143,22 @@ class SafeApp {
           appearanceStoreProvider.overrideWithValue(
             AppearanceStore(Hive.box<dynamic>('preferences')),
           ),
-        ],
+        ], additionalOverrides),
         child: const LegionFrontendApp(),
       ),
     );
+  }
+
+  static List<Override> _mergeOverrides(
+    List<Override> defaults,
+    List<Override> additional,
+  ) {
+    final merged = [...defaults];
+    for (final override in additional) {
+      merged.removeWhere((existing) => existing.origin == override.origin);
+      merged.add(override);
+    }
+    return merged;
   }
 
   Future<void> dispose() async {
@@ -170,6 +201,31 @@ class _FixtureControl implements LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'SetFeature' &&
+        arguments.length == 2 &&
+        arguments.first == ControlFeature.platformProfile.wireValue &&
+        arguments.last is String) {
+      final profile = FixturePlatformProfile.values
+          .where((value) => value.wireValue == arguments.last)
+          .firstOrNull;
+      if (profile == null) {
+        throw StateError('Unexpected platform profile: ${arguments.last}');
+      }
+      app.platformProfileRequests.add(profile);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the write. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      final profileFile = File(
+        '${app.directory.path}/sys/firmware/acpi/platform_profile',
+      );
+      await profileFile.writeAsString('${profile.wireValue}\n');
+      app.platformProfileWrites.add(profile);
+      return;
+    }
     if (method != 'SetToggle' ||
         arguments.length != 2 ||
         arguments.first != ControlToggle.batteryConservation.wireValue ||
@@ -191,6 +247,15 @@ class _FixtureControl implements LegionControlTransport {
 
   @override
   Future<void> close() async => app._controlClosed.complete();
+}
+
+extension on FixturePlatformProfile {
+  String get wireValue => switch (this) {
+    FixturePlatformProfile.quiet => 'quiet',
+    FixturePlatformProfile.balanced => 'balanced',
+    FixturePlatformProfile.performance => 'performance',
+    FixturePlatformProfile.maxPower => 'max-power',
+  };
 }
 
 class _NoDaemon implements PowerProfilesDaemonClient {

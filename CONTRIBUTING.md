@@ -50,14 +50,22 @@ flutter pub get --enforce-lockfile
 flutter test integration_test/app_test.dart -d linux --no-pub
 ```
 
-The `app_test.dart` entrypoint registers five scenarios. The battery journey
+The `app_test.dart` entrypoint registers eight scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery, presses Refresh, and checks Conservation mode. The recovery journey
 checks retry after permission-denied, unavailable-service, and failed-command
 responses, plus verifies that the switch stays disabled and unchanged until a
 controlled pending write completes.
 
-The entrypoint runs all five scenarios in sequence in one native build/process.
+Power journeys select Performance, verify Power and Dashboard readback, and
+check that selecting an AC-only mode on battery sends no privileged request.
+The keyboard journey saves a Lighting profile, makes a different manual edit,
+assigns the saved profile to Balanced in Automation, and verifies the saved
+colors are applied. It also checks that clearing the assignment leaves lighting
+unchanged. Profile and assignment data are checked in temporary Hive/config
+storage; process-restart persistence remains untested.
+
+The entrypoint runs all scenarios in sequence in one native build/process.
 Do not run concurrent Flutter commands in the same checkout while this journey
 is running; they can interfere with its native build and debug connection.
 
@@ -73,10 +81,10 @@ storage. The real providers, Blocs, repositories, bridge, and control client are
 used for the setting under test. A fake control transport writes only the
 fixture and rejects other operations. System service status and live sensors
 use fixed repository results because they contain direct host reads. CLI
-execution, display access, system telemetry, HID access, and OpenRGB access are
-blocked. HID and OpenRGB are blocked because app-wide automation now starts in
-`NavigationShell`, even though these journeys do not test lighting or hardware
-automation. Hive data is temporary, not your saved preferences or history.
+execution, display access, and system telemetry are blocked. HID and OpenRGB
+access are blocked by default; the keyboard journey supplies a recording
+OpenRGB service and confines Spectrum discovery to temporary fixture paths.
+Hive data and keyboard assignments are temporary.
 
 No sudo, installed service, or Legion hardware is needed. This journey does not
 verify real D-Bus policy, Polkit authorization, firmware, or hardware changes.
