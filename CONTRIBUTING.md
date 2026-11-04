@@ -41,6 +41,43 @@ flutter analyze
 Use fake services and sample data so tests run without hardware, installed
 services, or administrator access.
 
+### Linux app integration journey
+
+From a Linux desktop session, run:
+
+```bash
+flutter test integration_test/battery_health_test.dart -d linux
+```
+
+This builds and opens the actual GTK/Flutter application window, then presses
+controls in it. It cancels the Dashboard's Battery health confirmation, applies
+the change, navigates to Battery, presses Refresh, and checks Conservation mode.
+Battery currently retains its earlier snapshot until polling or explicit refresh
+after a Dashboard change (tracked in `lllf-kmd`). Although the test uses Flutter's
+`testWidgets` API, `-d linux` and the integration-test binding run it in the native
+app, not the widget-test host.
+Interaction is injected through Flutter; it does not move your desktop pointer
+or automate native Polkit dialogs.
+
+The test backend lives only under `integration_test/`. It redirects sysfs/proc
+reads to a temporary fixture and uses the real providers, Blocs, repositories,
+bridge, and control client for the setting under test. A fake control transport
+writes only the fixture and rejects other operations. System service status and
+live sensors use fixed repository results because they contain direct host
+reads. CLI execution, display access, and system telemetry are blocked. Hive
+data is temporary, not your saved preferences or history.
+
+No sudo, installed service, or Legion hardware is needed. This journey does not
+verify real D-Bus policy, Polkit authorization, firmware, or hardware changes.
+It requires the normal Linux build dependencies and an available display; on a
+headless Linux machine with Xvfb installed, use:
+
+```bash
+xvfb-run -a flutter test integration_test/battery_health_test.dart -d linux
+```
+
+Plain `flutter test` still runs the separate unit/widget suite under `test/`.
+
 To build and test native service code without installing it:
 
 ```bash

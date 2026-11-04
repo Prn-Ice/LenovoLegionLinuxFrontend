@@ -13,6 +13,11 @@ Use compatible stable packages and commit `pubspec.lock`.
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
 
+The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
+development dependency. It follows the installed Flutter version; no external
+desktop automation tool or production test-mode flag is needed. See
+[the integration journey command](../CONTRIBUTING.md#linux-app-integration-journey).
+
 ## Why some packages are held back
 
 ### Equatable 2.1
