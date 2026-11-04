@@ -14,17 +14,41 @@ class FansBloc extends Bloc<FansEvent, FansState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(FansState.initial()) {
-    on<FansStarted>(_onStarted);
-    on<FansRefreshRequested>(_onRefreshRequested);
-    on<FansTicked>(_onTicked);
-    on<FansPresetSelectionChanged>(_onPresetSelectionChanged);
-    on<FansApplyCurrentPresetRequested>(_onApplyCurrentPresetRequested);
-    on<FansApplySelectedPresetRequested>(_onApplySelectedPresetRequested);
-    on<MiniFanCurveSetRequested>(_onMiniFanCurveSetRequested);
-    on<LockFanControllerSetRequested>(_onLockFanControllerSetRequested);
-    on<MaximumFanSpeedSetRequested>(_onMaximumFanSpeedSetRequested);
-    on<FanCurvePointUpdated>(_onFanCurvePointUpdated);
-    on<FanCurveSaveRequested>(_onFanCurveSaveRequested);
+    on<FansEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case FansStarted():
+            await _onStarted(event, emit);
+          case FansRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case FansTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case FansPresetSelectionChanged():
+            _onPresetSelectionChanged(event, emit);
+          case FansApplyCurrentPresetRequested():
+            await _onApplyCurrentPresetRequested(event, emit);
+          case FansApplySelectedPresetRequested():
+            await _onApplySelectedPresetRequested(event, emit);
+          case MiniFanCurveSetRequested():
+            await _onMiniFanCurveSetRequested(event, emit);
+          case LockFanControllerSetRequested():
+            await _onLockFanControllerSetRequested(event, emit);
+          case MaximumFanSpeedSetRequested():
+            await _onMaximumFanSpeedSetRequested(event, emit);
+          case FanCurvePointUpdated():
+            _onFanCurvePointUpdated(event, emit);
+          case FanCurveSaveRequested():
+            await _onFanCurveSaveRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
   }
 
   final FansRepository _repository;
@@ -32,13 +56,34 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(FansEvent event) {
+    // Keep edits, but reject busy writes before they wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          FansStarted() ||
+          FansRefreshRequested() ||
+          FansTicked() ||
+          FansPresetSelectionChanged() ||
+          FanCurvePointUpdated() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(FansStarted event, Emitter<FansState> emit) async {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const FansTicked());
     });
   }
@@ -166,7 +211,12 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
     try {
       await _repository.writeFanCurveToHardware(curve);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -175,6 +225,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -194,19 +245,24 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
     try {
       await action();
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<FansState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -220,6 +276,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
 
       final selectedPreset = _resolveSelectedPreset(
         currentSelected: state.selectedPreset,
@@ -241,7 +298,9 @@ class FansBloc extends Bloc<FansEvent, FansState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -251,8 +310,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
@@ -269,6 +327,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

@@ -14,12 +14,31 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(BatteryState.initial()) {
-    on<BatteryStarted>(_onStarted);
-    on<BatteryRefreshRequested>(_onRefreshRequested);
-    on<BatteryTicked>(_onTicked);
-    on<BatteryConservationSetRequested>(_onBatteryConservationSetRequested);
-    on<RapidChargingSetRequested>(_onRapidChargingSetRequested);
-    on<AlwaysOnUsbSetRequested>(_onAlwaysOnUsbSetRequested);
+    on<BatteryEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case BatteryStarted():
+            await _onStarted(event, emit);
+          case BatteryRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case BatteryTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case BatteryConservationSetRequested():
+            await _onBatteryConservationSetRequested(event, emit);
+          case RapidChargingSetRequested():
+            await _onRapidChargingSetRequested(event, emit);
+          case AlwaysOnUsbSetRequested():
+            await _onAlwaysOnUsbSetRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
   }
 
   final BatteryRepository _repository;
@@ -27,7 +46,23 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(BatteryEvent event) {
+    // Reject busy writes at arrival, before they can wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          BatteryStarted() ||
+          BatteryRefreshRequested() ||
+          BatteryTicked() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(
     BatteryStarted event,
@@ -36,7 +71,10 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const BatteryTicked());
     });
   }
@@ -106,19 +144,24 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
 
     try {
       await action();
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<BatteryState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -132,6 +175,7 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           batteryConservationEnabled: snapshot.batteryConservationEnabled,
@@ -157,7 +201,9 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -167,13 +213,13 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

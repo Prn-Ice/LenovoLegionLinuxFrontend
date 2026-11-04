@@ -14,13 +14,33 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(DevicesState.initial()) {
-    on<DevicesStarted>(_onStarted);
-    on<DevicesRefreshRequested>(_onRefreshRequested);
-    on<DevicesTicked>(_onTicked);
-    on<TouchpadSetRequested>(_onTouchpadSetRequested);
-    on<WinKeySetRequested>(_onWinKeySetRequested);
-    on<FnLockSetRequested>(_onFnLockSetRequested);
-    on<CameraSetRequested>(_onCameraSetRequested);
+    on<DevicesEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case DevicesStarted():
+            await _onStarted(event, emit);
+          case DevicesRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case DevicesTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case TouchpadSetRequested():
+            await _onTouchpadSetRequested(event, emit);
+          case WinKeySetRequested():
+            await _onWinKeySetRequested(event, emit);
+          case FnLockSetRequested():
+            await _onFnLockSetRequested(event, emit);
+          case CameraSetRequested():
+            await _onCameraSetRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
   }
 
   final DevicesRepository _repository;
@@ -28,7 +48,23 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(DevicesEvent event) {
+    // Reject busy writes at arrival, before they can wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          DevicesStarted() ||
+          DevicesRefreshRequested() ||
+          DevicesTicked() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(
     DevicesStarted event,
@@ -37,7 +73,10 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const DevicesTicked());
     });
   }
@@ -114,19 +153,24 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
 
     try {
       await action();
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<DevicesState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -140,6 +184,7 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           touchpadEnabled: snapshot.touchpadEnabled,
@@ -154,7 +199,9 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -164,13 +211,13 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

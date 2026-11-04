@@ -14,14 +14,35 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(PowerState.initial()) {
-    on<PowerStarted>(_onStarted);
-    on<PowerRefreshRequested>(_onRefreshRequested);
-    on<PowerTicked>(_onTicked);
-    on<PowerModeSetRequested>(_onModeSetRequested);
-    on<PowerLimitSetRequested>(_onLimitSetRequested);
-    on<PowerLimitsApplyRequested>(_onLimitsApplyRequested);
-    on<CpuOverclockSetRequested>(_onCpuOverclockSetRequested);
-    on<GpuOverclockSetRequested>(_onGpuOverclockSetRequested);
+    on<PowerEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case PowerStarted():
+            await _onStarted(event, emit);
+          case PowerRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case PowerTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case PowerModeSetRequested():
+            await _onModeSetRequested(event, emit);
+          case PowerLimitSetRequested():
+            await _onLimitSetRequested(event, emit);
+          case PowerLimitsApplyRequested():
+            await _onLimitsApplyRequested(event, emit);
+          case CpuOverclockSetRequested():
+            await _onCpuOverclockSetRequested(event, emit);
+          case GpuOverclockSetRequested():
+            await _onGpuOverclockSetRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
   }
 
   final PowerRepository _repository;
@@ -29,13 +50,30 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(PowerEvent event) {
+    // Reject busy writes at arrival, before they can wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          PowerStarted() || PowerRefreshRequested() || PowerTicked() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(PowerStarted event, Emitter<PowerState> emit) async {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const PowerTicked());
     });
   }
@@ -66,7 +104,12 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
     try {
       await _repository.setPowerMode(event.mode);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -74,6 +117,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -92,7 +136,12 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
     try {
       await _repository.setPowerLimit(event.limit, event.value);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -100,6 +149,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -115,7 +165,12 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
     );
     try {
       await _repository.setPowerLimits(event.readings);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -125,6 +180,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
       );
     } catch (error) {
       await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -143,7 +199,12 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
     try {
       await _repository.setCpuOverclock(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -152,6 +213,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -170,7 +232,12 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
     try {
       await _repository.setGpuOverclock(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -179,16 +246,16 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<PowerState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -202,6 +269,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           currentMode: snapshot.currentMode,
@@ -216,7 +284,9 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -226,13 +296,13 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

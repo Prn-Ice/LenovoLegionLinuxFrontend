@@ -14,14 +14,31 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(LightingState.initial()) {
-    on<LightingStarted>(_onStarted);
-    on<LightingTicked>(_onTicked);
-    on<WhiteKeyboardBacklightSetRequested>(
-      _onWhiteKeyboardBacklightSetRequested,
+    on<LightingEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case LightingStarted():
+            await _onStarted(event, emit);
+          case LightingRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case LightingTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case WhiteKeyboardBacklightSetRequested():
+            await _onWhiteKeyboardBacklightSetRequested(event, emit);
+          case YLogoLightSetRequested():
+            await _onYLogoLightSetRequested(event, emit);
+          case IoPortLightSetRequested():
+            await _onIoPortLightSetRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
     );
-    on<YLogoLightSetRequested>(_onYLogoLightSetRequested);
-    on<IoPortLightSetRequested>(_onIoPortLightSetRequested);
-    on<LightingRefreshRequested>(_onRefreshRequested);
   }
 
   final LightingRepository _repository;
@@ -29,7 +46,23 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(LightingEvent event) {
+    // Reject busy writes at arrival, before they can wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          LightingStarted() ||
+          LightingRefreshRequested() ||
+          LightingTicked() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(
     LightingStarted event,
@@ -38,7 +71,10 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const LightingTicked());
     });
   }
@@ -65,7 +101,12 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
 
     try {
       await _repository.setWhiteKeyboardBacklight(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -74,6 +115,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -92,7 +134,12 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
 
     try {
       await _repository.setYLogoLight(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -101,6 +148,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -119,7 +167,12 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
 
     try {
       await _repository.setIoPortLight(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -128,6 +181,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -139,12 +193,11 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
     await _reloadState(emit, showLoading: true);
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<LightingState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -158,6 +211,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           whiteKeyboardBacklightEnabled: snapshot.whiteKeyboardBacklightEnabled,
@@ -171,7 +225,9 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -181,13 +237,13 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

@@ -14,11 +14,29 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
   }) : _repository = repository,
        _pollInterval = pollInterval,
        super(DisplayState.initial()) {
-    on<DisplayStarted>(_onStarted);
-    on<DisplayRefreshRequested>(_onRefreshRequested);
-    on<DisplayTicked>(_onTicked);
-    on<OverdriveModeSetRequested>(_onOverdriveModeSetRequested);
-    on<RefreshRateSetRequested>(_onRefreshRateSetRequested);
+    on<DisplayEvent>(
+      (event, emit) async {
+        if (_closing) return;
+        switch (event) {
+          case DisplayStarted():
+            await _onStarted(event, emit);
+          case DisplayRefreshRequested():
+            await _onRefreshRequested(event, emit);
+          case DisplayTicked():
+            try {
+              await _onTicked(event, emit);
+            } finally {
+              _tickPending = false;
+            }
+          case OverdriveModeSetRequested():
+            await _onOverdriveModeSetRequested(event, emit);
+          case RefreshRateSetRequested():
+            await _onRefreshRateSetRequested(event, emit);
+        }
+      },
+      // One queue orders polling, writes, and each write's readback.
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
   }
 
   final DisplayRepository _repository;
@@ -26,7 +44,23 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
 
   Timer? _pollTimer;
   bool _started = false;
-  bool _refreshInFlight = false;
+  bool _closing = false;
+  bool _tickPending = false;
+
+  @override
+  void add(DisplayEvent event) {
+    // Reject busy writes at arrival, before they can wait in the event queue.
+    if (state.isApplying &&
+        switch (event) {
+          DisplayStarted() ||
+          DisplayRefreshRequested() ||
+          DisplayTicked() => false,
+          _ => true,
+        }) {
+      return;
+    }
+    super.add(event);
+  }
 
   Future<void> _onStarted(
     DisplayStarted event,
@@ -35,7 +69,10 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (_closing || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_closing || _tickPending || state.isApplying) return;
+      _tickPending = true;
       add(const DisplayTicked());
     });
   }
@@ -69,11 +106,17 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
 
     try {
       await _repository.setOverdriveMode(event.enabled);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(isApplying: false, noticeMessage: 'Overdrive updated.'),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
@@ -93,7 +136,12 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
 
     try {
       await _repository.setRefreshRate(outputName, event.rate);
-      await _reloadState(emit, showLoading: false);
+      final loaded = await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
+      if (!loaded) {
+        emit(state.copyWith(isApplying: false));
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
@@ -101,16 +149,16 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
         ),
       );
     } catch (error) {
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
-  Future<void> _reloadState(
+  Future<bool> _reloadState(
     Emitter<DisplayState> emit, {
     required bool showLoading,
   }) async {
-    if (_refreshInFlight) return;
-    _refreshInFlight = true;
+    if (_closing || emit.isDone) return false;
 
     if (showLoading) {
       emit(
@@ -124,6 +172,7 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           overdriveEnabled: snapshot.overdriveEnabled,
@@ -135,7 +184,9 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
           errorMessage: null,
         ),
       );
+      return true;
     } catch (error) {
+      if (_closing || emit.isDone) return false;
       emit(
         state.copyWith(
           isLoading: false,
@@ -145,13 +196,13 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
           ),
         ),
       );
-    } finally {
-      _refreshInFlight = false;
+      return false;
     }
   }
 
   @override
   Future<void> close() {
+    _closing = true;
     _pollTimer?.cancel();
     return super.close();
   }

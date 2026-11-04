@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
@@ -29,6 +31,79 @@ FanCurve _tenPointCurve() => FanCurve(
 );
 
 void main() {
+  for (final failReadback in [false, true]) {
+    testWidgets(
+      'fan draft survives polling and save readback (failure: $failReadback)',
+      (tester) async {
+        final repo = FakeFansRepository();
+        final curve = _tenPointCurve();
+        final editedPoint = curve.points.first.copyWith(fan1Rpm: 2400);
+        final laterPoint = curve.points.first.copyWith(fan1Rpm: 3000);
+        final snapshot = FansSnapshot(
+          platformProfile: null,
+          onPowerSupply: null,
+          recommendedPreset: null,
+          availablePresets: const [],
+          miniFanCurveEnabled: null,
+          lockFanControllerEnabled: null,
+          maximumFanSpeedEnabled: null,
+          fanCurve: curve,
+        );
+        final poll = Completer<FansSnapshot>();
+        final readback = Completer<FansSnapshot>();
+        var reads = 0;
+        when(repo.loadSnapshot).thenAnswer((_) {
+          reads++;
+          return switch (reads) {
+            1 => Future.value(snapshot),
+            2 => poll.future,
+            _ => readback.future,
+          };
+        });
+        final draft = curve.copyWithPoint(0, editedPoint);
+        when(
+          () => repo.writeFanCurveToHardware(draft),
+        ).thenAnswer((_) async {});
+        final bloc = FansBloc(
+          repository: repo,
+          pollInterval: const Duration(days: 1),
+        );
+        bloc.add(const FansStarted());
+        await tester.pump();
+        bloc.add(const FansTicked());
+        await tester.pump();
+        bloc.add(FanCurvePointUpdated(index: 0, point: editedPoint));
+        poll.complete(snapshot);
+        await tester.pump();
+        expect(bloc.state.fanCurve, draft);
+        expect(bloc.state.fanCurveDirty, isTrue);
+        bloc.add(const FanCurveSaveRequested());
+        await tester.pump();
+        expect(reads, 3);
+        if (failReadback) {
+          readback.completeError(StateError('readback failed'));
+        } else {
+          // An edit made while saving must stay dirty after that save completes.
+          bloc.add(FanCurvePointUpdated(index: 0, point: laterPoint));
+          readback.complete(snapshot);
+        }
+        await tester.pump();
+        expect(bloc.state.fanCurveDirty, isTrue);
+        expect(bloc.state.isApplying, isFalse);
+        expect(
+          bloc.state.fanCurve?.points.first.fan1Rpm,
+          failReadback ? 2400 : 3000,
+        );
+        if (failReadback) {
+          expect(bloc.state.noticeMessage, isNull);
+          expect(bloc.state.errorMessage?.message, contains('readback failed'));
+        }
+        verify(() => repo.writeFanCurveToHardware(draft)).called(1);
+        await tester.runAsync(bloc.close);
+      },
+    );
+  }
+
   test(
     'loading a recommendation does not claim an explicit selection',
     () async {
