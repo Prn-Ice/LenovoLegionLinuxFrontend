@@ -4,6 +4,9 @@ import 'dart:io';
 import '../../features/fans/models/fan_curve.dart';
 import '../../features/dashboard/models/system_status.dart';
 import '../models/cpu_policy_snapshot.dart';
+import '../models/sysfs_probe.dart';
+
+enum _ProbeValue { text, boolean, integer }
 
 class LegionSysfsService {
   static const List<String> _defaultLegionPlatformRoots = [
@@ -87,6 +90,193 @@ class LegionSysfsService {
 
   final Map<String, String?> _powerSupplyDirCache = {};
   static const String _dmiPath = '/sys/class/dmi/id';
+
+  /// Reads the hardware files included in diagnostics. Only the named model and
+  /// BIOS fields are included; serial numbers and UUIDs are excluded.
+  Future<Map<String, SysfsProbe>> readHardwareProbes() async {
+    final probes = <String, SysfsProbe>{};
+    for (final field in ['product_family', 'product_name', 'bios_version']) {
+      probes[field] = await _probePaths(['${_sys(_dmiPath)}/$field']);
+    }
+    probes['kernel_version'] = await _probePaths([
+      _proc('/proc/sys/kernel/osrelease'),
+    ]);
+    probes['module_version'] = await _probePaths([
+      _sys('/sys/module/legion_laptop/version'),
+    ]);
+    probes['platform_profile'] = await _probePaths([
+      _sys(_platformProfilePath),
+    ]);
+    probes['platform_profile_choices'] = await _probePaths([
+      _sys(_platformProfileChoicesPath),
+    ]);
+    for (final entry in {
+      'hybrid_mode': 'gsync',
+      'overdrive': 'overdrive',
+      'rapid_charge': 'rapidcharge',
+      'win_key': 'winkey',
+      'lock_fan_controller': 'lockfancontroller',
+      'fan_fullspeed': 'fan_fullspeed',
+    }.entries) {
+      probes[entry.key] = await _probePaths(
+        _legionPaths(entry.value),
+        kind: _ProbeValue.boolean,
+      );
+    }
+    for (final entry in {
+      'battery_conservation': _batteryConservationPath,
+      'always_on_usb': _alwaysOnUsbChargingPath,
+      'touchpad': _touchpadIdeapadPath,
+      'camera_power': _cameraPowerPath,
+      'fn_lock': _fnLockPath,
+    }.entries) {
+      probes[entry.key] = await _probePaths([
+        ...await _ideapadPaths(entry.value),
+        if (entry.key == 'touchpad') ..._legionPaths('touchpad'),
+      ], kind: _ProbeValue.boolean);
+    }
+    for (final entry in {
+      'keyboard_backlight': _whiteKeyboardBacklightPath,
+      'y_logo': _yLogoLightPath,
+      'io_port_light': _ioPortLightPath,
+    }.entries) {
+      probes[entry.key] = await _probePaths(
+        await _ledPaths(entry.value),
+        kind: _ProbeValue.integer,
+      );
+    }
+    final mains = await _powerSupplyDirOfType('Mains');
+    final mainsProbe = await _probePaths([
+      if (mains != null) '$mains/online',
+    ], kind: _ProbeValue.integer);
+    final legacyMainsProbe = mainsProbe.selectedRead != null
+        ? const SysfsProbe([])
+        : await _probePaths([
+            _sys(_onPowerSupplyAdp0Path),
+            _sys(_onPowerSupplyAcPath),
+          ], kind: _ProbeValue.boolean);
+    probes['ac_online'] = SysfsProbe(
+      List.unmodifiable([...mainsProbe.reads, ...legacyMainsProbe.reads]),
+    );
+    final controller = await _findFanHwmonDir();
+    probes['mini_fan_curve'] = await _probePaths([
+      if (controller != null) '${controller}minifancurve',
+    ], kind: _ProbeValue.boolean);
+    for (final fan in [1, 2]) {
+      final paths = await _fanRpmPaths(fan);
+      final probe = await _probePaths(paths, kind: _ProbeValue.integer);
+      probes['fan${fan}_rpm'] = probe;
+      final selectedPath = probe.selectedRead?.path;
+      probes['fan${fan}_provider'] = await _probePaths([
+        if (selectedPath != null)
+          '${File(paths.toSet().elementAt(probe.reads.length - 1)).parent.path}/name',
+      ]);
+    }
+    // Driver names help identify layouts the app does not yet recognize.
+    // Reading a driver name does not establish that it provides fan readings.
+    final providers = await _sortedDirectories(_hwmonRoot);
+    for (var index = 0; index < providers.length && index < 32; index++) {
+      probes['hwmon_provider_${index + 1}'] = await _probePaths([
+        '${providers[index].path}/name',
+      ]);
+    }
+    // Report directory access failures separately from missing hardware files.
+    for (final entry in {
+      'hwmon_discovery': _hwmonRoot,
+      'ideapad_discovery': _sys('/sys/bus/platform/drivers/ideapad_acpi'),
+      'led_discovery': _sys('/sys/class/leds'),
+    }.entries) {
+      try {
+        await Directory(entry.value).list().drain<void>();
+        probes[entry.key] = SysfsProbe([
+          SysfsRead(
+            path: _reportPath(entry.value),
+            outcome: SysfsReadOutcome.readable,
+            value: 'Directory readable',
+          ),
+        ]);
+      } on FileSystemException catch (error) {
+        probes[entry.key] = SysfsProbe([
+          SysfsRead(
+            path: _reportPath(entry.value),
+            outcome: _readFailure(error),
+          ),
+        ]);
+      }
+    }
+    return Map.unmodifiable(probes);
+  }
+
+  Future<SysfsProbe> _probePaths(
+    List<String> paths, {
+    _ProbeValue kind = _ProbeValue.text,
+  }) async {
+    final reads = <SysfsRead>[];
+    for (final path in paths.toSet()) {
+      SysfsReadOutcome outcome;
+      String? value;
+      var stopOnMalformed = true;
+      try {
+        final raw = utf8.decode(await File(path).readAsBytes()).trim();
+        // Report empty files as invalid, then try the next file as readers do.
+        stopOnMalformed = raw.isNotEmpty;
+        final valid =
+            raw.isNotEmpty &&
+            raw.length <= 256 &&
+            !raw.contains(RegExp(r'[\x00-\x1f\x7f]')) &&
+            switch (kind) {
+              _ProbeValue.text => true,
+              _ProbeValue.boolean => const [
+                '0',
+                '1',
+                'true',
+                'false',
+              ].contains(raw.toLowerCase()),
+              _ProbeValue.integer => int.tryParse(raw) != null,
+            };
+        outcome = valid
+            ? SysfsReadOutcome.readable
+            : SysfsReadOutcome.malformed;
+        if (valid) value = raw;
+      } on FormatException {
+        outcome = SysfsReadOutcome.malformed;
+        stopOnMalformed = false;
+      } on FileSystemException catch (error) {
+        outcome = _readFailure(error);
+      }
+      reads.add(
+        SysfsRead(path: _reportPath(path), outcome: outcome, value: value),
+      );
+      if (outcome == SysfsReadOutcome.readable) break;
+      // Existing bool readers throw on malformed input rather than selecting a
+      // later provider. Integer readers return null and continue discovery.
+      if (kind == _ProbeValue.boolean &&
+          outcome == SysfsReadOutcome.malformed &&
+          stopOnMalformed) {
+        break;
+      }
+    }
+    return SysfsProbe(List.unmodifiable(reads));
+  }
+
+  static SysfsReadOutcome _readFailure(FileSystemException error) =>
+      switch (error.osError?.errorCode) {
+        2 || 20 => SysfsReadOutcome.missing, // ENOENT, ENOTDIR
+        1 || 13 || 21 => SysfsReadOutcome.unreadable, // EPERM, EACCES, EISDIR
+        _ => SysfsReadOutcome.unknown,
+      };
+
+  String _reportPath(String path) {
+    if (path == _sysRoot || path.startsWith('$_sysRoot/')) {
+      return '/sys${path.substring(_sysRoot.length)}';
+    }
+    if (path == _procRoot || path.startsWith('$_procRoot/')) {
+      return '/proc${path.substring(_procRoot.length)}';
+    }
+    // Narrow injected roots can live outside sysRoot; do not export their
+    // temporary or personal directory names.
+    return '<custom-root>/${path.split('/').last}';
+  }
 
   Future<SystemStatus> readSystemStatus() async {
     try {
@@ -212,7 +402,7 @@ class LegionSysfsService {
     try {
       final root = Directory(_sys('/sys/class/power_supply'));
       if (root.existsSync()) {
-        for (final entry in root.listSync()) {
+        for (final entry in await _sortedDirectories(root.path)) {
           if (await _readTrimmedFile('${entry.path}/type') == type) {
             found = entry.path;
             break;
@@ -660,11 +850,7 @@ class LegionSysfsService {
       try {
         // The legion driver's hwmon entries are commonly symlinks into
         // /sys/class/hwmon. Follow them instead of discarding them as Links.
-        await for (final entity in hwmonDir.list(followLinks: true)) {
-          if (entity is! Directory) {
-            continue;
-          }
-
+        for (final entity in await _sortedDirectories(hwmonDir.path)) {
           final name = entity.path.split('/').last;
           if (name.startsWith('hwmon')) {
             return '${entity.path}/';
@@ -694,29 +880,28 @@ class LegionSysfsService {
   }
 
   Future<int?> _readFanRpm(int fanNumber) async {
+    for (final path in await _fanRpmPaths(fanNumber)) {
+      final rpm = await readIntFile(path);
+      if (rpm != null) return rpm;
+    }
+    return null;
+  }
+
+  Future<List<String>> _fanRpmPaths(int fanNumber) async {
     // Keep the legion controller as the preferred source: it is also the
     // source used for curve control. Some kernels expose live RPMs only from
     // a separate hwmon provider (for example yogafan), however.
     final controller = await _findFanHwmonDir();
-    if (controller != null) {
-      final rpm = await readIntFile('${controller}fan${fanNumber}_input');
-      if (rpm != null) return rpm;
-    }
-
-    final root = Directory(_hwmonRoot);
-    if (!await root.exists()) return null;
-    try {
-      await for (final entity in root.list(followLinks: true)) {
-        if (entity is! Directory) continue;
-        final name = await _readTrimmedFile('${entity.path}/name');
-        if (name?.toLowerCase() != 'yogafan') continue;
-        final input = File('${entity.path}/fan${fanNumber}_input');
-        if (!await input.exists()) continue;
-        final rpm = await readIntFile(input.path);
-        if (rpm != null) return rpm;
+    final paths = <String>[
+      if (controller != null) '${controller}fan${fanNumber}_input',
+    ];
+    for (final entity in await _sortedDirectories(_hwmonRoot)) {
+      final name = await _readTrimmedFile('${entity.path}/name');
+      if (name?.toLowerCase() == 'yogafan') {
+        paths.add('${entity.path}/fan${fanNumber}_input');
       }
-    } catch (_) {}
-    return null;
+    }
+    return paths;
   }
 
   Future<int?> _readFanMaxRpm(int fanNumber) async {
@@ -821,35 +1006,41 @@ class LegionSysfsService {
 
   // Preserve the established node first, then scan bound devices in stable order.
   Future<bool?> _readIdeapadBool(String legacyPath) async {
-    final legacy = await _readBoolFile(_sys(legacyPath));
-    if (legacy != null) return legacy;
+    return _readBoolFromPaths(await _ideapadPaths(legacyPath));
+  }
+
+  Future<List<String>> _ideapadPaths(String legacyPath) async {
     final attribute = legacyPath.split('/').last;
-    for (final directory in await _sortedDirectories(
-      _sys('/sys/bus/platform/drivers/ideapad_acpi'),
-    )) {
-      final value = await _readBoolFile('${directory.path}/$attribute');
+    return [
+      _sys(legacyPath),
+      for (final directory in await _sortedDirectories(
+        _sys('/sys/bus/platform/drivers/ideapad_acpi'),
+      ))
+        '${directory.path}/$attribute',
+    ];
+  }
+
+  Future<bool?> _readLedBrightness(String legacyPath) async {
+    for (final path in await _ledPaths(legacyPath)) {
+      final value = await _readEnabledFromBrightnessFile(path);
       if (value != null) return value;
     }
     return null;
   }
 
-  Future<bool?> _readLedBrightness(String legacyPath) async {
-    final legacy = await _readEnabledFromBrightnessFile(_sys(legacyPath));
-    if (legacy != null) return legacy;
+  Future<List<String>> _ledPaths(String legacyPath) async {
     final function = legacyPath
         .split('/')
         .reversed
         .elementAt(1)
         .split(':')
         .last;
-    for (final directory in await _sortedDirectories(_sys('/sys/class/leds'))) {
-      if (!directory.path.split('/').last.endsWith(':$function')) continue;
-      final value = await _readEnabledFromBrightnessFile(
-        '${directory.path}/brightness',
-      );
-      if (value != null) return value;
-    }
-    return null;
+    return [
+      _sys(legacyPath),
+      for (final directory in await _sortedDirectories(_sys('/sys/class/leds')))
+        if (directory.path.split('/').last.endsWith(':$function'))
+          '${directory.path}/brightness',
+    ];
   }
 
   Future<List<Directory>> _sortedDirectories(String path) async {
@@ -881,6 +1072,8 @@ class LegionSysfsService {
       final value = (await file.readAsString()).trim();
       return value.isEmpty ? null : value;
     } on FileSystemException {
+      return null;
+    } on FormatException {
       return null;
     }
   }

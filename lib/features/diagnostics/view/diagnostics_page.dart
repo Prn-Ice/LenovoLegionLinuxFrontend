@@ -91,6 +91,18 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         AppControlCard(
           icon: Icons.computer_outlined,
           title: 'Environment',
+          trailing: snapshot != null
+              ? OutlinedButton.icon(
+                  onPressed: () => _copyDiagnosticsJson(snapshot),
+                  icon: Icon(
+                    _diagnosticsCopied ? YaruIcons.checkmark : YaruIcons.copy,
+                    size: 16,
+                  ),
+                  label: Text(
+                    _diagnosticsCopied ? 'Copied' : 'Copy report JSON',
+                  ),
+                )
+              : null,
           children: [
             if (aboutState.isLoading && snapshot == null)
               const Center(
@@ -104,6 +116,13 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                 label: 'Hardware',
                 value: snapshot?.hardwareModel ?? 'Unknown',
                 status: snapshot?.hardwareModel != null
+                    ? AboutDiagnosticStatus.ok
+                    : AboutDiagnosticStatus.unavailable,
+              ),
+              _StatusLine(
+                label: 'BIOS version',
+                value: snapshot?.biosVersion ?? 'Unknown',
+                status: snapshot?.biosVersion != null
                     ? AboutDiagnosticStatus.ok
                     : AboutDiagnosticStatus.unavailable,
               ),
@@ -187,11 +206,19 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
           AppControlCard(
             icon: Icons.checklist_outlined,
             title: 'Hardware support checks',
+            description:
+                'These checks read hardware files. A write control in the app '
+                'does not mean the driver can change that setting. '
+                'Writes have not been tested.',
             children: snapshot.diagnostics
                 .map(
                   (item) => _StatusLine(
                     label: item.label,
-                    value: item.value,
+                    value:
+                        item.readProbe != null &&
+                            item.status == AboutDiagnosticStatus.ok
+                        ? 'Readable: ${item.value}'
+                        : item.value,
                     status: item.status,
                     details: item.details,
                   ),
@@ -205,16 +232,6 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
         AppControlCard(
           icon: Icons.history_outlined,
           title: 'Command History (last 20)',
-          trailing: snapshot != null
-              ? OutlinedButton.icon(
-                  onPressed: () => _copyDiagnosticsJson(snapshot),
-                  icon: Icon(
-                    _diagnosticsCopied ? Icons.check : Icons.copy_all_outlined,
-                    size: 16,
-                  ),
-                  label: Text(_diagnosticsCopied ? 'Copied' : 'Copy JSON'),
-                )
-              : null,
           children: [
             if (snapshot == null || snapshot.commandHistory.isEmpty)
               const Text('No commands recorded yet.')
@@ -253,50 +270,18 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
   }
 
   Future<void> _copyDiagnosticsJson(AboutSnapshot snapshot) async {
-    final payload = <String, Object?>{
-      'updated_at': snapshot.updatedAt.toIso8601String(),
-      'cli_path': snapshot.cliPath,
-      'cli_path_exists': snapshot.cliPathExists,
-      'python_available': snapshot.pythonAvailable,
-      'control_service_active': snapshot.controlServiceActive,
-      'systemctl_available': snapshot.systemctlAvailable,
-      'cli_healthy': snapshot.cliHealthy,
-      'cli_health_summary': snapshot.cliHealthSummary,
-      'kernel_version': snapshot.kernelVersion,
-      'hardware_model': snapshot.hardwareModel,
-      'module_version': snapshot.moduleVersion,
-      'cli_version': snapshot.cliVersion,
-      'diagnostics': snapshot.diagnostics
-          .map(
-            (e) => <String, Object?>{
-              'id': e.id,
-              'label': e.label,
-              'status': e.status.name,
-              'value': e.value,
-              'details': e.details,
-            },
-          )
-          .toList(growable: false),
-      'command_history': snapshot.commandHistory
-          .map(
-            (r) => <String, Object?>{
-              'timestamp': r.timestamp.toIso8601String(),
-              'method': r.method,
-              'args': r.redactedArgs,
-              'is_privileged': r.isPrivileged,
-              'succeeded': r.succeeded,
-              'duration_ms': r.durationMs,
-            },
-          )
-          .toList(growable: false),
-    };
-    final text = const JsonEncoder.withIndent('  ').convert(payload);
+    final text = const JsonEncoder.withIndent('  ').convert(snapshot.toJson());
     if (mounted) setState(() => _diagnosticsCopied = true);
     try {
       await Clipboard.setData(ClipboardData(text: text));
-    } catch (_) {
+    } catch (error) {
       if (mounted) setState(() => _diagnosticsCopied = false);
-      rethrow;
+      if (mounted) {
+        await showAppErrorDialog(
+          context,
+          'Could not copy diagnostics. Try copying the report again.\n$error',
+        );
+      }
     }
   }
 }
@@ -380,9 +365,11 @@ class _ReadingChip extends StatelessWidget {
             children: [
               Icon(icon, size: 14, color: scheme.outline),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: textTheme.labelSmall?.copyWith(color: scheme.outline),
+              Flexible(
+                child: Text(
+                  label,
+                  style: textTheme.labelSmall?.copyWith(color: scheme.outline),
+                ),
               ),
             ],
           ),
@@ -518,8 +505,15 @@ class _StatusLine extends StatelessWidget {
     return YaruListTile(
       leading: Icon(_statusIcon(status), color: color, size: 20),
       title: Text(label),
-      subtitle: details == null ? null : Text(details!),
-      trailing: Text(value, style: TextStyle(color: color)),
+      subtitle: SelectionArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(value, style: TextStyle(color: color)),
+            if (details != null) Text(details!),
+          ],
+        ),
+      ),
     );
   }
 

@@ -320,9 +320,10 @@ void main() {
     await tester.tap(find.text('Diagnostics and export'));
     await tester.pumpAndSettle();
     expect(find.byType(DiagnosticsPage), findsOneWidget);
-    expect(find.text('Copy JSON'), findsOneWidget);
+    expect(find.text('Copy report JSON'), findsOneWidget);
 
-    await tester.tap(find.text('Copy JSON'));
+    await tester.ensureVisible(find.text('Copy report JSON'));
+    await tester.tap(find.text('Copy report JSON'));
     await tester.pump();
     expect(find.text('Copied'), findsOneWidget);
   });

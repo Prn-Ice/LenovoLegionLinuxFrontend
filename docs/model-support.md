@@ -2,6 +2,48 @@
 
 Some features may not work on every model. Run diagnostics to find out why.
 
+## Collect a discovery report
+
+Open **Diagnostics**, refresh, then choose **Copy report JSON** in Environment.
+The existing report includes the model family, model identifier, BIOS, kernel,
+module and CLI versions, plus the results of reading hardware files. Each check
+exports
+`read.outcome`, `read.selected_path`, and ordered `read.attempts` with paths and
+outcomes. Invalid file contents are omitted. Fan checks name the driver used for
+the reading when its name is available. The first 32 hwmon driver names, sorted
+by path, help identify layouts the app does not yet recognize. Reading a driver
+name does not tell us whether its sensors work.
+
+- `readable`: the selected file returned a value in the expected format.
+- `missing`: the checked path does not exist.
+- `unreadable`: access was denied or the path could not be read as a file.
+- `malformed`: the content was empty, invalid UTF-8, too long, or not in the
+  expected value format.
+- `unknown`: no matching hardware provider was found, or an unexpected file error
+  prevented a result. The directory checks show whether the search location was
+  missing or could not be read. Unknown does not mean unsupported.
+
+`frontend_write_available` means the app has code to change that setting. The
+driver may still reject it, and the control may be disabled. The report separately
+records whether the control service is running (`control_service_active`). Writes
+are marked `unverified`: diagnostics do not change settings or test whether a
+previous command changed the hardware.
+
+The report includes only the named model and BIOS fields. Serial numbers, UUIDs,
+host/user names, the local CLI path, and raw CLI errors are excluded. Paths in
+command arguments are replaced with `<path>`. Review the report before posting
+it, and describe any settings you tested manually alongside it.
+
+`test/fixtures/sysfs/alternate-layout.json` contains **synthetic test data** chosen
+to exercise alternate Ideapad, LED, mains and `yogafan` paths. It was not recorded
+from a laptop. Tests create files under `Directory.systemTemp` and point the
+service's sys/proc roots there. To test an unreadable file even when running as
+root, they put a directory where a file should be.
+
+```bash
+flutter test test/core/services/legion_sysfs_diagnostics_test.dart test/features/about/about_repository_test.dart
+```
+
 ## Report or fix a problem
 
 1. Open a GitHub issue with your laptop model and the problem. Attach diagnostics

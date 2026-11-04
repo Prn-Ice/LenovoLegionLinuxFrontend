@@ -1,0 +1,12 @@
+{
+  "sys/class/dmi/id/product_family": "Synthetic Legion family",
+  "sys/class/dmi/id/product_name": "SYNTHETIC-MODEL",
+  "sys/class/dmi/id/bios_version": "FIXTURE-BIOS",
+  "sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode": "1",
+  "sys/class/leds/ideapad::kbd_backlight/brightness": "2",
+  "sys/class/hwmon/hwmon7/name": "yogafan",
+  "sys/class/hwmon/hwmon7/fan1_input": "3200",
+  "sys/class/hwmon/hwmon7/fan2_input": "0",
+  "sys/class/power_supply/USBC/type": "Mains",
+  "sys/class/power_supply/USBC/online": "1"
+}

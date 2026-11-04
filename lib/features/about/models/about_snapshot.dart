@@ -19,6 +19,7 @@ class AboutSnapshot extends Equatable {
     required this.moduleVersion,
     required this.cliVersion,
     required this.commandHistory,
+    this.biosVersion,
   });
 
   final DateTime updatedAt;
@@ -35,6 +36,40 @@ class AboutSnapshot extends Equatable {
   final String? moduleVersion;
   final String? cliVersion;
   final List<BridgeCommandRecord> commandHistory;
+  final String? biosVersion;
+
+  /// Builds the JSON copied from Diagnostics. Local CLI paths and error output
+  /// stay in the UI because they can contain personal directory names.
+  Map<String, Object?> toJson() => {
+    'schema_version': 2,
+    'updated_at': updatedAt.toIso8601String(),
+    'cli_path': '<configured-cli>',
+    'cli_path_exists': cliPathExists,
+    'python_available': pythonAvailable,
+    'control_service_active': controlServiceActive,
+    'systemctl_available': systemctlAvailable,
+    'cli_healthy': cliHealthy,
+    'cli_health_summary': cliHealthy ? 'Healthy' : 'Unhealthy',
+    'kernel_version': kernelVersion,
+    'hardware_model': hardwareModel,
+    'bios_version': biosVersion,
+    'module_version': moduleVersion,
+    'cli_version': cliVersion,
+    'hardware_write_verification': 'unverified',
+    'diagnostics': diagnostics.map((item) => item.toJson()).toList(),
+    'command_history': commandHistory
+        .map(
+          (record) => <String, Object?>{
+            'timestamp': record.timestamp.toIso8601String(),
+            'method': record.method,
+            'args': record.redactedArgs,
+            'is_privileged': record.isPrivileged,
+            'succeeded': record.succeeded,
+            'duration_ms': record.durationMs,
+          },
+        )
+        .toList(),
+  };
 
   @override
   List<Object?> get props => [
@@ -52,5 +87,6 @@ class AboutSnapshot extends Equatable {
     moduleVersion,
     cliVersion,
     commandHistory,
+    biosVersion,
   ];
 }
