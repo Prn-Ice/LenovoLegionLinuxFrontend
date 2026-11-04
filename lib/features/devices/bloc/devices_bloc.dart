@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -116,7 +117,7 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
       await _reloadState(emit, showLoading: false);
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -157,7 +158,10 @@ class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load device settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load device settings: $error',
+          ),
         ),
       );
     } finally {

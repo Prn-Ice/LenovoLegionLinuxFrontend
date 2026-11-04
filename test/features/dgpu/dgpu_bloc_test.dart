@@ -1,4 +1,5 @@
 import 'package:bloc_test/bloc_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
@@ -98,6 +99,7 @@ void main() {
       when(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly)).thenThrow(
         const DgpuRepositoryException(
           'The selected policy may have changed; restore Hybrid.',
+          kind: AppFailureKind.graphicsPending,
         ),
       );
       when(
@@ -114,11 +116,17 @@ void main() {
     ),
     expect: () => [
       isA<DgpuState>().having((state) => state.isApplying, 'applying', true),
-      isA<DgpuState>().having(
-        (state) => state.errorMessage,
-        'error',
-        contains('may have changed'),
-      ),
+      isA<DgpuState>()
+          .having(
+            (state) => state.errorMessage?.message,
+            'error',
+            contains('may have changed'),
+          )
+          .having(
+            (state) => state.errorMessage?.kind,
+            'kind',
+            AppFailureKind.graphicsPending,
+          ),
     ],
     verify: (_) => verify(repo.loadSnapshotAfterGraphicsWrite).called(1),
   );
@@ -138,6 +146,33 @@ void main() {
     act: (bloc) => bloc.add(const DgpuRestartPciRequested('0000:01:00.0')),
     verify: (_) =>
         verify(() => repo.restartPciDevice('0000:01:00.0')).called(1),
+  );
+
+  blocTest<DgpuBloc, DgpuState>(
+    'keeps the graphics consequence when authoritative reload also fails',
+    build: () {
+      when(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly)).thenThrow(
+        const DgpuRepositoryException(
+          'Policy accepted',
+          kind: AppFailureKind.graphicsPending,
+          details: 'write diagnostic',
+        ),
+      );
+      when(
+        repo.loadSnapshotAfterGraphicsWrite,
+      ).thenThrow(StateError('read failed'));
+      return DgpuBloc(repository: repo);
+    },
+    act: (bloc) => bloc.add(
+      const DgpuGraphicsModeSetRequested(GraphicsMode.hybridIgpuOnly),
+    ),
+    verify: (bloc) {
+      final failure = bloc.state.errorMessage!;
+      expect(failure.kind, AppFailureKind.graphicsPending);
+      expect(failure.details, 'write diagnostic');
+      expect(failure.message, contains('Policy accepted'));
+      expect(failure.message, contains('read failed'));
+    },
   );
 }
 

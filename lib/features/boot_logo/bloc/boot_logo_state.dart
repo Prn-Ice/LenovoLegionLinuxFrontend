@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
 import '../models/boot_logo_status.dart';
@@ -30,7 +31,7 @@ class BootLogoState extends Equatable {
   final String? validationError;
   final bool isLoading;
   final bool isApplying;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
   final String? noticeMessage;
 
   bool get canApply =>
@@ -57,7 +58,7 @@ class BootLogoState extends Equatable {
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,

@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -73,7 +74,7 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
         state.copyWith(isApplying: false, noticeMessage: 'Overdrive updated.'),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -100,7 +101,7 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -138,7 +139,10 @@ class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load display settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load display settings: $error',
+          ),
         ),
       );
     } finally {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
+import '../models/app_failure.dart';
 
 const _nixosControlConfiguration = '''security.polkit.enable = true;
 services.legionControl = {
@@ -23,7 +24,9 @@ class AppPageBody extends StatelessWidget {
 
   /// Optional action shown at the top-right of the page header (e.g. refresh).
   final Widget? headerAction;
-  final String? errorMessage;
+
+  /// Prefer [AppFailure]. Legacy text is displayed as an unclassified failure.
+  final Object? errorMessage;
   final List<Widget> children;
 
   @override
@@ -89,7 +92,7 @@ class AppErrorDialogListener extends StatefulWidget {
     required this.child,
   });
 
-  final String? errorMessage;
+  final Object? errorMessage;
   final Widget child;
 
   @override
@@ -98,7 +101,7 @@ class AppErrorDialogListener extends StatefulWidget {
 
 class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
   bool _dialogVisible = false;
-  String? _pendingMessage;
+  AppFailure? _pendingMessage;
 
   @override
   void initState() {
@@ -114,14 +117,15 @@ class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
     }
   }
 
-  void _scheduleDialog(String? message) {
-    if (message == null || message.trim().isEmpty) return;
+  void _scheduleDialog(Object? error) {
+    final message = AppFailure.optional(error);
+    if (message == null || message.message.trim().isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _showDialog(message);
     });
   }
 
-  Future<void> _showDialog(String message) async {
+  Future<void> _showDialog(AppFailure message) async {
     if (_dialogVisible) {
       _pendingMessage = message;
       return;
@@ -143,7 +147,7 @@ class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
   Widget build(BuildContext context) => widget.child;
 }
 
-Future<void> showAppErrorDialog(BuildContext context, String message) {
+Future<void> showAppErrorDialog(BuildContext context, Object message) {
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -154,7 +158,8 @@ Future<void> showAppErrorDialog(BuildContext context, String message) {
 class AppErrorDialog extends StatefulWidget {
   const AppErrorDialog({super.key, required this.message});
 
-  final String message;
+  /// Accepts [AppFailure] or legacy text without inferring a cause from words.
+  final Object message;
 
   @override
   State<AppErrorDialog> createState() => _AppErrorDialogState();
@@ -168,18 +173,18 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
-    final errorKind = _classifyAppError(widget.message);
-    final isPrivilegeSetup = errorKind == _AppErrorKind.privilegeSetup;
+    final errorKind = AppFailure.from(widget.message).kind;
+    final isPrivilegeSetup = errorKind == AppFailureKind.privilegeSetup;
     final title = switch (errorKind) {
-      _AppErrorKind.privilegeSetup => 'Privileged access needs setup',
-      _AppErrorKind.graphicsBlocked => 'Graphics change blocked',
-      _AppErrorKind.graphicsPending => 'Graphics policy did not settle',
-      _AppErrorKind.generic => 'Action could not be completed',
+      AppFailureKind.privilegeSetup => 'Privileged access needs setup',
+      AppFailureKind.graphicsBlocked => 'Graphics change blocked',
+      AppFailureKind.graphicsPending => 'Graphics policy did not settle',
+      _ => 'Action could not be completed',
     };
     final consequence = switch (errorKind) {
-      _AppErrorKind.graphicsBlocked =>
+      AppFailureKind.graphicsBlocked =>
         'The protected preflight stopped this change before firmware was written.',
-      _AppErrorKind.graphicsPending =>
+      AppFailureKind.graphicsPending =>
         'Firmware accepted the selected policy, but the requested GPU topology was not confirmed.',
       _ =>
         'The requested action did not complete. No confirmation was received that the setting changed.',
@@ -211,7 +216,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
                       const SizedBox(height: 16),
                       Text('Details', style: textTheme.titleSmall),
                       const SizedBox(height: 6),
-                      Text(widget.message),
+                      Text(widget.message.toString()),
                     ],
             ),
           ),
@@ -305,7 +310,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
       Text('Technical details', style: textTheme.titleSmall),
       const SizedBox(height: 6),
       Text(
-        widget.message,
+        widget.message.toString(),
         style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
       ),
     ];
@@ -326,36 +331,12 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
   Future<void> _copyDetails() async {
     if (mounted) setState(() => _detailsCopied = true);
     try {
-      await Clipboard.setData(ClipboardData(text: widget.message));
+      await Clipboard.setData(ClipboardData(text: widget.message.toString()));
     } catch (_) {
       if (mounted) setState(() => _detailsCopied = false);
       rethrow;
     }
   }
-}
-
-bool _isPrivilegeSetupError(String message) {
-  final normalized = message.toLowerCase();
-  return normalized.contains(
-        'legion-control service could not provide privileged access',
-      ) ||
-      normalized.contains('legion-control service is not configured') ||
-      normalized.contains('org.freedesktop.dbus.error.serviceunknown');
-}
-
-enum _AppErrorKind { generic, privilegeSetup, graphicsBlocked, graphicsPending }
-
-_AppErrorKind _classifyAppError(String message) {
-  if (_isPrivilegeSetupError(message)) return _AppErrorKind.privilegeSetup;
-  if (message.contains(
-    'firmware policy was not changed because the privileged preflight',
-  )) {
-    return _AppErrorKind.graphicsBlocked;
-  }
-  if (message.contains('effective GPU topology did not settle')) {
-    return _AppErrorKind.graphicsPending;
-  }
-  return _AppErrorKind.generic;
 }
 
 class AppSectionCard extends StatelessWidget {

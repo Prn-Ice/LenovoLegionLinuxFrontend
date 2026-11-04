@@ -1,16 +1,16 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
 import '../models/dashboard_snapshot.dart';
 import '../models/device_identity_snapshot.dart';
 
-class DashboardRepositoryException implements Exception {
-  const DashboardRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class DashboardRepositoryException extends AppFailure {
+  const DashboardRepositoryException(
+    super.message, {
+    super.kind,
+    super.details,
+  });
 }
 
 class DashboardRepository extends PrivilegedRepository {
@@ -22,8 +22,11 @@ class DashboardRepository extends PrivilegedRepository {
        _powerProfileService = powerProfileService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      DashboardRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => DashboardRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
   final PowerProfileService _powerProfileService;

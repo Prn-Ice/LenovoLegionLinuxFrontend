@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/data/privileged_repository.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:mocktail/mocktail.dart';
@@ -6,10 +7,8 @@ import 'package:mocktail/mocktail.dart';
 class _MockBridge extends Mock implements LegionFrontendBridgeService {}
 
 /// Stand-in for a feature-specific repository exception.
-class _StubException implements Exception {
-  const _StubException(this.message);
-
-  final String message;
+class _StubException extends AppFailure {
+  const _StubException(super.message, {super.kind, super.details});
 
   @override
   String toString() => 'StubException: $message';
@@ -20,7 +19,11 @@ class _TestRepository extends PrivilegedRepository {
   const _TestRepository({required super.bridgeService});
 
   @override
-  Exception wrapBridgeError(String message) => _StubException(message);
+  Exception wrapBridgeError(AppFailure failure) => _StubException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   Future<void> run(
     List<String> args, {
@@ -144,6 +147,26 @@ void main() {
       ),
     );
   });
+
+  for (final code in LegionBridgeErrorCode.values) {
+    test('preserves $code through the repository wrapper', () async {
+      final error = LegionBridgeException(
+        code: code,
+        method: 'feature.set',
+        message: 'Changed backend wording',
+        stderr: 'Raw diagnostic output',
+      );
+      stubThrow(error);
+      await expectLater(
+        repository.run(['a']),
+        throwsA(
+          isA<_StubException>()
+              .having((e) => e.kind, 'kind', AppFailure.from(error).kind)
+              .having((e) => e.details, 'details', error.details),
+        ),
+      );
+    });
+  }
 
   test(
     'wraps bridge failure with bare prefix when details are empty',

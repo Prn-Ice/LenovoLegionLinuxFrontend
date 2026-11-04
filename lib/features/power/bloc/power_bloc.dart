@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -73,7 +74,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -99,7 +100,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -124,7 +125,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
       );
     } catch (error) {
       await _reloadState(emit, showLoading: false);
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -151,7 +152,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -178,7 +179,7 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -219,7 +220,10 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load power settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load power settings: $error',
+          ),
         ),
       );
     } finally {

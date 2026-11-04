@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:ui' show Color;
 
 import 'package:equatable/equatable.dart';
@@ -47,7 +48,7 @@ class RgbLightingState extends Equatable {
 
   final bool isLoading;
   final bool isApplying;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
 
   /// Whether the native (real-time, hidraw) Spectrum path is available — when
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
@@ -96,7 +97,7 @@ class RgbLightingState extends Equatable {
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
       nativeAvailabilityError: nativeAvailabilityError == _unset
           ? this.nativeAvailabilityError

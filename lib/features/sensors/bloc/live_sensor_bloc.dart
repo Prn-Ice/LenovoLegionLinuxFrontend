@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -61,7 +62,10 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to read sensors: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to read sensors: $error',
+          ),
         ),
       );
     } finally {

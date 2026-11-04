@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
 class DisplayState extends Equatable {
@@ -34,7 +35,7 @@ class DisplayState extends Equatable {
   final double? currentRefreshRate;
   final bool isLoading;
   final bool isApplying;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
   final String? noticeMessage;
 
   bool get hasLoaded =>
@@ -73,7 +74,7 @@ class DisplayState extends Equatable {
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,

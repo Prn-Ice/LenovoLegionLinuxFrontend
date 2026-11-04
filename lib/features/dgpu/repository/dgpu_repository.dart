@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
@@ -6,20 +7,19 @@ import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
 import '../models/graphics_mode.dart';
 
-class DgpuRepositoryException implements Exception {
-  const DgpuRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class DgpuRepositoryException extends AppFailure {
+  const DgpuRepositoryException(super.message, {super.kind, super.details});
 }
 
 class DgpuRepository extends PrivilegedRepository {
   const DgpuRepository({required super.bridgeService});
 
   @override
-  Exception wrapBridgeError(String message) => DgpuRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => DgpuRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   static const _knownRuntimeStatusPath =
       '/sys/bus/pci/devices/0000:01:00.0/power/runtime_status';
@@ -118,6 +118,8 @@ class DgpuRepository extends PrivilegedRepository {
             'clients or could not complete client inspection. Close '
             'GPU-accelerated applications and external-display sessions, then '
             'retry from a text console.$technicalDetails',
+            kind: AppFailureKind.graphicsBlocked,
+            details: error.details,
           );
         case LegionBridgeErrorCode.graphicsPending:
           throw DgpuRepositoryException(
@@ -126,11 +128,15 @@ class DgpuRepository extends PrivilegedRepository {
             'assume the requested mode is active. Check authoritative status '
             'and restore Hybrid from a text console or reboot before '
             'continuing.$technicalDetails',
+            kind: AppFailureKind.graphicsPending,
+            details: error.details,
           );
         case _:
           throw DgpuRepositoryException(
             'Could not request ${mode.label}. No authoritative confirmation '
             'was received that the graphics policy changed.$technicalDetails',
+            kind: AppFailure.from(error).kind,
+            details: error.details,
           );
       }
     }

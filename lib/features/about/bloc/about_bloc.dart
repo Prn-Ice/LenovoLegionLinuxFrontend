@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/about_repository.dart';
@@ -46,7 +47,10 @@ class AboutBloc extends Bloc<AboutEvent, AboutState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load diagnostics: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load diagnostics: $error',
+          ),
         ),
       );
     }

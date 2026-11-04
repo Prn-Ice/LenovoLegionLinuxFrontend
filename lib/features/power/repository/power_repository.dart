@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/power_profile_service.dart';
@@ -5,13 +6,8 @@ import '../models/power_limit.dart';
 import '../models/power_mode.dart';
 import '../models/power_snapshot.dart';
 
-class PowerRepositoryException implements Exception {
-  const PowerRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class PowerRepositoryException extends AppFailure {
+  const PowerRepositoryException(super.message, {super.kind, super.details});
 }
 
 class PowerRepository extends PrivilegedRepository {
@@ -23,8 +19,11 @@ class PowerRepository extends PrivilegedRepository {
        _powerProfileService = powerProfileService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      PowerRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => PowerRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
   final PowerProfileService _powerProfileService;

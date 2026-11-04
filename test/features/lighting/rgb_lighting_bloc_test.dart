@@ -183,7 +183,7 @@ void main() {
       act: (b) => b.add(const RgbLightingStarted()),
       verify: (b) {
         expect(b.state.available, isFalse);
-        expect(b.state.errorMessage, contains('OpenRGB probe failed'));
+        expect(b.state.errorMessage?.message, contains('OpenRGB probe failed'));
       },
     );
 

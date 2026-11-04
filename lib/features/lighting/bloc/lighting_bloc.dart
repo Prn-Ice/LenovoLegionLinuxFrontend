@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -73,7 +74,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -100,7 +101,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -127,7 +128,7 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -174,7 +175,10 @@ class LightingBloc extends Bloc<LightingEvent, LightingState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load lighting settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load lighting settings: $error',
+          ),
         ),
       );
     } finally {

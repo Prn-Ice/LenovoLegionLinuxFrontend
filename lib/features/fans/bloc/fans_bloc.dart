@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -174,7 +175,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -196,7 +197,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       await _reloadState(emit, showLoading: false);
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -244,7 +245,10 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load fan settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load fan settings: $error',
+          ),
         ),
       );
     } finally {

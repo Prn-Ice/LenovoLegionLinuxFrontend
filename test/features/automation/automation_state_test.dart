@@ -46,9 +46,9 @@ void main() {
     });
 
     test('copyWith(errorMessage: null) clears it', () {
-      final s = AutomationState.initial().copyWith(errorMessage: 'bad').copyWith(
-        errorMessage: null,
-      );
+      final s = AutomationState.initial()
+          .copyWith(errorMessage: 'bad')
+          .copyWith(errorMessage: null);
       expect(s.errorMessage, isNull);
     });
 
@@ -56,7 +56,7 @@ void main() {
       final s = AutomationState.initial()
           .copyWith(errorMessage: 'err')
           .copyWith(isLoading: true);
-      expect(s.errorMessage, equals('err'));
+      expect(s.errorMessage?.message, equals('err'));
     });
 
     test('copyWith(lastRunAt: null) clears DateTime', () {

@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
@@ -86,7 +87,7 @@ class BatteryState extends Equatable {
   final String? serialNumber;
   final bool isLoading;
   final bool isApplying;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
   final String? noticeMessage;
 
   bool get hasLoaded =>
@@ -203,7 +204,7 @@ class BatteryState extends Equatable {
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,

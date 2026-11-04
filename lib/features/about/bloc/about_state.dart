@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
 import '../models/about_snapshot.dart';
@@ -16,7 +17,7 @@ class AboutState extends Equatable {
 
   final AboutSnapshot? snapshot;
   final bool isLoading;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
 
   bool get hasLoaded => snapshot != null;
 
@@ -30,7 +31,7 @@ class AboutState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
     );
   }
 

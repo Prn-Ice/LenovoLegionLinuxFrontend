@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 // lib/features/analytics/bloc/analytics_state.dart
 import 'package:equatable/equatable.dart';
 
@@ -40,7 +41,7 @@ class AnalyticsState extends Equatable {
 
   final List<SensorRecord> history;
   final AnalyticsTimeWindow window;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
   final bool isCollecting;
 
   SensorRecord? get latest => history.isEmpty ? null : history.last;
@@ -55,7 +56,7 @@ class AnalyticsState extends Equatable {
     window: window ?? this.window,
     errorMessage: errorMessage == _unset
         ? this.errorMessage
-        : errorMessage as String?,
+        : AppFailure.optional(errorMessage),
     isCollecting: isCollecting ?? this.isCollecting,
   );
 

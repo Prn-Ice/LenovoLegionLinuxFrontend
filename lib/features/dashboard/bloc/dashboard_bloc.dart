@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 
 import 'package:riverbloc/riverbloc.dart';
@@ -171,7 +172,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         state.copyWith(
           isLoading: false,
           hasInitialized: true,
-          errorMessage: 'Failed to load dashboard state: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load dashboard state: $error',
+          ),
         ),
       );
     } finally {
@@ -197,7 +201,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       await _loadStatus(emit, showLoading: false);
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 

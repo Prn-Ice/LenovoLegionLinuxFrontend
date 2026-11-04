@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -7,13 +8,12 @@ import '../../../core/services/legion_sysfs_service.dart';
 import '../models/automation_config.dart';
 import '../models/automation_trigger_snapshot.dart';
 
-class AutomationRepositoryException implements Exception {
-  const AutomationRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class AutomationRepositoryException extends AppFailure {
+  const AutomationRepositoryException(
+    super.message, {
+    super.kind,
+    super.details,
+  });
 }
 
 class AutomationRepository extends PrivilegedRepository {
@@ -23,8 +23,12 @@ class AutomationRepository extends PrivilegedRepository {
   }) : _sysfsService = sysfsService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      AutomationRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) =>
+      AutomationRepositoryException(
+        failure.message,
+        kind: failure.kind,
+        details: failure.details,
+      );
 
   final LegionSysfsService _sysfsService;
 

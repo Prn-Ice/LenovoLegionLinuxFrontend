@@ -37,13 +37,16 @@ void main() {
 
   group('SettingsState.copyWith sentinel', () {
     test('copyWith with no args returns equal state', () {
-      expect(SettingsState.initial().copyWith(), equals(SettingsState.initial()));
+      expect(
+        SettingsState.initial().copyWith(),
+        equals(SettingsState.initial()),
+      );
     });
 
     test('copyWith(errorMessage: null) clears it', () {
-      final s = SettingsState.initial().copyWith(errorMessage: 'err').copyWith(
-        errorMessage: null,
-      );
+      final s = SettingsState.initial()
+          .copyWith(errorMessage: 'err')
+          .copyWith(errorMessage: null);
       expect(s.errorMessage, isNull);
     });
 
@@ -51,13 +54,13 @@ void main() {
       final s = SettingsState.initial()
           .copyWith(errorMessage: 'msg')
           .copyWith(isLoading: true);
-      expect(s.errorMessage, equals('msg'));
+      expect(s.errorMessage?.message, equals('msg'));
     });
 
     test('copyWith(noticeMessage: null) clears it', () {
-      final s = SettingsState.initial().copyWith(noticeMessage: 'done').copyWith(
-        noticeMessage: null,
-      );
+      final s = SettingsState.initial()
+          .copyWith(noticeMessage: 'done')
+          .copyWith(noticeMessage: null);
       expect(s.noticeMessage, isNull);
     });
   });

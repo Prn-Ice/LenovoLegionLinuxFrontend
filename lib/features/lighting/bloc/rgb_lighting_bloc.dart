@@ -138,7 +138,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         state.copyWith(
           available: false,
           isLoading: false,
-          errorMessage: '$error',
+          errorMessage: error,
           nativeAvailabilityError: nativeError,
         ),
       );
@@ -470,7 +470,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       await action();
       emit(state.copyWith(isApplying: false, errorMessage: null));
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 }

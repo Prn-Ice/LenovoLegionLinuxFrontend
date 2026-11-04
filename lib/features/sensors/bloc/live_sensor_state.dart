@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 import '../models/live_sensor_snapshot.dart';
 
@@ -13,17 +14,17 @@ class LiveSensorState extends Equatable {
 
   final LiveSensorSnapshot snapshot;
   final bool isLoading;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
 
   LiveSensorState copyWith({
     LiveSensorSnapshot? snapshot,
     bool? isLoading,
-    String? errorMessage,
+    Object? errorMessage,
   }) {
     return LiveSensorState(
       snapshot: snapshot ?? this.snapshot,
       isLoading: isLoading ?? this.isLoading,
-      errorMessage: errorMessage,
+      errorMessage: AppFailure.optional(errorMessage),
     );
   }
 

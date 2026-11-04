@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
 import '../models/dgpu_process.dart';
@@ -41,7 +42,7 @@ class DgpuState extends Equatable {
   final bool isLoading;
   final bool isApplying;
   final bool hasLoaded;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
   final String? noticeMessage;
 
   final GraphicsModeStatus? graphicsModeStatus;
@@ -75,7 +76,7 @@ class DgpuState extends Equatable {
       hasLoaded: hasLoaded ?? this.hasLoaded,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,

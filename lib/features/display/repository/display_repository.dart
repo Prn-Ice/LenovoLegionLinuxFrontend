@@ -1,15 +1,11 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/xrandr_service.dart';
 import '../models/display_snapshot.dart';
 
-class DisplayRepositoryException implements Exception {
-  const DisplayRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class DisplayRepositoryException extends AppFailure {
+  const DisplayRepositoryException(super.message, {super.kind, super.details});
 }
 
 class DisplayRepository extends PrivilegedRepository {
@@ -21,8 +17,11 @@ class DisplayRepository extends PrivilegedRepository {
        _xrandrService = xrandrService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      DisplayRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => DisplayRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
   final XrandrService _xrandrService;

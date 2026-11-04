@@ -292,7 +292,9 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
         if (runThisCycle) {
           try {
             await _repository.runShellCommand(state.config.externalCommand);
-            actions.add('Ran external command: ${state.config.externalCommand}');
+            actions.add(
+              'Ran external command: ${state.config.externalCommand}',
+            );
           } on AutomationRepositoryException catch (e) {
             // Keep cycle non-fatal if user script fails.
             actions.add('External command failed: $e');
@@ -319,7 +321,7 @@ class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
       emit(
         state.copyWith(
           isExecuting: false,
-          errorMessage: '$error',
+          errorMessage: error,
           lastRunAt: DateTime.now(),
         ),
       );

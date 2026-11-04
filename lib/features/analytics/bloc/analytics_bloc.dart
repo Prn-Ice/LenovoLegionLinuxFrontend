@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 // lib/features/analytics/bloc/analytics_bloc.dart
 import 'dart:async';
 
@@ -107,7 +108,14 @@ class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(errorMessage: 'Sensor read failed: $error'));
+      emit(
+        state.copyWith(
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Sensor read failed: $error',
+          ),
+        ),
+      );
     } finally {
       _tickInFlight = false;
     }

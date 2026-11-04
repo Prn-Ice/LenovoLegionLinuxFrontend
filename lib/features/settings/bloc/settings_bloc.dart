@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../models/service_control.dart';
@@ -84,7 +85,7 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: '$error'));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -115,7 +116,10 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
       emit(
         state.copyWith(
           isLoading: false,
-          errorMessage: 'Failed to load settings: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load settings: $error',
+          ),
         ),
       );
     }

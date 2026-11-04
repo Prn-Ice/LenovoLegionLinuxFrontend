@@ -1,14 +1,10 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/lighting_snapshot.dart';
 
-class LightingRepositoryException implements Exception {
-  const LightingRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class LightingRepositoryException extends AppFailure {
+  const LightingRepositoryException(super.message, {super.kind, super.details});
 }
 
 class LightingRepository extends PrivilegedRepository {
@@ -18,8 +14,11 @@ class LightingRepository extends PrivilegedRepository {
   }) : _sysfsService = sysfsService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      LightingRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => LightingRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
 

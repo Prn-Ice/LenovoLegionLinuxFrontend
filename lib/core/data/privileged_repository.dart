@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../services/legion_frontend_bridge_service.dart';
+import '../models/app_failure.dart';
 
 /// Base class for repositories that issue privileged commands through the
 /// [LegionFrontendBridgeService].
@@ -21,9 +22,9 @@ abstract class PrivilegedRepository {
   @protected
   final LegionFrontendBridgeService bridgeService;
 
-  /// Wrap a bridge failure message in the feature-specific exception type.
+  /// Preserve the failure's kind and details in the feature exception.
   @protected
-  Exception wrapBridgeError(String message);
+  Exception wrapBridgeError(AppFailure failure);
 
   @protected
   Future<void> runPrivilegedCommand(
@@ -45,7 +46,7 @@ abstract class PrivilegedRepository {
       final message = details.isEmpty
           ? '$failurePrefix.'
           : '$failurePrefix: $details';
-      throw wrapBridgeError(message);
+      throw wrapBridgeError(AppFailure.from(error, message: message));
     }
   }
 }

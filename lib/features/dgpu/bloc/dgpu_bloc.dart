@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/models/app_failure.dart';
 
 import 'package:riverbloc/riverbloc.dart';
 
@@ -65,11 +66,11 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       ),
     );
 
-    String? actionErrorMessage;
+    AppFailure? actionErrorMessage;
     try {
       await _repository.setGraphicsMode(event.mode);
     } on DgpuRepositoryException catch (error) {
-      actionErrorMessage = error.message;
+      actionErrorMessage = error;
     }
     await _reloadState(
       emit,
@@ -96,7 +97,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
         noticeMessage: 'GPU processes killed.',
       );
     } on DgpuRepositoryException catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: error.message));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -117,7 +118,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
             'PCI device restarted. The GPU will reinitialise shortly.',
       );
     } on DgpuRepositoryException catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: error.message));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -125,7 +126,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     Emitter<DgpuState> emit, {
     required bool showLoading,
     String? noticeMessage,
-    String? actionErrorMessage,
+    AppFailure? actionErrorMessage,
     bool requireGraphicsModeStatus = false,
     bool force = false,
   }) async {
@@ -165,10 +166,13 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           isApplying: false,
           applyingGraphicsMode: null,
           hasLoaded: true,
-          errorMessage: actionErrorMessage == null
-              ? 'Failed to load GPU status: $error'
-              : '$actionErrorMessage\n\nAuthoritative graphics status also '
-                    'could not be reloaded: $error',
+          errorMessage: AppFailure.from(
+            actionErrorMessage ?? error,
+            message: actionErrorMessage == null
+                ? 'Failed to load GPU status: $error'
+                : '$actionErrorMessage\n\nAuthoritative graphics status also '
+                      'could not be reloaded: $error',
+          ),
         ),
       );
     } finally {

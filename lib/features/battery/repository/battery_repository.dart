@@ -1,14 +1,10 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../models/battery_snapshot.dart';
 
-class BatteryRepositoryException implements Exception {
-  const BatteryRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class BatteryRepositoryException extends AppFailure {
+  const BatteryRepositoryException(super.message, {super.kind, super.details});
 }
 
 class BatteryRepository extends PrivilegedRepository {
@@ -20,8 +16,11 @@ class BatteryRepository extends PrivilegedRepository {
   }) : _sysfsService = sysfsService;
 
   @override
-  Exception wrapBridgeError(String message) =>
-      BatteryRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => BatteryRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
 

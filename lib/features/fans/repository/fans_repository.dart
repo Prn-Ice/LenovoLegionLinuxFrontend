@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
@@ -5,13 +6,8 @@ import '../../../core/services/legion_sysfs_service.dart';
 import '../models/fan_curve.dart';
 import '../models/fans_snapshot.dart';
 
-class FansRepositoryException implements Exception {
-  const FansRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class FansRepositoryException extends AppFailure {
+  const FansRepositoryException(super.message, {super.kind, super.details});
 }
 
 class FansRepository extends PrivilegedRepository {
@@ -21,7 +17,11 @@ class FansRepository extends PrivilegedRepository {
   }) : _sysfsService = sysfsService;
 
   @override
-  Exception wrapBridgeError(String message) => FansRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => FansRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   final LegionSysfsService _sysfsService;
 

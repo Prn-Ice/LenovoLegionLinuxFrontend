@@ -39,7 +39,7 @@ class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                state.errorMessage!,
+                state.errorMessage!.message,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),

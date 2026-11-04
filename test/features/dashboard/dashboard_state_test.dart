@@ -27,9 +27,9 @@ void main() {
     });
 
     test('copyWith(errorMessage: null) clears it', () {
-      final s = DashboardState.initial().copyWith(errorMessage: 'fail').copyWith(
-        errorMessage: null,
-      );
+      final s = DashboardState.initial()
+          .copyWith(errorMessage: 'fail')
+          .copyWith(errorMessage: null);
       expect(s.errorMessage, isNull);
     });
 
@@ -37,7 +37,7 @@ void main() {
       final s = DashboardState.initial()
           .copyWith(errorMessage: 'x')
           .copyWith(isLoading: true);
-      expect(s.errorMessage, equals('x'));
+      expect(s.errorMessage?.message, equals('x'));
     });
 
     test('copyWith(hasInitialized: true) sets it', () {

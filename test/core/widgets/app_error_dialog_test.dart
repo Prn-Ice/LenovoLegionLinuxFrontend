@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 
 void main() {
@@ -33,8 +34,10 @@ void main() {
       const MaterialApp(
         home: Scaffold(
           body: AppErrorDialogListener(
-            errorMessage:
-                'The legion-control service could not provide privileged access.',
+            errorMessage: AppFailure(
+              'The legion-control service could not provide privileged access.',
+              kind: AppFailureKind.privilegeSetup,
+            ),
             child: Text('Page content'),
           ),
         ),
@@ -65,8 +68,10 @@ void main() {
       const MaterialApp(
         home: Scaffold(
           body: AppErrorDialogListener(
-            errorMessage:
-                'The legion-control service could not provide privileged access.',
+            errorMessage: AppFailure(
+              'The legion-control service could not provide privileged access.',
+              kind: AppFailureKind.privilegeSetup,
+            ),
             child: Text('Page content'),
           ),
         ),
@@ -82,11 +87,15 @@ void main() {
   testWidgets('classified graphics failures use consequence-specific titles', (
     tester,
   ) async {
-    for (final failure in const {
-      'Could not switch to Hybrid iGPU-only. The firmware policy was not changed because the privileged preflight found active dGPU/DRM clients.':
-          'Graphics change blocked',
-      'Hybrid iGPU-only was selected, but the effective GPU topology did not settle. The firmware policy may have changed.':
-          'Graphics policy did not settle',
+    for (final failure in {
+      AppFailure(
+        'Backend wording changed.',
+        kind: AppFailureKind.graphicsBlocked,
+      ): 'Graphics change blocked',
+      AppFailure(
+        'Backend wording changed.',
+        kind: AppFailureKind.graphicsPending,
+      ): 'Graphics policy did not settle',
     }.entries) {
       await tester.pumpWidget(
         MaterialApp(
@@ -95,8 +104,66 @@ void main() {
       );
 
       expect(find.text(failure.value), findsOneWidget);
-      expect(find.text(failure.key), findsOneWidget);
+      expect(find.text(failure.key.message), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('English recognition phrases do not classify plain text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AppErrorDialog(
+            message:
+                'legion-control service is not configured; effective GPU topology did not settle',
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Action could not be completed'), findsOneWidget);
+    expect(find.text('NixOS'), findsNothing);
+  });
+
+  testWidgets('queues a different kind with the same text without stacking', (
+    tester,
+  ) async {
+    final failure = ValueNotifier<AppFailure?>(
+      const AppFailure('Same text', kind: AppFailureKind.graphicsBlocked),
+    );
+    addTearDown(failure.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder<AppFailure?>(
+            valueListenable: failure,
+            builder: (_, value, _) => AppErrorDialogListener(
+              errorMessage: value,
+              child: const Text('Page content'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    failure.value = const AppFailure(
+      'Same text',
+      kind: AppFailureKind.graphicsPending,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Graphics change blocked'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Graphics policy did not settle'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    failure.value = const AppFailure(
+      'Same text',
+      kind: AppFailureKind.graphicsPending,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
   });
 }

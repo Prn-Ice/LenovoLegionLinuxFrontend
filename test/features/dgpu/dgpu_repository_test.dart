@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
@@ -173,6 +174,18 @@ void main() {
         repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
         throwsA(
           isA<DgpuRepositoryException>()
+              .having(
+                (error) => error.kind,
+                'kind',
+                failure.key == LegionBridgeErrorCode.graphicsBlocked
+                    ? AppFailureKind.graphicsBlocked
+                    : AppFailureKind.graphicsPending,
+              )
+              .having(
+                (error) => error.details,
+                'details',
+                contains('backend detail'),
+              )
               .having(
                 (error) => error.message,
                 'consequence',

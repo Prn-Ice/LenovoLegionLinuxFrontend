@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:equatable/equatable.dart';
 
 import '../models/automation_config.dart';
@@ -32,7 +33,7 @@ class AutomationState extends Equatable {
   final bool isExecuting;
   final DateTime? lastRunAt;
   final String? lastRunSummary;
-  final String? errorMessage;
+  final AppFailure? errorMessage;
 
   bool get isRunnerActive => config.runnerEnabled;
 
@@ -58,7 +59,7 @@ class AutomationState extends Equatable {
           : lastRunSummary as String?,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
-          : errorMessage as String?,
+          : AppFailure.optional(errorMessage),
     );
   }
 

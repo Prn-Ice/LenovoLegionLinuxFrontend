@@ -1,3 +1,4 @@
+import '../../../core/models/app_failure.dart';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../repository/boot_logo_repository.dart';
@@ -51,7 +52,9 @@ class BootLogoBloc extends Bloc<BootLogoEvent, BootLogoState> {
       return;
     }
 
-    final ext = path.contains('.') ? '.${path.split('.').last.toLowerCase()}' : '';
+    final ext = path.contains('.')
+        ? '.${path.split('.').last.toLowerCase()}'
+        : '';
     final validationError = _acceptedExtensions.contains(ext)
         ? null
         : 'Unsupported format "$ext". Use PNG, JPEG, or BMP.';
@@ -81,9 +84,12 @@ class BootLogoBloc extends Bloc<BootLogoEvent, BootLogoState> {
 
     try {
       await _repository.enableBootLogo(imagePath);
-      await _reloadState(emit, noticeMessage: 'Boot logo applied successfully.');
+      await _reloadState(
+        emit,
+        noticeMessage: 'Boot logo applied successfully.',
+      );
     } on BootLogoRepositoryException catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: error.message));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -103,7 +109,7 @@ class BootLogoBloc extends Bloc<BootLogoEvent, BootLogoState> {
       await _repository.restoreBootLogo();
       await _reloadState(emit, noticeMessage: 'Boot logo restored to default.');
     } on BootLogoRepositoryException catch (error) {
-      emit(state.copyWith(isApplying: false, errorMessage: error.message));
+      emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }
 
@@ -126,7 +132,10 @@ class BootLogoBloc extends Bloc<BootLogoEvent, BootLogoState> {
         state.copyWith(
           isLoading: false,
           isApplying: false,
-          errorMessage: 'Failed to load boot logo status: $error',
+          errorMessage: AppFailure.from(
+            error,
+            message: 'Failed to load boot logo status: $error',
+          ),
         ),
       );
     }

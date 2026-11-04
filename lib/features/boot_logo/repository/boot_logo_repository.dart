@@ -1,22 +1,21 @@
+import '../../../core/models/app_failure.dart';
 import '../../../core/data/privileged_repository.dart';
 import '../models/boot_logo_snapshot.dart';
 import '../models/boot_logo_status.dart';
 
-class BootLogoRepositoryException implements Exception {
-  const BootLogoRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class BootLogoRepositoryException extends AppFailure {
+  const BootLogoRepositoryException(super.message, {super.kind, super.details});
 }
 
 class BootLogoRepository extends PrivilegedRepository {
   const BootLogoRepository({required super.bridgeService});
 
   @override
-  Exception wrapBridgeError(String message) =>
-      BootLogoRepositoryException(message);
+  Exception wrapBridgeError(AppFailure failure) => BootLogoRepositoryException(
+    failure.message,
+    kind: failure.kind,
+    details: failure.details,
+  );
 
   Future<BootLogoSnapshot> loadSnapshot() async {
     try {

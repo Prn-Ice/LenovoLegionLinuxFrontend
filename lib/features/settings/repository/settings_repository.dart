@@ -1,16 +1,12 @@
+import '../../../core/models/app_failure.dart';
 import 'dart:io';
 
 import '../../../core/services/legion_control_client.dart';
 import '../models/service_control.dart';
 import '../models/settings_snapshot.dart';
 
-class SettingsRepositoryException implements Exception {
-  const SettingsRepositoryException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
+class SettingsRepositoryException extends AppFailure {
+  const SettingsRepositoryException(super.message, {super.kind, super.details});
 }
 
 class SettingsRepository {
@@ -86,7 +82,12 @@ class SettingsRepository {
     try {
       await _controlClient.setServiceEnabled(service.id, enabled);
     } on LegionControlException catch (error) {
-      throw SettingsRepositoryException('$error');
+      final failure = AppFailure.from(error);
+      throw SettingsRepositoryException(
+        failure.message,
+        kind: failure.kind,
+        details: failure.details,
+      );
     }
   }
 
