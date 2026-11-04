@@ -108,7 +108,7 @@ jobs:
         run: |
           set -o pipefail
           xvfb-run -a --server-args='-screen 0 1280x800x24' \
-            flutter test integration_test/app_test.dart -d linux --no-pub \
+            bash tool/test_linux_journeys.sh \
             2>&1 | tee linux-integration.log
 
       - name: Upload integration log on failure

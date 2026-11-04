@@ -47,10 +47,10 @@ From a Linux desktop session, run:
 
 ```bash
 flutter pub get --enforce-lockfile
-flutter test integration_test/app_test.dart -d linux --no-pub
+bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers eight scenarios. The battery journey
+The `app_test.dart` entrypoint registers nine scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery, presses Refresh, and checks Conservation mode. The recovery journey
 checks retry after permission-denied, unavailable-service, and failed-command
@@ -62,10 +62,21 @@ check that selecting an AC-only mode on battery sends no privileged request.
 The keyboard journey saves a Lighting profile, makes a different manual edit,
 assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting
-unchanged. Profile and assignment data are checked in temporary Hive/config
-storage; process-restart persistence remains untested.
+unchanged. The mode-switching journey checks assigned profiles while navigating
+away from Automation and preserves manual edits during same-mode refreshes.
 
-The entrypoint runs all scenarios in sequence in one native build/process.
+The runner then starts two separate native app processes to check persistence.
+The first saves a profile and its assignment, makes a different manual edit, and
+exits. The second reopens the same temporary Hive/config data and verifies the
+assigned profile is restored. The processes record distinct IDs. The runner
+removes its temporary data on completion or failure.
+
+To run only the nine scenarios in the first app process:
+
+```bash
+flutter test integration_test/app_test.dart -d linux --no-pub
+```
+
 Do not run concurrent Flutter commands in the same checkout while this journey
 is running; they can interfere with its native build and debug connection.
 
@@ -95,11 +106,11 @@ Debian/Ubuntu) and run:
 ```bash
 flutter pub get --enforce-lockfile
 xvfb-run -a --server-args='-screen 0 1280x800x24' \
-  flutter test integration_test/app_test.dart -d linux --no-pub
+  bash tool/test_linux_journeys.sh
 ```
 
 The Linux native integration journey runs as a separate CI job with the same
-Flutter SDK pin and Linux desktop dependencies. It runs the single entrypoint
+Flutter SDK pin and Linux desktop dependencies. It runs the complete sequence
 in a fresh checkout under Xvfb and retains its command log when it fails.
 Headless runs need Xvfb, `xauth`, and `gsettings-desktop-schemas` for Yaru's GNOME
 settings reads. CI uses an in-memory settings backend. The runner does not
