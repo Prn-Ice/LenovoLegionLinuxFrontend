@@ -6,6 +6,8 @@ import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.
 
 import 'safe_app.dart';
 
+enum OpenRgbFailure { applyRejected }
+
 /// Keeps RGB service calls inside the journey while preserving its real Bloc,
 /// repositories, profile store, and app providers.
 class SafeLighting {
@@ -28,10 +30,16 @@ class SafeLighting {
   ];
 
   List<List<String>> get writes => _openRgb.writes;
+
+  List<List<String>> get requests => _openRgb.requests;
+
+  set nextFailure(OpenRgbFailure? failure) => _openRgb.nextFailure = failure;
 }
 
 class _RecordingOpenRgb extends OpenRgbCliService {
   final writes = <List<String>>[];
+  final requests = <List<String>>[];
+  OpenRgbFailure? nextFailure;
 
   @override
   Future<bool> isAvailable() async => true;
@@ -57,6 +65,23 @@ class _RecordingOpenRgb extends OpenRgbCliService {
     int? brightness,
     int? speed,
   }) async {
-    writes.add(List.unmodifiable(colorsHex ?? const []));
+    final request = List<String>.unmodifiable(colorsHex ?? const []);
+    requests.add(request);
+    if (device != 0) {
+      throw StateError('Unexpected OpenRGB device index: $device.');
+    }
+    if (nextFailure == OpenRgbFailure.applyRejected) {
+      nextFailure = null;
+      throw StateError('Test OpenRGB apply was rejected.');
+    }
+    writes.add(request);
   }
+
+  @override
+  Future<void> loadProfile(String name) async =>
+      throw StateError('OpenRGB profile-file access is outside this journey.');
+
+  @override
+  Future<void> saveProfile(String name) async =>
+      throw StateError('OpenRGB profile-file access is outside this journey.');
 }

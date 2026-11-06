@@ -50,7 +50,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers nine scenarios. The battery journey
+The `app_test.dart` entrypoint starts the native user journeys. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -67,13 +67,18 @@ colors are applied. It also checks that clearing the assignment leaves lighting
 unchanged. The mode-switching journey checks assigned profiles while navigating
 away from Automation and preserves manual edits during same-mode refreshes.
 
+Profile-error journeys recover a missing assignment and retry a failed profile
+load in Lighting while preserving the previous confirmed colors. The Fans
+journey cancels a preset confirmation, then applies the preset and checks its
+curve readback through the real repository.
+
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
 exits. The second reopens the same temporary Hive/config data and verifies the
 assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
-To run only the nine scenarios in the first app process:
+To run only the journeys in the first app process:
 
 ```bash
 flutter test integration_test/app_test.dart -d linux --no-pub
