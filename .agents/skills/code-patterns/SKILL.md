@@ -53,25 +53,16 @@ UI standards, and completion rules remain authoritative.
 
 ## Say what things are
 
-Use ordinary language in comments, docs, UI copy, and handoffs. Say what the
-thing is, where it came from, and what we use it for when those facts matter.
+Use [Writing Clearly and Concisely](../writing-clearly-and-concisely/SKILL.md)
+for prose, including responses, comments, docs, UI copy, PR bodies, and handoffs.
+The **Writing standard** in `AGENTS.md` defines its precedence and the requirement
+to flag encountered writing problems. This skill remains the implementation and
+review authority.
 
-For example: "These power settings were recorded from one laptop and chosen as
-the app's defaults" explains more than "display reference values for an exact
-product and BIOS match."
-
-State choices directly. Do not make the reader decode abstract labels or a list
-of things something is not. Include a limitation when it affects how someone
-should use the thing, beside the relevant instruction.
-
-Follow the **Direct writing** rules in `AGENTS.md` for responses as well as
-project text. State the main point and stop when it is complete. Remove trailing
-“not a…”, “does not mean…”, and “no … needed” explanations unless they change
-the reader's action or understanding. State each necessary limitation once.
-
-Write “Other models and BIOS versions have not been tested.” A comparison with
-upstream driver support adds nothing to that statement. Link to the public
-backlog directly; omit explanations about needing access to internal tooling.
+For data, explain its source and purpose when those facts help the reader. For
+example, "These power settings were recorded from one laptop and chosen as the
+app's defaults" explains the source and its use. Preserve tested-model limits,
+hardware facts, error recovery, and the requirements in the UI guides.
 
 ## Respect the hardware boundary
 
