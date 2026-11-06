@@ -29,21 +29,18 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
   copy, and handoffs. See the writing examples in the project code patterns.
 - Separate what changed, what was tested, and what remains unverified.
 
-## Direct writing
+## Writing standard
 
-Applies to every agent's responses, documentation, comments, UI copy, and handoffs.
+- **Use [Writing Clearly and Concisely](.agents/skills/writing-clearly-and-concisely/SKILL.md) for all prose.** Read the skill before writing, editing, or reviewing comments, documentation, UI copy, error messages, test descriptions, commit and PR text, reports, or agent messages.
+- **One prose-style authority.** The writing skill takes precedence over style advice in other skills, guides, plans, and examples. Preserve product facts, terminology, accessibility, behavior, and approved decisions from those sources.
+- **Preserve meaning and voice.** Match the product's audience. Use the skill's [confirmed samples](.agents/skills/writing-clearly-and-concisely/references/prince-voice.md) when drafting in Prince's voice; keep personal anecdotes and phone facts out of unrelated copy.
+- **Explain what matters.** Say what something is and what it is used for. When data affects interpretation, explain its source and why it was chosen. Give test steps as an action and an expected result. State what changed, what was tested, and what remains unverified.
+- **Highlight violations you encounter.** Flag unclear or wasteful prose even when writing is not the main task. Give its location, a short excerpt, the problem, and a proposed revision. Correct safe in-scope problems and report the change; discuss wider changes and record follow-ups through the project workflow.
+- **Respect source ownership.** Preserve exact quotations and confirmed voice samples. Flag problems in quoted, third-party, or generated text, and correct the editable source where appropriate. Update generated output through its normal generation workflow.
 
-- State the main point in plain language, then stop when it is complete.
-- Do not append defensive contrasts such as “not a…”, “does not mean…”, or
-  “no … needed” to an already clear statement.
-- Include a caveat only when it changes the reader's action or understanding.
-  State the concrete limitation once, beside the relevant claim.
-- Cut filler, tooling explanations, and repeated disclaimers. During review,
-  check sentence endings for qualifications that add no useful information.
-- Example: “Other models and BIOS versions have not been tested.”
-  Avoid: “Upstream driver support does not mean this frontend has been tested
-  on them.”
-- Example: “See the public backlog for current work.” End there.
+## Reflection
+
+When recurring friction, wasted tokens or effort, a meaningful correction, an unproductive approach, or a verified success suggests a reusable improvement, use [reflect](.agents/skills/reflect/SKILL.md). Bring a brief observation, its evidence, and a concrete proposal at a natural break. Discuss new lessons before preserving them or changing agent setup; existing user instructions still apply immediately. Keep independent work moving. Routine outcomes need no retrospective report. Use the project's existing tracker for agreed knowledge and follow-up work.
 
 ## UI Standards
 
