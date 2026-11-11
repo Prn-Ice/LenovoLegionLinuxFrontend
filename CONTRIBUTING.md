@@ -33,6 +33,9 @@ flutter pub get
 Run `nix develop` for the project's development shell, or `direnv allow` to load
 it automatically with nix-direnv.
 
+See [the Nix frontend build](docs/nix.md) for the packaged app, source archive,
+dependency metadata updates, and disposable VM acceptance check.
+
 ## Test without hardware
 
 ```bash

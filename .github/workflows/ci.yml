@@ -11,6 +11,29 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Select build and VM checks
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check PR paths or select every check for main and tags
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            python3 tool/ci_build_changes.py --base "$PR_BASE"
+          else
+            python3 tool/ci_build_changes.py
+          fi
+
   release-tools:
     name: Release workflow tests
     runs-on: ubuntu-latest
@@ -101,6 +124,8 @@ jobs:
     name: Control lifecycle and portable startup VMs
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,6 +143,8 @@ jobs:
     name: Portable helper on Ubuntu 22.04
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -149,6 +176,8 @@ jobs:
     name: AppImage build and Ubuntu acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -190,6 +219,8 @@ jobs:
     name: Linux native app integration
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -237,3 +268,24 @@ jobs:
           name: linux-native-integration-log
           path: linux-integration.log
           if-no-files-found: ignore
+
+  nix-frontend:
+    name: Nix frontend build and acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: cachix/install-nix-action@v31
+        with:
+          enable_kvm: true
+      - name: Build the frontend, source archive, and metadata check
+        run: >-
+          nix build .#frontend .#frontend-source
+          .#checks.x86_64-linux.nix-metadata --print-build-logs
+      - name: Test the installed desktop and helper in a disposable NixOS VM
+        run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs

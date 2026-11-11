@@ -46,7 +46,7 @@ See [Contributing](CONTRIBUTING.md) for installation commands.
 - Supported `legion_linux` kernel module
 - `legion_cli` backend; temporary-helper builds require an administrator-controlled installation
 - Installed service mode: `legion-control` with its D-Bus policy and Polkit action
-- Temporary helper mode: systemd and the bundled helper in the [AppImage qualification build](docs/appimage.md)
+- Temporary helper mode: systemd and the bundled helper in the [Nix frontend](docs/nix.md) or [AppImage qualification build](docs/appimage.md)
 - Desktop Polkit authentication agent
 - NVIDIA drivers for NVIDIA dGPU features
 

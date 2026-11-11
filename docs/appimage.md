@@ -20,8 +20,8 @@ existing NixOS bootstrap check also passed with the shared test driver.
 
 The builder needs Docker, Git, Python 3, and curl. It runs the compiler as an
 ordinary user in an Ubuntu container. It mounts no host devices or system bus.
-Source packaging requires a clean committed checkout. NixOS users need the
-separate Nix build; this artifact targets the Ubuntu host library baseline.
+Source packaging requires a clean committed checkout. NixOS users can use the
+[Nix frontend](nix.md); this artifact targets the Ubuntu host library baseline.
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz

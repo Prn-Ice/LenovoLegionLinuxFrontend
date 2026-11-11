@@ -1,5 +1,5 @@
 {
-  description = "Linux development tools for LenovoLegionLinuxFrontend";
+  description = "Lenovo Legion Linux frontend and development tools";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -51,9 +51,42 @@
         ];
         extraPkgConfigPackages = [ pkgs.libthai ];
       };
+      frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
+      frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
     in
     {
+      packages.${system} = {
+        default = frontend;
+        inherit frontend;
+        frontend-source = frontendSource;
+      };
+      apps.${system} = {
+        default = {
+          type = "app";
+          program = pkgs.lib.getExe frontend;
+        };
+        frontend = {
+          type = "app";
+          program = pkgs.lib.getExe frontend;
+        };
+      };
       checks.${system} = {
+        frontend-package = import ./control/test/frontend_package.nix { inherit pkgs frontend; };
+        nix-metadata =
+          pkgs.runCommand "legion-nix-metadata"
+            {
+              nativeBuildInputs = [
+                pkgs.yq
+                pkgs.diffutils
+              ];
+            }
+            ''
+              yq -S . ${./pubspec.yaml} > pubspec.json
+              yq -S . ${./pubspec.lock} > pubspec.lock.json
+              diff -u ${./packaging/nix/pubspec.json} pubspec.json
+              diff -u ${./packaging/nix/pubspec.lock.json} pubspec.lock.json
+              touch "$out"
+            '';
         control-lifecycle = import ./control/test/control_lifecycle.nix {
           inherit pkgs;
         };
@@ -80,6 +113,7 @@
           jdk17
           dbus
           xvfb-run
+          yq
         ];
 
         # JNI build hooks compile against this JDK and load its JVM at runtime.

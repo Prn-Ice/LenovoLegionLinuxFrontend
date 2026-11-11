@@ -13,10 +13,25 @@ const _supplements = <String, List<String>>{
 };
 
 Future<void> main(List<String> args) async {
+  final remaining = args.toList();
+  final sdkIndex = remaining.indexOf('--flutter-sdk');
+  Directory? flutterSdk;
+  if (sdkIndex >= 0) {
+    if (sdkIndex + 1 >= remaining.length ||
+        remaining[sdkIndex + 1].startsWith('--')) {
+      stderr.writeln('--flutter-sdk requires the Flutter SDK directory.');
+      exitCode = 64;
+      return;
+    }
+    flutterSdk = Directory(remaining[sdkIndex + 1]);
+    remaining.removeRange(sdkIndex, sdkIndex + 2);
+  }
   final check = args.contains('--check');
-  final paths = args.where((arg) => arg != '--check').toList();
+  final paths = remaining.where((arg) => arg != '--check').toList();
   if (paths.length != 1) {
-    stderr.writeln('Usage: dart tool/bundle_notices.dart [--check] <bundle>');
+    stderr.writeln(
+      'Usage: dart tool/bundle_notices.dart [--check] [--flutter-sdk DIRECTORY] <bundle>',
+    );
     exitCode = 64;
     return;
   }
@@ -26,6 +41,7 @@ Future<void> main(List<String> args) async {
       root,
       Directory(paths.single),
       check: check,
+      flutterSdk: flutterSdk,
     );
     stdout.writeln(
       '${check ? 'Checked' : 'Packaged'} notices: '
@@ -43,6 +59,7 @@ Future<Map<String, Object>> bundleNotices(
   Directory root,
   Directory bundle, {
   bool check = false,
+  Directory? flutterSdk,
 }) async {
   final assets = Directory('${bundle.path}/data/flutter_assets');
   final compressed = File('${assets.path}/NOTICES.Z');
@@ -94,7 +111,7 @@ Future<Map<String, Object>> bundleNotices(
       for (final path in entry.value)
         '${entry.key}/$path': File('${packages[entry.key]!.path}/$path'),
     'flutter/MaterialIcons_LICENSE.txt': File(
-      '${packages['flutter']!.parent.parent.path}/bin/cache/artifacts/'
+      '${(flutterSdk ?? packages['flutter']!.parent.parent).path}/bin/cache/artifacts/'
       'material_fonts/MaterialIcons_LICENSE.txt',
     ),
   };

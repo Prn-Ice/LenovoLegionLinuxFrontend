@@ -151,6 +151,7 @@ install(CODE "
   execute_process(
     COMMAND \"${FLUTTER_SDK_DIR}/bin/dart\"
       \"${CMAKE_CURRENT_SOURCE_DIR}/../tool/bundle_notices.dart\"
+      --flutter-sdk \"${FLUTTER_SDK_DIR}\"
       \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}\"
     RESULT_VARIABLE notices_result
     ERROR_VARIABLE notices_error)
