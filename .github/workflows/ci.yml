@@ -66,7 +66,7 @@ jobs:
         run: >-
           cmake --build build/native --parallel 2 --target
           legion_telemetry_service legion_control_service
-          package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test
+          package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test
           portable_control_probe
 
       - name: Run native tests
@@ -127,6 +127,7 @@ jobs:
 
       - name: Test native portable control argument mapping
         run: |
+          flutter build linux --debug --no-pub
           cmake --build build/linux/x64/debug --target portable_control_channel_test
           build/linux/x64/debug/runner/portable_control_channel_test
 

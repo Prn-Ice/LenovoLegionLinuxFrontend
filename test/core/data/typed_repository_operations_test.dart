@@ -31,7 +31,7 @@ class _Profiles extends Mock implements PowerProfileService {}
 
 class _Xrandr extends Mock implements XrandrService {}
 
-class _Transport implements LegionControlTransport {
+class _Transport extends LegionControlTransport {
   final calls = <(String, List<Object>)>[];
   @override
   Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(

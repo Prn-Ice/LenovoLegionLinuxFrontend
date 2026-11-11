@@ -170,7 +170,7 @@ int RunPortableControlProbe(pid_t client_pid, uid_t client_uid,
   session.control.mode = ControlConnectionMode::portable;
   // The fixture path is fixed at build time. Callers cannot select a root
   // command.
-  if (!trusted_executable(PORTABLE_CONTROL_TEST_CLI, &session.control.cli))
+  if (!legion_control::TrustedExecutable(PORTABLE_CONTROL_TEST_CLI, &session.control.cli))
     return 2;
   session.control.loop = g_main_loop_new(nullptr, FALSE);
   GError *error = nullptr;

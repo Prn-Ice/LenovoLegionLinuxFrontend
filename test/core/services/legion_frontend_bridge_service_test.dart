@@ -11,7 +11,7 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockCliService extends Mock implements LegionCliService {}
 
-class _Transport implements LegionControlTransport {
+class _Transport extends LegionControlTransport {
   Object? failure;
   Completer<void>? pendingAuthorization;
   final authorizationStarted = Completer<void>();
@@ -43,11 +43,42 @@ class _Transport implements LegionControlTransport {
 }
 
 void main() {
+  test('the command deadline starts after approval completes', () async {
+    final transport = _Transport()..pendingAuthorization = Completer<void>();
+    final client = LegionControlClient(transport: transport);
+    addTearDown(client.close);
+    final bridge = LegionFrontendBridgeService(
+      cliService: _MockCliService(),
+      controlClient: client,
+    );
+    var completed = false;
+    final writing = bridge
+        .runControlOperation(
+          method: 'toggle',
+          timeout: Duration.zero,
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, true),
+        )
+        .then((_) {
+          completed = true;
+        });
+    await transport.authorizationStarted.future;
+    await Future<void>.delayed(Duration.zero);
+    expect(completed, isFalse);
+    expect(transport.closes, 0);
+    transport.pendingAuthorization!.complete();
+    await writing;
+    expect(transport.writes, 1);
+  });
+
   test(
-    'write timeout closes access and prevents late authorization from writing',
+    'authorization timeout closes access and prevents a late write',
     () async {
       final transport = _Transport()..pendingAuthorization = Completer<void>();
-      final client = LegionControlClient(transport: transport);
+      final client = LegionControlClient(
+        transport: transport,
+        authorizationTimeout: Duration.zero,
+      );
       final cli = _MockCliService();
       final bridge = LegionFrontendBridgeService(
         cliService: cli,

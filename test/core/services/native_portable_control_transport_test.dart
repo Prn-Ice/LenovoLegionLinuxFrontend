@@ -138,16 +138,19 @@ void main() {
   test(
     'server verification failure cannot authorize or send a write',
     () async {
-      handler = (_) async => throw PlatformException(
-        code: 'setup',
-        message: 'Root helper identity did not match.',
-      );
+      handler = (call) async {
+        if (call.method == 'close') return null;
+        throw PlatformException(
+          code: 'setup',
+          message: 'Root helper identity did not match.',
+        );
+      };
       final client = LegionControlClient(transport: transport());
       await expectLater(
         client.setToggle(ControlToggle.batteryConservation, true),
         throwsA(isA<LegionControlSetupException>()),
       );
-      expect(calls.map((call) => call.method), ['connect']);
+      expect(calls.map((call) => call.method), ['connect', 'close']);
       handler = (_) async => null;
       await client.close();
     },

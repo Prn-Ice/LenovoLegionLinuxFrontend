@@ -292,7 +292,7 @@ class _ProbeProcess {
   }
 }
 
-class _PeerTransport implements LegionControlTransport {
+class _PeerTransport extends LegionControlTransport {
   _PeerTransport(this.client);
 
   final DBusClient client;

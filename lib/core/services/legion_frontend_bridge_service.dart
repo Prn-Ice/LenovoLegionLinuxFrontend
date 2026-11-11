@@ -258,6 +258,7 @@ class LegionFrontendBridgeService {
             'The legion-control service is not configured.',
           );
         }
+        await client.authorize();
         await operation(client).timeout(timeout);
         return;
       } on TimeoutException {

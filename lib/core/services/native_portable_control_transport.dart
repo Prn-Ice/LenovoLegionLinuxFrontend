@@ -5,25 +5,14 @@ import 'package:dbus/dbus.dart';
 import 'package:flutter/services.dart';
 
 import '../models/control_capabilities.dart';
+import '../models/portable_control_endpoint.dart';
 import 'legion_control_client.dart';
 
-/// Reported by the approved launcher. The native host verifies this endpoint
-/// against systemd and kernel socket credentials before D-Bus authentication.
-class PortableControlEndpoint {
-  const PortableControlEndpoint({
-    required this.address,
-    required this.unit,
-    required this.helperPid,
-  });
-
-  final String address;
-  final String unit;
-  final int helperPid;
-}
+export '../models/portable_control_endpoint.dart';
 
 /// A private control connection owned by the Linux host in this app process.
 /// The caller must first obtain an endpoint from an explicitly approved launch.
-class NativePortableControlTransport implements LegionControlTransport {
+class NativePortableControlTransport extends LegionControlTransport {
   NativePortableControlTransport({
     required PortableControlEndpoint endpoint,
     MethodChannel? channel,
@@ -107,12 +96,17 @@ class NativePortableControlTransport implements LegionControlTransport {
     String method, [
     Map<String, Object> arguments = const {},
   ]) async {
-    _ensureOpen();
-    await (_connecting ??= _connect());
-    _ensureOpen();
+    await prepare();
     final result = await _native<T>(method, arguments);
     _ensureOpen();
     return result;
+  }
+
+  @override
+  Future<void> prepare() async {
+    _ensureOpen();
+    await (_connecting ??= _connect());
+    _ensureOpen();
   }
 
   @override

@@ -56,6 +56,8 @@ pkgs.testers.runNixOSTest {
     snapshot_checks = machine.succeed("runuser -u approved -- executable-snapshot-test")
     assert "# SKIP" not in snapshot_checks, snapshot_checks
     machine.succeed("runuser -u approved -- portable-lifetime-test")
+    trust_checks = machine.succeed("trusted-executable-test")
+    assert "# SKIP" not in trust_checks, trust_checks
 
     def as_user(user, command):
         return "runuser -u " + shlex.quote(user) + " -- sh -c " + shlex.quote(command)

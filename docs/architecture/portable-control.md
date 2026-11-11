@@ -9,9 +9,10 @@ system service.
 
 The VM experiment connects approved administrator startup to the real typed
 control API with a synthetic CLI. The desktop checks protocol compatibility
-before authorization. Backend process containment and shared write locking are
-implemented. Production portable startup and release packages remain to be
-implemented. See the [public backlog](../../BACKLOG.md).
+before API authorization. Backend process containment and shared write locking
+are implemented. Dart launcher supervision and trusted executable validation are
+implemented and tested separately. Production helper integration and release
+packages remain open. See the [public backlog](../../BACKLOG.md).
 
 The intended default for all formats is a temporary authorized helper.
 Persistent features can use optional system integration. Deprecating the
@@ -62,12 +63,13 @@ running arbitrary commands or accepting an arbitrary backend executable.
 Polkit authorizes launching the helper; the helper and its supervisor enforce
 the session lifetime.
 
-Before requesting authorization, `LegionControlClient` checks protocol
-compatibility and required capabilities through its selected transport. It
-shares the initial metadata request between concurrent callers and caches a
-successful result for that connection. Unknown capabilities are ignored.
+After transport preparation, `LegionControlClient` checks protocol compatibility
+and required capabilities before API authorization. Portable preparation includes
+host approval to start the helper. The client shares the initial metadata
+request between concurrent callers and caches a successful result for that
+connection. Unknown capabilities are ignored.
 An older service, malformed reply, incompatible protocol, or missing interactive
-controls produces setup guidance before any authorization or writes.
+controls produces setup guidance before API authorization or writes.
 
 `GetCapabilities` now returns protocol version 1 and supported operations.
 Installed mode advertises `interactive-control`, `persistent-services`, and
@@ -83,16 +85,27 @@ that owner. Each request checks that the public service name still belongs to
 it. A replacement service cannot inherit cached compatibility or authorization;
 the user must restart the app to establish a new connection.
 
-Compatibility checks and service lookup have five-second deadlines. Closing
-the client rejects pending requests immediately, including a pending metadata
-reply or authorization. If opening the bus connection finishes after disposal,
+Compatibility checks and service lookup have five-second deadlines. Transport
+preparation and API authorization have separate deadlines; the backend command
+deadline starts after approval completes. Closing the client rejects pending
+requests immediately, including a pending metadata reply or authorization.
+If opening the bus connection finishes after disposal,
 the transport closes it again. A write-queue timeout also closes control access
 and prevents retries in that session. A late authorization reply cannot dispatch
 the timed-out write. Read current settings and restart the app before retrying.
 
-CLI discovery also needs a shared rule. The desktop currently searches `PATH`,
-the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module receives
-a package path. The release implementation must resolve and validate one backend
+The native shared validator in `control/trusted_executable.cc` checks root
+ownership of every selector, directory, symlink, and executable. It rejects
+unsafe write permissions and resolves links through pinned directory descriptors.
+The fixed host CLI search checks the system NixOS profile, the system Nix profile,
+`/usr/bin`, and `/usr/local/bin`. A present unsafe selector stops discovery.
+The installed service and VM helper use the validator; the new discovery routine
+still needs production helper integration. CLI scripts, dependencies, and runtime
+capabilities also need qualification.
+
+CLI discovery also needs a shared rule for reads and writes. The desktop searches
+`PATH`, the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module
+receives a package path. The release implementation must resolve and validate one backend
 for both reads and writes on each supported host.
 
 ## Trust and lifetime requirements
@@ -222,10 +235,21 @@ The channel checks method names, argument types, and payload limits against that
 contract. The existing `LegionControlClient` checks protocol capabilities and
 retains the same typed operations and error translation.
 
-The production provider still uses the installed service. Starting and owning
-the approved launcher from Dart, host CLI discovery and capability checks, live
-authentication-dialog cancellation, desktop prompts, Debian qualification, and
-AppImage FUSE/extraction remain required before enabling portable hardware writes.
+`PortableControlLauncher` starts the fixed bundled executable with `--control`,
+a sanitized host environment, and a fixed working directory. It checks the
+launcher PID, unit name, helper PID, and socket path in bounded readiness output.
+`PortableLegionControlTransport` owns that launcher and its native private peer.
+Closing during startup prevents a late connection; a child that starts after
+disposal is stopped. Shutdown escalates from SIGTERM to SIGKILL, and launcher
+exit closes the peer. Unit tests cover these races and a real unprivileged child
+that ignores SIGTERM.
+
+The production provider still uses the installed service. The launcher currently
+expects the VM experiment's readiness protocol; the bundle does not yet supply
+a production helper at its expected `libexec/legion-portable-control` path.
+Production CLI/dependency checks, live authentication-dialog cancellation, desktop
+prompts, Debian qualification, and AppImage FUSE/extraction remain required before
+enabling portable hardware writes.
 
 ### Backend process containment
 

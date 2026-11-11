@@ -36,7 +36,7 @@ stdenv.mkDerivation {
   ];
   buildPhase = ''
     runHook preBuild
-    cmake --build . --target portable_bootstrap_probe executable_snapshot_test portable_lifetime_test
+    cmake --build . --target portable_bootstrap_probe executable_snapshot_test portable_lifetime_test trusted_executable_test
     runHook postBuild
   '';
   installPhase = ''
@@ -44,6 +44,7 @@ stdenv.mkDerivation {
     install -Dm755 portable_bootstrap_probe "$out/bin/portable-bootstrap-probe"
     install -Dm755 executable_snapshot_test "$out/bin/executable-snapshot-test"
     install -Dm755 portable_lifetime_test "$out/bin/portable-lifetime-test"
+    install -Dm755 trusted_executable_test "$out/bin/trusted-executable-test"
     runHook postInstall
   '';
 }

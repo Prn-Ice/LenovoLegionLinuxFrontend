@@ -214,7 +214,7 @@ class SafeApp {
   }
 }
 
-class _FixtureControl implements LegionControlTransport {
+class _FixtureControl extends LegionControlTransport {
   _FixtureControl(this.app);
   final SafeApp app;
 

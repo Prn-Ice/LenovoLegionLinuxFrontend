@@ -1,6 +1,7 @@
 #include "control_commands.h"
 #include "control_protocol.h"
 #include "managed_command.h"
+#include "trusted_executable.h"
 #include <cerrno>
 #include <climits>
 #include <cstdio>
@@ -437,33 +438,6 @@ void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
   dispatch(c, m, v, i);
 }
 const GDBusInterfaceVTable vt = {call, nullptr, nullptr, {nullptr}};
-bool trusted_executable(const std::string &input, std::string *resolved) {
-  char canonical[PATH_MAX];
-  if (!realpath(input.c_str(), canonical))
-    return false;
-  struct stat file_stat{};
-  if (stat(canonical, &file_stat) != 0 || file_stat.st_uid != 0 ||
-      !S_ISREG(file_stat.st_mode) ||
-      (file_stat.st_mode & (S_IWGRP | S_IWOTH)) != 0 ||
-      access(canonical, X_OK) != 0)
-    return false;
-  std::string parent = canonical;
-  while (true) {
-    const auto slash = parent.rfind('/');
-    parent = slash == 0 ? "/" : parent.substr(0, slash);
-    struct stat directory_stat{};
-    if (stat(parent.c_str(), &directory_stat) != 0 ||
-        directory_stat.st_uid != 0 || !S_ISDIR(directory_stat.st_mode) ||
-        (directory_stat.st_mode & S_IWOTH) != 0 ||
-        ((directory_stat.st_mode & S_IWGRP) != 0 &&
-         (directory_stat.st_mode & S_ISVTX) == 0))
-      return false;
-    if (parent == "/")
-      break;
-  }
-  *resolved = canonical;
-  return true;
-}
 } // namespace
 int main(int argc, char **argv) {
   std::string cli, sys, graphics_boot;
@@ -478,11 +452,12 @@ int main(int argc, char **argv) {
       return 2;
   }
   if (cli.empty() || sys.empty() || cli[0] != '/' || sys[0] != '/' ||
-      !trusted_executable(cli, &cli) || !trusted_executable(sys, &sys))
+      !legion_control::TrustedExecutable(cli, &cli) ||
+      !legion_control::TrustedExecutable(sys, &sys))
     return 2;
   if (!graphics_boot.empty() &&
       (graphics_boot[0] != '/' ||
-       !trusted_executable(graphics_boot, &graphics_boot)))
+       !legion_control::TrustedExecutable(graphics_boot, &graphics_boot)))
     return 2;
   Ctx c{};
   c.loop = g_main_loop_new(nullptr, FALSE);

@@ -7,7 +7,7 @@ import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 
-class _FakeTransport implements LegionControlTransport {
+class _FakeTransport extends LegionControlTransport {
   final calls = <(String, List<Object>)>[];
   var authorizationCalls = 0;
   var capabilityCalls = 0;
@@ -19,10 +19,20 @@ class _FakeTransport implements LegionControlTransport {
   Future<ControlCapabilities>? pendingCapabilities;
   Object? capabilityFailure;
   Object? callFailure;
+  Completer<void>? pendingPreparation;
+  final preparationStarted = Completer<void>();
+  final metadataStarted = Completer<void>();
+
+  @override
+  Future<void> prepare() async {
+    if (!preparationStarted.isCompleted) preparationStarted.complete();
+    await pendingPreparation?.future;
+  }
 
   @override
   Future<ControlCapabilities> getCapabilities() async {
     capabilityCalls++;
+    if (!metadataStarted.isCompleted) metadataStarted.complete();
     if (capabilityFailure != null) throw capabilityFailure!;
     return pendingCapabilities != null
         ? await pendingCapabilities!
@@ -47,6 +57,38 @@ class _FakeTransport implements LegionControlTransport {
 }
 
 void main() {
+  test('closing during startup prevents metadata and authorization', () async {
+    final transport = _FakeTransport()..pendingPreparation = Completer<void>();
+    final client = LegionControlClient(transport: transport);
+    final rejected = expectLater(
+      client.setToggle(ControlToggle.hybridMode, true),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    await transport.preparationStarted.future;
+    await client.close();
+    await rejected;
+    transport.pendingPreparation!.complete();
+    expect(transport.capabilityCalls, 0);
+    expect(transport.authorizationCalls, 0);
+  });
+
+  test('startup approval has its own budget before metadata timeout', () async {
+    final transport = _FakeTransport()..pendingPreparation = Completer<void>();
+    final client = LegionControlClient(
+      transport: transport,
+      metadataTimeout: Duration.zero,
+    );
+    final writing = client.setToggle(ControlToggle.hybridMode, true);
+    await transport.preparationStarted.future;
+    await Future<void>.delayed(Duration.zero);
+    expect(transport.capabilityCalls, 0);
+    expect(transport.closeCalls, 0);
+    transport.pendingPreparation!.complete();
+    await writing;
+    await client.close();
+    expect(transport.calls, hasLength(1));
+  });
+
   test(
     'checks capabilities once before concurrent authorization and writes',
     () async {
@@ -59,6 +101,7 @@ void main() {
         client.setToggle(ControlToggle.hybridMode, true),
         client.applyFanPreset(ControlFanPreset.quietAc),
       ]);
+      await transport.metadataStarted.future;
       expect(transport.capabilityCalls, 1);
       expect(transport.authorizationCalls, 0);
       expect(transport.calls, isEmpty);
@@ -196,29 +239,32 @@ void main() {
     expect(transport.calls, isEmpty);
   });
 
-  testWidgets('metadata timeout closes the session and rejects a late reply', (
-    tester,
-  ) async {
-    final transport = _FakeTransport();
-    final metadata = Completer<ControlCapabilities>();
-    transport.pendingCapabilities = metadata.future;
-    final client = LegionControlClient(transport: transport);
-    final rejected = expectLater(
-      client.setToggle(ControlToggle.hybridMode, true),
-      throwsA(isA<LegionControlTimeoutException>()),
-    );
-    await tester.pump(const Duration(seconds: 5));
-    await rejected;
-    metadata.complete(transport.capabilities);
-    await tester.pump();
-    await expectLater(
-      client.getCapabilities(),
-      throwsA(isA<LegionControlUnavailableException>()),
-    );
-    expect(transport.closeCalls, 1);
-    expect(transport.authorizationCalls, 0);
-    expect(transport.calls, isEmpty);
-  });
+  test(
+    'metadata timeout closes the session and rejects a late reply',
+    () async {
+      final transport = _FakeTransport();
+      final metadata = Completer<ControlCapabilities>();
+      transport.pendingCapabilities = metadata.future;
+      final client = LegionControlClient(
+        transport: transport,
+        metadataTimeout: Duration.zero,
+      );
+      final rejected = expectLater(
+        client.setToggle(ControlToggle.hybridMode, true),
+        throwsA(isA<LegionControlTimeoutException>()),
+      );
+      await rejected;
+      metadata.complete(transport.capabilities);
+      await Future<void>.delayed(Duration.zero);
+      await expectLater(
+        client.getCapabilities(),
+        throwsA(isA<LegionControlUnavailableException>()),
+      );
+      expect(transport.closeCalls, 1);
+      expect(transport.authorizationCalls, 0);
+      expect(transport.calls, isEmpty);
+    },
+  );
 
   test(
     'maps feature, toggles, fan, conservation and restore commands',

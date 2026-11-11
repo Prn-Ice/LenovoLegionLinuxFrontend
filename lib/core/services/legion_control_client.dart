@@ -7,6 +7,7 @@ import '../models/control_selectors.dart';
 import '../../features/dgpu/models/graphics_mode.dart';
 
 abstract class LegionControlTransport {
+  Future<void> prepare() async {}
   Future<ControlCapabilities> getCapabilities();
   Future<void> authorize();
   Future<void> call(String method, List<Object> arguments);
@@ -57,7 +58,7 @@ class LegionControlGraphicsPendingException extends LegionControlException {
 }
 
 /// The production transport for the privileged legion-control system service.
-class DBusLegionControlTransport implements LegionControlTransport {
+class DBusLegionControlTransport extends LegionControlTransport {
   DBusLegionControlTransport({DBusClient? client})
     : _client =
           client ??
@@ -187,10 +188,18 @@ class DBusLegionControlTransport implements LegionControlTransport {
 
 /// Validates typed control operations against the narrow D-Bus contract.
 class LegionControlClient {
-  LegionControlClient({required LegionControlTransport transport})
-    : _transport = transport;
+  LegionControlClient({
+    required LegionControlTransport transport,
+    Duration authorizationTimeout = const Duration(minutes: 2),
+    Duration metadataTimeout = const Duration(seconds: 5),
+  }) : _transport = transport,
+       _authorizationTimeout = authorizationTimeout,
+       _metadataTimeout = metadataTimeout;
 
   final LegionControlTransport _transport;
+  final Duration _authorizationTimeout;
+  final Duration _metadataTimeout;
+  Future<void>? _preparing;
   Future<ControlCapabilities>? _capabilities;
   Future<void>? _authorization;
   Future<void>? _closing;
@@ -228,16 +237,63 @@ class LegionControlClient {
     }
   }
 
-  /// Checks the selected helper without requesting administrator access.
+  /// Checks the selected helper's protocol before API authorization.
   Future<ControlCapabilities> getCapabilities() async {
+    _ensureOpen();
+    await (_preparing ??= _prepareConnection());
     _ensureOpen();
     final pending = _capabilities ??= _loadCapabilities();
     try {
       final capabilities = await pending;
       _ensureOpen();
       return capabilities;
-    } catch (_) {
+    } catch (error) {
       if (identical(_capabilities, pending)) _capabilities = null;
+      if (error is LegionControlSetupException) await close();
+      rethrow;
+    }
+  }
+
+  Future<void> _prepareConnection() async {
+    try {
+      await _whileOpen(
+        _transport.prepare(),
+      ).timeout(const Duration(seconds: 125));
+    } on TimeoutException {
+      const error = LegionControlTimeoutException(
+        'Control startup timed out. Start a new app session to retry.',
+      );
+      await _closeWith(error);
+      throw error;
+    } catch (_) {
+      await close();
+      rethrow;
+    }
+  }
+
+  /// Obtain approval before starting a backend command's deadline.
+  Future<void> authorize() async {
+    await getCapabilities();
+    await _authorizeOnce();
+  }
+
+  Future<void> _authorizeOnce() async {
+    _ensureOpen();
+    final authorization = _authorization ??= _transport.authorize();
+    try {
+      await _whileOpen(authorization).timeout(_authorizationTimeout);
+      _ensureOpen();
+    } on TimeoutException {
+      const error = LegionControlTimeoutException(
+        'Control authorization timed out. Start a new app session to retry.',
+      );
+      await _closeWith(error);
+      throw error;
+    } on DBusMethodResponseException catch (error) {
+      if (identical(_authorization, authorization)) _authorization = null;
+      throw _translateDbusError(error);
+    } catch (_) {
+      if (identical(_authorization, authorization)) _authorization = null;
       rethrow;
     }
   }
@@ -247,7 +303,7 @@ class LegionControlClient {
     try {
       capabilities = await _whileOpen(
         _transport.getCapabilities(),
-      ).timeout(const Duration(seconds: 5));
+      ).timeout(_metadataTimeout);
     } on DBusReplySignatureException {
       throw const LegionControlSetupException(
         'The control helper returned invalid compatibility information. Update the app and control helper together.',
@@ -296,18 +352,8 @@ class LegionControlClient {
         'Changing system services requires installed system integration.',
       );
     }
-    _ensureOpen();
-    final authorization = _authorization ??= _transport.authorize();
-    try {
-      await _whileOpen(authorization);
-      _ensureOpen();
-    } on DBusMethodResponseException catch (error) {
-      if (identical(_authorization, authorization)) _authorization = null;
-      throw _translateDbusError(error);
-    } catch (_) {
-      if (identical(_authorization, authorization)) _authorization = null;
-      rethrow;
-    }
+    await _authorizeOnce();
+    final authorization = _authorization;
     try {
       await _whileOpen(_transport.call(method, arguments));
     } on DBusMethodResponseException catch (error) {

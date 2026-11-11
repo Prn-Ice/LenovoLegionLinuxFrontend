@@ -23,6 +23,7 @@ void main() {
     tester,
   ) async {
     final control = _Control();
+    when(() => control.authorize()).thenAnswer((_) async {});
     when(() => control.setToggle(ControlToggle.touchpad, true)).thenThrow(
       const LegionControlSetupException('Service diagnostic wording changed'),
     );
