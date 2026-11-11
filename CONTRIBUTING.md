@@ -80,11 +80,12 @@ assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
 The portable-control scenario uses the real Linux method channel to check that
-an invalid endpoint is rejected before connection. It starts no helper. The native discovery scenario rejects caller-selected CLI
-paths before inspecting the host. The hardware-access journey saves a mode,
+an invalid endpoint is rejected before connection. It starts no helper. The native
+discovery scenario rejects caller-selected CLI paths before inspecting the host.
+The hardware-access journey saves a mode,
 reopens the app fixture, and verifies that the saved mode becomes active without
-requesting authorization. After
-the journeys, check native method names, argument types, and payload limits with:
+requesting authorization. After the journeys, check native method names, argument
+types, and payload limits with:
 
 ```bash
 flutter build linux --debug --no-pub

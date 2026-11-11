@@ -191,9 +191,9 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     };
     final consequence = switch (errorKind) {
       AppFailureKind.graphicsBlocked =>
-        'The protected preflight stopped this change before firmware was written.',
+        'Safety checks blocked this change before writing to firmware.',
       AppFailureKind.graphicsPending =>
-        'Firmware accepted the selected policy, but the requested GPU topology was not confirmed.',
+        'Firmware accepted the selected graphics policy, but the requested GPU configuration was not confirmed.',
       _ =>
         'The requested action did not complete. No confirmation was received that the setting changed.',
     };

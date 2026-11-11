@@ -15,8 +15,7 @@ class LegionSysfsService {
     '/sys/module/legion_laptop/drivers/platform:legion/PNP0C09:00',
   ];
 
-  /// The roots are injectable to make sysfs discovery testable.  In normal
-  /// use they retain their kernel-provided locations.
+  /// Tests can supply filesystem roots. Production uses the kernel paths.
   final String _hwmonRoot;
   final List<String> _legionPlatformRoots;
   final List<String> _fanHwmonRoots;
@@ -634,8 +633,7 @@ class LegionSysfsService {
 
   // ── CPU clock ─────────────────────────────────────────────────────────────
 
-  /// Effective policy for the first CPU frequency domain. PPD applies the same
-  /// policy across every domain, so policy0 is sufficient for display.
+  /// Policy readings from the configured CPU frequency domain (policy0 by default).
   Future<CpuPolicySnapshot?> readCpuPolicySnapshot() async {
     final driver = await _readTrimmedFile('$_cpuPolicyRoot/scaling_driver');
     final pstateStatus = await _readTrimmedFile('$_amdPstateRoot/status');
@@ -690,7 +688,7 @@ class LegionSysfsService {
 
   // ── Battery detail ────────────────────────────────────────────────────────
 
-  /// Battery cycle count from /sys/class/power_supply/BAT0/cycle_count.
+  /// Cycle count from the discovered battery's `cycle_count` file.
   Future<int?> readBatteryCycleCount() async {
     return readIntFile('${await _batteryBase()}/cycle_count');
   }
@@ -978,10 +976,8 @@ class LegionSysfsService {
         points.every((point) => point.fan2Rpm == 0)) {
       return false;
     }
-    // A present-but-zero legion_hwmon table is not a usable curve. Treat the
-    // whole table as unavailable rather than rendering a collapsed editor.
-    // Reject a present-but-zero table through the semantic checks above: a
-    // usable curve needs non-zero temperature and PWM channels.
+    // Each channel must be nondecreasing after the checks above reject empty
+    // and all-zero temperature or speed data.
     for (var i = 1; i < points.length; i++) {
       final previous = points[i - 1];
       final current = points[i];

@@ -12,8 +12,9 @@ control API with a synthetic CLI. The desktop checks protocol compatibility
 before API authorization. Backend process containment, shared write locking,
 Dart launcher supervision, and trusted executable validation are implemented.
 The opt-in production helper discovers the installed CLI and checks
-its command syntax before accepting a connection. Desktop selection, host CLI
-package qualification, and release packages remain open. See the
+its command syntax before accepting a connection. Settings supports selection
+for the next launch in qualification builds. Host CLI package qualification and
+release packages remain open. See the
 [public backlog](../../BACKLOG.md).
 
 The intended default for all formats is a temporary authorized helper.

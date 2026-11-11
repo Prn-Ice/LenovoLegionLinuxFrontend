@@ -9,8 +9,9 @@ have not been tested. See [model support and recorded checks](docs/model-support
 
 ## Features and readiness
 
-Status checked on **2026-11-04**. “Implemented” means the app has the feature,
-not that every hardware path is verified. We do not yet claim any feature is
+Summary reviewed on **2026-11-11** against code and recorded evidence; no new
+hardware checks were performed for this review. “Implemented” means the app has
+the feature, not that every hardware path is verified. We do not yet claim any feature is
 complete across Lenovo Legion models.
 
 | Feature | Current state | Remaining limits |
@@ -21,7 +22,7 @@ complete across Lenovo Legion models.
 | Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented; Fn-lock write/readback/restore verified | Touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
 | Boot logo customization | Image upload and restore paths implemented | Applying a logo, restoring it, and checking the next boot still need recorded hardware verification. |
 | Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
-| [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented | The app must stay open. Native end-to-end persistence/restart checks and visual polish remain. |
+| [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented; hardware-free native app journeys cover persistence and restart | The app must stay open. These journeys do not verify physical keyboard behavior; visual polish remains. |
 | Keyboard lighting through Spectrum HID or OpenRGB | Both backends implemented | Native Spectrum currently targets USB `048d:c987` with the Gen 7/8 protocol. Other keyboards need device-specific verification; OpenRGB depends on its device support and setup. |
 | Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device, not a multi-model test matrix. |
 

@@ -10,8 +10,8 @@ import 'metric_text.dart';
 /// callers place a label below the gauge.
 ///
 /// Uses [accent] normally and flips the value arc and number to the theme's
-/// error color once [value] reaches [criticalThreshold]. Renders cleanly when
-/// [value] is null (empty track + `—`).
+/// error color once [value] reaches [criticalThreshold]. A null [value] shows
+/// an empty track and `—`.
 class MetricGauge extends StatelessWidget {
   const MetricGauge({
     super.key,
@@ -49,8 +49,6 @@ class MetricGauge extends StatelessWidget {
           color: arcColor,
           trackColor: scheme.onSurface.withValues(alpha: 0.08),
         ),
-        // The degree (and other units) is inline at the same size, like the
-        // design — the ° glyph naturally sits high.
         child: Center(
           child: Text(
             '${formatMetric(value, fractionDigits: fractionDigits)}$unit',

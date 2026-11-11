@@ -116,33 +116,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('battery explains telemetry the kernel does not expose', (
-    tester,
-  ) async {
-    await _pumpPage(
-      tester,
-      width: 1100,
-      snapshot: _snapshotWithoutTemperature,
-      includeTemperature: false,
-    );
+  testWidgets(
+    'missing battery temperature does not imply unsupported hardware',
+    (tester) async {
+      await _pumpPage(
+        tester,
+        width: 1100,
+        snapshot: _snapshotWithoutTemperature,
+        includeTemperature: false,
+      );
 
-    expect(find.text('Not exposed by battery driver'), findsOneWidget);
-    final accent = Theme.of(
-      tester.element(find.byType(BatteryPage)),
-    ).colorScheme.primary;
-    expect(find.text('Battery power'), findsOneWidget);
-    final selector = tester.widget<SegmentedButton<int>>(
-      find.byType(SegmentedButton<int>),
-    );
-    expect(
-      selector.style?.foregroundColor?.resolve({WidgetState.selected}),
-      accent,
-    );
-    expect(
-      selector.style?.backgroundColor?.resolve({WidgetState.selected}),
-      accent.withValues(alpha: 0.18),
-    );
-  });
+      expect(find.text('Unavailable'), findsOneWidget);
+      expect(
+        find.textContaining('not exposed by the battery driver'),
+        findsNothing,
+      );
+      final accent = Theme.of(
+        tester.element(find.byType(BatteryPage)),
+      ).colorScheme.primary;
+      expect(find.text('Battery power'), findsOneWidget);
+      final selector = tester.widget<SegmentedButton<int>>(
+        find.byType(SegmentedButton<int>),
+      );
+      expect(
+        selector.style?.foregroundColor?.resolve({WidgetState.selected}),
+        accent,
+      );
+      expect(
+        selector.style?.backgroundColor?.resolve({WidgetState.selected}),
+        accent.withValues(alpha: 0.18),
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byType(SegmentedButton<int>),
+          matching: find.text('Temperature'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Battery temperature is unavailable.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Future<void> _pumpPage(

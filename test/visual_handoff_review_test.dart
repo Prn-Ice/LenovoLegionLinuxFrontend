@@ -30,7 +30,9 @@ import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
 import 'package:legion_frontend/features/power/bloc/power_state.dart';
 import 'package:legion_frontend/features/power/models/power_mode.dart';
+import 'package:legion_frontend/features/power/models/power_limit.dart';
 import 'package:legion_frontend/features/power/providers/power_provider.dart';
+import 'package:legion_frontend/features/power/repository/power_repository.dart';
 import 'package:legion_frontend/features/sensors/bloc/live_sensor_bloc.dart';
 import 'package:legion_frontend/features/sensors/bloc/live_sensor_event.dart';
 import 'package:legion_frontend/features/sensors/bloc/live_sensor_state.dart';
@@ -155,6 +157,14 @@ void main() {
                 PowerMode('custom'),
               ],
               onPowerSupply: false,
+              // Synthetic current value beside the existing model reference.
+              powerLimits: [
+                PowerLimitReading(
+                  spec: PowerRepository.allPowerLimits.first,
+                  value: 55,
+                  hardwareDefault: 54,
+                ),
+              ],
             ),
           );
           whenListen(
@@ -281,6 +291,11 @@ void main() {
             ),
           );
           await _capture(tester, '${section.name}-$variant-top');
+          if (section == AppSection.power) {
+            await tester.ensureVisible(find.text('Reference').first);
+            await tester.pumpAndSettle();
+            await _capture(tester, 'power-reference-$variant');
+          }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
           final scrollables = find.descendant(

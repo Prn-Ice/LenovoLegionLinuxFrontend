@@ -191,7 +191,7 @@ class DBusLegionControlTransport extends LegionControlTransport {
   }
 }
 
-/// Validates typed control operations against the narrow D-Bus contract.
+/// Validates typed control operations against the D-Bus contract.
 class LegionControlClient {
   LegionControlClient({
     required LegionControlTransport transport,
@@ -293,7 +293,7 @@ class LegionControlClient {
       ? LegionControlPortableSetupException(message)
       : LegionControlSetupException(message);
 
-  /// Obtain approval before starting a backend command's deadline.
+  /// Obtains approval before the backend command's timeout starts.
   Future<void> authorize() async {
     await getCapabilities();
     await _authorizeOnce();

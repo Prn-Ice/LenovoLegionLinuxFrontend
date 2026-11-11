@@ -68,9 +68,7 @@ class FanCurveUnavailablePanel extends StatelessWidget {
         title: 'Current ${channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan',
         value: currentRpm == null ? '—' : '$currentRpm',
         unit: currentRpm == null ? null : 'RPM',
-        subtitle: currentRpm == null
-            ? 'Tachometer unavailable'
-            : 'Live reading',
+        subtitle: currentRpm == null ? 'Fan speed unavailable' : 'Live reading',
       ),
       _FanSummaryCard(
         title: 'Current temperature',
@@ -779,7 +777,7 @@ class _SaveRow extends StatelessWidget {
         Text(
           dirty
               ? 'Unsaved changes · review the curve before applying.'
-              : 'The hardware curve is up to date.',
+              : 'No unsaved curve changes.',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: dirty ? accent : null),

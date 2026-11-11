@@ -1,12 +1,6 @@
-// Pure helpers for telemetry metric rendering.
-//
-// Kept separate from the gauge/tile widgets so the value math is unit-tested
-// without pumping widgets. All accept nullable values because sensors are
-// frequently unavailable.
+// Helpers for formatting telemetry values, including missing readings.
 
-/// Monospace family for telemetry numbers, matching the design (Ubuntu Mono).
-/// Uses the copy the Yaru package bundles — always in the build — referenced
-/// together with [kMonoFontPackage].
+/// Yaru's bundled Ubuntu Mono font for telemetry. Use with [kMonoFontPackage].
 const String kMonoFontFamily = 'UbuntuMono';
 const String kMonoFontPackage = 'yaru';
 

@@ -84,8 +84,7 @@ class _BatteryPageState extends ConsumerState<BatteryPage> {
               label: 'Temperature',
               unit: '°C',
               valueOf: _batteryTemperature,
-              unavailableMessage:
-                  'Battery temperature is not exposed by the battery driver.',
+              unavailableMessage: 'Battery temperature is unavailable.',
             ),
           ],
         ),
@@ -376,7 +375,7 @@ class _EnergyDetails extends StatelessWidget {
       (
         'Battery temperature',
         state.batteryTempC == null
-            ? 'Not exposed by battery driver'
+            ? 'Unavailable'
             : _measurement(state.batteryTempC, '°C', 1),
       ),
       (

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// How many columns of at least [minCardWidth] (separated by [spacing]) fit in
-/// [availableWidth]. Always at least 1. Pure so the breakpoint math is
-/// unit-tested without layout.
+/// [availableWidth]. Returns at least one column.
 int responsiveColumnCount(
   double availableWidth,
   double minCardWidth,
@@ -16,9 +15,8 @@ int responsiveColumnCount(
   return columns < 1 ? 1 : columns;
 }
 
-/// An auto-fitting grid of equal-width cards. Each card is at least
-/// [minCardWidth] wide; the column count adapts to the available width and the
-/// cards share the remaining space evenly.
+/// A grid of equal-width cards. Fits as many [minCardWidth] columns as possible,
+/// then shares the remaining space. A narrower container still gets one column.
 ///
 /// Intended to live inside a vertically scrolling page (bounded width). Use a
 /// wider [minCardWidth] (≈420–520) for Dashboard hero cards and the default
