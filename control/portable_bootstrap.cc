@@ -1,14 +1,18 @@
-// A fixed, hardware-free administrator-startup experiment. Both entry points
-// require the disposable VM marker; this executable is never installed.
-#include "../executable_snapshot.h"
-#include "../portable_lifetime.h"
-#include "../test/test_vm_guard.h"
-#include "portable_control_helper.h"
+// Starts one approved sealed helper and supervises its app session.
+#include "executable_snapshot.h"
+#include "portable_lifetime.h"
+#ifdef LEGION_PORTABLE_TEST
+#include "test/test_vm_guard.h"
+#endif
+#include "portable_control_session.h"
+#include "portable_unit.h"
+#include "trusted_executable.h"
 
 #include <cerrno>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
@@ -20,6 +24,17 @@
 #include <unistd.h>
 
 namespace {
+#ifdef LEGION_PORTABLE_TEST
+constexpr bool test_build = true;
+constexpr char unit_prefix[] = "legion-bootstrap-probe-";
+#else
+constexpr bool test_build = false;
+constexpr char unit_prefix[] = "legion-portable-control-";
+#endif
+bool ValidUnit(const std::string &unit) {
+  return legion_control::ValidPortableUnit(unit) &&
+         unit.compare(0, strlen(unit_prefix), unit_prefix) == 0;
+}
 constexpr char manager_path[] = "/org/freedesktop/systemd1";
 constexpr char manager_interface[] = "org.freedesktop.systemd1.Manager";
 
@@ -27,8 +42,8 @@ bool ApprovedSnapshot() {
   if (getuid() != 0 || geteuid() != 0)
     return false;
   for (const char *name :
-       {"LD_PRELOAD", "LD_LIBRARY_PATH", "GIO_EXTRA_MODULES", "GCONV_PATH",
-        "PYTHONPATH", "DBUS_SYSTEM_BUS_ADDRESS"}) {
+       {"LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT", "GIO_EXTRA_MODULES",
+        "GCONV_PATH", "PYTHONPATH", "PYTHONHOME", "DBUS_SYSTEM_BUS_ADDRESS"}) {
     if (getenv(name)) {
       return false;
     }
@@ -44,7 +59,7 @@ bool ApprovedSnapshot() {
 }
 
 bool StopStartupDeadline(const std::string &unit) {
-  if (!ValidPortableProbeUnit(unit))
+  if (!ValidUnit(unit))
     return false;
   GError *error = nullptr;
   auto *connection = g_dbus_connection_new_for_address_sync(
@@ -91,6 +106,7 @@ bool ReceiveLifetime(legion_control::PortableLifetime *lifetime) {
   return restored;
 }
 
+#ifdef LEGION_PORTABLE_TEST
 int Helper(const char *launcher_text, const std::string &unit) {
   if (!ApprovedSnapshot())
     return 2;
@@ -113,6 +129,8 @@ int Helper(const char *launcher_text, const std::string &unit) {
   // root execution of sealed bytes and bounded launcher-death observation.
   return result > 0 ? 0 : 1;
 }
+
+#endif
 
 struct Launch {
   GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
@@ -178,6 +196,9 @@ gboolean ObserveControlUnit(gpointer data) {
         const bool valid =
             g_variant_lookup(properties, "ActiveState", "&s", &state) &&
             g_variant_lookup(properties, "Job", "(u&o)", &job, &job_path);
+        if (valid && job == 0 && g_str_equal(state, "failed"))
+          g_set_error_literal(&launch->error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                              "The portable control helper failed.");
         if (!valid || (job == 0 && (g_str_equal(state, "inactive") ||
                                     g_str_equal(state, "failed"))))
           g_main_loop_quit(launch->loop);
@@ -210,7 +231,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
   }
   Launch launch;
   char *uuid = g_uuid_string_random();
-  launch.unit = std::string("legion-bootstrap-probe-") + uuid + ".service";
+  launch.unit = std::string(unit_prefix) + uuid + ".service";
   g_free(uuid);
   printf("SNAPSHOT_READY launcher=%d unit=%s\n", getpid(), launch.unit.c_str());
   fflush(stdout);
@@ -252,8 +273,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
         return Cancel(data);
       },
       &launch);
-  const guint deadline =
-      g_timeout_add(control ? 60000 : 20000, Cancel, &launch);
+  guint deadline = g_timeout_add(control ? 60000 : 20000, Cancel, &launch);
 
   GVariant *owner = g_dbus_connection_call_sync(
       launch.connection, "org.freedesktop.DBus", "/org/freedesktop/DBus",
@@ -271,7 +291,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       g_variant_builder_add(&properties, "(sv)", name, value);
     };
     property("Description",
-             g_variant_new_string("Legion portable bootstrap probe"));
+             g_variant_new_string(test_build ? "Legion portable startup test"
+                                             : "Legion app control session"));
     property("Type", g_variant_new_string("exec"));
     property("CollectMode", g_variant_new_string("inactive-or-failed"));
     property("KillMode", g_variant_new_string("control-group"));
@@ -279,10 +300,21 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     property("JobRunningTimeoutUSec", g_variant_new_uint64(3000000));
     property("TimeoutStopUSec", g_variant_new_uint64(1000000));
     property("RuntimeMaxUSec",
-             g_variant_new_uint64(control ? 60000000 : 15000000));
+             g_variant_new_uint64(test_build
+                                      ? (control ? 60000000 : 15000000)
+                                      : guint64(12 * 60 * 60) * 1000000));
     for (const char *name :
          {"AddRef", "NoNewPrivileges", "PrivateTmp", "SendSIGKILL"})
       property(name, g_variant_new_boolean(TRUE));
+    const char *environment[] = {
+        "PATH=/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LC_ALL=C",
+        "HOME=/var/empty",
+        "PYTHONNOUSERSITE=1",
+        "PYTHONSAFEPATH=1",
+        nullptr};
+    property("Environment", g_variant_new_strv(environment, -1));
+    property("WorkingDirectory", g_variant_new_string("/"));
     property("ProtectHome", g_variant_new_string("yes"));
     property("ProtectSystem", g_variant_new_string("strict"));
     GUnixFDList *fds = g_unix_fd_list_new();
@@ -406,8 +438,13 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       }
       // Completing this fixed no-op lets systemd collect the cleanup unit after
       // its Conflicts dependency has replaced the helper's queued start job.
-      constexpr char no_op[] = "/run/current-system/sw/bin/true";
-      const char *cleanup_arguments[] = {no_op, nullptr};
+      // The cleanup uses the same approved sealed bytes as the session.
+      // It needs neither a host no-op path nor another installed executable.
+      constexpr char no_op[] = "/proc/self/fd/0";
+      g_variant_builder_add(&cleanup_properties, "(sv)",
+                            "StandardInputFileDescriptor",
+                            g_variant_new_handle(image_handle));
+      const char *cleanup_arguments[] = {no_op, "--cleanup", nullptr};
       GVariantBuilder cleanup_commands;
       g_variant_builder_init(&cleanup_commands, G_VARIANT_TYPE("a(sasas)"));
       g_variant_builder_add(&cleanup_commands, "(s^as^as)", no_op,
@@ -426,7 +463,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
           static_cast<GDBusCallFlags>(
               G_DBUS_CALL_FLAGS_NO_AUTO_START |
               G_DBUS_CALL_FLAGS_ALLOW_INTERACTIVE_AUTHORIZATION),
-          15000, fds, launch.cancel,
+          60000, fds, launch.cancel,
           [](GObject *source, GAsyncResult *result, gpointer data) {
             auto *launch = static_cast<Launch *>(data);
             launch->reply = g_dbus_connection_call_with_unix_fd_list_finish(
@@ -444,6 +481,10 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
         launch.reply = nullptr;
         printf("START_ACKNOWLEDGED\n");
         fflush(stdout);
+        if (!test_build && deadline) {
+          g_source_remove(deadline);
+          deadline = 0;
+        }
         if (control) {
           auto *location = Manager(&launch, "GetUnit",
                                    g_variant_new("(s)", launch.unit.c_str()),
@@ -488,7 +529,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
   g_dbus_connection_close_sync(launch.connection, nullptr, nullptr);
   g_object_unref(launch.connection);
   for (guint watch : {terminate, interrupt, parent_watch, deadline})
-    g_source_remove(watch);
+    if (watch)
+      g_source_remove(watch);
   close(parent);
   g_object_unref(launch.cancel);
   g_main_loop_unref(launch.loop);
@@ -497,6 +539,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
 } // namespace
 
 int main(int argc, char **argv) {
+#ifdef LEGION_PORTABLE_TEST
   if (!InControlTestVm()) {
     fprintf(stderr,
             "This bootstrap probe runs only in the disposable test VM.\n");
@@ -504,6 +547,9 @@ int main(int argc, char **argv) {
   }
   if (argc == 4 && std::string(argv[1]) == "--helper")
     return Helper(argv[2], argv[3]);
+#endif
+  if (argc == 2 && std::string(argv[1]) == "--cleanup")
+    return ApprovedSnapshot() ? 0 : 2;
   if (argc == 5 && std::string(argv[1]) == "--control-helper") {
     char *pid_end, *uid_end;
     const long pid = strtol(argv[2], &pid_end, 10);
@@ -512,21 +558,35 @@ int main(int argc, char **argv) {
         pid > INT_MAX || !*argv[3] || *uid_end || uid == 0 || uid > UINT_MAX)
       return 2;
     legion_control::PortableLifetime lifetime;
-    if (!ValidPortableProbeUnit(argv[4]) || !ReceiveLifetime(&lifetime) ||
+    if (!ValidUnit(argv[4]) || !ReceiveLifetime(&lifetime) ||
         lifetime.owner != uid || !StopStartupDeadline(argv[4]) ||
         dup2(lifetime.app, STDIN_FILENO) < 0)
       return 2;
-    return RunPortableControlProbe(static_cast<pid_t>(pid),
-                                   static_cast<uid_t>(uid), argv[4],
-                                   lifetime.launcher);
+    std::string cli, error;
+#ifdef LEGION_PORTABLE_TEST
+    if (!legion_control::TrustedExecutable(PORTABLE_CONTROL_TEST_CLI, &cli))
+      error = "The fixed test CLI is unsafe or unavailable.";
+#else
+    cli = legion_control::FindHostLegionCli(&error);
+#endif
+    if (cli.empty()) {
+      printf("CONTROL_SETUP_ERROR %s\n", error.c_str());
+      fflush(stdout);
+      return 2;
+    }
+    return RunPortableControlSession(
+        static_cast<pid_t>(pid), static_cast<uid_t>(uid), argv[4],
+        lifetime.launcher, cli, test_build ? 5 : 15 * 60);
   }
   if (argc == 2 && std::string(argv[1]) == "--control")
     return Launcher(false, false, true);
+#ifdef LEGION_PORTABLE_TEST
   if (argc == 1)
     return Launcher(false, false);
   if (argc == 2 && std::string(argv[1]) == "--wait-before-start")
     return Launcher(true, false);
   if (argc == 2 && std::string(argv[1]) == "--queue-behind-gate")
     return Launcher(false, true);
+#endif
   return 2;
 }

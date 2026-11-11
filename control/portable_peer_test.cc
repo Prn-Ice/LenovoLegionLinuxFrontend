@@ -13,6 +13,10 @@ void test_endpoint_validation() {
   auto endpoint = Endpoint();
   g_assert_true(legion_control::ValidatePortableEndpoint(endpoint, &error));
   g_assert_no_error(error);
+  endpoint.unit =
+      "legion-portable-control-01234567-89ab-4cde-8fab-0123456789ab.service";
+  g_assert_true(legion_control::ValidatePortableEndpoint(endpoint, &error));
+  g_assert_no_error(error);
   for (const char *address :
        {"tcp:host=localhost,port=123", "unix:abstract=example",
         "unix:path=relative", "unix:path=/tmp/a;unix:path=/tmp/b",

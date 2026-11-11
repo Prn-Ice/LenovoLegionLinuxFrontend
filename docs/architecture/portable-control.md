@@ -9,10 +9,12 @@ system service.
 
 The VM experiment connects approved administrator startup to the real typed
 control API with a synthetic CLI. The desktop checks protocol compatibility
-before API authorization. Backend process containment and shared write locking
-are implemented. Dart launcher supervision and trusted executable validation are
-implemented and tested separately. Production helper integration and release
-packages remain open. See the [public backlog](../../BACKLOG.md).
+before API authorization. Backend process containment, shared write locking,
+Dart launcher supervision, and trusted executable validation are implemented.
+The opt-in production helper discovers the installed CLI and checks
+its command syntax before accepting a connection. Desktop selection, host CLI
+package qualification, and release packages remain open. See the
+[public backlog](../../BACKLOG.md).
 
 The intended default for all formats is a temporary authorized helper.
 Persistent features can use optional system integration. Deprecating the
@@ -54,7 +56,9 @@ support decisions; the control prototype does not supply those permissions.
 
 `LegionControlClient` keeps its typed operations. The private connection carries
 the same D-Bus interface, object path, argument types, and errors as the installed
-service. The C++ command validation and dispatch remain shared.
+service. The C++ command validation and dispatch remain shared through
+`control/control_service_runtime.{h,cc}`. The installed daemon and private session
+link this runtime directly.
 
 Installed mode keeps its system-bus policy and per-connection Polkit approval.
 Portable mode needs a separately reviewed bootstrap that establishes approval
@@ -99,14 +103,24 @@ ownership of every selector, directory, symlink, and executable. It rejects
 unsafe write permissions and resolves links through pinned directory descriptors.
 The fixed host CLI search checks the system NixOS profile, the system Nix profile,
 `/usr/bin`, and `/usr/local/bin`. A present unsafe selector stops discovery.
-The installed service and VM helper use the validator; the new discovery routine
-still needs production helper integration. CLI scripts, dependencies, and runtime
-capabilities also need qualification.
+The installed service and both portable helper builds use the validator. The
+production helper uses fixed discovery; the VM probe has a fixed synthetic CLI.
+
+Before exporting its private endpoint, the helper runs `legion_cli --help` in a
+systemd-managed backend unit with a three-second runtime limit and bounded
+output. It requires the exact interactive command names from the shared command
+contract and the `--donotexpecthwmon` flag. App or launcher death cancels this
+check and waits for cleanup. This read-only startup check uses a separate runner,
+so it can finish while another session holds the hardware write lock.
+
+The check establishes advertised command syntax and successful CLI startup in the
+backend environment. CLI package versions, scripts, imports, configuration files,
+and hardware behavior still need distribution qualification.
 
 CLI discovery also needs a shared rule for reads and writes. The desktop searches
 `PATH`, the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module
-receives a package path. The release implementation must resolve and validate one backend
-for both reads and writes on each supported host.
+receives a package path. The release implementation must resolve and validate
+one backend for both reads and writes on each supported host.
 
 ## Trust and lifetime requirements
 
@@ -141,11 +155,13 @@ applied. A timed-out or interrupted write needs a fresh read before retrying.
 
 ### Administrator startup experiment
 
-The VM-only `portable_bootstrap_probe` tests systemd's existing
+The VM-only `portable_bootstrap_probe` and opt-in production helper share
+`control/portable_bootstrap.cc`. The VM tests systemd's existing
 `org.freedesktop.systemd1.manage-units` Polkit action. Its launcher requests one
 fixed helper through `StartTransientUnit`, with interactive authorization enabled.
 The probe uses a synthetic CLI and refuses to run outside the marked disposable
-VM. Production portable control still needs integration and review.
+VM. The production build accepts only its session, sealed helper, and cleanup
+entry points; the VM-only replacement and queued-start controls are excluded.
 
 Before requesting approval, the launcher copies its own executable into a sealed
 memory file and disables process dumping to prevent another ordinary process
@@ -163,7 +179,8 @@ through a numeric PID. Tests reject queued handles after app or launcher death
 and release a delayed start after killing the launcher.
 
 The snapshot validator accepts x86-64 ELF executables. It requires a
-root-controlled interpreter and library search directories, rejects relative
+root-controlled interpreter and library search directories, using the same
+descriptor-based walk as CLI validation. It rejects relative
 paths and `$ORIGIN`, and rejects path-bearing dependency names and ELF audit,
 filter, or configuration objects. The privileged helper uses host libraries;
 the desktop app may bundle its own. The host's loader, library cache, and
@@ -194,10 +211,16 @@ source replacement after sealing, root execution, environment isolation, missing
 authentication agents, and launcher death during running and queued startup.
 It also runs the ELF validation suite with normal root ownership. The probe
 target is disabled by default and excluded from product installation.
-The expanded startup VM passed on 2026-11-04 with systemd 262, GLib 2.88.3,
+The expanded startup VM passed on 2026-11-11 with systemd 262, GLib 2.88.3,
 and Polkit 127.
 
-The root session in `control/prototype/portable_control_helper.cc` shares the
+The production build also passes synthetic write/readback/restore, denied
+authorization, missing-agent, incompatible CLI, CLI failure, excessive output,
+and hung-help checks in this VM. The CLI fixture verifies its actual working
+directory and environment. Root snapshot tests reject an administrator-owned
+alias whose target crosses a user-owned directory.
+
+The root session in `control/portable_control_session.cc` shares the
 production dispatcher and command runner. It authenticates one app with D-Bus
 `EXTERNAL`, checks its kernel UID/PID, and observes both process handles received
 from the startup packet. A recycled PID cannot inherit the session. Approval
@@ -245,11 +268,26 @@ exit closes the peer. Unit tests cover these races and a real unprivileged child
 that ignores SIGTERM.
 
 The production provider still uses the installed service. The launcher currently
-expects the VM experiment's readiness protocol; the bundle does not yet supply
-a production helper at its expected `libexec/legion-portable-control` path.
-Production CLI/dependency checks, live authentication-dialog cancellation, desktop
-prompts, Debian qualification, and AppImage FUSE/extraction remain required before
-enabling portable hardware writes.
+accepts production `legion-portable-control-UUID.service` sessions and the guarded
+VM probe names. CLI setup failures stop startup before peer creation and reach
+Dart as typed setup errors. The production helper has a 15-minute idle limit and
+a 12-hour session limit. The launcher observes the running helper after approval;
+its initial authorization deadline no longer ends an active session.
+
+Build the opt-in helper for qualification with:
+
+```bash
+cmake -S telemetry -B build/portable-helper -G Ninja \
+  -DBUILD_PORTABLE_CONTROL_HELPER=ON
+cmake --build build/portable-helper --target legion_portable_control
+```
+
+The target produces `legion-portable-control`. Release packaging must stage it at
+the desktop launcher's expected `libexec/legion-portable-control` path. The target
+is disabled by default and has no product install rule yet. Explicit desktop
+selection and approval copy, consistent CLI selection for reads and writes, host
+package/dependency checks, live authentication-dialog cancellation, Debian
+qualification, and AppImage FUSE/extraction remain open.
 
 ### Backend process containment
 
@@ -263,9 +301,12 @@ The operation uses `BindsTo` and `After` to end when its helper service ends.
 `JoinsNamespaceOf` shares the helper's private temporary directory so a backend
 can read a temporary fan-curve payload. The operation retains the service's
 filesystem, namespace, syscall, and privilege restrictions and trusted `PATH`.
+Command units use `/` as their working directory, a host command search path,
+C locale, an empty home path, and Python isolation flags. The downloaded app
+environment is not forwarded.
 When next-boot graphics requests are enabled, command units also retain the
 private `legion-graphics-boot` state directory used by the installed helper.
-The future portable administrator helper must itself run as a transient service.
+The portable administrator helper also runs as a transient service.
 These units are created at runtime and require no installed unit files.
 
 The startup experiment creates a five-second transient timer before the helper
@@ -273,7 +314,8 @@ can start. Its cleanup service cancels a start still waiting on ordering
 dependencies, even after launcher death. Once the helper receives live process
 handles, it stops this startup timer and observes those handles directly.
 Helper success or failure triggers the same cleanup service with replacement
-job mode. The launcher observes the helper unit ending and exits, releasing its
+job mode. Cleanup executes the same approved sealed bytes with `--cleanup`; it
+uses no distribution-specific no-op executable. The launcher observes the helper unit ending and exits, releasing its
 unit reference. Cleanup also removes the private socket directory after
 disconnect, idle exit, or a crash. Runtime limits bound a running helper.
 
@@ -309,7 +351,7 @@ The VM covers private payload visibility and removal, persistent next-boot
 request/status/cancellation, graphics exit codes,
 detached stdout holders, output limits, runtime deadlines, and client/helper
 `SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
-The test passed on 2026-11-04 with the pinned NixOS environment: systemd 262,
+The test passed on 2026-11-11 with the pinned NixOS environment: systemd 262,
 GLib 2.88.3, and Polkit 127. Debian/Ubuntu versions still need qualification.
 Live authentication-dialog cancellation still needs desktop qualification.
 

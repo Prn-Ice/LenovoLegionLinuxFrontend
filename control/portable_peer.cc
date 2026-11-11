@@ -1,4 +1,5 @@
 #include "portable_peer.h"
+#include "portable_unit.h"
 
 #include <climits>
 #include <cstring>
@@ -51,15 +52,8 @@ struct ConnectTask {
 
 bool ValidatePortableEndpoint(const PortableEndpoint &endpoint,
                               GError **error) {
-  // Match the guarded bootstrap until production launcher qualification ends.
-  constexpr char prefix[] = "legion-bootstrap-probe-";
-  const auto &unit = endpoint.unit;
-  if (unit.size() != strlen(prefix) + 36 + 8 ||
-      unit.compare(0, strlen(prefix), prefix) != 0 ||
-      unit.compare(unit.size() - 8, 8, ".service") != 0 ||
-      !g_uuid_string_is_valid(unit.substr(strlen(prefix), 36).c_str()) ||
-      endpoint.helper_pid <= 1 || endpoint.helper_pid > INT_MAX ||
-      SocketPath(endpoint.address).empty())
+  if (!ValidPortableUnit(endpoint.unit) || endpoint.helper_pid <= 1 ||
+      endpoint.helper_pid > INT_MAX || SocketPath(endpoint.address).empty())
     return Fail(error, G_IO_ERROR_INVALID_ARGUMENT,
                 "invalid portable helper endpoint");
   return true;

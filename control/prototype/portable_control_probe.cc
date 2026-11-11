@@ -1,17 +1,29 @@
 // Reuse the production dispatcher with an ordinary-user fixture runner, without
 // starting its system-bus daemon.
-#define main legion_control_daemon_main
-#include "../legion_control_service.cc"
-#undef main
+#include "../control_protocol.h"
+#include "../control_service_runtime.h"
 #include "../test_support/direct_command_runner.h"
 
+#include <cerrno>
+#include <climits>
+#include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <glib-unix.h>
 #include <limits>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
+using legion_control::ControlContext;
+using legion_control::dispatch;
+using legion_control::done;
+using legion_control::reply_capabilities;
+constexpr const char *path = legion_control::control_object_path,
+                     *xml = legion_control::control_xml;
+
 struct Probe {
-  Ctx control{};
+  ControlContext control{};
   GDBusServer *server = nullptr;
   GDBusAuthObserver *observer = nullptr;
   std::string temp_dir;

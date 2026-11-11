@@ -36,9 +36,19 @@ bool SafeDirectory(const struct stat &info) {
          !(info.st_mode & S_IWOTH) &&
          (!(info.st_mode & S_IWGRP) || (info.st_mode & S_ISVTX));
 }
-} // namespace
+bool CanonicalPath(int descriptor, std::string *resolved) {
+  char canonical[PATH_MAX];
+  const std::string path = "/proc/self/fd/" + std::to_string(descriptor);
+  const auto length = readlink(path.c_str(), canonical, sizeof(canonical));
+  if (length <= 0 || length >= PATH_MAX || canonical[0] != '/')
+    return false;
+  *resolved = std::string(canonical, static_cast<size_t>(length));
+  return true;
+}
+enum class PathKind { executable, directory };
 
-bool TrustedExecutable(const std::string &input, std::string *resolved) {
+bool TrustedPath(const std::string &input, std::string *resolved,
+                 PathKind kind) {
   const std::string requested = input;
   resolved->clear();
   if (requested.empty() || requested[0] != '/' ||
@@ -79,25 +89,28 @@ bool TrustedExecutable(const std::string &input, std::string *resolved) {
         return false;
       std::swap(directory.value, next.value);
     } else {
-      if (!parts.empty() || !S_ISREG(info.st_mode) || !info.st_nlink ||
+      if (kind != PathKind::executable || !parts.empty() ||
+          !S_ISREG(info.st_mode) || !info.st_nlink ||
           (info.st_mode & (S_IWGRP | S_IWOTH)) ||
           !(info.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
         return false;
-      char canonical[PATH_MAX];
-      const std::string descriptor =
-          "/proc/self/fd/" + std::to_string(next.value);
-      const auto length =
-          readlink(descriptor.c_str(), canonical, sizeof(canonical));
-      if (length <= 0 || length >= PATH_MAX)
-        return false;
-      const std::string path(canonical, static_cast<size_t>(length));
-      if (path[0] != '/' || access(path.c_str(), X_OK) != 0)
+      std::string path;
+      if (!CanonicalPath(next.value, &path) || access(path.c_str(), X_OK) != 0)
         return false;
       *resolved = path;
       return true;
     }
   }
-  return false;
+  return kind == PathKind::directory &&
+         CanonicalPath(directory.value, resolved);
+}
+} // namespace
+
+bool TrustedExecutable(const std::string &input, std::string *resolved) {
+  return TrustedPath(input, resolved, PathKind::executable);
+}
+bool TrustedDirectory(const std::string &input, std::string *resolved) {
+  return TrustedPath(input, resolved, PathKind::directory);
 }
 
 std::string FindHostLegionCli(std::string *error) {

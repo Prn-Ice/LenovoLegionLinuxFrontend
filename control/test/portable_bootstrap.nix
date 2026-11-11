@@ -55,6 +55,9 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("polkit.service")
     snapshot_checks = machine.succeed("runuser -u approved -- executable-snapshot-test")
     assert "# SKIP" not in snapshot_checks, snapshot_checks
+    root_snapshot_checks = machine.succeed("executable-snapshot-test")
+    assert "# SKIP" not in root_snapshot_checks, root_snapshot_checks
+    assert "/snapshot/root-alias-crossing-user-directory" in root_snapshot_checks, root_snapshot_checks
     machine.succeed("runuser -u approved -- portable-lifetime-test")
     trust_checks = machine.succeed("trusted-executable-test")
     assert "# SKIP" not in trust_checks, trust_checks
@@ -253,6 +256,49 @@ pkgs.testers.runNixOSTest {
         second.close()
         first.close()
         wait_collected()
+
+    def wait_production_collected():
+        machine.wait_until_succeeds("test -z \"$(systemctl list-units --all --plain --no-legend 'legion-portable-control-*')\"", timeout=timedelta(seconds=8))
+
+    with subtest("production entry points reject root launch and unsealed cleanup"):
+        machine.fail("${probe}/bin/legion-portable-control --control")
+        machine.fail("${probe}/bin/legion-portable-control --cleanup")
+        machine.fail(as_user("approved", "${probe}/bin/legion-portable-control --cleanup"))
+        machine.fail(as_user("approved", "${probe}/bin/legion-portable-control --wait-before-start"))
+
+    with subtest("production helper discovers the installed CLI and runs typed writes"):
+        app = PortableSession("approved", "${probe}/bin/legion-portable-control")
+        assert app.unit.startswith("legion-portable-control-"), app.unit
+        app.prepare("success")
+        app.send("connect")
+        app.send("authorize")
+        app.send("enable")
+        assert app.value("battery-conservation") == "enabled\n"
+        app.send("disable")
+        assert app.value("battery-conservation") == "disabled\n"
+        app.close()
+        wait_production_collected()
+
+    with subtest("production startup rejects incompatible and failed CLI help"):
+        for mode in ["missing", "fail", "flood", "hang"]:
+            machine.succeed("printf '%s\n' " + mode + " > /run/legion-cli-help-mode")
+            command = "${probe}/bin/legion-portable-control --control > /home/approved/production.out 2> /home/approved/production.err"
+            try:
+                machine.fail(as_user("approved", command))
+                output = machine.succeed("cat /home/approved/production.out")
+                assert "CONTROL_SETUP_ERROR " in output, output
+                assert "CONTROL_READY " not in output, output
+                wait_production_collected()
+            finally:
+                machine.succeed("rm -f /run/legion-cli-help-mode")
+
+    with subtest("production startup respects denial and missing agent"):
+        for user in ["denied", "challenge"]:
+            command = "${probe}/bin/legion-portable-control --control > /home/" + user + "/production.out 2> /home/" + user + "/production.err"
+            machine.fail(as_user(user, command))
+            output = machine.succeed("cat /home/" + user + "/production.out")
+            assert "CONTROL_READY " not in output, output
+            wait_production_collected()
 
     machine.succeed("test ! -e /etc/systemd/system/legion-control.service; test ! -e /run/systemd/system/legion-control.service")
   '';

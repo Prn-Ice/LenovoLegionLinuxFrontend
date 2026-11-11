@@ -390,8 +390,12 @@ struct Operation final : ManagedCommandOperation,
     for (const char *name : {"BindsTo", "After", "JoinsNamespaceOf"})
       property(name, strings({parent}));
     const char *path = g_getenv("PATH");
-    if (path)
-      property("Environment", strings({std::string("PATH=") + path}));
+    property("WorkingDirectory", g_variant_new_string("/"));
+    property("Environment",
+             strings({std::string("PATH=") +
+                          (path ? path : "/usr/sbin:/usr/bin:/sbin:/bin"),
+                      "LC_ALL=C", "HOME=/var/empty",
+                      "PYTHONNOUSERSITE=1", "PYTHONSAFEPATH=1"}));
     std::vector<std::string> argv{executable};
     argv.insert(argv.end(), args.begin(), args.end());
     GVariantBuilder commands;

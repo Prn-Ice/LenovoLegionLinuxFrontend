@@ -109,6 +109,45 @@ void main() {
     },
   );
 
+  test('accepts the production session name and its matching socket', () async {
+    final unit = portableTestUnit.replaceFirst(
+      'bootstrap-probe',
+      'portable-control',
+    );
+    final address = portableTestAddress.replaceFirst(
+      'bootstrap-probe',
+      'portable-control',
+    );
+    final starting = launcher.start();
+    await process.listening.future;
+    process.line('SNAPSHOT_READY launcher=${process.pid} unit=$unit');
+    process.line('START_ACKNOWLEDGED');
+    process.line('CONTROL_READY helper=123 unit=$unit address=$address');
+    expect((await starting).unit, unit);
+  });
+
+  test('reports CLI setup failure and stops the launcher', () async {
+    final rejected = expectLater(
+      launcher.start(),
+      throwsA(
+        isA<LegionControlSetupException>().having(
+          (error) => error.message,
+          'message',
+          contains('missing command'),
+        ),
+      ),
+    );
+    await process.listening.future;
+    process.line(
+      'SNAPSHOT_READY launcher=${process.pid} unit=$portableTestUnit',
+    );
+    process.line(
+      'CONTROL_SETUP_ERROR Installed legion_cli is missing command: graphics-mode',
+    );
+    await rejected;
+    expect(process.signals, [ProcessSignal.sigterm]);
+  });
+
   test('rejects an endpoint from another session directory', () async {
     final rejected = expectLater(
       launcher.start(),

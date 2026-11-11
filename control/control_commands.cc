@@ -116,6 +116,16 @@ Command ToggleCommand(const std::string &c, bool on) {
 Command PresetCommand(const std::string &p) {
   return {{"fancurve-write-preset-to-hw", p}};
 }
+std::vector<std::string> InteractiveCliCommands() {
+  std::vector<std::string> commands = {
+      "set-feature", "graphics-mode", "boot-logo",
+      "fancurve-write-preset-to-hw", "fancurve-write-current-preset-to-hw",
+      "fancurve-write-file-to-hw", "custom-conservation-mode-apply"};
+  for (const auto &toggle : toggles)
+    for (const bool enabled : {false, true})
+      commands.push_back(toggle.second + (enabled ? "-enable" : "-disable"));
+  return commands;
+}
 Command CurrentPresetCommand() {
   return {{"fancurve-write-current-preset-to-hw"}};
 }

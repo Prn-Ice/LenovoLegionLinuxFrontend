@@ -7,6 +7,9 @@ namespace legion_control {
 // host's root ownership. Returns the executable's canonical path.
 bool TrustedExecutable(const std::string &input, std::string *resolved);
 
+// Applies the same ownership and traversal checks to host library directories.
+bool TrustedDirectory(const std::string &input, std::string *resolved);
+
 // Inspect fixed administrator-controlled installation locations, in order.
 // A present but unsafe candidate stops discovery; the caller receives a reason.
 std::string FindHostLegionCli(std::string *error);

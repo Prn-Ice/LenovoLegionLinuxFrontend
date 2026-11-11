@@ -60,14 +60,14 @@ jobs:
         run: >-
           cmake -S telemetry -B build/native -G Ninja
           -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_TESTING=ON
-          -DBUILD_PORTABLE_CONTROL_PROTOTYPE=ON
+          -DBUILD_PORTABLE_CONTROL_PROTOTYPE=ON -DBUILD_PORTABLE_CONTROL_HELPER=ON
 
       - name: Build services and tests
         run: >-
           cmake --build build/native --parallel 2 --target
           legion_telemetry_service legion_control_service
-          package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test
-          portable_control_probe
+          package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test portable_cli_test
+          portable_control_probe legion_portable_control
 
       - name: Run native tests
         run: ctest --test-dir build/native --output-on-failure --no-tests=error

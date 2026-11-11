@@ -1,4 +1,5 @@
 #include "executable_snapshot.h"
+#include "test/test_vm_guard.h"
 
 #include <cstring>
 #include <elf.h>
@@ -213,6 +214,23 @@ void test_dynamic_strings() {
   Reject(bytes, "incomplete");
 }
 
+void test_root_alias_crossing_user_directory() {
+  g_assert_true(getuid() == 0 && InControlTestVm());
+  char directory[] = "/run/legion-snapshot-path-XXXXXX";
+  g_assert_nonnull(mkdtemp(directory));
+  const std::string user = std::string(directory) + "/user";
+  g_assert_cmpint(mkdir(user.c_str(), 0755), ==, 0);
+  const std::string selection = user + "/lib";
+  g_assert_cmpint(symlink("/", selection.c_str()), ==, 0);
+  const std::string alias = std::string(directory) + "/alias";
+  g_assert_cmpint(symlink("user/lib", alias.c_str()), ==, 0);
+  g_assert_cmpint(chown(user.c_str(), 1000, 1000), ==, 0);
+  Reject(Executable(true, alias, DT_RUNPATH), "controlled by root");
+  unlink(alias.c_str());
+  unlink(selection.c_str());
+  rmdir(user.c_str());
+  rmdir(directory);
+}
 void test_nonregular_source() {
   int descriptors[2];
   g_assert_cmpint(pipe(descriptors), ==, 0);
@@ -232,5 +250,8 @@ int main(int argc, char **argv) {
   g_test_add_func("/snapshot/untrusted-dynamic-paths", test_dynamic_paths);
   g_test_add_func("/snapshot/malformed-dynamic-strings", test_dynamic_strings);
   g_test_add_func("/snapshot/nonregular-source", test_nonregular_source);
+  if (getuid() == 0 && InControlTestVm())
+    g_test_add_func("/snapshot/root-alias-crossing-user-directory",
+                    test_root_alias_crossing_user_directory);
   return g_test_run();
 }

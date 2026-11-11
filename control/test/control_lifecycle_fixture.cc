@@ -1,8 +1,10 @@
+#include "../test_support/cli_help_fixture.h"
 #include "test_vm_guard.h"
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <fcntl.h>
+#include <fstream>
 #include <signal.h>
 #include <string>
 #include <sys/types.h>
@@ -106,6 +108,43 @@ int main(int argc, char **argv) {
     fprintf(stderr,
             "This backend runs only in the disposable control test VM.\n");
     return 2;
+  }
+  if (argc == 2 && std::string(argv[1]) == "--help") {
+    char working_directory[4096];
+    if (!getcwd(working_directory, sizeof(working_directory)) ||
+        std::string(working_directory) != "/")
+      return 78;
+    for (const auto &setting :
+         {std::pair<const char *, const char *>{"LC_ALL", "C"},
+          {"HOME", "/var/empty"},
+          {"PYTHONNOUSERSITE", "1"},
+          {"PYTHONSAFEPATH", "1"}}) {
+      const char *value = getenv(setting.first);
+      if (!value || std::string(value) != setting.second)
+        return 78;
+    }
+    for (const char *name :
+         {"LD_PRELOAD", "LD_LIBRARY_PATH", "GIO_EXTRA_MODULES", "PYTHONPATH",
+          "DBUS_SYSTEM_BUS_ADDRESS"})
+      if (getenv(name))
+        return 78;
+    std::ifstream mode_file("/run/legion-cli-help-mode");
+    std::string mode;
+    std::getline(mode_file, mode);
+    if (mode == "hang")
+      WaitForKill();
+    if (mode == "fail")
+      return 69;
+    if (mode == "flood") {
+      for (unsigned i = 0; i < 128 * 1024; ++i)
+        putchar('x');
+      return 0;
+    }
+    if (mode == "missing")
+      puts("usage: old_cli [--donotexpecthwmon] {set-feature}");
+    else
+      fputs(cli_help_fixture, stdout);
+    return 0;
   }
   const bool toggle = argc == 3 &&
                       std::string(argv[1]) == "--donotexpecthwmon" &&

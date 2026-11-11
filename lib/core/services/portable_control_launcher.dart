@@ -175,7 +175,7 @@ class PortableControlLauncher {
   }
 
   static final _unitPattern =
-      r'legion-bootstrap-probe-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.service';
+      r'legion-(?:portable-control|bootstrap-probe)-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.service';
   static final _snapshot = RegExp(
     '^SNAPSHOT_READY launcher=([1-9][0-9]*) unit=($_unitPattern)\$',
   );
@@ -222,6 +222,11 @@ class PortableControlLauncher {
   }
 
   void _readLine(String line) {
+    const setupPrefix = 'CONTROL_SETUP_ERROR ';
+    if (_endpoint == null && line.startsWith(setupPrefix)) {
+      _fail(LegionControlSetupException(line.substring(setupPrefix.length)));
+      return;
+    }
     final snapshot = _snapshot.firstMatch(line);
     final control = _control.firstMatch(line);
     if (snapshot != null &&

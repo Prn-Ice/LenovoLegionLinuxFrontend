@@ -1,4 +1,5 @@
 #include "executable_snapshot.h"
+#include "trusted_executable.h"
 
 #include <cerrno>
 #include <cstdint>
@@ -39,27 +40,10 @@ bool RootControlled(const std::string &path, bool directory) {
     const auto component = prefix.substr(slash + 1);
     if (component == "." || component == "..")
       return false;
-    struct stat info{};
-    if (lstat(prefix.c_str(), &info) != 0 || info.st_uid != 0)
-      return false;
-    if (!S_ISLNK(info.st_mode) &&
-        ((info.st_mode & S_IWOTH) ||
-         ((info.st_mode & S_IWGRP) &&
-          !(S_ISDIR(info.st_mode) && (info.st_mode & S_ISVTX)))))
-      return false;
   }
-  struct stat info{};
-  if (stat(path.c_str(), &info) != 0)
-    return false;
-  if (directory ? !S_ISDIR(info.st_mode)
-                : (!S_ISREG(info.st_mode) || !(info.st_mode & 0111)))
-    return false;
-  char *resolved = realpath(path.c_str(), nullptr);
-  if (!resolved)
-    return false;
-  const std::string canonical = resolved;
-  free(resolved);
-  return canonical == path || RootControlled(canonical, directory);
+  std::string resolved;
+  return directory ? TrustedDirectory(path, &resolved)
+                   : TrustedExecutable(path, &resolved);
 }
 
 bool SearchPath(const std::string &paths) {

@@ -1,22 +1,32 @@
-// Exercise the real typed dispatcher and managed runner in the guarded VM.
-// Product installation remains disabled while portable qualification continues.
-#define main portable_session_daemon_main
-#include "../legion_control_service.cc"
-#undef main
-#include "../test/test_vm_guard.h"
-#include "portable_control_helper.h"
+// One private app session using the shared typed dispatcher and managed runner.
+#include "portable_control_session.h"
+#include "control_protocol.h"
+#include "control_service_runtime.h"
+#include "portable_cli.h"
+#include "portable_unit.h"
+#include "trusted_executable.h"
 
+#include <cstdio>
+#include <cstring>
+#include <fcntl.h>
 #include <fstream>
 #include <glib-unix.h>
 #include <poll.h>
 #include <sstream>
+#include <sys/stat.h>
 #include <syslog.h>
-
-#ifndef PORTABLE_CONTROL_TEST_CLI
-#define PORTABLE_CONTROL_TEST_CLI ""
-#endif
+#include <unistd.h>
 
 namespace {
+using legion_control::ControlConnectionMode;
+using legion_control::ControlContext;
+using legion_control::dispatch;
+using legion_control::done;
+using legion_control::reply_capabilities;
+using legion_control::reply_error;
+constexpr const char *path = legion_control::control_object_path,
+                     *xml = legion_control::control_xml;
+
 bool AppAlive(int descriptor = STDIN_FILENO) {
   pollfd app{descriptor, POLLIN, 0};
   return poll(&app, 1, 0) == 0;
@@ -53,12 +63,13 @@ struct PeerIdentity {
 };
 
 struct Session {
-  Ctx control{};
+  ControlContext control{};
   GDBusServer *server = nullptr;
   GDBusAuthObserver *observer = nullptr;
   PeerIdentity *peer = nullptr;
   bool accepted = false, authorized = false;
   gint64 activity = g_get_monotonic_time();
+  unsigned idle_seconds = 0;
 };
 
 bool PeerMatches(GCredentials *credentials, PeerIdentity *peer) {
@@ -141,24 +152,14 @@ gboolean Accept(GDBusServer *, GDBusConnection *connection, gpointer data) {
 }
 } // namespace
 
-bool ValidPortableProbeUnit(const std::string &parent_unit) {
-  constexpr char prefix[] = "legion-bootstrap-probe-";
-  if (parent_unit.size() != strlen(prefix) + 36 + 8 ||
-      parent_unit.compare(0, strlen(prefix), prefix) != 0 ||
-      parent_unit.compare(parent_unit.size() - 8, 8, ".service") != 0 ||
-      !g_uuid_string_is_valid(parent_unit.substr(strlen(prefix), 36).c_str()))
-    return false;
-  return true;
-}
-
-int RunPortableControlProbe(pid_t client_pid, uid_t client_uid,
-                            const std::string &parent_unit,
-                            int launcher_pidfd) {
-  if (!ValidPortableProbeUnit(parent_unit))
+int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
+                              const std::string &parent_unit,
+                              int launcher_pidfd, const std::string &cli,
+                              unsigned idle_seconds) {
+  if (!legion_control::ValidPortableUnit(parent_unit))
     return 2;
-  if (!InControlTestVm() || getuid() != 0 || geteuid() != 0 ||
-      client_uid == 0 || !PinnedApp(client_pid, client_uid) ||
-      !AppAlive(launcher_pidfd))
+  if (getuid() != 0 || geteuid() != 0 || client_uid == 0 ||
+      !PinnedApp(client_pid, client_uid) || !AppAlive(launcher_pidfd))
     return 2;
   const std::string directory =
       "/run/" + parent_unit.substr(0, parent_unit.size() - 8);
@@ -167,10 +168,9 @@ int RunPortableControlProbe(pid_t client_pid, uid_t client_uid,
       info.st_uid != 0 || (info.st_mode & 0022))
     return 2;
   Session session{};
+  session.idle_seconds = idle_seconds;
   session.control.mode = ControlConnectionMode::portable;
-  // The fixture path is fixed at build time. Callers cannot select a root
-  // command.
-  if (!legion_control::TrustedExecutable(PORTABLE_CONTROL_TEST_CLI, &session.control.cli))
+  if (!legion_control::TrustedExecutable(cli, &session.control.cli))
     return 2;
   session.control.loop = g_main_loop_new(nullptr, FALSE);
   GError *error = nullptr;
@@ -182,6 +182,19 @@ int RunPortableControlProbe(pid_t client_pid, uid_t client_uid,
       nullptr, nullptr, &error);
   if (!manager) {
     g_clear_error(&error);
+    g_main_loop_unref(session.control.loop);
+    return 1;
+  }
+  session.control.runner =
+      legion_control::CreateManagedCommandRunner(manager, parent_unit);
+  if (!legion_control::QualifyPortableCli(session.control.runner,
+                                          session.control.cli, STDIN_FILENO,
+                                          launcher_pidfd, &error)) {
+    printf("CONTROL_SETUP_ERROR %s\n",
+           error ? error->message : "CLI qualification failed");
+    fflush(stdout);
+    g_clear_error(&error);
+    g_object_unref(manager);
     g_main_loop_unref(session.control.loop);
     return 1;
   }
@@ -273,7 +286,8 @@ int RunPortableControlProbe(pid_t client_pid, uid_t client_uid,
         if (session->control.active)
           session->activity = now;
         else if (now - session->activity >=
-                 (session->accepted ? 5000000 : 10000000))
+                 (session->accepted ? gint64(session->idle_seconds) * 1000000
+                                    : 10000000))
           g_main_loop_quit(session->control.loop);
         return G_SOURCE_CONTINUE;
       },

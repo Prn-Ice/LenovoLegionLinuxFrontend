@@ -15,10 +15,12 @@ stdenv.mkDerivation {
       ./CMakeLists.txt
       ./test_vm_guard.h
       ./control_lifecycle_fixture.cc
+      ../test_support/cli_help_fixture.h
       ./control_lifecycle_client.cc
       ./portable_control_client.cc
       ../portable_peer.cc
       ../portable_peer.h
+      ../portable_unit.h
     ];
   };
   nativeBuildInputs = [

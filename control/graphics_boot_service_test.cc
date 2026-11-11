@@ -1,12 +1,26 @@
 // Use real dispatch with the ordinary-user fixture runner; never start the root
 // daemon or connect to the system bus. Authorization is faked on a private bus.
-#define main legion_control_daemon_main
-#include "legion_control_service.cc"
-#undef main
+#include "control_protocol.h"
+#include "control_service_runtime.h"
 #include "test_support/direct_command_runner.h"
+
+#include <cstdio>
+#include <cstring>
 #include <set>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
+using legion_control::ControlConnectionMode;
+using legion_control::ControlContext;
+using legion_control::dispatch;
+using legion_control::done;
+constexpr const char *bus = legion_control::control_bus_name,
+                     *path = legion_control::control_object_path,
+                     *xml = legion_control::control_xml;
+constexpr const char *iface = legion_control::control_bus_name;
+const auto &vt = legion_control::control_vtable;
+
 struct ControlledOperation final : legion_control::ManagedCommandOperation {
   bool cancelled = false;
   void Cancel() override { cancelled = true; }
@@ -71,7 +85,7 @@ void test_boot_dispatch() {
   GDBusConnection *client = g_dbus_connection_new_for_address_sync(
       address, flags, nullptr, nullptr, &error);
   g_assert_no_error(error);
-  Ctx context{};
+  ControlContext context{};
   context.runner = legion_control::CreateDirectCommandRunner();
   context.info = g_dbus_node_info_new_for_xml(xml, &error);
   g_assert_no_error(error);
@@ -177,7 +191,7 @@ void test_boot_dispatch() {
   // code.
   g_dbus_connection_unregister_object(server, registration);
   struct ClientContext {
-    Ctx *service;
+    ControlContext *service;
     std::string authorized_sender;
     bool same_sender = false;
   } client_context{&context, "", false};
@@ -192,8 +206,9 @@ void test_boot_dispatch() {
           done(invocation);
         } else {
           test->same_sender = test->authorized_sender == sender;
-          call(connection, sender, object, interface, method, parameters,
-               invocation, test->service);
+          legion_control::control_vtable.method_call(
+              connection, sender, object, interface, method, parameters,
+              invocation, test->service);
         }
       },
       nullptr,
