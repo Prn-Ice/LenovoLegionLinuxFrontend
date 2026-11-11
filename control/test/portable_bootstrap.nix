@@ -165,6 +165,29 @@ pkgs.testers.runNixOSTest {
         wait_collected()
         assert "ROOT_HELPER" not in machine.succeed("cat " + output)
 
+    with subtest("native peer connection has a deadline and supports cancellation"):
+        for index, mode in enumerate(["timeout", "cancel"]):
+            unit = "legion-bootstrap-probe-01234567-89ab-4cde-8fab-" + str(index).zfill(12) + ".service"
+            socket = "/run/legion-stalled-peer.sock"
+            output = "/tmp/stalled-peer.out"
+            machine.succeed("rm -f " + socket + " " + output)
+            machine.succeed("systemd-run --quiet --collect --service-type=exec --unit=" + unit + " --property=RuntimeMaxSec=15 --property=StandardOutput=append:" + output + " ${fixtures}/bin/legion-portable-test-client --stall-peer " + socket)
+            machine.wait_until_succeeds("grep FAKE_READY " + output, timeout=timedelta(seconds=5))
+            helper = machine.succeed("systemctl show --property=MainPID --value " + unit).strip()
+            command = "legion-portable-test-client --connection-" + mode + " unix:path=" + socket + " " + unit + " " + helper
+            if mode == "timeout":
+                machine.succeed(portable_as_user("approved", command))
+            else:
+                machine.succeed(portable_as_user("approved", command) + " >/home/approved/connect.out 2>/home/approved/connect.err &")
+                machine.wait_until_succeeds("grep AUTH_SEEN " + output, timeout=timedelta(seconds=4))
+                text = machine.succeed("cat /home/approved/connect.out")
+                pid = re.search(r"CONNECTING pid=(\d+)", text)
+                assert pid, text
+                machine.succeed("kill -USR1 " + pid.group(1))
+                machine.wait_until_succeeds("grep CONNECTION_ENDED /home/approved/connect.out", timeout=timedelta(seconds=3))
+            machine.wait_until_succeeds("grep AUTH_CLOSED " + output, timeout=timedelta(seconds=3))
+            wait_collected()
+
     with subtest("approved root peer validates and applies typed commands"):
         app = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
         app.prepare("success")

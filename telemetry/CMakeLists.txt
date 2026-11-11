@@ -4,6 +4,11 @@ project(legion_telemetry LANGUAGES CXX)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 pkg_check_modules(GIO_UNIX REQUIRED IMPORTED_TARGET gio-unix-2.0)
+add_library(portable_peer STATIC ../control/portable_peer.cc)
+target_compile_features(portable_peer PUBLIC cxx_std_14)
+target_compile_options(portable_peer PRIVATE -Wall -Wextra -Werror)
+target_include_directories(portable_peer PUBLIC ../control)
+target_link_libraries(portable_peer PUBLIC PkgConfig::GIO PkgConfig::GIO_UNIX)
 option(BUILD_LEGION_CONTROL_SERVICE "Build the privileged Legion control service" OFF)
 option(BUILD_PORTABLE_CONTROL_PROTOTYPE "Build the hardware-free private-peer control probe" OFF)
 option(BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE "Build the VM-only administrator-startup probe" OFF)
@@ -120,6 +125,11 @@ install(FILES
 
 include(CTest)
 if(BUILD_TESTING)
+  add_executable(portable_peer_test EXCLUDE_FROM_ALL ../control/portable_peer_test.cc)
+  target_link_libraries(portable_peer_test PRIVATE portable_peer)
+  target_compile_options(portable_peer_test PRIVATE -Wall -Wextra -Werror)
+  add_test(NAME portable_peer COMMAND portable_peer_test)
+  set_tests_properties(portable_peer PROPERTIES TIMEOUT 10)
   add_executable(package_power_sampler_test EXCLUDE_FROM_ALL
     package_power_sampler_test.cc
   )

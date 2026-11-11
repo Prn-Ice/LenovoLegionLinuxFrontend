@@ -202,10 +202,30 @@ It uses a fixed CLI fixture compiled into the VM probe; callers cannot select a
 root executable. The installed-service VM also verifies contention with a
 portable session. These checks perform no hardware writes.
 
-The production launcher's verified-endpoint handoff to Dart, host CLI discovery
-and capability checks, live authentication-dialog cancellation, desktop prompts,
-Debian qualification, and AppImage FUSE/extraction remain required before
-enabling portable hardware writes.
+The desktop's private connection is implemented through the native Linux host.
+`NativePortableControlTransport` accepts an endpoint from an approved launch and
+uses the `io.github.prnice.legion/portable_control` Flutter method channel.
+`linux/runner/portable_control_channel.cc` owns the GDBus connection in the same
+process as the app. This preserves the helper's app-PID authentication.
+
+The shared verifier in `control/portable_peer.cc` checks systemd's helper PID
+and the raw Unix socket's root UID/PID before sending authentication bytes.
+It pins the systemd manager's unique bus owner during lookup. Connection setup
+runs on a GLib worker with a five-second deadline and explicit cancellation.
+Each native session has its own identifier; a late callback or close from an
+older session cannot replace or close a newer connection. Destroying the Flutter
+view cancels startup and closes its peer. The VM client uses this same verifier,
+including asynchronous connections, stalled authentication, and cancellation.
+
+The installed service and native channel share `control/control_protocol.h`.
+The channel checks method names, argument types, and payload limits against that
+contract. The existing `LegionControlClient` checks protocol capabilities and
+retains the same typed operations and error translation.
+
+The production provider still uses the installed service. Starting and owning
+the approved launcher from Dart, host CLI discovery and capability checks, live
+authentication-dialog cancellation, desktop prompts, Debian qualification, and
+AppImage FUSE/extraction remain required before enabling portable hardware writes.
 
 ### Backend process containment
 

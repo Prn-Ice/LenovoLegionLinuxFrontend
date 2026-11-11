@@ -1,4 +1,5 @@
 #include "control_commands.h"
+#include "control_protocol.h"
 #include "managed_command.h"
 #include <cerrno>
 #include <climits>
@@ -15,28 +16,11 @@
 #include <vector>
 
 namespace {
-constexpr char bus[] = "io.github.prnice.LegionControl1",
-               path[] = "/io/github/prnice/LegionControl1",
-               iface[] = "io.github.prnice.LegionControl1";
+constexpr const char *bus = legion_control::control_bus_name,
+                     *path = legion_control::control_object_path,
+                     *iface = legion_control::control_bus_name;
 constexpr size_t input_limit = 128;
-constexpr char xml[] =
-    R"(<node><interface name="io.github.prnice.LegionControl1">
-      <method name="GetCapabilities"><arg type="u" direction="out"/><arg type="as" direction="out"/></method>
-      <method name="Authorize"/>
-      <method name="RequestGraphicsModeAtBoot"><arg type="s" direction="in"/><arg type="s" direction="out"/></method>
-      <method name="CancelGraphicsModeAtBoot"><arg type="s" direction="out"/></method>
-      <method name="GetGraphicsBootRequest"><arg type="s" direction="out"/></method>
-      <method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method>
-      <method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
-      <method name="SetGraphicsMode"><arg type="s" direction="in"/></method>
-      <method name="ApplyFanPreset"><arg type="s" direction="in"/></method>
-      <method name="ApplyCurrentFanPreset"/>
-      <method name="ApplyFanCurve"><arg type="ay" direction="in"/></method>
-      <method name="ApplyCustomConservation"><arg type="u" direction="in"/><arg type="u" direction="in"/></method>
-      <method name="SetBootLogo"><arg type="ay" direction="in"/></method>
-      <method name="RestoreBootLogo"/>
-      <method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
-    </interface></node>)";
+constexpr const char *xml = legion_control::control_xml;
 enum class ControlConnectionMode { installed, portable };
 struct Ctx {
   GMainLoop *loop;

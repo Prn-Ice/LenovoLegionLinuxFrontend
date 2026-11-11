@@ -1,4 +1,5 @@
 #include "my_application.h"
+#include "portable_control_channel.h"
 
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
@@ -251,6 +252,7 @@ static void my_application_activate(GApplication* application) {
   // rounded-corner window is applied.
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
   osd_register(window, view);
+  RegisterPortableControlChannel(view);
   gtk_widget_show(GTK_WIDGET(view));
 
   // Show the window when Flutter renders.

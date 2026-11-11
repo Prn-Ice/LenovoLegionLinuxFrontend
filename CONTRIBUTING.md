@@ -50,7 +50,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers nine scenarios. The battery journey
+The `app_test.dart` entrypoint registers ten scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -73,7 +73,16 @@ exits. The second reopens the same temporary Hive/config data and verifies the
 assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
-To run only the nine scenarios in the first app process:
+The portable-control scenario uses the real Linux method channel to check that
+an invalid endpoint is rejected before connection. It starts no helper. After
+the journeys, check native method names, argument types, and payload limits with:
+
+```bash
+cmake --build build/linux/x64/debug --target portable_control_channel_test
+build/linux/x64/debug/runner/portable_control_channel_test
+```
+
+To run only the ten scenarios in the first app process:
 
 ```bash
 flutter test integration_test/app_test.dart -d linux --no-pub
@@ -124,7 +133,7 @@ To build and test native service code without installing it:
 
 ```bash
 cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test
 ctest --test-dir build/native --output-on-failure
 ```
 
@@ -150,7 +159,7 @@ nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
 ```
 
 This separate disposable VM uses real systemd and Polkit with deterministic test
-policies. The startup probe has no hardware operations and refuses host execution.
+policies. The startup probe uses a synthetic CLI and refuses to run on the host.
 See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
 for its trust boundary and remaining checks.
 

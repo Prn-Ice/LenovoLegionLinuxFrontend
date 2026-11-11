@@ -1,3 +1,4 @@
+#include "portable_peer.h"
 #include "test_vm_guard.h"
 
 #include <cstdio>
@@ -5,12 +6,14 @@
 #include <cstring>
 #include <gio/gio.h>
 #include <gio/gunixinputstream.h>
+#include <glib-unix.h>
 #include <iostream>
 #include <poll.h>
 #include <signal.h>
 #include <sstream>
 #include <string>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -19,7 +22,7 @@ namespace {
 constexpr char interface[] = "io.github.prnice.LegionControl1";
 constexpr char path[] = "/io/github/prnice/LegionControl1";
 
-int FakePeer(const char *path) {
+int FakePeer(const char *path, bool stall = false) {
   sockaddr_un address{};
   address.sun_family = AF_UNIX;
   if (strlen(path) >= sizeof(address.sun_path))
@@ -29,18 +32,26 @@ int FakePeer(const char *path) {
   if (listener < 0 ||
       bind(listener, reinterpret_cast<sockaddr *>(&address), sizeof(address)) !=
           0 ||
-      listen(listener, 1) != 0)
+      chmod(path, 0666) != 0 || listen(listener, 1) != 0)
     return 1;
   puts("FAKE_READY");
   fflush(stdout);
   const int peer = accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
   char byte;
-  const bool refused = peer >= 0 && read(peer, &byte, 1) == 0;
+  bool refused = peer >= 0 && read(peer, &byte, 1) == 0;
+  if (stall && peer >= 0 && !refused) {
+    puts("AUTH_SEEN");
+    fflush(stdout);
+    while (read(peer, &byte, 1) > 0) {
+    }
+    puts("AUTH_CLOSED");
+    refused = true;
+  }
   if (peer >= 0)
     close(peer);
   close(listener);
   unlink(path);
-  if (refused)
+  if (refused && !stall)
     puts("FAKE_CLOSED_BEFORE_AUTH");
   return refused ? 0 : 1;
 }
@@ -67,95 +78,46 @@ bool ReadLine(int descriptor, std::string *line) {
 
 GDBusConnection *Connect(const std::string &address, const std::string &unit,
                          guint32 expected_pid, int *failure) {
-  *failure = 8;
   GError *error = nullptr;
-  auto *manager = g_dbus_connection_new_for_address_sync(
-      "unix:path=/run/dbus/system_bus_socket",
-      static_cast<GDBusConnectionFlags>(
-          G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
-          G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
-      nullptr, nullptr, &error);
-  if (!manager) {
-    g_clear_error(&error);
-    return nullptr;
-  }
-  auto *location = g_dbus_connection_call_sync(
-      manager, "org.freedesktop.systemd1", "/org/freedesktop/systemd1",
-      "org.freedesktop.systemd1.Manager", "GetUnit",
-      g_variant_new("(s)", unit.c_str()), G_VARIANT_TYPE("(o)"),
-      G_DBUS_CALL_FLAGS_NO_AUTO_START, 2000, nullptr, &error);
-  const char *unit_path = nullptr;
-  if (location)
-    g_variant_get(location, "(&o)", &unit_path);
-  GVariant *pid_reply =
-      location ? g_dbus_connection_call_sync(
-                     manager, "org.freedesktop.systemd1", unit_path,
-                     "org.freedesktop.DBus.Properties", "Get",
-                     g_variant_new("(ss)", "org.freedesktop.systemd1.Service",
-                                   "MainPID"),
-                     G_VARIANT_TYPE("(v)"), G_DBUS_CALL_FLAGS_NO_AUTO_START,
-                     2000, nullptr, &error)
-               : nullptr;
-  guint32 actual_pid = 0;
-  if (pid_reply) {
-    GVariant *value;
-    g_variant_get(pid_reply, "(v)", &value);
-    actual_pid = g_variant_get_uint32(value);
-    g_variant_unref(value);
-    g_variant_unref(pid_reply);
-  }
-  if (location)
-    g_variant_unref(location);
-  g_dbus_connection_close_sync(manager, nullptr, nullptr);
-  g_object_unref(manager);
-  g_clear_error(&error);
-  if (!actual_pid || actual_pid != expected_pid)
-    return nullptr;
-  GIOStream *stream =
-      g_dbus_address_get_stream_sync(address.c_str(), nullptr, nullptr, &error);
-  if (!stream) {
-    g_clear_error(&error);
-    return nullptr;
-  }
-  // GDBus client credentials are unavailable through get_peer_credentials().
-  // Check the underlying Unix socket before beginning D-Bus authentication.
-  GCredentials *credentials =
-      G_IS_SOCKET_CONNECTION(stream)
-          ? g_socket_get_credentials(
-                g_socket_connection_get_socket(G_SOCKET_CONNECTION(stream)),
-                &error)
-          : nullptr;
   bool verified = false;
-  if (credentials) {
-    const auto uid = g_credentials_get_unix_user(credentials, &error);
-    if (!error) {
-      const auto pid = g_credentials_get_unix_pid(credentials, &error);
-      verified = !error && uid == 0 && pid == static_cast<pid_t>(expected_pid);
-    }
-    g_object_unref(credentials);
-  }
+  auto *connection = legion_control::ConnectPortablePeerSync(
+      {address, unit, expected_pid}, nullptr, &error, &verified);
+  *failure = verified ? 7 : 8;
   g_clear_error(&error);
-  if (!verified) {
-    g_object_unref(stream);
-    return nullptr;
-  }
-  auto *observer = g_dbus_auth_observer_new();
-  g_signal_connect(observer, "allow-mechanism",
-                   G_CALLBACK(+[](GDBusAuthObserver *, const gchar *mechanism,
-                                  gpointer) -> gboolean {
-                     return g_str_equal(mechanism, "EXTERNAL");
-                   }),
-                   nullptr);
-  auto *connection = g_dbus_connection_new_sync(
-      stream, nullptr, G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT, observer,
-      nullptr, &error);
-  *failure = 7; // The root endpoint was verified; authentication then failed.
-  g_clear_error(&error);
-  g_object_unref(observer);
-  g_object_unref(stream);
-  if (connection)
-    g_dbus_connection_set_exit_on_close(connection, FALSE);
   return connection;
+}
+
+GDBusConnection *ConnectAsync(const legion_control::PortableEndpoint &endpoint,
+                              GError **error, bool cancel_by_signal = false) {
+  auto *loop = g_main_loop_new(nullptr, FALSE);
+  auto *cancel = g_cancellable_new();
+  const guint watch = cancel_by_signal
+                          ? g_unix_signal_add(
+                                SIGUSR1,
+                                [](gpointer data) -> gboolean {
+                                  g_cancellable_cancel(G_CANCELLABLE(data));
+                                  return G_SOURCE_CONTINUE;
+                                },
+                                cancel)
+                          : 0;
+  GDBusConnection *peer = nullptr;
+  legion_control::ConnectPortablePeer(
+      endpoint, cancel, [&](GDBusConnection *connection, GError *failure) {
+        peer = connection;
+        if (failure)
+          g_propagate_error(error, failure);
+        g_main_loop_quit(loop);
+      });
+  if (cancel_by_signal) {
+    printf("CONNECTING pid=%d\n", getpid());
+    fflush(stdout);
+  }
+  g_main_loop_run(loop);
+  if (watch)
+    g_source_remove(watch);
+  g_object_unref(cancel);
+  g_main_loop_unref(loop);
+  return peer;
 }
 
 std::string Call(GDBusConnection *connection, const char *method,
@@ -220,8 +182,31 @@ bool IdleClosed(GDBusConnection *connection) {
 } // namespace
 
 int main(int argc, char **argv) {
-  if (!InControlTestVm() || getuid() == 0 || getuid() != geteuid())
+  if (!InControlTestVm())
     return 2;
+  if (argc == 3 && std::string(argv[1]) == "--stall-peer" && getuid() == 0)
+    return FakePeer(argv[2], true);
+  if (getuid() == 0 || getuid() != geteuid())
+    return 2;
+  if (argc == 5 && (std::string(argv[1]) == "--connection-timeout" ||
+                    std::string(argv[1]) == "--connection-cancel")) {
+    const bool cancel = std::string(argv[1]) == "--connection-cancel";
+    const auto started = g_get_monotonic_time();
+    GError *error = nullptr;
+    auto *peer = ConnectAsync(
+        {argv[2], argv[3], static_cast<guint32>(strtoul(argv[4], nullptr, 10))},
+        &error, cancel);
+    const auto elapsed = g_get_monotonic_time() - started;
+    const bool expected =
+        !peer && elapsed < 10000000 &&
+        g_error_matches(error, G_IO_ERROR,
+                        cancel ? G_IO_ERROR_CANCELLED : G_IO_ERROR_TIMED_OUT);
+    if (peer)
+      g_object_unref(peer);
+    g_clear_error(&error);
+    puts(expected ? "CONNECTION_ENDED" : "UNEXPECTED_CONNECTION_RESULT");
+    return expected ? 0 : 1;
+  }
   if (argc == 3 && std::string(argv[1]) == "--fake-peer")
     return FakePeer(argv[2]);
   if (argc == 5 && std::string(argv[1]) == "--intrude") {
@@ -277,8 +262,9 @@ int main(int argc, char **argv) {
   while (std::getline(std::cin, line)) {
     std::string result;
     if (line == "connect") {
-      int failure;
-      connection = Connect(address, unit, helper_pid, &failure);
+      GError *error = nullptr;
+      connection = ConnectAsync({address, unit, helper_pid}, &error);
+      g_clear_error(&error);
       result = connection ? Call(connection, "GetCapabilities", nullptr,
                                  G_VARIANT_TYPE("(uas)"))
                           : "authentication-failed";
