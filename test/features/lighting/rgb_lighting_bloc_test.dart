@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui' show Color;
 
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_bloc.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_event.dart';
 import 'package:legion_frontend/features/lighting/bloc/rgb_lighting_state.dart';
@@ -16,6 +18,9 @@ import 'package:legion_frontend/features/lighting/services/spectrum_effects.dart
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_effect_engine.dart';
+import 'package:legion_frontend/features/lighting/services/openrgb_cli_service.dart';
+
+enum _OpenRgbEdit { direct, static, effect, brightness, profile }
 
 const _kbd = RgbLightingDevice(
   index: 0,
@@ -174,6 +179,136 @@ Future<void> _startThen(RgbLightingBloc bloc, void Function() more) async {
 }
 
 void main() {
+  test('dismissing an old RGB error preserves a newer failure', () async {
+    final bloc = RgbLightingBloc(repository: _FakeRepo());
+    addTearDown(bloc.close);
+    final firstFailed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+    bloc.add(const RgbProfileLoaded('First'));
+    final firstError = (await firstFailed).errorMessage!;
+    final secondFailed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+    bloc.add(const RgbProfileLoaded('Second'));
+    final secondError = (await secondFailed).errorMessage!;
+    final brushChanged = bloc.stream.firstWhere(
+      (s) => s.selectedColor == const Color(0xFF123456),
+    );
+    bloc.add(RgbErrorDismissed(firstError));
+    bloc.add(const RgbColorSelected(Color(0xFF123456)));
+    expect((await brushChanged).errorMessage, same(secondError));
+
+    final dismissed = bloc.stream.firstWhere(
+      (s) => s.visibleErrorMessage == null,
+    );
+    bloc.add(RgbErrorDismissed(secondError));
+    await dismissed;
+    expect(bloc.state.visibleErrorMessage, isNull);
+    expect(bloc.state.errorMessage, same(secondError));
+  });
+
+  for (final edit in _OpenRgbEdit.values) {
+    test(
+      'failed OpenRGB ${edit.name} keeps the last successful values and can retry',
+      () async {
+        const previous = RgbLightingSnapshot(
+          keyColors: [Color(0xFFFF0000), Color(0xFFFF0000), Color(0xFFFF0000)],
+          selectedColor: Color(0xFF00FF00),
+          activeMode: 'Direct',
+          brightness: 75,
+          effects: [],
+        );
+        const profile = RgbLightingSnapshot(
+          keyColors: [Color(0xFF0000FF), Color(0xFF0000FF), Color(0xFF0000FF)],
+          selectedColor: Color(0xFF0000FF),
+          activeMode: 'Static',
+          brightness: 25,
+          effects: [],
+        );
+        final store = _FakeStore(previous)..profiles['Blue'] = profile;
+        Completer<ProcessResult>? pending;
+        final requested = Completer<void>();
+        final service = OpenRgbCliService(
+          processRunner: (_, args) async {
+            if (args.singleOrNull == '--list-devices') {
+              return ProcessResult(1, 0, '''0: Legion KB
+Type: Keyboard
+Modes: [Direct] Static 'Rainbow Wave'
+LEDs: a b c
+''', '');
+            }
+            if (pending != null) {
+              requested.complete();
+              return pending.future;
+            }
+            return ProcessResult(1, 0, '', '');
+          },
+        );
+        final bloc = RgbLightingBloc(
+          repository: RgbLightingRepository(service: service),
+          store: store,
+        );
+        addTearDown(() async {
+          final operation = pending;
+          if (operation != null && !operation.isCompleted) {
+            operation.complete(ProcessResult(1, 0, '', ''));
+          }
+          await bloc.close();
+        });
+        final initialized = bloc.stream.firstWhere(
+          (s) => s.available && !s.isLoading,
+        );
+        bloc.add(const RgbLightingStarted());
+        await initialized;
+        // Let the event finish saving the initial successful snapshot.
+        final event = switch (edit) {
+          _OpenRgbEdit.direct => const RgbAllKeysFilled(Color(0xFF0000FF)),
+          _OpenRgbEdit.static => const RgbModeSelected('Static'),
+          _OpenRgbEdit.effect => const RgbModeSelected('Rainbow Wave'),
+          _OpenRgbEdit.brightness => const RgbBrightnessChanged(25),
+          _OpenRgbEdit.profile => const RgbProfileLoaded('Blue'),
+        };
+        pending = Completer<ProcessResult>();
+        final failed = bloc.stream.firstWhere((s) => s.errorMessage != null);
+        bloc.add(event);
+        await requested.future;
+        expect(bloc.state.isApplying, isTrue);
+        expect(bloc.state.keyColors, previous.keyColors);
+        expect(bloc.state.activeMode, previous.activeMode);
+        expect(bloc.state.brightness, previous.brightness);
+        pending.complete(ProcessResult(1, 9, 'started', 'command rejected'));
+        final failure = await failed;
+        expect(failure.isApplying, isFalse);
+        expect(failure.errorMessage?.kind, AppFailureKind.commandFailed);
+        expect(failure.errorMessage?.details, contains('Exit code: 9'));
+        expect(failure.errorMessage?.details, contains('command rejected'));
+        expect(failure.keyColors, previous.keyColors);
+        expect(failure.activeMode, previous.activeMode);
+        expect(failure.brightness, previous.brightness);
+        expect(store.saved?.toMap(), previous.toMap());
+
+        pending = null;
+        final retried = bloc.stream.firstWhere(
+          (s) => !s.isApplying && s.errorMessage == null,
+        );
+        bloc.add(event);
+        final applied = await retried;
+        switch (edit) {
+          case _OpenRgbEdit.direct:
+            expect(applied.keyColors, profile.keyColors);
+          case _OpenRgbEdit.static:
+            expect(applied.activeMode, 'Static');
+            expect(applied.keyColors, List.filled(3, previous.selectedColor));
+          case _OpenRgbEdit.effect:
+            expect(applied.activeMode, 'Rainbow Wave');
+          case _OpenRgbEdit.brightness:
+            expect(applied.brightness, 25);
+          case _OpenRgbEdit.profile:
+            expect(applied.keyColors, profile.keyColors);
+            expect(applied.activeMode, profile.activeMode);
+            expect(applied.brightness, profile.brightness);
+        }
+      },
+    );
+  }
+
   test('closing during discovery prevents queued profile writes', () async {
     final repo = _PendingKeyboard();
     final store = _FakeStore();
@@ -290,6 +425,10 @@ void main() {
         store: store,
         effectEngine: engine,
       );
+      addTearDown(() async {
+        if (!bloc.isClosed) await bloc.close();
+        engine.dispose();
+      });
       final applied = bloc.stream.firstWhere(
         (s) => s.brightness == 40 && !s.isApplying,
       );
@@ -312,6 +451,17 @@ void main() {
       await failed;
       expect(engine.isRunning, isFalse);
       expect(bloc.state.errorMessage, isNotNull);
+      final dismissed = bloc.stream.firstWhere((s) => s.errorDismissed);
+      bloc.add(RgbErrorDismissed(bloc.state.errorMessage!));
+      await dismissed;
+      expect(bloc.state.visibleErrorMessage, isNull);
+      expect(engine.isRunning, isFalse);
+      final brushChanged = bloc.stream.firstWhere(
+        (s) => s.selectedColor == const Color(0xFF00FF00),
+      );
+      bloc.add(const RgbColorSelected(Color(0xFF00FF00)));
+      await brushChanged;
+      expect(engine.isRunning, isFalse);
       native.fail = false;
       final retried = bloc.stream.firstWhere(
         (s) => !s.isApplying && s.errorMessage == null,
@@ -321,7 +471,6 @@ void main() {
       expect(engine.isRunning, isTrue);
       await bloc.close();
       expect(engine.isRunning, isFalse);
-      engine.dispose();
     },
   );
 

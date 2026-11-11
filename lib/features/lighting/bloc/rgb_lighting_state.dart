@@ -20,6 +20,7 @@ class RgbLightingState extends Equatable {
     this.isLoading = false,
     this.isApplying = false,
     this.errorMessage,
+    this.errorDismissed = false,
     this.nativeAvailable = false,
     this.keyboardLayout = kLegionAnsiLayout,
     this.nativeAvailabilityError,
@@ -51,6 +52,11 @@ class RgbLightingState extends Equatable {
   final bool isLoading;
   final bool isApplying;
   final AppFailure? errorMessage;
+
+  /// Hides the dialog message while the failure still keeps animations stopped.
+  final bool errorDismissed;
+
+  AppFailure? get visibleErrorMessage => errorDismissed ? null : errorMessage;
 
   /// Whether the native (real-time, hidraw) Spectrum path is available — when
   /// true, per-key writes go direct instead of via the OpenRGB CLI.
@@ -84,6 +90,7 @@ class RgbLightingState extends Equatable {
     bool? isLoading,
     bool? isApplying,
     Object? errorMessage = _unset,
+    bool? errorDismissed,
     bool? nativeAvailable,
     KeyboardLayout? keyboardLayout,
     Object? nativeAvailabilityError = _unset,
@@ -105,6 +112,9 @@ class RgbLightingState extends Equatable {
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : AppFailure.optional(errorMessage),
+      errorDismissed:
+          errorDismissed ??
+          (errorMessage == _unset ? this.errorDismissed : false),
       nativeAvailable: nativeAvailable ?? this.nativeAvailable,
       keyboardLayout: keyboardLayout ?? this.keyboardLayout,
       nativeAvailabilityError: nativeAvailabilityError == _unset
@@ -127,6 +137,7 @@ class RgbLightingState extends Equatable {
     isLoading,
     isApplying,
     errorMessage,
+    errorDismissed,
     nativeAvailable,
     keyboardLayout,
     nativeAvailabilityError,

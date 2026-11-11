@@ -133,7 +133,10 @@ class _LightingPageState extends ConsumerState<LightingPage> {
         colorScheme: theme.colorScheme.copyWith(primary: accent),
       ),
       child: AppPageBody(
-        errorMessage: rgb.errorMessage ?? lighting.errorMessage,
+        errorMessage: rgb.visibleErrorMessage ?? lighting.errorMessage,
+        onErrorDismissed: (error) => ref
+            .read(rgbLightingBlocProvider.bloc)
+            .add(RgbErrorDismissed(error)),
         children: [
           if (rgb.available && device != null) ...[
             _DeviceCard(

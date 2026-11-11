@@ -17,6 +17,7 @@ class AppPageBody extends StatelessWidget {
     this.subtitle,
     this.headerAction,
     this.errorMessage,
+    this.onErrorDismissed,
     required this.children,
   });
 
@@ -28,6 +29,7 @@ class AppPageBody extends StatelessWidget {
 
   /// Prefer [AppFailure]. Legacy text is displayed as an unclassified failure.
   final Object? errorMessage;
+  final ValueChanged<AppFailure>? onErrorDismissed;
   final List<Widget> children;
 
   @override
@@ -36,6 +38,7 @@ class AppPageBody extends StatelessWidget {
 
     return AppErrorDialogListener(
       errorMessage: errorMessage,
+      onErrorDismissed: onErrorDismissed,
       child: ListView(
         padding: const EdgeInsets.all(kYaruPagePadding),
         children: [
@@ -90,10 +93,12 @@ class AppErrorDialogListener extends StatefulWidget {
   const AppErrorDialogListener({
     super.key,
     this.errorMessage,
+    this.onErrorDismissed,
     required this.child,
   });
 
   final Object? errorMessage;
+  final ValueChanged<AppFailure>? onErrorDismissed;
   final Widget child;
 
   @override
@@ -136,6 +141,7 @@ class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
     await showAppErrorDialog(context, message);
     if (!mounted) return;
     _dialogVisible = false;
+    widget.onErrorDismissed?.call(message);
 
     final pendingMessage = _pendingMessage;
     _pendingMessage = null;

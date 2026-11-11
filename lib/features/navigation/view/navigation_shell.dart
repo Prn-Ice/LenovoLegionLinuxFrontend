@@ -8,6 +8,7 @@ import '../../../core/widgets/app_shell_components.dart';
 import '../../automation/providers/automation_runtime_provider.dart';
 import '../../automation/providers/automation_provider.dart';
 import '../../lighting/providers/lighting_provider.dart';
+import '../../lighting/bloc/rgb_lighting_event.dart';
 import '../../automation/view/automation_page.dart';
 import '../../battery/bloc/battery_state.dart';
 import '../../battery/bloc/battery_event.dart';
@@ -185,7 +186,7 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     final keyboardError =
         ref.watch(automationBlocProvider).config.profiles.isNotEmpty
         ? ref.watch(
-            rgbLightingBlocProvider.select((state) => state.errorMessage),
+            rgbLightingBlocProvider.select((state) => state.visibleErrorMessage),
           )
         : null;
     // Keep controllers in sync with the navigation bloc.
@@ -197,10 +198,12 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     });
 
     return AppErrorDialogListener(
-      errorMessage:
-          ref.watch(navigationBlocProvider).section == AppSection.lighting
-          ? null
-          : keyboardError,
+      errorMessage: switch (ref.watch(navigationBlocProvider).section) {
+        AppSection.lighting || AppSection.automation => null,
+        _ => keyboardError,
+      },
+      onErrorDismissed: (error) =>
+          ref.read(rgbLightingBlocProvider.bloc).add(RgbErrorDismissed(error)),
       child: _buildLayout(context),
     );
   }

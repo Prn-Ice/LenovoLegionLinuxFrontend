@@ -1,23 +1,28 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dart';
 import 'package:legion_frontend/features/lighting/providers/lighting_provider.dart';
 import 'package:legion_frontend/features/lighting/services/openrgb_cli_service.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.dart';
 
 import 'safe_app.dart';
 
-/// Keeps RGB service calls inside the journey while preserving its real Bloc,
-/// repositories, profile store, and app providers.
+/// Supplies OpenRGB process results without running commands or opening HID.
+/// The journey uses the real service, repositories, Bloc, and profile store.
 class SafeLighting {
   SafeLighting(SafeApp app)
-    : _openRgb = _RecordingOpenRgb(),
-      spectrum = SpectrumHidService(
+    : spectrum = SpectrumHidService(
         sysfsHidrawRoot: '${app.directory.path}/no-hidraw-devices',
         devRoot: '${app.directory.path}/no-devices',
       );
 
-  final _RecordingOpenRgb _openRgb;
+  late final _openRgb = OpenRgbCliService(processRunner: _run);
   final SpectrumHidService spectrum;
+  final writes = <List<String>>[];
+  final requests = <List<String>>[];
+  int? nextExitCode;
+  Completer<void>? writeCompletion;
 
   List<Override> get overrides => [
     openRgbServiceProvider.overrideWithValue(_openRgb),
@@ -27,36 +32,31 @@ class SafeLighting {
     }),
   ];
 
-  List<List<String>> get writes => _openRgb.writes;
-}
-
-class _RecordingOpenRgb extends OpenRgbCliService {
-  final writes = <List<String>>[];
-
-  @override
-  Future<bool> isAvailable() async => true;
-
-  @override
-  Future<List<RgbLightingDevice>> listDevices() async => const [
-    RgbLightingDevice(
-      index: 0,
-      name: 'Journey keyboard',
-      type: 'Keyboard',
-      modes: ['Direct', 'Static'],
-      activeMode: 'Direct',
-      leds: ['Key 1', 'Key 2', 'Key 3'],
-    ),
-  ];
-
-  @override
-  Future<void> apply({
-    required int device,
-    int? zone,
-    String? mode,
-    List<String>? colorsHex,
-    int? brightness,
-    int? speed,
-  }) async {
-    writes.add(List.unmodifiable(colorsHex ?? const []));
+  Future<ProcessResult> _run(String executable, List<String> arguments) async {
+    if (arguments.length == 1 && arguments.single == '--list-devices') {
+      return ProcessResult(1, 0, '''0: Journey keyboard
+Type: Keyboard
+Modes: [Direct] Static
+LEDs: 'Key 1' 'Key 2' 'Key 3'
+''', '');
+    }
+    if (arguments.length < 2 || arguments[0] != '-d' || arguments[1] != '0') {
+      throw StateError('Unexpected OpenRGB command: $executable $arguments');
+    }
+    requests.add(List.unmodifiable(arguments));
+    final exitCode = nextExitCode ?? 0;
+    nextExitCode = null;
+    await writeCompletion?.future;
+    if (exitCode != 0) {
+      return ProcessResult(
+        1,
+        exitCode,
+        'Test command started',
+        'Test device rejected the write',
+      );
+    }
+    final colorFlag = arguments.indexOf('-c');
+    writes.add(colorFlag < 0 ? const [] : arguments[colorFlag + 1].split(','));
+    return ProcessResult(1, 0, '', '');
   }
 }

@@ -46,12 +46,14 @@ void main() {
   testWidgets('error opens a modal dialog and remains until closed', (
     tester,
   ) async {
+    AppFailure? dismissed;
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: Scaffold(
           body: AppErrorDialogListener(
             errorMessage: 'Write failed.',
-            child: Text('Page content'),
+            onErrorDismissed: (error) => dismissed = error,
+            child: const Text('Page content'),
           ),
         ),
       ),
@@ -60,10 +62,43 @@ void main() {
 
     expect(find.text('Action could not be completed'), findsOneWidget);
     expect(find.text('Write failed.'), findsOneWidget);
+    expect(dismissed, isNull);
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     expect(find.text('Write failed.'), findsNothing);
+    expect(dismissed?.message, 'Write failed.');
+  });
+
+  testWidgets('OpenRGB diagnostics stay usable in a compact window', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppErrorDialogListener(
+            errorMessage: AppFailure(
+              'OpenRGB could not apply keyboard lighting. The keyboard may be partly updated. Check the OpenRGB connection and selected device, then retry.',
+              kind: AppFailureKind.commandFailed,
+              details:
+                  'Command: ["openrgb", "-c", "${List.filled(200, 'FF3311').join(',')}"]\nExit code: 17\nDevice rejected the write',
+            ),
+            child: const Text('Lighting'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(AppErrorDialog), findsOneWidget);
+    expect(find.text('Copy details').hitTestable(), findsOneWidget);
+    await tester.tap(find.text('Close').hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.byType(AppErrorDialog), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('control setup error explains distros and copies NixOS config', (

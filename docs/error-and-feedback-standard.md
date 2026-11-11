@@ -55,6 +55,14 @@ queues a different error if one is already visible rather than stacking
 dialogs. The dialog requires an explicit close action and keeps the underlying
 page layout unchanged.
 
+A feature can pass `onErrorDismissed` to acknowledge the displayed failure in
+its Bloc. Acknowledge only that failure, so closing an older dialog preserves a
+newer error. RGB hides the acknowledged message but retains the failure to keep
+animations stopped until retry succeeds. An immediate retry can then show the
+same failure again. Each error must have one presentation owner; Automation and
+Lighting own their RGB dialogs, while the navigation shell handles RGB errors on
+other pages.
+
 Errors produced directly by a view, such as a failed file export, use the same
 shared presentation:
 

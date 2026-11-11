@@ -25,7 +25,9 @@ class AutomationPage extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? lighting.visibleErrorMessage,
+      onErrorDismissed: (error) =>
+          ref.read(rgbLightingBlocProvider.bloc).add(RgbErrorDismissed(error)),
       children: [
         SurfaceCard(
           child: Column(

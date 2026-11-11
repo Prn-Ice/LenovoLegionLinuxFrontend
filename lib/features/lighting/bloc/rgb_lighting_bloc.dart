@@ -14,7 +14,7 @@ import '../services/spectrum_effect_engine.dart';
 import 'rgb_lighting_event.dart';
 import 'rgb_lighting_state.dart';
 
-/// Drives per-key keyboard RGB through [RgbLightingRepository] (OpenRGB).
+/// Owns keyboard edits, saved profiles, and queued backend writes.
 class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   RgbLightingBloc({
     required RgbLightingRepository repository,
@@ -31,6 +31,11 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       if (_closing) return;
       try {
         switch (event) {
+          case RgbErrorDismissed():
+            if (identical(state.errorMessage, event.error)) {
+              emit(state.copyWith(errorDismissed: true));
+            }
+            return;
           case RgbAnimationFailed():
             emit(
               state.copyWith(
@@ -260,14 +265,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     }
 
     // Hardware animation effect (Rainbow Wave, Color Pulse, …) — OpenRGB only.
-    emit(
-      state.copyWith(
-        activeMode: mode,
-        directColors: savedDirect,
-        isApplying: true,
-      ),
-    );
-    await _guard(
+    await _applyOpenRgb(
       emit,
       () => _repository.applyMode(
         device,
@@ -275,6 +273,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         color: state.selectedColor,
         brightness: state.brightness,
       ),
+      appliedState: state.copyWith(activeMode: mode, directColors: savedDirect),
     );
   }
 
@@ -304,10 +303,10 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       emit(state.copyWith(brightness: event.brightness));
       return;
     }
-    emit(state.copyWith(brightness: event.brightness, isApplying: true));
-    await _guard(
+    await _applyOpenRgb(
       emit,
       () => _repository.setBrightness(device, event.brightness),
+      appliedState: state.copyWith(brightness: event.brightness),
     );
   }
 
@@ -562,18 +561,15 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       );
       return;
     }
-    emit(
-      state.copyWith(
-        keyColors: colors,
-        activeMode: activeMode,
-        selectedColor: selectedColor,
-        isApplying: true,
-      ),
-    );
-    await _guard(
+    await _applyOpenRgb(
       emit,
       () =>
           _repository.applyDirect(device, colors, brightness: state.brightness),
+      appliedState: state.copyWith(
+        keyColors: colors,
+        activeMode: activeMode,
+        selectedColor: selectedColor,
+      ),
     );
   }
 
@@ -589,10 +585,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
       emit(state.copyWith(keyColors: filled, activeMode: 'Static'));
       return;
     }
-    emit(
-      state.copyWith(keyColors: filled, activeMode: 'Static', isApplying: true),
-    );
-    await _guard(
+    await _applyOpenRgb(
       emit,
       () => _repository.applyMode(
         device,
@@ -600,18 +593,21 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
         color: state.selectedColor,
         brightness: state.brightness,
       ),
+      appliedState: state.copyWith(keyColors: filled, activeMode: 'Static'),
     );
   }
 
-  /// Runs an apply action, clearing [isApplying] and surfacing any error.
-  Future<void> _guard(
+  /// Keeps the previous lighting values until the OpenRGB command succeeds.
+  Future<void> _applyOpenRgb(
     Emitter<RgbLightingState> emit,
-    Future<void> Function() action,
-  ) async {
+    Future<void> Function() action, {
+    required RgbLightingState appliedState,
+  }) async {
+    emit(state.copyWith(isApplying: true, errorMessage: null));
     try {
       await action();
       if (_closing) return;
-      emit(state.copyWith(isApplying: false, errorMessage: null));
+      emit(appliedState.copyWith(isApplying: false, errorMessage: null));
     } catch (error) {
       if (_closing) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));

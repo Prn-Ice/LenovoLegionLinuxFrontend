@@ -50,7 +50,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers ten scenarios. The battery journey
+The `app_test.dart` entrypoint registers twelve scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -66,6 +66,10 @@ assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting
 unchanged. The mode-switching journey checks assigned profiles while navigating
 away from Automation and preserves manual edits during same-mode refreshes.
+The keyboard recovery journeys return failed OpenRGB process results on Lighting
+and Automation. They check that errors appear, failed writes preserve the last
+successful colors and saved configuration, and retry stays disabled until a
+pending command completes.
 
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
@@ -82,7 +86,7 @@ cmake --build build/linux/x64/debug --target portable_control_channel_test
 build/linux/x64/debug/runner/portable_control_channel_test
 ```
 
-To run only the ten scenarios in the first app process:
+To run only the twelve scenarios in the first app process:
 
 ```bash
 flutter test integration_test/app_test.dart -d linux --no-pub
@@ -104,8 +108,9 @@ used for the setting under test. A fake control transport writes only the
 fixture and rejects other operations. System service status and live sensors
 use fixed repository results because they contain direct host reads. CLI
 execution, display access, and system telemetry are blocked. HID and OpenRGB
-access are blocked by default; the keyboard journey supplies a recording
-OpenRGB service and confines Spectrum discovery to temporary fixture paths.
+access are blocked by default; the keyboard journeys supply OpenRGB process
+results to the real CLI service and confine Spectrum discovery to temporary
+fixture paths.
 Hive data and keyboard assignments are temporary.
 
 No sudo, installed service, or Legion hardware is needed. This journey does not

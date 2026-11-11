@@ -2,6 +2,7 @@ import 'dart:ui' show Color;
 
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/app_failure.dart';
 import '../services/spectrum_effects.dart';
 
 sealed class RgbLightingEvent extends Equatable {
@@ -9,6 +10,15 @@ sealed class RgbLightingEvent extends Equatable {
 
   @override
   List<Object?> get props => const [];
+}
+
+final class RgbErrorDismissed extends RgbLightingEvent {
+  const RgbErrorDismissed(this.error);
+
+  final AppFailure error;
+
+  @override
+  List<Object?> get props => [error];
 }
 
 final class RgbAnimationFailed extends RgbLightingEvent {
