@@ -118,6 +118,44 @@ jobs:
           path: build/ubuntu-qualification
           if-no-files-found: ignore
 
+  appimage:
+    name: AppImage build and Ubuntu acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Download pinned build inputs
+        run: |
+          sdk_url="$(python3 -c 'import json; print(json.load(open("packaging/appimage/build-inputs.json"))["flutter"]["url"])')"
+          curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
+          python3 tool/fetch_appimage_runtime.py build/appimage-inputs
+      - name: Build the AppImage and source companion
+        run: bash tool/build_appimage.sh /tmp/flutter.tar.xz build/appimage-inputs build/appimage-release
+      - name: Download official acceptance VM
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/appimage-jammy.img
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/appimage-jammy.SHA256SUMS
+      - name: Test FUSE, extraction, desktop launch, and the bundled helper
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/appimage-jammy.SHA256SUMS)"
+          bash tool/test_portable_distro.sh /tmp/appimage-jammy.img "$checksum" \
+            build/appimage-qualification --appimage build/appimage-release
+      - name: Upload AppImage, source, and acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: appimage-ubuntu-22.04
+          path: |
+            build/appimage-release
+            build/appimage-qualification
+          if-no-files-found: ignore
+
   linux-integration:
     name: Linux native app integration
     runs-on: ubuntu-latest

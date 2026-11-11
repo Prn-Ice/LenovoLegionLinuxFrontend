@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.prnice.legion_linux_frontend</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <name>Legion Linux Frontend</name>
+  <summary>Control supported Lenovo Legion laptop hardware</summary>
+  <description>
+    <p>Manage power, cooling, battery conservation, and keyboard lighting on supported Lenovo Legion laptops.</p>
+    <p>Interactive controls require an installed LenovoLegionLinux driver and command line tool. Temporary administrator access uses systemd and the desktop authentication agent.</p>
+  </description>
+  <launchable type="desktop-id">io.github.prnice.legion_linux_frontend.desktop</launchable>
+  <url type="homepage">https://github.com/Prn-Ice/LenovoLegionLinuxFrontend</url>
+  <url type="bugtracker">https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/issues</url>
+  <provides><binary>legion_frontend</binary></provides>
+  <content_rating type="oars-1.1"/>
+</component>

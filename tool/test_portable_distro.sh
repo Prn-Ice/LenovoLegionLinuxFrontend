@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build and test the portable helper inside a disposable Ubuntu cloud VM.
+# Test the portable helper and optional AppImage in a disposable Ubuntu VM.
 set -euo pipefail
 
-if [[ $# != 3 || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
-  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY" >&2
+if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
+  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage RELEASE_DIRECTORY]" >&2
   exit 64
 fi
 
@@ -11,6 +11,13 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
+release=
+qualification_archive=native-qualification.tar.gz
+if [[ $# == 5 ]]; then
+  if [[ $4 != --appimage ]]; then echo "Unknown option: $4" >&2; exit 64; fi
+  release="$(realpath -- "$5")"
+  qualification_archive=appimage-qualification.tar.gz
+fi
 for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3; do
   if ! command -v "$program" >/dev/null; then
     echo "Required program is missing: $program" >&2
@@ -81,14 +88,20 @@ LLLF_QUALIFICATION_COMMIT="$(git -C "$root" rev-parse HEAD)"
 LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control telemetry packaging LICENSE THIRD_PARTY_NOTICES.md)"
 tar -czf "$output/native-source.tar.gz" -C "$root" control telemetry packaging LICENSE THIRD_PARTY_NOTICES.md
 scp "${ssh_options[@]}" -P "$port" "$output/native-source.tar.gz" root@127.0.0.1:/root/source.tar.gz
+guest_check=qualify_ubuntu.sh
+if [[ -n $release ]]; then
+  tar -czf "$scratch/appimage-release.tar.gz" -C "$release" .
+  scp "${ssh_options[@]}" -P "$port" "$scratch/appimage-release.tar.gz" root@127.0.0.1:/root/appimage-release.tar.gz
+  guest_check=qualify_appimage_ubuntu.sh
+fi
 set +e
-remote 'mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout 600 bash control/test/qualify_ubuntu.sh' 2>&1 | tee "$output/qualification.log"
+remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout 900 bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
 result=${PIPESTATUS[0]}
 set -e
 remote 'journalctl -b --no-pager' > "$output/journal.log" || true
 if (( result != 0 )); then exit "$result"; fi
-scp "${ssh_options[@]}" -P "$port" root@127.0.0.1:/root/native-qualification.tar.gz "$output/"
-export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected"
+scp "${ssh_options[@]}" -P "$port" "root@127.0.0.1:/root/$qualification_archive" "$output/"
+export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected" LLLF_QUALIFICATION_ARCHIVE="$qualification_archive"
 python3 - <<'PY'
 import hashlib
 import json
@@ -101,11 +114,13 @@ manifest = {
     'source_worktree_modified': bool(os.environ['LLLF_QUALIFICATION_MODIFIED']),
     'cloud_image_sha256': os.environ['LLLF_QUALIFICATION_IMAGE_SHA256'],
     'files': {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
-              for name in ['native-source.tar.gz', 'native-qualification.tar.gz']},
-    'scope': 'Native helper with a synthetic CLI in a disposable Ubuntu VM',
+              for name in ['native-source.tar.gz', os.environ['LLLF_QUALIFICATION_ARCHIVE']]},
+    'scope': 'Portable control with a synthetic CLI in a disposable Ubuntu VM',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
-    'appimage': 'unverified',
+    'appimage': ('FUSE, extraction, desktop launch, and synthetic helper control verified'
+                 if os.environ['LLLF_QUALIFICATION_ARCHIVE'] == 'appimage-qualification.tar.gz'
+                 else 'unverified'),
 }
 (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 PY

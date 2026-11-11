@@ -20,6 +20,14 @@ desktop automation tool or production test-mode flag is needed. See
 
 ## Why some packages are held back
 
+### AppImage runtime
+
+AppImage qualification pins the versioned type-2 runtime `20251108`, its binary
+checksum, source archives, and notices in `packaging/appimage/build-inputs.json`.
+The upstream `continuous` build changes in place. Recheck versioned releases when
+upgrading the runtime. See [the AppImage build](appimage.md) for the host library
+baseline and remaining runtime package-provenance checks.
+
 ### Equatable 2.1
 
 Equatable 3 removes runtime-type checks from equality. Events such as

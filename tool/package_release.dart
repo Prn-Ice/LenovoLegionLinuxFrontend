@@ -15,16 +15,7 @@ Future<void> main(List<String> args) async {
       ),
     };
     final root = File.fromUri(Platform.script).parent.parent;
-    _requireCleanTree(root);
-    await _runBuild(root, ['pub', 'get', '--enforce-lockfile']);
-    final inputs = await captureReleaseInputs(root);
-    await _runBuild(root, ['build', 'linux', '--release', '--no-pub']);
-    final bundle = Directory('${root.path}/build/linux/x64/release/bundle');
-    await bundleNotices(root, bundle);
-    final stamp = <String, Object>{
-      'inputs': inputs,
-      'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
-    };
+    final (bundle: bundle, stamp: stamp) = await buildLinuxRelease(root);
     final archive = File.fromUri(root.uri.resolve(output));
     await packageReleaseSource(root, bundle, archive, stamp);
     stdout.writeln('Packaged release source: ${archive.path}');
@@ -33,6 +24,57 @@ Future<void> main(List<String> args) async {
     exitCode = error is FormatException ? 64 : 1;
   }
 }
+
+/// Build the desktop and optional helper from the recorded source inputs.
+Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
+  Directory root, {
+  bool portableControl = false,
+}) async {
+  _requireCleanTree(root);
+  await _runBuild(root, ['pub', 'get', '--enforce-lockfile']);
+  final inputs = await captureReleaseInputs(root);
+  final arguments = [
+    'build',
+    'linux',
+    '--release',
+    '--no-pub',
+    if (portableControl) '--dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true',
+  ];
+  await _runBuild(root, arguments);
+  if (portableControl) {
+    _run(root, 'cmake', [
+      '-S',
+      'linux',
+      '-B',
+      'build/linux/x64/release',
+      '-DBUILD_PORTABLE_CONTROL_HELPER=ON',
+    ]);
+    await _runBuild(root, arguments);
+  }
+  final bundle = Directory('${root.path}/build/linux/x64/release/bundle');
+  await bundleNotices(root, bundle);
+  return (
+    bundle: bundle,
+    stamp: await recordReleaseBuild(
+      bundle,
+      inputs,
+      portableControl: portableControl,
+    ),
+  );
+}
+
+/// Include every shipped file so a changed helper or native library invalidates
+/// the source pairing just as a changed libapp.so does.
+Future<Map<String, Object>> recordReleaseBuild(
+  Directory bundle,
+  Map<String, Object> inputs, {
+  bool portableControl = false,
+}) async => {
+  'inputs': inputs,
+  'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
+  'bundle': await inventoryReleaseTree(bundle),
+  'build_config': {'portable_control': portableControl},
+};
 
 /// Record source contents before building, so later edits cannot silently become
 /// the source archive for an earlier binary.
@@ -46,7 +88,10 @@ Future<Map<String, Object>> captureReleaseInputs(Directory root) async {
       for (final entry in sources.packages.entries)
         entry.key: {
           'version': entry.value.version,
-          'files': await _inventory(entry.value.root, packageSource: true),
+          'files': await inventoryReleaseTree(
+            entry.value.root,
+            packageSource: true,
+          ),
         },
     },
     'flutter_sdk': sources.sdk == null
@@ -61,8 +106,9 @@ Future<Map<String, Object>> packageReleaseSource(
   Directory root,
   Directory bundle,
   File output,
-  Map<String, Object> stamp,
-) async {
+  Map<String, Object> stamp, {
+  Directory? additionalSources,
+}) async {
   final inputs = stamp['inputs'] as Map;
   if (jsonEncode(await captureReleaseInputs(root)) != jsonEncode(inputs)) {
     throw StateError('Sources changed during the build; build again.');
@@ -71,17 +117,31 @@ Future<Map<String, Object>> packageReleaseSource(
       stamp['binary_sha256']) {
     throw StateError('The built libapp.so changed; build again.');
   }
+  if (stamp['bundle'] != null &&
+      jsonEncode(await inventoryReleaseTree(bundle)) !=
+          jsonEncode(stamp['bundle'])) {
+    throw StateError('The built bundle changed; build again.');
+  }
   final sources = await _resolveSources(root);
   final staging = await Directory.systemTemp.createTemp('legion-release-');
   try {
     final source = Directory('${staging.path}/source');
     await source.create();
     await _gitArchive(root, source, inputs['commit'] as String);
+    if (additionalSources != null) {
+      final copied = Directory('${staging.path}/release-inputs');
+      await _copyPackage(additionalSources, copied);
+      if (jsonEncode(await inventoryReleaseTree(copied)) !=
+          jsonEncode(await inventoryReleaseTree(additionalSources))) {
+        throw StateError('Release inputs changed while copying; build again.');
+      }
+    }
     for (final entry in sources.packages.entries) {
       final copied = Directory('${staging.path}/dependencies/${entry.key}');
       await _copyPackage(entry.value.root, copied);
       final expected = (inputs['packages'] as Map)[entry.key]['files'];
-      if (jsonEncode(await _inventory(copied)) != jsonEncode(expected)) {
+      if (jsonEncode(await inventoryReleaseTree(copied)) !=
+          jsonEncode(expected)) {
         throw StateError('${entry.key} changed while copying; build again.');
       }
     }
@@ -111,7 +171,7 @@ From this archive directory:
 cp dependency-overrides.yaml source/pubspec_overrides.yaml
 cd source
 flutter pub get
-flutter build linux --release --no-pub
+flutter build linux --release --no-pub${(stamp['build_config'] as Map?)?['portable_control'] == true ? ' --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true\ncmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON\nflutter build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true' : ''}
 ```
 
 The overrides use the archived package sources, including any local edits.
@@ -122,11 +182,14 @@ rebuilt binary's checksum.
 ''',
     );
     final manifest = <String, Object>{
-      'format': 3,
+      'format': 4,
       'inputs': inputs,
+      if (stamp['build_config'] != null) 'build_config': stamp['build_config']!,
       'binary_sha256': stamp['binary_sha256']!,
-      'bundle': await _inventory(bundle),
-      'application_source': await _inventory(source),
+      'bundle': await inventoryReleaseTree(bundle),
+      'application_source': await inventoryReleaseTree(source),
+      if (additionalSources != null)
+        'release_inputs': await inventoryReleaseTree(additionalSources),
     };
     await File('${staging.path}/SOURCE-MANIFEST.json').writeAsString(
       '${const JsonEncoder.withIndent('  ').convert(manifest)}\n',
@@ -238,7 +301,7 @@ Future<void> _copyPackage(Directory from, Directory to) async {
   if (result.exitCode != 0) throw StateError(result.stderr.toString());
 }
 
-Future<Map<String, Map<String, String>>> _inventory(
+Future<Map<String, Map<String, String>>> inventoryReleaseTree(
   Directory root, {
   bool packageSource = false,
 }) async {

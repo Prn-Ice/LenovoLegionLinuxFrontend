@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Legion Linux Frontend
+Comment=Control supported Lenovo Legion laptop hardware
+Exec=legion_frontend
+Icon=io.github.prnice.legion_linux_frontend
+Terminal=false
+Categories=Settings;HardwareSettings;
+StartupWMClass=io.github.prnice.legion_linux_frontend

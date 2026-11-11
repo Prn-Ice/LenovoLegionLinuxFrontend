@@ -3,6 +3,10 @@ import shlex
 from datetime import timedelta
 from urllib.parse import unquote
 
+# Nix supplies the driver in this script's globals; standalone VM tests assign
+# their local adapter after importing the module.
+machine = globals().get("machine")
+
 
 def portable_as_user(user, command):
     return "runuser -u " + shlex.quote(user) + " -- sh -c " + shlex.quote(command)
@@ -11,15 +15,18 @@ def portable_as_user(user, command):
 class PortableSession:
     """Drive the VM-only app client while inspecting its synthetic backend."""
 
-    def __init__(self, user, launcher):
+    def __init__(self, user, launcher, copy_launcher=True):
         self.user = user
         directory = machine.succeed(
             portable_as_user(user, "mktemp -d '/home/" + user + "/Portable app.XXXXXX'")
         ).strip()
         self.output = directory + "/client.out"
         self.input = directory + "/client.in"
-        binary = directory + "/portable-bootstrap-probe"
-        machine.succeed(portable_as_user(user, "cp " + shlex.quote(launcher) + " " + shlex.quote(binary) + "; chmod 700 " + shlex.quote(binary) + "; mkfifo " + shlex.quote(self.input)))
+        binary = launcher
+        if copy_launcher:
+            binary = directory + "/portable-bootstrap-probe"
+            machine.succeed(portable_as_user(user, "cp " + shlex.quote(launcher) + " " + shlex.quote(binary) + "; chmod 700 " + shlex.quote(binary)))
+        machine.succeed(portable_as_user(user, "mkfifo " + shlex.quote(self.input)))
         command = "exec legion-portable-test-client " + shlex.quote(binary) + " <>" + shlex.quote(self.input)
         machine.succeed(portable_as_user(user, command) + " >" + shlex.quote(self.output) + " 2>" + shlex.quote(self.output + ".err") + " &")
         try:

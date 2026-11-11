@@ -18,10 +18,8 @@ void main() {
       ..writeAsStringSync(content);
   }
 
-  Future<Map<String, Object>> recordBuild() async => {
-    'inputs': await captureReleaseInputs(root),
-    'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
-  };
+  Future<Map<String, Object>> recordBuild() async =>
+      recordReleaseBuild(bundle, await captureReleaseInputs(root));
 
   setUp(() async {
     workspace = await Directory.systemTemp.createTemp('release source ');
@@ -182,6 +180,64 @@ void main() {
     );
   });
 
+  test('rejects a helper replaced after the build', () async {
+    write('${bundle.path}/libexec/legion-portable-control', 'approved helper');
+    stamp = await recordBuild();
+    write('${bundle.path}/libexec/legion-portable-control', 'replacement');
+    await expectLater(
+      packageReleaseSource(
+        root,
+        bundle,
+        File('${root.path}/build/release.tar.gz'),
+        stamp,
+      ),
+      throwsStateError,
+    );
+  });
+
+  test(
+    'retains portable build flags and extra runtime source inputs',
+    () async {
+      final runtime = Directory('${workspace.path}/runtime-inputs')
+        ..createSync();
+      write('${runtime.path}/runtime-source.tar.gz', 'runtime source archive');
+      stamp = await recordReleaseBuild(
+        bundle,
+        await captureReleaseInputs(root),
+        portableControl: true,
+      );
+      final archive = File('${root.path}/build/release.tar.gz');
+      final manifest = await packageReleaseSource(
+        root,
+        bundle,
+        archive,
+        stamp,
+        additionalSources: runtime,
+      );
+      expect((manifest['build_config'] as Map)['portable_control'], isTrue);
+      expect(
+        (manifest['release_inputs'] as Map).keys,
+        contains('./runtime-source.tar.gz'),
+      );
+      final recipe = await _run(root, 'tar', [
+        '-xOf',
+        archive.path,
+        './REBUILD.md',
+      ]);
+      expect(recipe.stdout, contains('-DBUILD_PORTABLE_CONTROL_HELPER=ON'));
+      expect(
+        recipe.stdout,
+        contains('--dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true'),
+      );
+      final source = await _run(root, 'tar', [
+        '-xOf',
+        archive.path,
+        './release-inputs/runtime-source.tar.gz',
+      ]);
+      expect(source.stdout, 'runtime source archive');
+    },
+  );
+
   test(
     'records SDK revisions without private paths or SDK package copies',
     () async {
@@ -275,12 +331,6 @@ void main() {
       throwsStateError,
     );
   });
-}
-
-Future<String> _sha256(File file) async {
-  final result = await Process.run('sha256sum', ['--zero', file.path]);
-  if (result.exitCode != 0) throw StateError(result.stderr.toString());
-  return result.stdout.toString().substring(0, 64);
 }
 
 Future<ProcessResult> _run(
