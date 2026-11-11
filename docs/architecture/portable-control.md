@@ -386,8 +386,10 @@ request/status/cancellation, graphics exit codes,
 detached stdout holders, output limits, runtime deadlines, and client/helper
 `SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
 The test passed on 2026-11-11 with the pinned NixOS environment: systemd 262,
-GLib 2.88.3, and Polkit 127. Debian/Ubuntu versions still need qualification.
-Live authentication-dialog cancellation still needs desktop qualification.
+GLib 2.88.3, and Polkit 127. See the
+[Ubuntu helper qualification](portable-distro-qualification.md) for the separate
+distro-library check. Debian compatibility and live authentication-dialog
+cancellation still need testing.
 
 ## Hardware-free prototype
 

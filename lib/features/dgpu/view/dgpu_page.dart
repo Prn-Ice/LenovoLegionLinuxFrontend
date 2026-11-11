@@ -81,8 +81,8 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                     ? 'The selected graphics policy currently expects the '
                           'NVIDIA dGPU to be absent. AMD graphics can continue '
                           'driving the internal display.'
-                    : 'No NVIDIA display controller with runtime power '
-                          'management was found. Refresh after checking the '
+                    : 'The system found no NVIDIA display controller with '
+                          'runtime power management. Refresh after checking the '
                           'driver and graphics policy.',
               ),
               const SizedBox(height: 12),
@@ -188,9 +188,9 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
   ) async {
     final message = switch (mode) {
       GraphicsMode.hybrid =>
-        'This restores normal Hybrid graphics and requests that the NVIDIA '
-            'dGPU is attached. A MUX policy change may require a reboot. Save '
-            'your work before continuing.',
+        'This restores normal Hybrid graphics and requests that the system '
+            'attach the NVIDIA dGPU. A MUX policy change may require a reboot. '
+            'Save your work before continuing.',
       GraphicsMode.hybridIgpuOnly =>
         'This can remove the NVIDIA dGPU from the running system. Disconnect '
             'external displays, save your work, and close GPU-accelerated '

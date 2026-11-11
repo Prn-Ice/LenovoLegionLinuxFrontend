@@ -27,7 +27,7 @@ class DisplayPage extends ConsumerWidget {
         AppControlCard(
           icon: YaruIcons.monitor,
           title: 'Overdrive',
-          description: 'Reduces display response time',
+          description: 'Reduces display response time.',
           children: [
             AppSwitchTile(
               value: state.overdriveEnabled ?? false,
@@ -37,7 +37,7 @@ class DisplayPage extends ConsumerWidget {
                         context,
                         title: 'Toggle overdrive',
                         message:
-                            'Changing overdrive uses privileged access and may prompt for authentication.',
+                            'Changing overdrive uses privileged access and may require authentication.',
                         confirmLabel: 'Apply',
                       );
                       if (!context.mounted || !confirmed) {
@@ -64,7 +64,7 @@ class DisplayPage extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 title: Text('Refresh rate switching'),
                 subtitle: Text(
-                  'Unavailable — xrandr not accessible on this session.',
+                  'Unavailable — xrandr is not accessible in this session.',
                 ),
               )
             else

@@ -972,10 +972,10 @@ class _BrightnessCardState extends State<_BrightnessCard> {
 String rgbUnavailableMessage({String? nativeAvailabilityError}) {
   if (nativeAvailabilityError != null) {
     return 'Native Spectrum RGB is unavailable: $nativeAvailabilityError. '
-        'The backlight toggles below still work.';
+        'The backlight toggles below remain available.';
   }
   return 'Start OpenRGB (with its udev rules) to control the keyboard RGB. '
-      'The backlight toggles below still work.';
+      'The backlight toggles below remain available.';
 }
 
 class _UnavailableCard extends StatelessWidget {

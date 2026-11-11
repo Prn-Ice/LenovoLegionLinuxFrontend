@@ -41,22 +41,22 @@ class LegionBridgeException implements Exception {
     return switch (code) {
       LegionBridgeErrorCode.permissionDenied =>
         controlMode == ControlMode.temporaryHelper
-            ? 'Permission was denied or authentication was canceled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
-            : 'Permission was denied or authentication was canceled. Ensure a Polkit authentication agent is running and approve the prompt.',
+            ? 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
+            : 'Permission was denied or authentication was cancelled. Ensure a Polkit authentication agent is running and approve the prompt.',
       LegionBridgeErrorCode.portableSetup =>
         'Temporary hardware access could not start. Check the installed CLI and app files, then reopen the app.',
       LegionBridgeErrorCode.privilegeSetup =>
-        'The legion-control service could not provide privileged access. Verify the service and its Polkit policy are installed and running.',
+        'The legion-control service could not provide privileged access. Verify that the service and its Polkit policy are installed and running.',
       LegionBridgeErrorCode.unavailable =>
         controlMode == ControlMode.temporaryHelper
             ? 'Temporary hardware access is unavailable. Read the current settings and reopen the app before retrying.'
-            : 'The legion-control service or requested capability is unavailable. Verify the service is installed and running.',
+            : 'The legion-control service or requested capability is unavailable. Verify that the service is installed and running.',
       LegionBridgeErrorCode.busy =>
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
         'The command timed out. Read the current settings before retrying.',
       LegionBridgeErrorCode.graphicsBlocked =>
-        'The graphics change was blocked before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
+        'The system blocked the graphics change before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
       LegionBridgeErrorCode.graphicsPending =>
         'The selected graphics policy may have changed, but effective topology did not settle. Restore Hybrid from a TTY or reboot before continuing.',
       LegionBridgeErrorCode.commandFailed => '',

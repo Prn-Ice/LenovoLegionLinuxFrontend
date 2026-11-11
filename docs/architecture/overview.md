@@ -32,7 +32,7 @@ state or reports an error.
 Feature repositories pass typed `LegionControlClient` calls to
 `LegionFrontendBridgeService.runControlOperation`. Commands use the enums in
 `lib/core/models/control_selectors.dart`, such as `ControlToggle.rapidCharging`.
-The client converts them to the names expected by D-Bus. The bridge owns serialization,
+The client converts them to the D-Bus names. The bridge owns serialization,
 duplicate detection, timeouts, history, and control-error translation. Its
 method/argument metadata is for history and duplicate keys, not CLI execution.
 `PrivilegedRepository` preserves failure kinds and details in feature exceptions.
@@ -41,7 +41,7 @@ approved operations to backend commands. Read-only CLI queries still use
 `runCommand`.
 
 Opt-in [next-boot graphics requests](next-boot-graphics.md) also use the control
-service. They save the requested mode for the next boot.
+service to save the requested mode for the next boot.
 
 For contributor workflow and safe hardware testing, see
 [Contributing](../../CONTRIBUTING.md) and the [model-support guide](../model-support.md).

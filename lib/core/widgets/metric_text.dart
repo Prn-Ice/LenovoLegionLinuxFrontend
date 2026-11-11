@@ -4,8 +4,7 @@ import 'metric_format.dart';
 
 /// Mono telemetry text roles, all in the Yaru-bundled Ubuntu Mono
 /// ([kMonoFontFamily] + [kMonoFontPackage]). Yaru's sans `TextTheme` covers
-/// every other piece of text; these name the one exception the design makes —
-/// the numbers — in a single place.
+/// other text; these styles format numbers in telemetry.
 ///
 /// The roles are used directly at call sites (`style: monoMetaStyle(scheme)`).
 /// Color-driven roles take their [Color]/[ColorScheme] as an argument rather

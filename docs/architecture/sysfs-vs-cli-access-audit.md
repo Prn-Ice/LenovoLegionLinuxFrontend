@@ -49,7 +49,7 @@
 Repositories call typed `LegionControlClient` methods inside the bridge's
 `runControlOperation` queue. The root service validates each request and runs a
 fixed backend command. The CLI vocabulary below describes that native backend
-mapping, not repository inputs. Fan curves and boot logos are transferred as
+mapping, not repository inputs. The service transfers fan curves and boot logos as
 bytes; custom fan curves no longer use a shared temporary frontend file.
 
 ### Named CLI commands
