@@ -68,6 +68,7 @@ ELF headers, and exact distro package versions. CI retains these files in the
 
 The helper uses the host loader cache and host libraries. This check rejects an
 RPATH or RUNPATH in that binary. The result is a native qualification artifact;
-the Flutter desktop bundle, Debian package, and AppImage still need their own
-build and acceptance checks. Actual CLI imports/configuration, desktop approval,
-hardware writes, and FUSE/extracted AppImage launch remain unverified.
+the [AppImage check](../appimage.md) also builds the Flutter bundle and exercises
+FUSE, extraction, desktop launch, and the bundled helper. Debian packages,
+actual CLI imports/configuration, desktop approval, and hardware writes remain
+unverified.

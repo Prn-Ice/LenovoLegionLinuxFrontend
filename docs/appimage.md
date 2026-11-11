@@ -1,7 +1,8 @@
 # AppImage qualification build
 
 Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
-contains the Flutter bundle and uses host GTK, GLib, Polkit, and C/C++ libraries.
+contains the Flutter bundle and uses host GTK, GLib, Polkit, EGL/GLES graphics,
+and C/C++ libraries.
 Temporary hardware access requires the installed driver and `legion_cli`, systemd,
 and a desktop authentication agent. Installed service remains the default mode;
 choose Temporary helper in Settings and reopen the app to use it.
@@ -9,11 +10,18 @@ choose Temporary helper in Settings and reopen the app to use it.
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
 
+On 2026-11-11, the Ubuntu 22.04.5 VM checks passed for FUSE launch, extracted
+launch, and synthetic helper write/readback/restore from both locations. The
+desktop rendered its first Flutter frame with GTK 3.24.33, FUSE 3.10.5, and Mesa
+23.2.1. The guest had no Legion driver, JVM, or installed Legion service. The
+existing NixOS bootstrap check also passed with the shared test driver.
+
 ## Build
 
 The builder needs Docker, Git, Python 3, and curl. It runs the compiler as an
 ordinary user in an Ubuntu container. It mounts no host devices or system bus.
-Source packaging requires a clean committed checkout.
+Source packaging requires a clean committed checkout. NixOS users need the
+separate Nix build; this artifact targets the Ubuntu host library baseline.
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz

@@ -41,16 +41,16 @@ Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
     if (portableControl) '--dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true',
   ];
   await _runBuild(root, arguments);
-  if (portableControl) {
-    _run(root, 'cmake', [
-      '-S',
-      'linux',
-      '-B',
-      'build/linux/x64/release',
-      '-DBUILD_PORTABLE_CONTROL_HELPER=ON',
-    ]);
-    await _runBuild(root, arguments);
-  }
+  // Configure explicitly so a prior portable build cannot leave the helper
+  // enabled in the next ordinary release's CMake cache.
+  _run(root, 'cmake', [
+    '-S',
+    'linux',
+    '-B',
+    'build/linux/x64/release',
+    '-DBUILD_PORTABLE_CONTROL_HELPER=${portableControl ? 'ON' : 'OFF'}',
+  ]);
+  await _runBuild(root, arguments);
   final bundle = Directory('${root.path}/build/linux/x64/release/bundle');
   await bundleNotices(root, bundle);
   return (
@@ -117,9 +117,8 @@ Future<Map<String, Object>> packageReleaseSource(
       stamp['binary_sha256']) {
     throw StateError('The built libapp.so changed; build again.');
   }
-  if (stamp['bundle'] != null &&
-      jsonEncode(await inventoryReleaseTree(bundle)) !=
-          jsonEncode(stamp['bundle'])) {
+  if (jsonEncode(await inventoryReleaseTree(bundle)) !=
+      jsonEncode(stamp['bundle'])) {
     throw StateError('The built bundle changed; build again.');
   }
   final sources = await _resolveSources(root);

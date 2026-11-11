@@ -195,6 +195,19 @@ void main() {
     );
   });
 
+  test('requires the whole bundle fingerprint for source pairing', () async {
+    stamp.remove('bundle');
+    await expectLater(
+      packageReleaseSource(
+        root,
+        bundle,
+        File('${root.path}/build/release.tar.gz'),
+        stamp,
+      ),
+      throwsStateError,
+    );
+  });
+
   test(
     'retains portable build flags and extra runtime source inputs',
     () async {

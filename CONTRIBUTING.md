@@ -178,6 +178,10 @@ To build and test the production helper with Ubuntu 22.04's libraries, follow
 the [Ubuntu VM qualification](docs/architecture/portable-distro-qualification.md).
 It uses a synthetic CLI and records the image, source, package versions, and results.
 
+To build and test the actual AppImage through FUSE and extraction, follow
+[the AppImage instructions](docs/appimage.md). Its acceptance VM uses synthetic
+hardware and verifies desktop launch without a JVM.
+
 To capture screenshots for visual review:
 
 ```bash

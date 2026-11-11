@@ -3,9 +3,8 @@ import shlex
 from datetime import timedelta
 from urllib.parse import unquote
 
-# Nix supplies the driver in this script's globals; standalone VM tests assign
-# their local adapter after importing the module.
-machine = globals().get("machine")
+# Nix supplies `machine` in this script's globals. Standalone VM tests assign
+# their local adapter after importing this test fragment.
 
 
 def portable_as_user(user, command):

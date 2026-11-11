@@ -43,8 +43,9 @@ See [Contributing](CONTRIBUTING.md) for installation commands.
 ### Hardware features
 
 - Supported `legion_linux` kernel module
-- `legion_cli` backend in `PATH`
-- `legion-control` service with its D-Bus policy and Polkit action
+- `legion_cli` backend; temporary-helper builds require an administrator-controlled installation
+- Installed service mode: `legion-control` with its D-Bus policy and Polkit action
+- Temporary helper mode: systemd and the bundled helper in the [AppImage qualification build](docs/appimage.md)
 - Desktop Polkit authentication agent
 - NVIDIA drivers for NVIDIA dGPU features
 
@@ -60,8 +61,10 @@ services.legionControl = {
 
 ## Running
 
-Running the app requires `legion_cli` in `PATH`. You can
-[run tests without it](CONTRIBUTING.md#test-without-hardware).
+Hardware controls require `legion_cli`. Installed mode finds it in `PATH` for
+reads; temporary mode checks fixed administrator-controlled host locations.
+See the [AppImage build and trial instructions](docs/appimage.md), or
+[run tests with synthetic hardware](CONTRIBUTING.md#test-without-hardware).
 
 ```bash
 flutter run -d linux
