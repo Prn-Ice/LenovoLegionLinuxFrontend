@@ -349,7 +349,7 @@ class _ControlCard extends StatelessWidget {
   }
 }
 
-/// The OpenRGB keyboard identity card (magenta), with name + active effect.
+/// Keyboard name, active effect, and selected backend.
 class _DeviceCard extends StatelessWidget {
   const _DeviceCard({
     required this.device,
@@ -414,7 +414,7 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
-/// The keyboard preview on a darker surface so the keys pop, like the design.
+/// Keyboard preview on a darker surface for key contrast.
 class _KeyboardCard extends StatelessWidget {
   const _KeyboardCard({
     required this.layout,
@@ -614,10 +614,8 @@ class _ColorCard extends StatelessWidget {
   }
 }
 
-/// A precise color picker: a saturation/value square over the current hue, plus
-/// a hue slider. Tap or drag either — reaches every color (white, pastels, dim
-/// shades, warm whites), unlike a hue-only wheel. Keeps a remembered hue so
-/// greys/whites don't lose it.
+/// A saturation/value square and hue slider. Remembers the hue while the
+/// selected color is gray or white.
 class _ColorPicker extends StatefulWidget {
   const _ColorPicker({required this.selected, required this.onChanged});
 
@@ -972,10 +970,10 @@ class _BrightnessCardState extends State<_BrightnessCard> {
 String rgbUnavailableMessage({String? nativeAvailabilityError}) {
   if (nativeAvailabilityError != null) {
     return 'Native Spectrum RGB is unavailable: $nativeAvailabilityError. '
-        'The backlight toggles below still work.';
+        'Separate backlight controls appear below when supported.';
   }
   return 'Start OpenRGB (with its udev rules) to control the keyboard RGB. '
-      'The backlight toggles below still work.';
+      'Separate backlight controls appear below when supported.';
 }
 
 class _UnavailableCard extends StatelessWidget {

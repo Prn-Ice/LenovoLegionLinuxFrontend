@@ -77,7 +77,7 @@ class RgbLightingState extends Equatable {
   /// Active software animated effects, each bound to a region of LEDs.
   final List<SpectrumRegionEffect> effects;
 
-  /// Names of saved named profiles, in creation order.
+  /// Saved profile names in creation order.
   final List<String> profileNames;
 
   RgbLightingState copyWith({

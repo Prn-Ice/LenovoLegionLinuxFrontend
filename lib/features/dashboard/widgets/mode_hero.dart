@@ -29,7 +29,7 @@ String modeDescription(String? mode) {
     case 'power-saver':
       return 'Keeps heat, noise, and power use low.';
     case 'balanced':
-      return 'Quick when you need it, calm when you do not.';
+      return 'Balances performance and power use.';
     case 'performance':
       return 'Uses more power and cooling for sustained speed.';
     case 'max-power':

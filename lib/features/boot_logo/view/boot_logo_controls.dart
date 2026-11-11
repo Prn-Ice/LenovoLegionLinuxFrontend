@@ -84,7 +84,7 @@ class BootLogoControls extends ConsumerWidget {
       context,
       title: 'Apply Boot Logo',
       message:
-          'This writes the selected image to EFI and updates UEFI variables. Changes appear after reboot.',
+          'This writes the selected image to EFI and updates UEFI variables. Changes take effect on the next boot.',
       confirmLabel: 'Apply',
     );
     if (confirmed &&
@@ -100,7 +100,7 @@ class BootLogoControls extends ConsumerWidget {
       context,
       title: 'Restore Default Logo',
       message:
-          'This clears the custom boot logo flag in UEFI variables and restores the stock logo after reboot.',
+          'This clears the custom boot logo flag in UEFI variables and restores the stock logo on the next boot.',
       confirmLabel: 'Restore',
     );
     if (confirmed &&

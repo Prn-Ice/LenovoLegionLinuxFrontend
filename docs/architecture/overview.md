@@ -5,8 +5,7 @@ Privileged hardware changes go through the C++ `legion-control` service
 (`io.github.prnice.LegionControl1`), which checks permissions with Polkit and
 accepts only approved operations. Optional automation runs as the current user.
 
-Keyboard lighting communicates with supported keyboards through HID, not
-`legion-control`.
+Keyboard lighting uses native Spectrum HID or OpenRGB, not `legion-control`.
 
 ## Code layout
 
@@ -29,21 +28,22 @@ creates and disposes dependencies.
 service. The service checks and applies the change. The feature then reloads its
 state or reports an error.
 
-Feature repositories pass typed `LegionControlClient` calls to
+Most feature repositories pass typed `LegionControlClient` calls to
 `LegionFrontendBridgeService.runControlOperation`. Commands use the enums in
 `lib/core/models/control_selectors.dart`, such as `ControlToggle.rapidCharging`.
-The client converts them to the names expected by D-Bus. The bridge owns serialization,
+The client converts them to the D-Bus names. The bridge owns serialization,
 duplicate detection, timeouts, history, and control-error translation. Its
 method/argument metadata is for history and duplicate keys, not CLI execution.
 `PrivilegedRepository` preserves failure kinds and details in feature exceptions.
+Settings calls the typed client directly for service changes.
 Fan curves and boot logos cross D-Bus as bytes; only the native service maps
 approved operations to backend commands. Read-only CLI queries still use
 `runCommand`.
 
 Opt-in [next-boot graphics requests](next-boot-graphics.md) also use the control
-service. They save the requested mode for the next boot.
+service to save the requested mode for the next boot.
 
 For contributor workflow and safe hardware testing, see
 [Contributing](../../CONTRIBUTING.md) and the [model-support guide](../model-support.md).
-See the [sysfs/CLI access audit](sysfs-vs-cli-access-audit.md) for each feature's
-read and write methods.
+See the [sysfs/CLI access audit](sysfs-vs-cli-access-audit.md) for representative
+read paths and backend command mappings.

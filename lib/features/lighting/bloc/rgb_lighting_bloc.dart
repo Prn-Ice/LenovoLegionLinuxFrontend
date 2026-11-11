@@ -219,8 +219,7 @@ class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
     }
   }
 
-  /// A device synthesized from the native LED map, for when OpenRGB isn't
-  /// running but the keyboard is present — makes native fully standalone.
+  /// Describes a detected native keyboard without requiring OpenRGB discovery.
   RgbLightingDevice? _syntheticNativeDevice(bool nativeOk) {
     if (!nativeOk) return null;
     final profile = _native?.keyboardProfile;

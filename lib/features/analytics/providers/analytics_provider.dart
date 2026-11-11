@@ -1,4 +1,3 @@
-// lib/features/analytics/providers/analytics_provider.dart
 import 'package:riverbloc/riverbloc.dart';
 
 import '../../../core/providers/system_services_provider.dart';

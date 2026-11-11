@@ -12,8 +12,9 @@ control API with a synthetic CLI. The desktop checks protocol compatibility
 before API authorization. Backend process containment, shared write locking,
 Dart launcher supervision, and trusted executable validation are implemented.
 The opt-in production helper discovers the installed CLI and checks
-its command syntax before accepting a connection. Desktop selection, host CLI
-package qualification, and release packages remain open. See the
+its command syntax before accepting a connection. Settings supports selection
+for the next launch in qualification builds. Host CLI package qualification and
+release packages remain open. See the
 [public backlog](../../BACKLOG.md).
 
 The intended default for all formats is a temporary authorized helper.
@@ -386,8 +387,10 @@ request/status/cancellation, graphics exit codes,
 detached stdout holders, output limits, runtime deadlines, and client/helper
 `SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
 The test passed on 2026-11-11 with the pinned NixOS environment: systemd 262,
-GLib 2.88.3, and Polkit 127. Debian/Ubuntu versions still need qualification.
-Live authentication-dialog cancellation still needs desktop qualification.
+GLib 2.88.3, and Polkit 127. See the
+[Ubuntu helper qualification](portable-distro-qualification.md) for the separate
+distro-library check. Debian compatibility and live authentication-dialog
+cancellation still need testing.
 
 ## Hardware-free prototype
 

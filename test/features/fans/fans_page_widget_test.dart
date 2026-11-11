@@ -224,7 +224,7 @@ void main() {
     expect(find.text('Fan controls'), findsOneWidget);
     expect(find.text('Reduce fan cycling'), findsOneWidget);
     expect(find.text('Maximum fan speed'), findsOneWidget);
-    expect(find.text('Exclusive fan control'), findsOneWidget);
+    expect(find.text('Lock fan controller'), findsOneWidget);
     expect(find.text('Controller safeguards'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
   });

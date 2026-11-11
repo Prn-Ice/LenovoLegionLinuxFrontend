@@ -75,8 +75,8 @@ absent.
 
 The next boot had no filesystem recovery, I/O errors, failed units, or pstore
 record. Early reconciliation restored the selected Hybrid iGPU-only policy and
-settled detached after six attempts. The hang did not recur after the backend
-fixes and after closing graphics and audio clients. The cause remains unknown.
+settled detached after six attempts. The hang did not recur after backend fixes
+and after closing graphics and audio clients. The cause remains unknown.
 If it happens again, capture console or pstore logs; the brief kworker observation
 does not identify the cause.
 

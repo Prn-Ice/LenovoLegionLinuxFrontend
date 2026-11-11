@@ -53,7 +53,7 @@ class SettingsPage extends ConsumerWidget {
         Text('Accent follows power mode', style: textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
-          'Quiet, Balanced, Performance or Custom sets the accent '
+          'Quiet, Balanced, Performance, or Custom sets the accent '
           'throughout the app.',
           style: textTheme.bodySmall?.copyWith(
             color: Theme.of(
@@ -99,7 +99,7 @@ class SettingsPage extends ConsumerWidget {
               final confirmed = await confirmPrivilegedAction(
                 context,
                 title: 'Update ${service.label}',
-                message: 'Changing services may ask you to authenticate.',
+                message: 'Changing services may require authentication.',
                 confirmLabel: 'Apply',
               );
               if (!context.mounted || !confirmed) {
@@ -149,7 +149,7 @@ class SettingsPage extends ConsumerWidget {
                       context,
                       title: 'Change Win Key',
                       message:
-                          'Changing the Win Key uses privileged access and may prompt for authentication.',
+                          'Changing the Win key uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -194,7 +194,7 @@ class SettingsPage extends ConsumerWidget {
                       context,
                       title: 'Toggle overdrive',
                       message:
-                          'Changing overdrive uses privileged access and may prompt for authentication.',
+                          'Changing overdrive uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -212,7 +212,7 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 8),
           if (display.availableRefreshRates == null ||
               display.availableRefreshRates!.isEmpty)
-            const Text('Unavailable — xrandr not accessible on this session.')
+            const Text('Unavailable — xrandr is not accessible in this session.')
           else
             Wrap(
               spacing: 8,

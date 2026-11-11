@@ -36,10 +36,11 @@ records whether the control service is running (`control_service_active`). Write
 are marked `unverified`: diagnostics do not change settings or test whether a
 previous command changed the hardware.
 
-The report includes only the named model and BIOS fields. Serial numbers, UUIDs,
-host/user names, the local CLI path, and raw CLI errors are excluded. Paths in
-command arguments are replaced with `<path>`. Review the report before posting
-it, and describe any settings you tested manually alongside it.
+The report includes hardware identifiers, versions, probe results, service status,
+and command history. Serial-number, UUID, and host/user-name fields are excluded;
+the export omits the local CLI path and raw CLI errors. Paths in command arguments
+are replaced with `<path>`. Review the report before posting it, and describe any
+settings you tested manually alongside it.
 
 `test/fixtures/sysfs/alternate-layout.json` contains **synthetic test data** chosen
 to exercise alternate Ideapad, LED, mains and `yogafan` paths. It was not recorded
@@ -102,11 +103,12 @@ targets inside the test tree.
 
 ## Add model-specific data
 
-Power and temperature settings recorded from an `82Y4` laptop with `M1CN48WW`
-BIOS were chosen as the app's defaults for that model and BIOS. They live in
+Power and temperature readings recorded from an `82Y4` laptop with `M1CN48WW`
+BIOS serve as comparison values for that exact model and BIOS. They live in
 `lib/features/power/models/power_model_defaults.dart`. The Power page shows them
-beside current settings. See [the capture notes](power-defaults-evidence.md) for
-where the numbers came from. Add another entry only with its model, BIOS, recorded
+beside current settings as **Reference**, not verified factory defaults or values
+to restore. See [the capture notes](power-defaults-evidence.md) for where the
+numbers came from. Add another entry only with its model, BIOS, recorded
 values, and an explanation of why those values should be used. Extend
 `test/features/power/power_model_defaults_test.dart` so nearby BIOS versions and
 unknown models do not inherit them.

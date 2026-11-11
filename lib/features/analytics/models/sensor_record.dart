@@ -1,4 +1,3 @@
-// lib/features/analytics/models/sensor_record.dart
 import 'package:hive_ce/hive.dart';
 
 part 'sensor_record.g.dart';

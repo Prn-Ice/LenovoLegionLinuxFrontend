@@ -1,4 +1,3 @@
-// lib/features/analytics/bloc/analytics_event.dart
 import 'package:equatable/equatable.dart';
 
 import 'analytics_state.dart';

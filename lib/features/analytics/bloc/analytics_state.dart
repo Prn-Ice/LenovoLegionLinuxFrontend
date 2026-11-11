@@ -1,4 +1,3 @@
-// lib/features/analytics/bloc/analytics_state.dart
 import 'package:equatable/equatable.dart';
 
 import '../../../core/models/app_failure.dart';

@@ -19,7 +19,7 @@ class _Cli extends Mock implements LegionCliService {}
 class _Sysfs extends Mock implements LegionSysfsService {}
 
 void main() {
-  testWidgets('control failure survives bridge, repository, Bloc and dialog', (
+  testWidgets('control failure survives bridge, repository, Bloc, and dialog', (
     tester,
   ) async {
     final control = _Control();
