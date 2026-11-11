@@ -174,6 +174,10 @@ policies. The startup probe uses a synthetic CLI and refuses to run on the host.
 See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
 for its trust boundary and remaining checks.
 
+To build and test the production helper with Ubuntu 22.04's libraries, follow
+the [Ubuntu VM qualification](docs/architecture/portable-distro-qualification.md).
+It uses a synthetic CLI and records the image, source, package versions, and results.
+
 To capture screenshots for visual review:
 
 ```bash

@@ -31,7 +31,8 @@ bool RootVm() {
 void test_root_links_and_permissions() {
   if (!RootVm())
     return;
-  char directory[] = "/run/legion-trusted-cli-XXXXXX";
+  // Ubuntu mounts /run with noexec; this fixture needs an executable directory.
+  char directory[] = "/var/lib/legion-trusted-cli-XXXXXX";
   g_assert_nonnull(mkdtemp(directory));
   const std::string executable = std::string(directory) + "/cli";
   std::ofstream(executable) << "#!/bin/sh\nexit 0\n";

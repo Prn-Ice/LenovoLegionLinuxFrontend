@@ -449,6 +449,10 @@ versions; extend that matrix as other distributions are checked. Verify:
 CI can prove builds and hardware-free behavior. Record desktop authorization and
 hardware checks separately, with the distribution and component versions.
 
+The [Ubuntu helper qualification](portable-distro-qualification.md) builds and
+tests the production helper against distro libraries in a disposable VM. Its
+synthetic CLI checks startup and containment before release packaging.
+
 ## References
 
 Context7 was unavailable during this investigation. The API research used primary

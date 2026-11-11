@@ -90,6 +90,34 @@ jobs:
           nix build .#checks.x86_64-linux.control-lifecycle
           .#checks.x86_64-linux.portable-bootstrap --print-build-logs
 
+  portable-ubuntu:
+    name: Portable helper on Ubuntu 22.04
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Download official Ubuntu cloud image and checksum
+        run: |
+          curl --fail --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/jammy.img
+          curl --fail --location --retry 3 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/jammy.SHA256SUMS
+      - name: Build and qualify against distro libraries in the VM
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/jammy.SHA256SUMS)"
+          bash tool/test_portable_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualification
+      - name: Upload qualification results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portable-ubuntu-22.04-qualification
+          path: build/ubuntu-qualification
+          if-no-files-found: ignore
+
   linux-integration:
     name: Linux native app integration
     runs-on: ubuntu-latest

@@ -236,7 +236,8 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
       [](gpointer data, GClosure *) {
         delete static_cast<PeerIdentity *>(data);
       },
-      G_CONNECT_DEFAULT);
+      // The named zero flag was added in GLib 2.74; Ubuntu 22.04 has 2.72.
+      GConnectFlags{});
   const std::string socket = directory + "/control.sock";
   char *guid = g_dbus_generate_guid();
   session.server = g_dbus_server_new_sync(("unix:path=" + socket).c_str(),
