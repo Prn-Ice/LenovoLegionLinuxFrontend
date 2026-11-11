@@ -14,7 +14,8 @@ See [contributor setup](../CONTRIBUTING.md) for installation commands and option
 Nix/direnv configuration.
 
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
-development dependency. It follows the installed Flutter version. See
+development dependency. It follows the installed Flutter version. These tests
+need no external desktop automation tool or production test-mode flag. See
 [the integration journey command](../CONTRIBUTING.md#linux-app-integration-journey).
 
 ## Why some packages are held back

@@ -92,8 +92,8 @@ class LegionSysfsService {
   final Map<String, String?> _powerSupplyDirCache = {};
   static const String _dmiPath = '/sys/class/dmi/id';
 
-  /// Reads the hardware files included in diagnostics. Includes only the named
-  /// model and BIOS fields; excludes serial numbers and UUIDs.
+  /// Reads the hardware files included in diagnostics. DMI probes include only
+  /// model and BIOS fields, not serial numbers or UUIDs.
   Future<HardwareFileResults> readHardwareProbes() async {
     final probes = <HardwareCheck, SysfsProbe>{};
     for (final entry in {

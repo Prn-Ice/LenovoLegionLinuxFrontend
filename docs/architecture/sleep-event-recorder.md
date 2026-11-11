@@ -3,7 +3,7 @@
 The user reported a dark screen with keyboard and power-button lights remaining
 on around hibernation. Fan activity and normal shutdown behavior are unknown.
 We are investigating this in `lllf-p4q`; intentional sleep tests are paused.
-We cancelled the pending iGPU-only request, leaving Hybrid unchanged.
+The pending iGPU-only request was cancelled, leaving Hybrid unchanged.
 
 ## Leave the recorder running
 

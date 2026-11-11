@@ -21,14 +21,14 @@ assigned mode change or explicit profile application.
 ## Previous automation settings
 
 We removed the old fan-preset, conservation, rapid-charging, and shell-command
-rules. Existing enabled flags do not run. The configuration reader reads only
-`keyboardProfiles`; the next saved assignment replaces the old file with
-version 2. The app stores assignments in
+rules. The app ignores their old enabled flags and reads only `keyboardProfiles`.
+The next saved assignment replaces the old file with version 2. The app stores
+assignments in
 `$XDG_CONFIG_HOME/legion_frontend/automation_rules.json`, defaulting to
 `~/.config/legion_frontend/automation_rules.json`. Named profile contents remain
 in the existing `rgb_lighting` Hive box.
 
 Rapid charging is a normal setting in **Power**, using the existing battery
 hardware readback. It can be configured while unplugged but only charges with
-external power. The Dashboard shortcut remains available. The upstream
-`legiond` service handles fan-preset switching.
+external power. The Dashboard shortcut remains available. Fan-preset switching
+can be handled by the upstream `legiond` service.

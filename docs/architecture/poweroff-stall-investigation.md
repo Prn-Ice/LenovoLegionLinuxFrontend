@@ -15,7 +15,7 @@ systemd-shutdown[1]: Syncing filesystems and block devices.
 systemd-shutdown[1]: Sending SIGTERM to remaining processes...
 ```
 
-The user disconnected power after about ten minutes. The next cold boot was healthy.
+Power was removed after about ten minutes. The next cold boot was healthy.
 
 This was a Lenovo Legion Slim 7 16APH8 (`82Y4`, BIOS `M1CN48WW`). Exact
 generation details and the original investigation are retained in the

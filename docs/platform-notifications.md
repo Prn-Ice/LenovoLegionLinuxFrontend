@@ -35,9 +35,9 @@ Delivery results are `sent`, `suppressed`, `unavailable`, or `disposed`.
   changes made by other tools through polling. They do not start the feature Blocs.
 - Lighting currently exposes white-backlight on/off, not a confirmed brightness
   fraction. No brightness producer is provided.
-- Do not use automation `lastRunSummary` as a success event: it mixes completed,
-  skipped, and failed actions, including arbitrary external commands. Add events
-  for specific confirmed results instead.
+- Saving a keyboard-profile assignment does not confirm that the profile was
+  applied. Add automation notification events only after a confirmed lighting
+  result.
 
 ## D-Bus details and cleanup
 
@@ -47,9 +47,10 @@ summaries are fixed plain text. The service offers no actions, Undo, privileged
 operations, or error notifications. The expiration request specifies four seconds;
 the desktop server determines actual presentation.
 
-Each notification ID replaces the previous notification of the same kind. Every
-send resolves the server's unique owner and clears IDs on owner change, preventing
-reuse across server restarts. The adapter does not start a notification server.
+The adapter passes the previous notification ID to replace a notification of the
+same kind. Every send resolves the server's unique owner and clears IDs on owner
+change, preventing reuse across server restarts. The adapter does not start a
+notification server.
 
 The client factory must return a new client. The adapter owns and closes it.
 Failures reset and close the connection; the next event retries lazily.
@@ -63,6 +64,6 @@ failure handler does not close the detached client twice.
 
 ## Testing
 
-Unit tests verify the D-Bus mapping. Verifying behavior on a real notification
-daemon, desktop appearance, Wayland/X11 behavior, and packaged app identity still
-requires manual testing.
+Unit tests verify the D-Bus mapping. Notification delivery through a real daemon,
+desktop appearance, Wayland/X11 behavior, and packaged app identity still need
+manual testing.
