@@ -4,6 +4,8 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:yaru/yaru.dart';
 
 import 'app/app.dart';
+import 'core/providers/system_services_provider.dart';
+import 'features/settings/repository/control_mode_store.dart';
 import 'features/analytics/models/sensor_record.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'features/settings/repository/appearance_store.dart';
@@ -16,9 +18,13 @@ Future<void> main() async {
   await Hive.openBox<SensorRecord>('sensor_records');
   await Hive.openBox<dynamic>('rgb_lighting');
   final preferences = await Hive.openBox<dynamic>('preferences');
+  final controlModeStore = ControlModeStore(preferences);
+  final controlMode = controlModeStore.load();
   runApp(
     ProviderScope(
       overrides: [
+        controlModeProvider.overrideWithValue(controlMode),
+        controlModeStoreProvider.overrideWithValue(controlModeStore),
         appearanceStoreProvider.overrideWithValue(AppearanceStore(preferences)),
       ],
       child: const LegionFrontendApp(),

@@ -19,8 +19,9 @@ package qualification, and release packages remain open. See the
 The intended default for all formats is a temporary authorized helper.
 Persistent features can use optional system integration. Deprecating the
 installed interactive service requires desktop and distribution qualification,
-feature coverage, and a migration path. The production app currently uses that
-installed service.
+feature coverage, and a migration path. The app defaults to that
+installed service. Qualification builds can select temporary control in Settings
+for their next launch.
 
 ## Installation experience
 
@@ -117,10 +118,18 @@ The check establishes advertised command syntax and successful CLI startup in th
 backend environment. CLI package versions, scripts, imports, configuration files,
 and hardware behavior still need distribution qualification.
 
-CLI discovery also needs a shared rule for reads and writes. The desktop searches
-`PATH`, the generic service unit uses `/usr/bin/legion_cli`, and the NixOS module
-receives a package path. The release implementation must resolve and validate
-one backend for both reads and writes on each supported host.
+Installed mode searches `PATH` for reads, the generic service unit uses
+`/usr/bin/legion_cli`, and the NixOS module receives a package path. Reconciling
+legacy installed-mode reads with its service configuration remains separate work.
+
+Portable reads use native `findHostCli` before any authorization. This accepts no
+caller-selected path and runs the shared fixed-location validator on a GLib
+worker. `LegionCliService` shares and caches that canonical path across readers.
+The root helper reports its selected CLI in percent-encoded readiness output.
+The portable transport compares both paths before creating the private peer; a
+changed selection ends startup and requires a fresh app session. Discovery during
+disposal cannot start a late read command or helper. Host CLI reads use the same
+loader/module environment filter as the ordinary-user launcher.
 
 ## Trust and lifetime requirements
 
@@ -267,7 +276,7 @@ disposal is stopped. Shutdown escalates from SIGTERM to SIGKILL, and launcher
 exit closes the peer. Unit tests cover these races and a real unprivileged child
 that ignores SIGTERM.
 
-The production provider still uses the installed service. The launcher currently
+The provider selects one immutable `ControlMode` for the app process. The launcher
 accepts production `legion-portable-control-UUID.service` sessions and the guarded
 VM probe names. CLI setup failures stop startup before peer creation and reach
 Dart as typed setup errors. The production helper has a 15-minute idle limit and
@@ -284,10 +293,35 @@ cmake --build build/portable-helper --target legion_portable_control
 
 The target produces `legion-portable-control`. Release packaging must stage it at
 the desktop launcher's expected `libexec/legion-portable-control` path. The target
-is disabled by default and has no product install rule yet. Explicit desktop
-selection and approval copy, consistent CLI selection for reads and writes, host
-package/dependency checks, live authentication-dialog cancellation, Debian
-qualification, and AppImage FUSE/extraction remain open.
+is disabled by default. A Linux qualification build can bundle it with:
+
+```bash
+flutter build linux --release --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
+cmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON
+flutter build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
+```
+
+The Linux bundle install rule includes the helper when that CMake option is on.
+The helper uses host libraries rather than the app bundle's `$ORIGIN` search
+path. Nix builds set canonical store library directories and use `patchelf` after
+installation to remove compiler-injected development paths. Other builds use the
+host loader cache. This target requires CMake 3.16; Nix qualification bundles also
+require `patchelf`. The Nix development build retains store dependencies and
+still needs a separate portable distribution build.
+
+Settings offers Installed service and Temporary helper. Temporary control is
+available only when the qualification flag and bundled executable are present.
+The choice is saved in Hive for the next launch. The active provider and any
+approved helper keep their mode until the app closes. Selecting a mode requests
+no administrator approval; the first privileged operation starts the helper.
+A denied installed request never creates a portable transport. A failed temporary
+startup requires reopening the app. Settings disables persistent-service control
+in temporary mode; keyboard permissions and optional power telemetry remain host
+integration choices.
+
+Portable setup failures have their own typed recovery guidance. Host CLI package
+and dependency checks, live authentication-dialog cancellation, Debian
+qualification, AppImage FUSE/extraction, and hardware readback remain open.
 
 ### Backend process containment
 

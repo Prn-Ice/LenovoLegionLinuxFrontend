@@ -122,7 +122,9 @@ void main() {
     await process.listening.future;
     process.line('SNAPSHOT_READY launcher=${process.pid} unit=$unit');
     process.line('START_ACKNOWLEDGED');
-    process.line('CONTROL_READY helper=123 unit=$unit address=$address');
+    process.line(
+      'CONTROL_READY helper=123 unit=$unit address=$address cli=${Uri.encodeComponent(portableTestCli)}',
+    );
     expect((await starting).unit, unit);
   });
 
@@ -206,6 +208,16 @@ void main() {
     await rejected;
   });
 
+  test('reports a loader failure before readiness as a setup error', () async {
+    final rejected = expectLater(
+      launcher.start(),
+      throwsA(isA<LegionControlSetupException>()),
+    );
+    await process.listening.future;
+    process.errors.add(utf8.encode('Missing host helper library'));
+    process.finish(127);
+    await rejected;
+  });
   test('reports denial after draining final stderr', () async {
     final rejected = expectLater(
       launcher.start(),

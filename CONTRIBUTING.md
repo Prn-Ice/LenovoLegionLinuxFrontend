@@ -12,6 +12,8 @@ services.
 - GLib/GIO development files for native service tests
 - Polkit development files for control-service builds
 
+Nix qualification bundles with the portable helper also need `patchelf`.
+
 Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
 On Debian/Ubuntu, install the build dependencies with:
 
@@ -50,7 +52,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers twelve scenarios. The battery journey
+The `app_test.dart` entrypoint registers fourteen scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -78,7 +80,10 @@ assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
 The portable-control scenario uses the real Linux method channel to check that
-an invalid endpoint is rejected before connection. It starts no helper. After
+an invalid endpoint is rejected before connection. It starts no helper. The native discovery scenario rejects caller-selected CLI
+paths before inspecting the host. The hardware-access journey saves a mode,
+reopens the app fixture, and verifies that the saved mode becomes active without
+requesting authorization. After
 the journeys, check native method names, argument types, and payload limits with:
 
 ```bash
@@ -87,7 +92,7 @@ cmake --build build/linux/x64/debug --target portable_control_channel_test
 build/linux/x64/debug/runner/portable_control_channel_test
 ```
 
-To run only the twelve scenarios in the first app process:
+To run only the fourteen scenarios in the first app process:
 
 ```bash
 flutter test integration_test/app_test.dart -d linux --no-pub

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../models/portable_control_endpoint.dart';
+import 'host_command_environment.dart';
 import 'legion_control_client.dart';
 
 typedef PortableProcessStarter =
@@ -25,7 +26,9 @@ class PortableControlLauncher {
     this.stopTimeout = const Duration(seconds: 3),
     this.killTimeout = const Duration(seconds: 2),
   }) : _startProcess = startProcess ?? Process.start,
-       _environment = _hostEnvironment(environment ?? Platform.environment);
+       _environment = hostCommandEnvironment(
+         environment ?? Platform.environment,
+       );
 
   final String executable;
   final Duration startupTimeout;
@@ -52,30 +55,6 @@ class PortableControlLauncher {
 
   /// Completes with the reason the session ended, including explicit close.
   Future<LegionControlException> get ended => _ended.future;
-
-  static Map<String, String> _hostEnvironment(Map<String, String> source) {
-    return Map.unmodifiable({
-      for (final entry in source.entries)
-        if (!entry.key.startsWith('LD_') &&
-            !entry.key.startsWith('GIO_') &&
-            !const {
-              'GCONV_PATH',
-              'GI_TYPELIB_PATH',
-              'PYTHONPATH',
-              'PYTHONHOME',
-              'DBUS_SYSTEM_BUS_ADDRESS',
-              'APPDIR',
-              'APPIMAGE',
-              'ARGV0',
-              'GTK_PATH',
-              'GTK_EXE_PREFIX',
-              'GTK_DATA_PREFIX',
-              'PATH',
-            }.contains(entry.key))
-          entry.key: entry.value,
-      'PATH': '/run/current-system/sw/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-    });
-  }
 
   LegionControlUnavailableException
   _closedError() => const LegionControlUnavailableException(
@@ -180,7 +159,7 @@ class PortableControlLauncher {
     '^SNAPSHOT_READY launcher=([1-9][0-9]*) unit=($_unitPattern)\$',
   );
   static final _control = RegExp(
-    '^CONTROL_READY helper=([1-9][0-9]*) unit=($_unitPattern) address=(\\S+)\$',
+    '^CONTROL_READY helper=([1-9][0-9]*) unit=($_unitPattern) address=(\\S+)(?: cli=(\\S+))?\$',
   );
 
   void _consumeStdout(List<int> bytes) {
@@ -239,6 +218,20 @@ class PortableControlLauncher {
       _acknowledged = true;
     } else if (control != null && _endpoint == null && control[2] == _unit) {
       final pid = int.tryParse(control[1]!);
+      final cliPath = control[4] == null
+          ? null
+          : Uri.decodeComponent(control[4]!);
+      if ((control[2]!.startsWith('legion-portable-control-') &&
+              cliPath == null) ||
+          (cliPath != null &&
+              (!cliPath.startsWith('/') || cliPath.contains('\u0000')))) {
+        _fail(
+          const LegionControlSetupException(
+            'The helper did not report a valid installed CLI. Update the app files and retry.',
+          ),
+        );
+        return;
+      }
       final directory =
           '/run/${_unit!.substring(0, _unit!.length - 8)}/control.sock';
       final address = RegExp(
@@ -259,6 +252,7 @@ class PortableControlLauncher {
         address: control[3]!,
         unit: control[2]!,
         helperPid: pid,
+        cliPath: cliPath,
       );
     } else {
       _fail(
@@ -287,12 +281,15 @@ class PortableControlLauncher {
       }
     }
     if (_closed) return;
+    final startupFailed = !_ready.isCompleted;
     final details = utf8.decode(_stderr, allowMalformed: true).trim();
     final message = 'Portable helper exited with status $_exitCode. $details'
         .trim();
     _fail(
       details.contains('org.freedesktop.DBus.Error.AccessDenied')
           ? LegionControlPermissionDeniedException(message)
+          : startupFailed
+          ? LegionControlSetupException(message)
           : LegionControlUnavailableException(message),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 
 import '../models/control_capabilities.dart';
+import '../models/control_mode.dart';
 import '../models/control_selectors.dart';
 import '../../features/dgpu/models/graphics_mode.dart';
 
@@ -39,6 +40,10 @@ class LegionControlCommandFailedException extends LegionControlException {
 
 class LegionControlSetupException extends LegionControlUnavailableException {
   const LegionControlSetupException(super.message);
+}
+
+class LegionControlPortableSetupException extends LegionControlSetupException {
+  const LegionControlPortableSetupException(super.message);
 }
 
 class LegionControlUnavailableException extends LegionControlException {
@@ -190,6 +195,7 @@ class DBusLegionControlTransport extends LegionControlTransport {
 class LegionControlClient {
   LegionControlClient({
     required LegionControlTransport transport,
+    this.controlMode = ControlMode.installedService,
     Duration authorizationTimeout = const Duration(minutes: 2),
     Duration metadataTimeout = const Duration(seconds: 5),
   }) : _transport = transport,
@@ -197,6 +203,7 @@ class LegionControlClient {
        _metadataTimeout = metadataTimeout;
 
   final LegionControlTransport _transport;
+  final ControlMode controlMode;
   final Duration _authorizationTimeout;
   final Duration _metadataTimeout;
   Future<void>? _preparing;
@@ -249,7 +256,12 @@ class LegionControlClient {
       return capabilities;
     } catch (error) {
       if (identical(_capabilities, pending)) _capabilities = null;
-      if (error is LegionControlSetupException) await close();
+      if (error is LegionControlSetupException) {
+        await close();
+        throw error is LegionControlPortableSetupException
+            ? error
+            : _setupError(error.message);
+      }
       rethrow;
     }
   }
@@ -265,11 +277,21 @@ class LegionControlClient {
       );
       await _closeWith(error);
       throw error;
-    } catch (_) {
+    } catch (error) {
       await close();
+      if (error is LegionControlSetupException) {
+        throw error is LegionControlPortableSetupException
+            ? error
+            : _setupError(error.message);
+      }
       rethrow;
     }
   }
+
+  LegionControlSetupException _setupError(String message) =>
+      controlMode == ControlMode.temporaryHelper
+      ? LegionControlPortableSetupException(message)
+      : LegionControlSetupException(message);
 
   /// Obtain approval before starting a backend command's deadline.
   Future<void> authorize() async {
@@ -497,10 +519,10 @@ class LegionControlClient {
         name.endsWith('UnknownObject') ||
         name.endsWith('UnknownInterface') ||
         name.endsWith('UnknownMethod')) {
-      return LegionControlSetupException(message);
+      return _setupError(message);
     }
     if (name.endsWith('Error.Authorization')) {
-      return LegionControlSetupException(message);
+      return _setupError(message);
     }
     if (name.endsWith('InvalidArgs') || name.endsWith('NotSupported')) {
       return LegionControlNotSupportedException(message);

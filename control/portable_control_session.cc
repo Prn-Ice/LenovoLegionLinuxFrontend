@@ -268,8 +268,11 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
         syslog(LOG_INFO, "%s: %s", domain ? domain : "control", message);
       },
       nullptr);
-  printf("CONTROL_READY helper=%d unit=%s address=%s\n", getpid(),
-         parent_unit.c_str(), g_dbus_server_get_client_address(session.server));
+  g_autofree char *selected_cli =
+      g_uri_escape_string(session.control.cli.c_str(), nullptr, FALSE);
+  printf("CONTROL_READY helper=%d unit=%s address=%s cli=%s\n", getpid(),
+         parent_unit.c_str(), g_dbus_server_get_client_address(session.server),
+         selected_cli);
   fflush(stdout);
   const guint app_watch = g_unix_fd_add(
       STDIN_FILENO, G_IO_IN,

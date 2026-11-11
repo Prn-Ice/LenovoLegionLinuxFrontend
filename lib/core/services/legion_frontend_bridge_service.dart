@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:collection';
 
 import '../models/bridge_command_record.dart';
+import '../models/control_mode.dart';
 import 'legion_cli_service.dart';
 import 'legion_control_client.dart';
 
 enum LegionBridgeErrorCode {
   permissionDenied,
   privilegeSetup,
+  portableSetup,
   unavailable,
   busy,
   timeout,
@@ -24,6 +26,7 @@ class LegionBridgeException implements Exception {
     this.stdout,
     this.stderr,
     this.exitCode,
+    this.controlMode = ControlMode.installedService,
   });
 
   final LegionBridgeErrorCode code;
@@ -32,15 +35,22 @@ class LegionBridgeException implements Exception {
   final String? stdout;
   final String? stderr;
   final int? exitCode;
+  final ControlMode controlMode;
 
   String get guidance {
     return switch (code) {
       LegionBridgeErrorCode.permissionDenied =>
-        'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
+        controlMode == ControlMode.temporaryHelper
+            ? 'Permission was denied or authentication was canceled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
+            : 'Permission was denied or authentication was canceled. Ensure a Polkit authentication agent is running and approve the prompt.',
+      LegionBridgeErrorCode.portableSetup =>
+        'Temporary hardware access could not start. Check the installed CLI and app files, then reopen the app.',
       LegionBridgeErrorCode.privilegeSetup =>
         'The legion-control service could not provide privileged access. Verify the service and its Polkit policy are installed and running.',
       LegionBridgeErrorCode.unavailable =>
-        'The legion-control service or requested capability is unavailable. Verify the service is installed and running.',
+        controlMode == ControlMode.temporaryHelper
+            ? 'Temporary hardware access is unavailable. Read the current settings and reopen the app before retrying.'
+            : 'The legion-control service or requested capability is unavailable. Verify the service is installed and running.',
       LegionBridgeErrorCode.busy =>
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
@@ -76,11 +86,14 @@ class LegionFrontendBridgeService {
   LegionFrontendBridgeService({
     required LegionCliService cliService,
     LegionControlClient? controlClient,
+    ControlMode controlMode = ControlMode.installedService,
   }) : _cliService = cliService,
-       _controlClient = controlClient;
+       _controlClient = controlClient,
+       _controlMode = controlMode;
 
   final LegionCliService _cliService;
   final LegionControlClient? _controlClient;
+  final ControlMode _controlMode;
   final Set<String> _pendingActionKeys = <String>{};
   Future<void> _privilegedQueue = Future<void>.value();
   static const int _historyCapacity = 20;
@@ -112,6 +125,7 @@ class LegionFrontendBridgeService {
     final actionKey = _buildActionKey(method: method, args: args);
     if (_pendingActionKeys.contains(actionKey)) {
       throw LegionBridgeException(
+        controlMode: _controlMode,
         code: LegionBridgeErrorCode.busy,
         method: method,
         message: 'Action is already pending for $method.',
@@ -219,6 +233,7 @@ class LegionFrontendBridgeService {
         throw error;
       } on TimeoutException {
         final error = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
@@ -230,10 +245,13 @@ class LegionFrontendBridgeService {
         }
 
         throw error;
+      } on LegionControlException catch (error) {
+        throw _translateControlError(method, error);
       } on LegionBridgeException {
         rethrow;
       } on Object catch (error) {
         throw LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
@@ -263,6 +281,7 @@ class LegionFrontendBridgeService {
         return;
       } on TimeoutException {
         failure = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
@@ -272,6 +291,7 @@ class LegionFrontendBridgeService {
         failure = _translateControlError(method, error);
       } catch (error) {
         failure = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
@@ -293,6 +313,8 @@ class LegionFrontendBridgeService {
     LegionControlException error,
   ) {
     final code = switch (error) {
+      LegionControlPortableSetupException() =>
+        LegionBridgeErrorCode.portableSetup,
       LegionControlSetupException() => LegionBridgeErrorCode.privilegeSetup,
       LegionControlPermissionDeniedException() =>
         LegionBridgeErrorCode.permissionDenied,
@@ -307,6 +329,7 @@ class LegionFrontendBridgeService {
       _ => LegionBridgeErrorCode.commandFailed,
     };
     return LegionBridgeException(
+      controlMode: _controlMode,
       code: code,
       method: method,
       message: code == LegionBridgeErrorCode.timeout
@@ -328,6 +351,8 @@ class LegionFrontendBridgeService {
         : _classifyFailureCode(outputLower, result.exitCode);
 
     final message = switch (code) {
+      LegionBridgeErrorCode.portableSetup =>
+        'Temporary hardware access could not start for $method.',
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',
       LegionBridgeErrorCode.privilegeSetup =>
@@ -344,6 +369,7 @@ class LegionFrontendBridgeService {
     };
 
     return LegionBridgeException(
+      controlMode: _controlMode,
       code: code,
       method: method,
       message: message,

@@ -184,6 +184,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     final isPrivilegeSetup = errorKind == AppFailureKind.privilegeSetup;
     final title = switch (errorKind) {
       AppFailureKind.privilegeSetup => 'Privileged access needs setup',
+      AppFailureKind.portableSetup => 'Temporary hardware access needs setup',
       AppFailureKind.graphicsBlocked => 'Graphics change blocked',
       AppFailureKind.graphicsPending => 'Graphics policy did not settle',
       _ => 'Action could not be completed',
@@ -216,7 +217,9 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: isPrivilegeSetup
+              children: errorKind == AppFailureKind.portableSetup
+                  ? _buildPortableSetupContent(context)
+                  : isPrivilegeSetup
                   ? _buildPrivilegeSetupContent(context)
                   : [
                       Text(consequence),
@@ -247,6 +250,25 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     );
   }
 
+  List<Widget> _buildPortableSetupContent(BuildContext context) => [
+    const Text(
+      'Temporary hardware control could not start. The requested action did not complete. Recheck the current settings before retrying.',
+    ),
+    const SizedBox(height: 16),
+    Text('Before retrying', style: Theme.of(context).textTheme.titleSmall),
+    const SizedBox(height: 6),
+    const Text(
+      'Check the installed legion_cli and app files. Your desktop must provide a Polkit authentication prompt. Then reopen the app and approve the prompt when making a hardware change.',
+    ),
+    const SizedBox(height: 12),
+    const Text(
+      'You can choose Installed service in Settings for the next launch if that integration is already installed.',
+    ),
+    const SizedBox(height: 16),
+    Text('Technical details', style: Theme.of(context).textTheme.titleSmall),
+    const SizedBox(height: 6),
+    Text(AppFailure.from(widget.message).displayText),
+  ];
   List<Widget> _buildPrivilegeSetupContent(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;

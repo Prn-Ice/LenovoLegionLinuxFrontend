@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_mode.dart';
 import '../models/service_control.dart';
 
 class SettingsState extends Equatable {
@@ -16,6 +17,10 @@ class SettingsState extends Equatable {
     required this.yaruVariant,
     this.accentFollowsPowerMode = false,
     this.appearanceErrorMessage,
+    this.activeControlMode = ControlMode.installedService,
+    this.nextControlMode = ControlMode.installedService,
+    this.isSavingControlMode = false,
+    this.controlModeErrorMessage,
   });
 
   factory SettingsState.initial() => const SettingsState(
@@ -30,6 +35,10 @@ class SettingsState extends Equatable {
 
   static const _unset = Object();
 
+  final ControlMode activeControlMode;
+  final ControlMode nextControlMode;
+  final bool isSavingControlMode;
+  final AppFailure? controlModeErrorMessage;
   final List<ServiceControl> services;
   final bool isLoading;
   final bool isApplying;
@@ -52,8 +61,18 @@ class SettingsState extends Equatable {
     Object? yaruVariant = _unset,
     bool? accentFollowsPowerMode,
     Object? appearanceErrorMessage = _unset,
+    ControlMode? activeControlMode,
+    ControlMode? nextControlMode,
+    bool? isSavingControlMode,
+    Object? controlModeErrorMessage = _unset,
   }) {
     return SettingsState(
+      activeControlMode: activeControlMode ?? this.activeControlMode,
+      nextControlMode: nextControlMode ?? this.nextControlMode,
+      isSavingControlMode: isSavingControlMode ?? this.isSavingControlMode,
+      controlModeErrorMessage: controlModeErrorMessage == _unset
+          ? this.controlModeErrorMessage
+          : AppFailure.optional(controlModeErrorMessage),
       services: services ?? this.services,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
@@ -77,6 +96,10 @@ class SettingsState extends Equatable {
 
   @override
   List<Object?> get props => [
+    activeControlMode,
+    nextControlMode,
+    isSavingControlMode,
+    controlModeErrorMessage,
     services,
     isLoading,
     isApplying,

@@ -4,6 +4,7 @@ import 'dart:io';
 
 const portableTestUnit =
     'legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service';
+const portableTestCli = '/trusted/bin/legion_cli';
 const portableTestAddress =
     'unix:path=/run/legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab/control.sock';
 
@@ -37,7 +38,7 @@ class PortableHelperProcess implements Process {
     line('SNAPSHOT_READY launcher=$pid unit=$portableTestUnit');
     if (acknowledgementFirst) line('START_ACKNOWLEDGED');
     line(
-      'CONTROL_READY helper=123 unit=$portableTestUnit address=$portableTestAddress',
+      'CONTROL_READY helper=123 unit=$portableTestUnit address=$portableTestAddress cli=${Uri.encodeComponent(portableTestCli)}',
     );
     if (!acknowledgementFirst) line('START_ACKNOWLEDGED');
   }

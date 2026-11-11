@@ -5,13 +5,16 @@ import '../models/control_capabilities.dart';
 import 'legion_control_client.dart';
 import 'native_portable_control_transport.dart';
 import 'portable_control_launcher.dart';
+import 'native_host_cli_resolver.dart';
 
 /// Owns one approved launch and its private connection for the app session.
 class PortableLegionControlTransport extends LegionControlTransport {
   PortableLegionControlTransport({
     PortableControlLauncher? launcher,
+    Future<String> Function()? resolveCliPath,
     LegionControlTransport Function(PortableControlEndpoint)? connect,
-  }) : _launcher =
+  }) : _resolveCliPath = resolveCliPath ?? resolveNativeHostCli,
+       _launcher =
            launcher ??
            PortableControlLauncher(
              executable:
@@ -31,6 +34,7 @@ class PortableLegionControlTransport extends LegionControlTransport {
   }
 
   final PortableControlLauncher _launcher;
+  final Future<String> Function() _resolveCliPath;
   final LegionControlTransport Function(PortableControlEndpoint) _connect;
   LegionControlTransport? _peer;
   LegionControlException? _failure;
@@ -49,7 +53,14 @@ class PortableLegionControlTransport extends LegionControlTransport {
 
   Future<LegionControlTransport> _open() async {
     try {
+      final expectedCli = await _resolveCliPath();
+      _ensureOpen();
       final endpoint = await _launcher.start();
+      if (endpoint.cliPath != expectedCli) {
+        throw const LegionControlPortableSetupException(
+          'The installed CLI changed after this app session started. Restart the app to select it again before changing hardware settings.',
+        );
+      }
       _ensureOpen();
       return _peer = _connect(endpoint);
     } catch (_) {

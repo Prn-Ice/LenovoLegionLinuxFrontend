@@ -5,9 +5,11 @@ class PortableControlEndpoint {
     required this.address,
     required this.unit,
     required this.helperPid,
+    this.cliPath,
   });
 
   final String address;
   final String unit;
   final int helperPid;
+  final String? cliPath;
 }

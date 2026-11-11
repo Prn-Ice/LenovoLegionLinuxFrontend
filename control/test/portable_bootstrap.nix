@@ -269,6 +269,8 @@ pkgs.testers.runNixOSTest {
     with subtest("production helper discovers the installed CLI and runs typed writes"):
         app = PortableSession("approved", "${probe}/bin/legion-portable-control")
         assert app.unit.startswith("legion-portable-control-"), app.unit
+        expected_cli = machine.succeed("readlink -f /run/current-system/sw/bin/legion_cli").strip()
+        assert app.cli == expected_cli, (app.cli, expected_cli)
         app.prepare("success")
         app.send("connect")
         app.send("authorize")

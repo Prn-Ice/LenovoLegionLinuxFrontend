@@ -231,7 +231,7 @@ int main(int argc, char **argv) {
   }
   const int descriptor = g_unix_input_stream_get_fd(
       G_UNIX_INPUT_STREAM(g_subprocess_get_stdout_pipe(launcher)));
-  std::string line, address, unit;
+  std::string line, address, unit, cli;
   guint32 helper_pid = 0;
   while (ReadLine(descriptor, &line)) {
     if (line.compare(0, 14, "CONTROL_READY ") != 0)
@@ -244,6 +244,8 @@ int main(int argc, char **argv) {
             static_cast<guint32>(strtoul(field.c_str() + 7, nullptr, 10));
       if (field.compare(0, 5, "unit=") == 0)
         unit = field.substr(5);
+      if (field.compare(0, 4, "cli=") == 0)
+        cli = field.substr(4);
       if (field.compare(0, 8, "address=") == 0)
         address = field.substr(8);
     }
@@ -255,8 +257,8 @@ int main(int argc, char **argv) {
     g_object_unref(launcher);
     return 1;
   }
-  printf("CLIENT_READY client=%d helper=%u unit=%s address=%s\n", getpid(),
-         helper_pid, unit.c_str(), address.c_str());
+  printf("CLIENT_READY client=%d helper=%u unit=%s address=%s cli=%s\n",
+         getpid(), helper_pid, unit.c_str(), address.c_str(), cli.c_str());
   fflush(stdout);
   GDBusConnection *connection = nullptr;
   while (std::getline(std::cin, line)) {

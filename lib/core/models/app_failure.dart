@@ -7,6 +7,7 @@ enum AppFailureKind {
   generic,
   permissionDenied,
   privilegeSetup,
+  portableSetup,
   unavailable,
   busy,
   timeout,
@@ -48,6 +49,7 @@ class AppFailure extends Equatable implements Exception {
       LegionBridgeException(:final code) => switch (code) {
         LegionBridgeErrorCode.permissionDenied =>
           AppFailureKind.permissionDenied,
+        LegionBridgeErrorCode.portableSetup => AppFailureKind.portableSetup,
         LegionBridgeErrorCode.privilegeSetup => AppFailureKind.privilegeSetup,
         LegionBridgeErrorCode.unavailable => AppFailureKind.unavailable,
         LegionBridgeErrorCode.busy => AppFailureKind.busy,
@@ -56,6 +58,7 @@ class AppFailure extends Equatable implements Exception {
         LegionBridgeErrorCode.graphicsPending => AppFailureKind.graphicsPending,
         LegionBridgeErrorCode.commandFailed => AppFailureKind.commandFailed,
       },
+      LegionControlPortableSetupException() => AppFailureKind.portableSetup,
       LegionControlSetupException() => AppFailureKind.privilegeSetup,
       LegionControlPermissionDeniedException() =>
         AppFailureKind.permissionDenied,

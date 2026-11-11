@@ -112,7 +112,24 @@ endfunction()
 
 if(BUILD_PORTABLE_CONTROL_HELPER)
   add_portable_helper(legion_portable_control)
-  set_target_properties(legion_portable_control PROPERTIES OUTPUT_NAME "legion-portable-control")
+  if(CMAKE_VERSION VERSION_LESS 3.16)
+    message(FATAL_ERROR "Portable helper builds require CMake 3.16 or later.")
+  endif()
+  # Nix wrappers inject development rpaths. Keep only canonical store libraries;
+  # other hosts use the loader cache. Never inherit the desktop bundle rpath.
+  set(portable_host_library_paths "")
+  foreach(directory IN LISTS GIO_LIBRARY_DIRS POLKIT_LIBRARY_DIRS CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES)
+    get_filename_component(canonical_directory "${directory}" REALPATH)
+    if(canonical_directory MATCHES "^/nix/store/" AND IS_DIRECTORY "${canonical_directory}")
+      list(APPEND portable_host_library_paths "${canonical_directory}")
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES portable_host_library_paths)
+  set_target_properties(legion_portable_control PROPERTIES
+    OUTPUT_NAME "legion-portable-control"
+    INSTALL_REMOVE_ENVIRONMENT_RPATH TRUE
+    INSTALL_RPATH_USE_LINK_PATH FALSE
+    INSTALL_RPATH "${portable_host_library_paths}")
 endif()
 if(BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
   add_portable_helper(portable_bootstrap_probe)

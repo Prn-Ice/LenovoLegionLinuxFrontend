@@ -5,6 +5,33 @@ import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 
 void main() {
+  testWidgets('portable setup recovery avoids installed service instructions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: AppErrorDialog(
+            message: AppFailure(
+              'CLI selection changed',
+              kind: AppFailureKind.portableSetup,
+              details: 'Canonical CLI mismatch',
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
+    expect(find.textContaining('reopen the app'), findsWidgets);
+    expect(find.text('NixOS'), findsNothing);
+    expect(find.text('Copy configuration'), findsNothing);
+    expect(find.text('Technical details'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   for (final embedded in [false, true]) {
     testWidgets('displays and copies raw details once (embedded: $embedded)', (
       tester,

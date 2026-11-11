@@ -25,7 +25,7 @@ class AboutSnapshot extends Equatable {
   });
 
   final DateTime updatedAt;
-  final String cliPath;
+  final String? cliPath;
   final bool cliPathExists;
   final bool pythonAvailable;
   final bool controlServiceActive;

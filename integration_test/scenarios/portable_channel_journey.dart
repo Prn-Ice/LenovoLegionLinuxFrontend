@@ -1,9 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/native_portable_control_transport.dart';
 
 void main() {
+  testWidgets('native CLI discovery rejects caller-selected paths', (_) async {
+    await expectLater(
+      const MethodChannel(
+        'io.github.prnice.legion/portable_control',
+      ).invokeMethod<Object>('findHostCli', {
+        'path': '/tmp/caller-controlled-cli',
+      }),
+      throwsA(
+        isA<PlatformException>().having(
+          (error) => error.code,
+          'code',
+          'invalid-arguments',
+        ),
+      ),
+    );
+  });
   testWidgets(
     'native portable channel rejects invalid endpoints before connecting',
     (_) async {

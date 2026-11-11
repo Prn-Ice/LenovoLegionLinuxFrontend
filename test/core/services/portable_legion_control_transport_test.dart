@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/control_capabilities.dart';
@@ -64,6 +65,7 @@ void main() {
     client = LegionControlClient(
       transport: PortableLegionControlTransport(
         launcher: launcher,
+        resolveCliPath: () async => portableTestCli,
         connect: (endpoint) {
           connections++;
           expect(endpoint.address, portableTestAddress);
@@ -74,6 +76,67 @@ void main() {
   });
   tearDown(() => client.close());
 
+  test(
+    'CLI mismatch closes startup before creating or authorizing a peer',
+    () async {
+      client = LegionControlClient(
+        transport: PortableLegionControlTransport(
+          launcher: launcher,
+          resolveCliPath: () async => '/other/version/legion_cli',
+          connect: (_) {
+            connections++;
+            return peer;
+          },
+        ),
+      );
+      final rejected = expectLater(
+        client.getCapabilities(),
+        throwsA(isA<LegionControlPortableSetupException>()),
+      );
+      await process.listening.future;
+      process.ready();
+      await rejected;
+      expect(connections, 0);
+      expect(peer.calls, isEmpty);
+      expect(process.signals, [ProcessSignal.sigterm]);
+    },
+  );
+
+  test('closing during CLI discovery prevents late helper startup', () async {
+    final path = Completer<String>();
+    var starts = 0;
+    final owner = PortableControlLauncher(
+      executable: "/bundle/helper",
+      startProcess:
+          (
+            _,
+            _, {
+            required environment,
+            required workingDirectory,
+            required includeParentEnvironment,
+          }) async {
+            starts++;
+            return process;
+          },
+    );
+    client = LegionControlClient(
+      transport: PortableLegionControlTransport(
+        launcher: owner,
+        resolveCliPath: () => path.future,
+        connect: (_) => peer,
+      ),
+    );
+    final rejected = expectLater(
+      client.getCapabilities(),
+      throwsA(isA<LegionControlUnavailableException>()),
+    );
+    await client.close();
+    await rejected;
+    path.complete(portableTestCli);
+    await Future<void>.delayed(Duration.zero);
+    expect(starts, 0);
+    expect(peer.calls, isEmpty);
+  });
   test('starts one launcher before metadata and typed writes', () async {
     final writing = Future.wait([
       client.setToggle(ControlToggle.batteryConservation, true),

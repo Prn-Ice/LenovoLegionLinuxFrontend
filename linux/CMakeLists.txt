@@ -95,6 +95,26 @@ add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
+# Qualification builds can include the helper without installing system units.
+if(BUILD_PORTABLE_CONTROL_HELPER)
+  install(TARGETS legion_portable_control
+    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/libexec" COMPONENT Runtime)
+  get_target_property(portable_install_rpath legion_portable_control INSTALL_RPATH)
+  if(portable_install_rpath)
+    # Nix compiler wrappers may retain extra rpaths after CMake installation.
+    # Set the complete installed value so development directories cannot survive.
+    find_program(PORTABLE_PATCHELF patchelf)
+    if(NOT PORTABLE_PATCHELF)
+      message(FATAL_ERROR "Nix portable helper bundles require patchelf.")
+    endif()
+    string(REPLACE ";" ":" portable_install_rpath "${portable_install_rpath}")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/portable_helper_install.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake" @ONLY)
+    install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake"
+      COMPONENT Runtime)
+  endif()
+endif()
+
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 

@@ -2,6 +2,7 @@
 
 #include "control_protocol.h"
 #include "portable_peer.h"
+#include "trusted_executable.h"
 
 #include <climits>
 #include <cstring>
@@ -165,10 +166,51 @@ void Invoke(const std::shared_ptr<Session> &session, FlMethodCall *call,
       pending);
 }
 
+void FindHostCli(FlMethodCall *call) {
+  auto *task = g_task_new(
+      nullptr, nullptr,
+      [](GObject *, GAsyncResult *result, gpointer data) {
+        auto *call = FL_METHOD_CALL(data);
+        GError *error = nullptr;
+        g_autofree char *path = static_cast<char *>(
+            g_task_propagate_pointer(G_TASK(result), &error));
+        if (path) {
+          g_autoptr(FlValue) value = fl_value_new_string(path);
+          fl_method_call_respond_success(call, value, nullptr);
+        } else {
+          Error(call, "setup",
+                error ? error->message : "Could not find the host CLI.");
+          g_clear_error(&error);
+        }
+        g_object_unref(call);
+      },
+      g_object_ref(call));
+  g_task_run_in_thread(
+      task, [](GTask *task, gpointer, gpointer, GCancellable *) {
+        std::string reason;
+        const auto path = legion_control::FindHostLegionCli(&reason);
+        if (path.empty() || !g_utf8_validate(path.c_str(), -1, nullptr))
+          g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "%s",
+                                  reason.empty()
+                                      ? "The host CLI path is not valid UTF-8."
+                                      : reason.c_str());
+        else
+          g_task_return_pointer(task, g_strdup(path.c_str()), g_free);
+      });
+  g_object_unref(task);
+}
 void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
   auto *host = static_cast<Host *>(data);
   const char *method = fl_method_call_get_name(call);
   auto *arguments = fl_method_call_get_args(call);
+  if (g_str_equal(method, "findHostCli")) {
+    if (arguments && fl_value_get_type(arguments) != FL_VALUE_TYPE_NULL)
+      Error(call, "invalid-arguments",
+            "Host CLI discovery accepts no caller-selected paths.");
+    else
+      FindHostCli(call);
+    return;
+  }
   auto *id = Field(arguments, "session", FL_VALUE_TYPE_STRING);
   if (!id || !g_uuid_string_is_valid(fl_value_get_string(id))) {
     Error(call, "invalid-arguments", "Invalid control session identifier.");

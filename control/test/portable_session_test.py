@@ -1,6 +1,7 @@
 import re
 import shlex
 from datetime import timedelta
+from urllib.parse import unquote
 
 
 def portable_as_user(user, command):
@@ -33,6 +34,8 @@ class PortableSession:
         self.helper = int(match.group(2))
         self.unit = match.group(3)
         self.address = match.group(4)
+        selected_cli = re.search(r" cli=(\S+)", ready)
+        self.cli = unquote(selected_cli.group(1)) if selected_cli else None
         self.runtime = "/run/" + self.unit.removesuffix(".service")
 
     def begin(self, command):

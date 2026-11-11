@@ -82,6 +82,15 @@ Use the privilege-setup error as the example for known failures:
 `LegionBridgeErrorCode.privilegeSetup`, returned when the
 `legion-control` D-Bus service or its authorization policy is not configured.
 
+### Temporary helper recovery
+
+`AppFailureKind.portableSetup` identifies temporary-helper setup failures. Use
+the shared dialog to explain the incomplete action, checking the installed CLI
+and app files, the desktop authentication prompt, and reopening the app. Keep
+installed-service setup instructions in the installed-service failure flow.
+Hardware-access preference failures are acknowledged when their dialog closes,
+so retry can show the same failure again without clearing a newer failure.
+
 ### Setup recovery
 
 - A setup failure before dispatch means that command did not run. Do not claim

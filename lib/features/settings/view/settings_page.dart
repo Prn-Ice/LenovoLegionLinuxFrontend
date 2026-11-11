@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
+import '../../../core/models/control_mode.dart';
+import 'hardware_access_controls.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/responsive_card_grid.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -63,8 +65,10 @@ class SettingsPage extends ConsumerWidget {
     );
     final backend = _SettingsSection(
       title: 'Backend',
-      description: 'Manage Legion services.',
+      description: 'Choose hardware access and manage persistent services.',
       children: [
+        const HardwareAccessControls(),
+        const Divider(height: 32),
         if (about.snapshot case final snapshot?) ...[
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -75,14 +79,18 @@ class SettingsPage extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             title: const Text('CLI'),
             subtitle: SelectableText(
-              '${snapshot.cliPath}\n${snapshot.cliHealthSummary}',
+              '${snapshot.cliPath ?? 'Unavailable'}\n${snapshot.cliHealthSummary}',
             ),
           ),
         ],
         const PrivilegedActionNotice(compact: true),
         const SizedBox(height: 8),
         if (state.services.isEmpty)
-          const Text('No service controls available.'),
+          Text(
+            state.activeControlMode == ControlMode.temporaryHelper
+                ? 'Changing persistent services requires installed service mode.'
+                : 'No service controls available.',
+          ),
         ...state.services.map(
           (service) => _ServiceTile(
             service: service,
@@ -262,7 +270,11 @@ class SettingsPage extends ConsumerWidget {
     );
 
     return AppPageBody(
+      onErrorDismissed: (error) => ref
+          .read(settingsBlocProvider.bloc)
+          .add(ControlModeErrorDismissed(error)),
       errorMessage:
+          state.controlModeErrorMessage ??
           state.appearanceErrorMessage ??
           state.errorMessage ??
           bootLogoState.errorMessage ??

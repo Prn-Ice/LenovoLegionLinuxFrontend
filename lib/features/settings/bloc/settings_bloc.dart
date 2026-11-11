@@ -1,6 +1,8 @@
 import 'package:riverbloc/riverbloc.dart';
 
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_mode.dart';
+import '../repository/control_mode_store.dart';
 import '../models/service_control.dart';
 import '../repository/appearance_store.dart';
 import '../repository/settings_repository.dart';
@@ -11,9 +13,28 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   SettingsBloc({
     required SettingsRepository repository,
     AppearanceStore? appearanceStore,
+    ControlModeStore? controlModeStore,
+    ControlMode activeControlMode = ControlMode.installedService,
+    bool portableControlAvailable = false,
   }) : _repository = repository,
        _appearanceStore = appearanceStore,
-       super(_initialState(appearanceStore)) {
+       _controlModeStore = controlModeStore,
+       _portableControlAvailable = portableControlAvailable,
+       super(
+         _initialState(appearanceStore).copyWith(
+           activeControlMode: activeControlMode,
+           nextControlMode: controlModeStore?.load() ?? activeControlMode,
+         ),
+       ) {
+    on<ControlModeChanged>(
+      _onControlModeChanged,
+      transformer: (events, mapper) => events.asyncExpand(mapper),
+    );
+    on<ControlModeErrorDismissed>((event, emit) {
+      if (identical(state.controlModeErrorMessage, event.error)) {
+        emit(state.copyWith(controlModeErrorMessage: null));
+      }
+    });
     on<SettingsStarted>(_onStarted);
     on<SettingsRefreshRequested>(_onRefreshRequested);
     on<SettingsServiceToggled>(_onServiceToggled);
@@ -26,6 +47,8 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
 
   final SettingsRepository _repository;
   final AppearanceStore? _appearanceStore;
+  final ControlModeStore? _controlModeStore;
+  final bool _portableControlAvailable;
 
   static SettingsState _initialState(AppearanceStore? store) {
     try {
@@ -36,6 +59,44 @@ class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
             'Could not load appearance preferences. System appearance '
             'is being used. Check that your application data is readable, then '
             'restart the app. Technical details: $error',
+      );
+    }
+  }
+
+  Future<void> _onControlModeChanged(
+    ControlModeChanged event,
+    Emitter<SettingsState> emit,
+  ) async {
+    if (event.mode == state.nextControlMode) return;
+    emit(
+      state.copyWith(isSavingControlMode: true, controlModeErrorMessage: null),
+    );
+    try {
+      if (event.mode == ControlMode.temporaryHelper &&
+          !_portableControlAvailable) {
+        throw StateError(
+          'Temporary hardware control is not available in this build.',
+        );
+      }
+      await _controlModeStore?.save(event.mode);
+      if (emit.isDone) return;
+      emit(
+        state.copyWith(
+          nextControlMode: event.mode,
+          isSavingControlMode: false,
+          controlModeErrorMessage: null,
+        ),
+      );
+    } catch (error) {
+      if (emit.isDone) return;
+      emit(
+        state.copyWith(
+          isSavingControlMode: false,
+          controlModeErrorMessage: AppFailure(
+            'Could not save hardware access preferences. Your previous selection is unchanged. Check that application data is writable and try again.',
+            details: error.toString(),
+          ),
+        ),
       );
     }
   }
