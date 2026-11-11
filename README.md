@@ -115,6 +115,8 @@ alongside the binary from `build/linux/x64/release/bundle`.
 
 ## Development
 
+Maintainers can prepare release drafts through [tag pushes](docs/releases.md).
+
 - [Contributor setup and tests](CONTRIBUTING.md)
 - [Adding model support](docs/model-support.md)
 - [Project documentation](docs/README.md)

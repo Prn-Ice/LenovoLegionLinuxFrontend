@@ -1,0 +1,67 @@
+name: Tagged release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Check release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Match the tag to pubspec.yaml and the checked-out commit
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 tool/release_workflow.py check-tag "$RELEASE_TAG"
+
+  checks:
+    name: Release checks and artifacts
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  draft:
+    name: Prepare GitHub release draft
+    needs: [version, checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.version.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download the checked AppImage and acceptance evidence
+        uses: actions/download-artifact@v8
+        with:
+          name: appimage-ubuntu-22.04
+          path: build/release-inputs
+      - name: Validate the source, artifact, and VM evidence together
+        env:
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+        run: >-
+          python3 tool/release_workflow.py prepare "$RELEASE_TAG"
+          build/release-inputs build/tag-release
+      - name: Create or refresh the draft and upload its assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+        run: python3 tool/release_workflow.py publish "$RELEASE_TAG" build/tag-release
