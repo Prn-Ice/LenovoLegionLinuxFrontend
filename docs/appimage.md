@@ -109,9 +109,12 @@ The VM first runs the native helper checks. It then verifies artifact hashes,
 opens a real Flutter window under Xvfb through FUSE and through extraction, and
 uses the bundled helper from both locations for synthetic write/readback/restore.
 Paths contain spaces. The acceptance guest has no GTK, JVM, or installed Legion
-service. Both normal launches must render their first frame and map GTK, GLib,
-and Pango from the AppImage. The helper must load no shared libraries. The tests
-also verify the bundled directory command and retain the desktop memory maps.
+service. Both normal launches must display the Dashboard and map GTK, GLib,
+and Pango from the AppImage. The tests press the X button and require exit status
+zero. They retain screenshots, logs, and desktop memory maps. The helper must
+load no shared libraries; the bundled directory command is also checked.
+The VM uses QEMU's recommended host CPU profile with KVM, or `max` with software
+emulation. The evidence records that profile and the guest's CPU information.
 Test-only Polkit decisions approve the synthetic helper session. Live password
 prompts remain a separate check. Persistent service, policy, and udev files must
 match their state before the AppImage tests.

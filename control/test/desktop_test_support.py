@@ -54,6 +54,39 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                     check=False,
                 )
                 if result.returncode == 0 and process.poll() is None:
+                    window = result.stdout.splitlines()[0]
+                    frame = Path.home() / ("desktop-frame-" + label + ".png")
+                    subprocess.run(
+                        ["import", "-window", window, str(frame)],
+                        check=True,
+                        capture_output=True,
+                    )
+                    cropped = temporary + "/dashboard.png"
+                    subprocess.run(
+                        [
+                            "convert",
+                            str(frame),
+                            "-crop",
+                            "380x32+288+7",
+                            "-resize",
+                            "300%",
+                            cropped,
+                        ],
+                        check=True,
+                        capture_output=True,
+                    )
+                    text = subprocess.check_output(
+                        ["tesseract", cropped, "stdout", "--psm", "7"],
+                        text=True,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    if "dashboard" not in text.lower():
+                        if time.monotonic() >= deadline:
+                            raise AssertionError(
+                                "Dashboard did not render:\n" + log_path.read_text()
+                            )
+                        time.sleep(0.1)
+                        continue
                     pid = subprocess.check_output(
                         ["xdotool", "getwindowpid", result.stdout.splitlines()[0]],
                         text=True,
@@ -76,7 +109,6 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                             Path.home() / ("appimage-runtime-" + label + ".txt")
                         ).write_text(maps)
                     print("PASS: visible Flutter window from " + label, flush=True)
-                    window = result.stdout.splitlines()[0]
                     geometry = subprocess.check_output(
                         ["xdotool", "getwindowgeometry", "--shell", window], text=True
                     )

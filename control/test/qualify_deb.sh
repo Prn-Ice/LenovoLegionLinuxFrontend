@@ -16,7 +16,8 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends policykit-1 dbus python3 util-linux \
   libgtk-3-0 libgl1-mesa-dri libglx-mesa0 libegl1 libegl-mesa0 libgles2 \
-  gsettings-desktop-schemas xvfb xauth xdotool desktop-file-utils appstream
+  gsettings-desktop-schemas xvfb xauth xdotool desktop-file-utils appstream \
+  imagemagick tesseract-ocr
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
