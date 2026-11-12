@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Test the portable helper and optional AppImage in a disposable Ubuntu VM.
+# Test the helper or desktop package in a disposable distro VM.
 set -euo pipefail
 
 if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
-  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage RELEASE_DIRECTORY]" >&2
+  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage|--deb RELEASE_DIRECTORY]" >&2
   exit 64
 fi
 
@@ -12,11 +12,16 @@ image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
 release=
+format=native
 qualification_archive=native-qualification.tar.gz
 if [[ $# == 5 ]]; then
-  if [[ $4 != --appimage ]]; then echo "Unknown option: $4" >&2; exit 64; fi
+  case "$4" in
+    --appimage) format=appimage ;;
+    --deb) format=deb ;;
+    *) echo "Unknown option: $4" >&2; exit 64 ;;
+  esac
   release="$(realpath -- "$5")"
-  qualification_archive=appimage-qualification.tar.gz
+  qualification_archive="$format-qualification.tar.gz"
 fi
 for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3; do
   if ! command -v "$program" >/dev/null; then
@@ -62,7 +67,7 @@ qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 accelerator=tcg
 if [[ -r /dev/kvm && -w /dev/kvm ]]; then accelerator=kvm; fi
-echo "Starting disposable Ubuntu VM with $accelerator; logs: $output"
+echo "Starting disposable distro VM with $accelerator; logs: $output"
 qemu-system-x86_64 -accel "$accelerator" -m 2048 -smp 2 -display none \
   -serial "file:$output/serial.log" -monitor none -no-reboot \
   -drive "file=$scratch/disk.qcow2,if=virtio,format=qcow2" \
@@ -89,13 +94,19 @@ LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control tele
 tar -czf "$output/native-source.tar.gz" -C "$root" control telemetry packaging LICENSE THIRD_PARTY_NOTICES.md
 scp "${ssh_options[@]}" -P "$port" "$output/native-source.tar.gz" root@127.0.0.1:/root/source.tar.gz
 guest_check=qualify_ubuntu.sh
+guest_timeout=900
 if [[ -n $release ]]; then
-  tar -czf "$scratch/appimage-release.tar.gz" -C "$release" .
-  scp "${ssh_options[@]}" -P "$port" "$scratch/appimage-release.tar.gz" root@127.0.0.1:/root/appimage-release.tar.gz
-  guest_check=qualify_appimage_ubuntu.sh
+  tar -czf "$scratch/$format-release.tar.gz" -C "$release" .
+  scp "${ssh_options[@]}" -P "$port" "$scratch/$format-release.tar.gz" "root@127.0.0.1:/root/$format-release.tar.gz"
+  if [[ $format == appimage ]]; then
+    guest_check=qualify_appimage_ubuntu.sh
+  else
+    guest_check=qualify_deb.sh
+    guest_timeout=1500
+  fi
 fi
 set +e
-remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout 900 bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
+remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout $guest_timeout bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
 result=${PIPESTATUS[0]}
 set -e
 remote 'journalctl -b --no-pager' > "$output/journal.log" || true
@@ -115,12 +126,15 @@ manifest = {
     'cloud_image_sha256': os.environ['LLLF_QUALIFICATION_IMAGE_SHA256'],
     'files': {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
               for name in ['native-source.tar.gz', os.environ['LLLF_QUALIFICATION_ARCHIVE']]},
-    'scope': 'Portable control with a synthetic CLI in a disposable Ubuntu VM',
+    'scope': 'Portable control with a synthetic CLI in a disposable distro VM',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
     'appimage': ('FUSE, extraction, desktop launch, and synthetic helper control verified'
                  if os.environ['LLLF_QUALIFICATION_ARCHIVE'] == 'appimage-qualification.tar.gz'
                  else 'unverified'),
+    'deb': ('install, desktop, helper, upgrade, and purge verified'
+            if os.environ['LLLF_QUALIFICATION_ARCHIVE'] == 'deb-qualification.tar.gz'
+            else 'unverified'),
 }
 (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 PY

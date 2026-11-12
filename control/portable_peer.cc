@@ -166,6 +166,11 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
   auto *connection = g_dbus_connection_new_sync(
       G_IO_STREAM(stream), nullptr,
       G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT, observer, cancel, error);
+  if (connection) {
+    // Setup is complete. Method deadlines and the helper's session timer now
+    // bound access; an idle socket must remain usable between commands.
+    g_socket_set_timeout(g_socket_connection_get_socket(stream), 0);
+  }
   g_object_unref(observer);
   g_object_unref(stream);
   if (connection) {

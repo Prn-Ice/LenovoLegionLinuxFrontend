@@ -12,7 +12,7 @@ mkdir -p /home/approved/'AppImage with spaces'
 tar -xzf /root/appimage-release.tar.gz -C /home/approved/'AppImage with spaces'
 chown -R approved:approved /home/approved/'AppImage with spaces'
 mkdir -p /opt/legion-vm-tests
-cp control/test/{appimage_test.py,portable_session_test.py,distro_test_support.py} /opt/legion-vm-tests/
+cp control/test/{appimage_test.py,portable_session_test.py,distro_test_support.py,desktop_test_support.py} /opt/legion-vm-tests/
 python3 /opt/legion-vm-tests/appimage_test.py /home/approved/'AppImage with spaces'
 dpkg-query -W fuse3 libgtk-3-0 libgl1-mesa-dri libegl1 libegl-mesa0 libgles2 > /home/approved/appimage-versions.txt
 cp /home/approved/'AppImage with spaces'/legion-frontend-*.json /home/approved/appimage-release-manifest.json

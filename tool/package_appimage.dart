@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'package_release.dart';
 
-const appId = 'io.github.prnice.legion_linux_frontend';
+import 'package_linux.dart';
+
+export 'package_linux.dart' show appId;
 
 Future<void> main(List<String> args) async {
   try {
@@ -61,7 +63,7 @@ Future<void> main(List<String> args) async {
           'The built bundle changed while staging; build again.',
         );
       }
-      final elf = await inspectAppDir(appdir);
+      final elf = await inspectDesktopPackage(appdir);
       final appBundle = Directory('${appdir.path}/usr/lib/legion_frontend');
       final stamp = await recordReleaseBuild(
         appBundle,
@@ -150,26 +152,7 @@ Future<void> stageAppDir(
   Directory appdir, {
   required Directory runtimeInputs,
 }) async {
-  if (appdir.existsSync()) throw StateError('AppDir already exists.');
-  final appBundle = Directory('${appdir.path}/usr/lib/legion_frontend');
-  await appBundle.create(recursive: true);
-  await runPackagingCommand('cp', ['-a', '${bundle.path}/.', appBundle.path]);
-  for (final path in [
-    'lib/systemd',
-    'lib/sysusers.d',
-    'share/dbus-1',
-    'share/polkit-1',
-  ]) {
-    final directory = Directory('${appBundle.path}/$path');
-    if (directory.existsSync()) await directory.delete(recursive: true);
-  }
-  for (final name in ['legion-telemetry-service', 'legion-control-service']) {
-    final file = File('${appBundle.path}/libexec/$name');
-    if (file.existsSync()) await file.delete();
-  }
-  if (!File('${appBundle.path}/libexec/legion-portable-control').existsSync()) {
-    throw StateError('The desktop bundle has no portable helper.');
-  }
+  await stageDesktopPackage(root, bundle, appdir);
   final packaging = '${root.path}/packaging/appimage';
   await File('$packaging/AppRun').copy('${appdir.path}/AppRun');
   await runPackagingCommand('chmod', ['755', '${appdir.path}/AppRun']);
@@ -177,18 +160,6 @@ Future<void> stageAppDir(
   await File(
     '${root.path}/assets/branding/legion_mark.svg',
   ).copy('${appdir.path}/$appId.svg');
-  for (final entry in {
-    'applications/$appId.desktop': '$packaging/$appId.desktop',
-    'metainfo/$appId.metainfo.xml': '$packaging/$appId.metainfo.xml',
-    'icons/hicolor/scalable/apps/$appId.svg':
-        '${root.path}/assets/branding/legion_mark.svg',
-    'licenses/legion_frontend/branding/README.md':
-        '${root.path}/assets/branding/README.md',
-  }.entries) {
-    final target = File('${appdir.path}/usr/share/${entry.key}');
-    await target.parent.create(recursive: true);
-    await File(entry.value).copy(target.path);
-  }
   final specification =
       jsonDecode(await File('$packaging/build-inputs.json').readAsString())
           as Map;
@@ -227,52 +198,3 @@ Future<void> verifyRuntimeInputs(Directory root, Directory inputs) async {
     }
   }
 }
-
-Future<Map<String, Object>> inspectAppDir(Directory appdir) async {
-  final libraries = <String, Object>{};
-  await for (final file in appdir.list(recursive: true, followLinks: false)) {
-    if (file is! File) continue;
-    final input = await file.open();
-    final magic = await input.read(4);
-    await input.close();
-    if (magic.length != 4 ||
-        magic[0] != 0x7f ||
-        String.fromCharCodes(magic.skip(1)) != 'ELF') {
-      continue;
-    }
-    final relative = file.path.substring(appdir.path.length + 1);
-    final elf = await runPackagingCommand('readelf', ['-lW', '-dW', file.path]);
-    if (elf.contains('/nix/store/') ||
-        (relative.endsWith('/libexec/legion-portable-control') &&
-            RegExp(r'\((?:RPATH|RUNPATH)\)').hasMatch(elf))) {
-      throw StateError('Unsafe library search paths in $relative');
-    }
-    libraries[relative] = [
-      for (final match in RegExp(
-        r'Shared library: \[([^\]]+)\]',
-      ).allMatches(elf))
-        match.group(1)!,
-    ];
-  }
-  return libraries;
-}
-
-Future<String> runPackagingCommand(
-  String command,
-  List<String> arguments,
-) async {
-  final result = await Process.run(
-    command,
-    arguments,
-    environment: {'LC_ALL': 'C'},
-  );
-  if (result.exitCode != 0) {
-    throw StateError('$command failed: ${result.stderr}');
-  }
-  return result.stdout as String;
-}
-
-Future<String> fileSha256(File file) async => (await runPackagingCommand(
-  'sha256sum',
-  ['--binary', '--zero', '--', file.path],
-)).substring(0, 64);

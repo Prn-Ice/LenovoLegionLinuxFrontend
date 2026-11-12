@@ -64,7 +64,7 @@ services.legionControl = {
 
 Hardware controls require `legion_cli`. Installed mode finds it in `PATH` for
 reads; temporary mode checks fixed administrator-controlled host locations.
-See the [AppImage build and trial instructions](docs/appimage.md), or
+See the [Debian package](docs/debian.md), [AppImage build and trial instructions](docs/appimage.md), or
 [run tests with synthetic hardware](CONTRIBUTING.md#test-without-hardware).
 
 ```bash

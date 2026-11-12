@@ -128,6 +128,8 @@ std::string Call(GDBusConnection *connection, const char *method,
       connection, nullptr, path, interface, method, arguments, reply_type,
       G_DBUS_CALL_FLAGS_NONE, 45000, nullptr, &error);
   if (!reply) {
+    g_printerr("%s failed: %s\n", method,
+               error ? error->message : "unknown transport error");
     char *remote = error ? g_dbus_error_get_remote_error(error) : nullptr;
     std::string name = remote ? remote : "transport-error";
     g_free(remote);
@@ -289,6 +291,20 @@ int main(int argc, char **argv) {
       auto *bytes = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, payload,
                                               sizeof(payload) - 1, 1);
       result = Call(connection, "ApplyFanCurve", g_variant_new("(@ay)", bytes));
+    } else if (line == "resume-after-idle") {
+      // Cross the connection setup deadline before using the live session.
+      auto *loop = g_main_loop_new(nullptr, FALSE);
+      g_timeout_add(
+          6000,
+          [](gpointer data) -> gboolean {
+            g_main_loop_quit(static_cast<GMainLoop *>(data));
+            return G_SOURCE_REMOVE;
+          },
+          loop);
+      g_main_loop_run(loop);
+      g_main_loop_unref(loop);
+      result =
+          Call(connection, "GetCapabilities", nullptr, G_VARIANT_TYPE("(uas)"));
     } else if (line == "idle")
       result = IdleClosed(connection) ? "" : "idle-helper-did-not-close";
     else if (line == "close")

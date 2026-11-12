@@ -54,6 +54,11 @@ jobs:
         with:
           name: appimage-ubuntu-22.04
           path: build/release-inputs
+      - name: Download the checked Debian package and both VM results
+        uses: actions/download-artifact@v8
+        with:
+          name: debian-amd64
+          path: build/release-inputs
       - name: Validate the source, artifact, and VM evidence together
         env:
           RELEASE_TAG: ${{ needs.version.outputs.tag }}

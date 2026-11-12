@@ -274,6 +274,7 @@ pkgs.testers.runNixOSTest {
         app.prepare("success")
         app.send("connect")
         app.send("authorize")
+        app.send("resume-after-idle")
         app.send("enable")
         assert app.value("battery-conservation") == "enabled\n"
         app.send("disable")

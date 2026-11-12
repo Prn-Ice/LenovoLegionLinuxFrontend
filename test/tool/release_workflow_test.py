@@ -4,11 +4,11 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 spec = importlib.util.spec_from_file_location(
@@ -81,6 +81,86 @@ class ReleaseWorkflowTest(unittest.TestCase):
             },
         }
         self.refresh()
+        self.refresh_debian()
+
+    def refresh_debian(self):
+        self.deb = self.inputs / "deb-release"
+        self.deb.mkdir(exist_ok=True)
+        package, source, metadata, _ = release.debian_names({"version": "1.2.3+7"})
+        (self.deb / package).write_bytes(b"Debian package fixture")
+        archive_json(self.deb / source, "./SOURCE-MANIFEST.json", self.sources)
+        self.deb_manifest = {
+            "format": 1,
+            "version": "1.2.3+7",
+            "package_version": "1.2.3+7-1",
+            "architecture": "amd64",
+            "source_commit": self.commit,
+            "portable_control": True,
+            "default_control_mode": "installedService",
+            "bundle": self.sources["bundle"],
+            "files": {
+                name: release._sha256(self.deb / name) for name in [package, source]
+            },
+        }
+        (self.deb / metadata).write_text(json.dumps(self.deb_manifest))
+        (self.deb / "SHA256SUMS").write_text(
+            "".join(
+                f"{release._sha256(self.deb / name)}  {name}\n"
+                for name in [package, source, metadata]
+            )
+        )
+        for label, os_release in [
+            ("ubuntu", 'ID=ubuntu\nVERSION_ID="22.04"\n'),
+            ("debian", 'ID=debian\nVERSION_ID="12"\n'),
+        ]:
+            directory = self.inputs / f"deb-{label}-qualification"
+            directory.mkdir(exist_ok=True)
+            with tarfile.open(
+                directory / "deb-qualification.tar.gz", "w:gz"
+            ) as archive:
+                for name, value in {
+                    "deb-release-manifest.json": json.dumps(self.deb_manifest),
+                    "deb-os-release": os_release,
+                    "deb-checks.json": json.dumps(
+                        {
+                            name: True
+                            for name in [
+                                "installation",
+                                "desktop",
+                                "helper",
+                                "denied",
+                                "missing_agent",
+                                "upgrade",
+                                "purge",
+                                "existing_integration_preserved",
+                            ]
+                        }
+                    ),
+                }.items():
+                    data = value.encode()
+                    entry = tarfile.TarInfo(name)
+                    entry.size = len(data)
+                    archive.addfile(entry, io.BytesIO(data))
+            (directory / "native-source.tar.gz").write_bytes(
+                b"Debian VM source fixture"
+            )
+            (directory / "qualification.log").write_text("PASS: package VM checks\n")
+            (directory / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "commit": self.commit,
+                        "source_worktree_modified": False,
+                        "deb": release.QUALIFIED_DEB,
+                        "files": {
+                            name: release._sha256(directory / name)
+                            for name in [
+                                "native-source.tar.gz",
+                                "deb-qualification.tar.gz",
+                            ]
+                        },
+                    }
+                )
+            )
 
     def git(self, *arguments):
         return subprocess.check_output(
@@ -185,7 +265,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
 
     def test_prepares_complete_assets_checksums_and_qualification_notes(self):
         plan = self.prepare()
-        self.assertEqual(len(plan["assets"]), 5)
+        self.assertEqual(len(plan["assets"]), 9)
         checksums = release._checksums(
             self.output, set(plan["assets"]) - {"SHA256SUMS"}
         )
@@ -200,6 +280,75 @@ class ReleaseWorkflowTest(unittest.TestCase):
             self.output / (self.prefix + "-acceptance.tar.gz")
         ) as archive:
             self.assertIn("appimage-qualification.tar.gz", archive.getnames())
+
+    def test_missing_debian_acceptance_stops_the_draft(self):
+        (self.inputs / "deb-debian-qualification/manifest.json").unlink()
+        with self.assertRaises(ValueError):
+            self.prepare()
+
+    def test_modified_debian_package_is_rejected(self):
+        package, _, _, _ = release.debian_names({"version": "1.2.3+7"})
+        (self.deb / package).write_bytes(b"changed")
+        with self.assertRaisesRegex(ValueError, "checksum differs"):
+            self.prepare()
+
+    def test_debian_acceptance_must_match_the_package(self):
+        directory = self.inputs / "deb-debian-qualification"
+        self.refresh_debian()
+        archive_json(
+            directory / "deb-qualification.tar.gz", "deb-release-manifest.json", {}
+        )
+        evidence = json.loads((directory / "manifest.json").read_text())
+        evidence["files"]["deb-qualification.tar.gz"] = release._sha256(
+            directory / "deb-qualification.tar.gz"
+        )
+        (directory / "manifest.json").write_text(json.dumps(evidence))
+        with self.assertRaisesRegex(ValueError, "different Debian package"):
+            self.prepare()
+
+    def replace_debian_evidence(self, member, value):
+        directory = self.inputs / "deb-debian-qualification"
+        path = directory / "deb-qualification.tar.gz"
+        with tarfile.open(path) as archive:
+            files = {
+                entry.name: archive.extractfile(entry).read()
+                for entry in archive.getmembers()
+            }
+        files[member] = value
+        with tarfile.open(path, "w:gz") as archive:
+            for name, data in files.items():
+                entry = tarfile.TarInfo(name)
+                entry.size = len(data)
+                archive.addfile(entry, io.BytesIO(data))
+        evidence = json.loads((directory / "manifest.json").read_text())
+        evidence["files"][path.name] = release._sha256(path)
+        (directory / "manifest.json").write_text(json.dumps(evidence))
+
+    def test_debian_acceptance_requires_the_declared_distribution(self):
+        self.replace_debian_evidence(
+            "deb-os-release", b'ID=ubuntu\nVERSION_ID="22.04"\n'
+        )
+        with self.assertRaisesRegex(ValueError, "wrong distribution"):
+            self.prepare()
+
+    def test_failed_debian_purge_check_stops_the_draft(self):
+        checks = {
+            name: True
+            for name in [
+                "installation",
+                "desktop",
+                "helper",
+                "denied",
+                "missing_agent",
+                "upgrade",
+                "purge",
+                "existing_integration_preserved",
+            ]
+        }
+        checks["purge"] = False
+        self.replace_debian_evidence("deb-checks.json", json.dumps(checks).encode())
+        with self.assertRaisesRegex(ValueError, "has not passed"):
+            self.prepare()
 
     def test_corrupted_image_is_rejected_before_output(self):
         (self.binary / self.image).write_bytes(b"changed")
@@ -276,7 +425,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
                     if argument.startswith(str(self.output))
                 ]
             ),
-            5,
+            9,
         )
 
     def test_rerun_refreshes_an_existing_draft(self):
@@ -314,7 +463,9 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 mock.patch.object(
                     release,
                     "_github_api",
-                    side_effect=lambda path: self.api(path, existing, target),
+                    side_effect=lambda path, existing=existing, target=target: self.api(
+                        path, existing, target
+                    ),
                 ),
                 mock.patch.object(release, "_github_command") as write,
             ):
@@ -346,15 +497,17 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 return_value=subprocess.CompletedProcess([], code, stdout, ""),
             ):
                 self.assertEqual(release._github_api("endpoint"), expected)
-        with mock.patch.object(
-            release.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess(
-                [], 1, "HTTP/2.0 403 Forbidden\n\n{}", "forbidden"
+        with (
+            mock.patch.object(
+                release.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess(
+                    [], 1, "HTTP/2.0 403 Forbidden\n\n{}", "forbidden"
+                ),
             ),
+            self.assertRaises(RuntimeError),
         ):
-            with self.assertRaises(RuntimeError):
-                release._github_api("endpoint")
+            release._github_api("endpoint")
 
 
 if __name__ == "__main__":

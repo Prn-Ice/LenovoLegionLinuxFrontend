@@ -2,7 +2,7 @@
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It checks the version,
 runs the full CI workflow on that commit, and creates a draft GitHub release
-with the checked Ubuntu AppImage and its companions. Drafts retain the current
+with the checked AppImage, Debian package, and their companions. Drafts retain the current
 qualification notes while real hardware and desktop password-prompt checks
 remain open.
 
@@ -32,20 +32,22 @@ that the tag still resolves to the same commit on GitHub.
 The tag workflow calls the same CI workflow used for main and pull requests:
 release-tool fixtures, Flutter analysis/tests and generated-source checks,
 native tests, NixOS lifecycle/bootstrap VMs, Ubuntu helper checks, Linux app
-journeys, and the AppImage build/acceptance VM. The draft job starts after every
+journeys, Nix frontend build/acceptance, AppImage acceptance, and Debian package
+installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft job starts after every
 check succeeds.
 
 The release helper then verifies the tag version, app/source hashes, complete
 helper inventory, and the VM evidence. The evidence must describe a clean
 checkout of the tagged commit and identify the same release manifest.
 
-The draft contains five assets:
+The draft contains nine assets:
 
 - Ubuntu x86-64 `.AppImage`
 - Matching source archive, including runtime source inputs and notices
 - Build manifest
 - Acceptance evidence archive
-- `SHA256SUMS` covering all four files
+- Debian amd64 `.deb`, matching source archive, build manifest, and evidence from both VMs
+- `SHA256SUMS` covering all eight files
 
 The build jobs use read access. Only the final draft job receives repository
 write access through the built-in `GITHUB_TOKEN`; it needs no extra secret.
@@ -61,8 +63,8 @@ Rerunning the workflow refreshes the existing draft and replaces its generated
 assets. Reruns refuse a tag that already has a published release. A changed tag,
 missing evidence, or an altered artifact stops the draft update.
 
-This workflow packages the implemented Ubuntu AppImage target. Nix and Debian
-release assets will join it when their package builds are implemented.
+See [Debian installation](debian.md) for the `.deb` and its dependency baseline.
+The [Nix frontend](nix.md) can be built directly from the release tag's flake.
 
 The workflow was checked with actionlint and offline fixture tests. The first
 tag push will exercise GitHub's live draft/upload path.

@@ -1,15 +1,15 @@
 """Validate tag builds and prepare GitHub release drafts from checked artifacts."""
 
 import argparse
-from enum import Enum
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import tarfile
+from enum import Enum
+from pathlib import Path
 
 
 class ReleaseCommand(Enum):
@@ -21,11 +21,120 @@ class ReleaseCommand(Enum):
 QUALIFIED_APPIMAGE = (
     "FUSE, extraction, desktop launch, and synthetic helper control verified"
 )
+QUALIFIED_DEB = "install, desktop, helper, upgrade, and purge verified"
+
+
+def debian_names(release):
+    version, separator, build = release["version"].partition("+")
+    package_version = version.replace("-", "~", 1) + separator + build + "-1"
+    prefix = f"legion-frontend-{release['version']}-amd64"
+    return [
+        f"legion-linux-frontend_{package_version}_amd64.deb",
+        prefix + "-source.tar.gz",
+        prefix + ".json",
+        prefix + "-acceptance.tar.gz",
+    ]
+
+
+def prepare_debian(release, inputs, output):
+    package, source, metadata, evidence = debian_names(release)
+    directory = inputs / "deb-release"
+    checksums = _checksums(directory, {package, source, metadata})
+    manifest = _json(directory / metadata)
+    if (
+        manifest["format"] != 1
+        or manifest["architecture"] != "amd64"
+        or manifest["version"] != release["version"]
+        or manifest["package_version"]
+        != package.removeprefix("legion-linux-frontend_").removesuffix("_amd64.deb")
+        or manifest["source_commit"] != release["commit"]
+        or manifest["portable_control"] is not True
+        or manifest["default_control_mode"] != "installedService"
+        or manifest["files"] != {name: checksums[name] for name in [package, source]}
+    ):
+        raise ValueError("The Debian build differs from the tagged portable release.")
+    sources = _archived_json(directory / source, "./SOURCE-MANIFEST.json")
+    if (
+        sources["format"] != 4
+        or sources["inputs"]["commit"] != release["commit"]
+        or sources["build_config"]["portable_control"] is not True
+        or sources["bundle"] != manifest["bundle"]
+    ):
+        raise ValueError("The Debian source companion differs from its shipped bundle.")
+    for name in [
+        "./legion_frontend",
+        "./lib/libapp.so",
+        "./libexec/legion-portable-control",
+    ]:
+        if manifest["bundle"].get(name, {}).get("type") != "file":
+            raise ValueError(f"The Debian bundle lacks {name}.")
+    for label, distribution in [
+        ("ubuntu", ("ID=ubuntu", 'VERSION_ID="22.04"')),
+        ("debian", ("ID=debian", 'VERSION_ID="12"')),
+    ]:
+        qa_directory = inputs / f"deb-{label}-qualification"
+        qa = _json(qa_directory / "manifest.json")
+        if (
+            qa["commit"] != release["commit"]
+            or qa["source_worktree_modified"] is not False
+            or qa["deb"] != QUALIFIED_DEB
+        ):
+            raise ValueError(f"Debian package acceptance is incomplete for {label}.")
+        expected = {"native-source.tar.gz", "deb-qualification.tar.gz"}
+        if set(qa["files"]) != expected:
+            raise ValueError("The Debian VM evidence list is incomplete.")
+        for name in expected:
+            if _sha256(qa_directory / name) != qa["files"][name]:
+                raise ValueError(f"Debian VM evidence checksum differs: {name}")
+        archive = qa_directory / "deb-qualification.tar.gz"
+        if _archived_json(archive, "deb-release-manifest.json") != manifest:
+            raise ValueError("The VM tested a different Debian package.")
+        checks = _archived_json(archive, "deb-checks.json")
+        required = {
+            "installation",
+            "desktop",
+            "helper",
+            "denied",
+            "missing_agent",
+            "upgrade",
+            "purge",
+            "existing_integration_preserved",
+        }
+        if set(checks) != required or any(
+            value is not True for value in checks.values()
+        ):
+            raise ValueError("A required Debian acceptance check has not passed.")
+        with tarfile.open(archive) as contents:
+            os_release = (
+                contents.extractfile("deb-os-release").read().decode().splitlines()
+            )
+        if not all(line in os_release for line in distribution):
+            raise ValueError(
+                "The Debian package evidence identifies the wrong distribution."
+            )
+    for name in [package, source, metadata]:
+        shutil.copyfile(directory / name, output / name)
+    with tarfile.open(output / evidence, "w:gz") as archive:
+        for label in ["ubuntu", "debian"]:
+            for name in [
+                "manifest.json",
+                "native-source.tar.gz",
+                "deb-qualification.tar.gz",
+                "qualification.log",
+            ]:
+                archive.add(
+                    _file(inputs / f"deb-{label}-qualification" / name),
+                    arcname=label + "/" + name,
+                    recursive=False,
+                )
+    return [package, source, metadata, evidence]
 
 
 def check_tag(root, tag):
     match = re.search(
-        r"^version:[ \t]*([^\s]+)[ \t]*$", (root / "pubspec.yaml").read_text(), re.M
+        r"^version:[ \t]*([^\s]+)[ \t]*$",
+        (root / "pubspec.yaml").read_text(),
+        re.MULTILINE,
     )
     if not match or not re.fullmatch(
         r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?", match[1]
@@ -182,23 +291,28 @@ def prepare(root, tag, inputs, output):
             "qualification.log",
         ]:
             archive.add(_file(qa_directory / name), arcname=name, recursive=False)
+    assets.extend(prepare_debian(release, inputs, output))
     (output / "SHA256SUMS").write_text(
         "".join(f"{_sha256(output / name)}  {name}\n" for name in assets)
     )
     assets.append("SHA256SUMS")
     notes = output / "RELEASE-NOTES.md"
-    notes.write_text(f"""Ubuntu x86-64 AppImage built from `{tag}` (`{release["commit"]}`).
+    notes.write_text(f"""Ubuntu x86-64 AppImage and Debian amd64 package built from `{tag}` (`{release["commit"]}`).
 
 FUSE launch, extracted launch, and the bundled temporary helper passed the Ubuntu
 VM checks with a synthetic CLI. Real laptop hardware, actual CLI dependencies,
 and desktop password prompts still need qualification.
 
+The Debian package passed install, desktop launch, synthetic helper control,
+denied approval, missing-agent, upgrade, and purge checks on Ubuntu 22.04 and
+Debian 12. Existing integration files were preserved.
+
 Hardware control requires the LenovoLegionLinux driver, an administrator-owned
 legion_cli installation, systemd, and a desktop authentication agent. Choose
 Temporary helper in Settings and reopen the app to use portable control.
 
-The source companion, build manifest, VM evidence, and SHA256SUMS accompany the
-AppImage. Verify SHA256SUMS before using the files.
+Each artifact has a matching source companion, build manifest, and VM evidence.
+Verify SHA256SUMS before using the files.
 """)
     plan = dict(
         release,
@@ -211,7 +325,11 @@ AppImage. Verify SHA256SUMS before using the files.
 
 def _github_api(path):
     result = subprocess.run(
-        ["gh", "api", "--include", path], text=True, capture_output=True, timeout=60
+        ["gh", "api", "--include", path],
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=60,
     )
     response = result.stdout.replace("\r\n", "\n")
     headers, separator, body = response.partition("\n\n")
@@ -249,7 +367,7 @@ def _find_release(repository, tag):
     for page in range(1, 101):
         releases = _github_api(f"repos/{repository}/releases?per_page=100&page={page}")
         if not isinstance(releases, list):
-            raise RuntimeError("GitHub did not return the repository releases.")
+            raise TypeError("GitHub did not return the repository releases.")
         for release in releases:
             if release["tag_name"] == tag:
                 return release
@@ -274,6 +392,7 @@ def publish(root, tag, output, repository):
         prefix + "-acceptance.tar.gz",
         "SHA256SUMS",
     }
+    expected.update(debian_names(release))
     if set(plan["assets"]) != expected:
         raise ValueError("The prepared release asset list differs.")
     for name, digest in plan["assets"].items():

@@ -289,3 +289,52 @@ jobs:
           .#checks.x86_64-linux.nix-metadata --print-build-logs
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs
+
+  debian:
+    name: Debian package build and acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Install disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Download the pinned SDK
+        run: |
+          sdk_url="$(python3 -c 'import json; print(json.load(open("packaging/appimage/build-inputs.json"))["flutter"]["url"])')"
+          curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
+      - name: Build the Debian package and source companion
+        run: bash tool/build_deb.sh /tmp/flutter.tar.xz build/deb-release
+      - name: Download verified Ubuntu and Debian acceptance images
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/deb-jammy.img
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/deb-jammy.SHA256SUMS
+          bash tool/fetch_debian_test_image.sh /tmp/deb-bookworm.img
+      - name: Test install, launch, helper, upgrade, and purge on Ubuntu 22.04
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/deb-jammy.SHA256SUMS)"
+          bash tool/test_portable_distro.sh /tmp/deb-jammy.img "$checksum" \
+            build/deb-ubuntu-qualification --deb build/deb-release
+      - name: Test install, launch, helper, upgrade, and purge on Debian 12
+        run: |
+          checksum="$(cat /tmp/deb-bookworm.img.sha256)"
+          bash tool/test_portable_distro.sh /tmp/deb-bookworm.img "$checksum" \
+            build/deb-debian-qualification --deb build/deb-release
+      - name: Upload the Debian package, sources, and acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: debian-amd64
+          path: |
+            build/deb-release
+            build/deb-ubuntu-qualification
+            build/deb-debian-qualification
+          if-no-files-found: ignore
