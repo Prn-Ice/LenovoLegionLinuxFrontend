@@ -29,6 +29,28 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
   copy, and handoffs. See the writing examples in the project code patterns.
 - Separate what changed, what was tested, and what remains unverified.
 
+## Standard workflows and simple solutions
+
+- Use supported platform and upstream workflows for installation, launch, and
+  runtime compatibility. Keep the user's steps as simple as the standard flow.
+- Reject custom, overcomplicated workarounds. When our design conflicts with a
+  standard workflow, fix the integration or simplify the design. Do not make
+  users adopt a project-specific launcher, compatibility layer, or alternate
+  deployment path to hide that conflict.
+- Start with the documented workflow and reproduce its failure in the intended
+  environment. Check supported configuration and existing platform tools before
+  proposing new infrastructure. Explain the root cause and the smallest fix.
+- If a custom mechanism is unavoidable, explain why simpler supported options
+  fail, its user impact, and its maintenance cost. Obtain explicit user agreement
+  to that concrete exception before implementing it. A general request to fix a
+  problem or proceed does not approve added architectural complexity.
+- Acceptance checks must run the standard user command and exercise the promised
+  behavior. Passing a custom test launcher alone does not establish platform
+  compatibility. Report the standard flow as unsupported until it passes.
+- Preserve authorization and trust checks while fixing integration. If a safe,
+  simple solution is unresolved, record the blocker in Beads and report it
+  plainly. Do not weaken security or call a workaround a completed fix.
+
 ## Writing standard
 
 - **Use [Writing Clearly and Concisely](.agents/skills/writing-clearly-and-concisely/SKILL.md) for all prose.** Read the skill before writing, editing, or reviewing comments, documentation, UI copy, error messages, test descriptions, commit and PR text, reports, or agent messages.

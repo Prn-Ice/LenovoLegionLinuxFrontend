@@ -47,6 +47,9 @@ UI standards, and completion rules remain authoritative.
   to reduce boilerplate or migrate it to a Notifier during maintenance.
 - Prefer native framework patterns. Explain the problem, simpler alternative,
   and trade-off before introducing unfamiliar coordination or custom abstractions.
+- Follow the **Standard workflows and simple solutions** rules in `AGENTS.md`
+  for packaging and platform integration. Test the documented user command;
+  resolve conflicts in our design before adding a custom compatibility path.
 - Correct safe, relevant problems encountered in existing code and search for
   related occurrences. Ask before behavior changes or broader migrations; link
   exact locations and a proposed correction in Beads when outside this task.
