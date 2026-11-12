@@ -41,7 +41,7 @@ void main() {
               .having(
                 (failure) => failure.message,
                 'context',
-                contains('Authoritative graphics status'),
+                contains('Graphics mode and NVIDIA GPU status'),
               ),
         ),
       );
@@ -121,7 +121,7 @@ void main() {
         isA<DgpuRepositoryException>().having(
           (error) => error.message,
           'message',
-          contains('Authoritative graphics status could not be reloaded'),
+          contains('Graphics mode and NVIDIA GPU status could not be reloaded'),
         ),
       ),
     );
@@ -174,71 +174,136 @@ void main() {
           isA<DgpuRepositoryException>().having(
             (error) => error.message,
             'message',
-            contains('not available as a desktop action'),
+            contains(
+              'Automatic graphics switching is not supported. Choose Hybrid instead.',
+            ),
           ),
         ),
       );
     },
   );
 
-  test('explains whether a classified graphics write changed policy', () async {
-    for (final failure in const {
-      LegionBridgeErrorCode.graphicsBlocked: (
-        'was not changed',
-        'Close GPU-accelerated applications',
-      ),
-      LegionBridgeErrorCode.graphicsPending: (
-        'may have changed',
-        'restore Hybrid from a text console',
-      ),
-    }.entries) {
-      when(
-        () => bridge.runControlOperation(
-          operation: any(named: 'operation'),
-          method: any(named: 'method'),
-          args: any(named: 'args'),
-          timeout: any(named: 'timeout'),
+  test(
+    'distinguishes a refused change from a saved but incomplete switch',
+    () async {
+      for (final failure in const {
+        LegionBridgeErrorCode.graphicsBlocked: (
+          'was not applied',
+          'Close applications using NVIDIA graphics',
         ),
-      ).thenThrow(
-        LegionBridgeException(
-          code: failure.key,
-          method: 'graphics_mode.set',
-          message: 'classified failure',
-          stderr: 'backend detail',
+        LegionBridgeErrorCode.graphicsPending: (
+          'was saved',
+          'restart the laptop before trying another mode',
         ),
-      );
+      }.entries) {
+        when(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
+            method: any(named: 'method'),
+            args: any(named: 'args'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenThrow(
+          LegionBridgeException(
+            code: failure.key,
+            method: 'graphics_mode.set',
+            message: 'classified failure',
+            stderr: 'backend detail',
+          ),
+        );
 
-      await expectLater(
-        repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
-        throwsA(
-          isA<DgpuRepositoryException>()
-              .having(
-                (error) => error.kind,
-                'kind',
-                failure.key == LegionBridgeErrorCode.graphicsBlocked
-                    ? AppFailureKind.graphicsBlocked
-                    : AppFailureKind.graphicsPending,
-              )
-              .having(
-                (error) => error.details,
-                'details',
-                contains('backend detail'),
-              )
-              .having(
-                (error) => error.message,
-                'consequence',
-                contains(failure.value.$1),
-              )
-              .having(
-                (error) => error.message,
-                'recovery',
-                contains(failure.value.$2),
-              ),
-        ),
-      );
-      reset(bridge);
-    }
-  });
+        await expectLater(
+          repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
+          throwsA(
+            isA<DgpuRepositoryException>()
+                .having(
+                  (error) => error.kind,
+                  'kind',
+                  failure.key == LegionBridgeErrorCode.graphicsBlocked
+                      ? AppFailureKind.graphicsBlocked
+                      : AppFailureKind.graphicsPending,
+                )
+                .having(
+                  (error) => error.details,
+                  'details',
+                  contains('backend detail'),
+                )
+                .having(
+                  (error) => error.message,
+                  'consequence',
+                  contains(failure.value.$1),
+                )
+                .having(
+                  (error) => error.message,
+                  'recovery',
+                  contains(failure.value.$2),
+                )
+                .having(
+                  (error) => error.message,
+                  'raw diagnostics stay separate',
+                  isNot(contains('backend detail')),
+                ),
+          ),
+        );
+        reset(bridge);
+      }
+    },
+  );
+
+  for (final failure in const {
+    LegionBridgeErrorCode.timeout: 'timed out',
+    LegionBridgeErrorCode.busy: 'Another hardware change is running',
+    LegionBridgeErrorCode.commandFailed:
+        'Could not switch to Integrated graphics only',
+  }.entries) {
+    test(
+      'failed graphics request gives a next step (${failure.key.name})',
+      () async {
+        when(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
+            method: any(named: 'method'),
+            args: any(named: 'args'),
+            timeout: any(named: 'timeout'),
+          ),
+        ).thenThrow(
+          LegionBridgeException(
+            code: failure.key,
+            method: 'graphics_mode.set',
+            message: 'request failed',
+            stderr: 'raw diagnostic',
+          ),
+        );
+        await expectLater(
+          repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
+          throwsA(
+            isA<DgpuRepositoryException>()
+                .having(
+                  (error) => error.message,
+                  'problem',
+                  contains(failure.value),
+                )
+                .having((error) => error.message, 'next step', contains('try'))
+                .having(
+                  (error) => error.message,
+                  'no unsupported no-change claim',
+                  isNot(contains('was not changed')),
+                )
+                .having(
+                  (error) => error.message,
+                  'no self-narration',
+                  isNot(contains('could not confirm')),
+                )
+                .having(
+                  (error) => error.details,
+                  'diagnostics preserved',
+                  contains('raw diagnostic'),
+                ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 const _statusJson = '''

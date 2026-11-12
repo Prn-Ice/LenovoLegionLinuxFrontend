@@ -64,20 +64,21 @@ class SettingsPage extends ConsumerWidget {
       ],
     );
     final backend = _SettingsSection(
-      title: 'Backend',
-      description: 'Choose hardware access and manage persistent services.',
+      title: 'Hardware control',
+      description:
+          'Manage permissions and background services for laptop settings.',
       children: [
         const HardwareAccessControls(),
         const Divider(height: 32),
         if (about.snapshot case final snapshot?) ...[
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Module version'),
+            title: const Text('Kernel driver version'),
             subtitle: Text(snapshot.moduleVersion ?? 'Unknown'),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('CLI'),
+            title: const Text('LenovoLegionLinux command-line tool'),
             subtitle: SelectableText(
               '${snapshot.cliPath ?? 'Unavailable'}\n${snapshot.cliHealthSummary}',
             ),
@@ -88,7 +89,7 @@ class SettingsPage extends ConsumerWidget {
         if (state.services.isEmpty)
           Text(
             state.activeControlMode == ControlMode.temporaryHelper
-                ? 'Changing persistent services requires installed service mode.'
+                ? 'Use Installed service to manage background services. Close and reopen the app after changing that choice.'
                 : 'No service controls available.',
           ),
         ...state.services.map(
@@ -212,7 +213,9 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 8),
           if (display.availableRefreshRates == null ||
               display.availableRefreshRates!.isEmpty)
-            const Text('Unavailable — xrandr is not accessible in this session.')
+            const Text(
+              'Unavailable — xrandr is not accessible in this session.',
+            )
           else
             Wrap(
               spacing: 8,

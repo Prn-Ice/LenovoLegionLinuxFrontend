@@ -63,19 +63,30 @@ class FanCurveUnavailablePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final sensorMessage = switch ((
+      currentRpm != null,
+      currentTemperature != null,
+    )) {
+      (true, true) => 'Current fan speed and temperature are shown below.',
+      (true, false) =>
+        'Current fan speed is shown below. Temperature is unavailable.',
+      (false, true) =>
+        'Current temperature is shown below. Fan speed is unavailable.',
+      (false, false) => 'Fan speed and temperature are also unavailable.',
+    };
     final metrics = [
       _FanSummaryCard(
-        title: 'Current ${channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan',
+        title: 'Current ${channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan speed',
         value: currentRpm == null ? '—' : '$currentRpm',
         unit: currentRpm == null ? null : 'RPM',
-        subtitle: currentRpm == null ? 'Fan speed unavailable' : 'Live reading',
+        subtitle: currentRpm == null ? 'Fan speed unavailable' : null,
       ),
       _FanSummaryCard(
-        title: 'Current temperature',
+        title: '${channel == FanChannel.cpu ? 'CPU' : 'GPU'} temperature',
         value: currentTemperature == null
             ? '—'
             : '${currentTemperature!.round()}°C',
-        subtitle: channel == FanChannel.cpu ? 'CPU package' : 'GPU sensor',
+        subtitle: currentTemperature == null ? 'Temperature unavailable' : null,
         accent: accent,
       ),
     ];
@@ -104,12 +115,12 @@ class FanCurveUnavailablePanel extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Custom curve editing is not available',
+                        'Fan curve editing unavailable',
                         style: theme.textTheme.titleSmall,
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'The controller did not provide a usable fan curve. Live readings remain available.',
+                        'The app could not read the temperature and fan-speed settings needed to edit a curve. $sensorMessage',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -555,7 +566,7 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
     final cards = [
       _FanSummaryCard(
         title:
-            'Current ${widget.channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan',
+            'Current ${widget.channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan speed',
         value: widget.currentRpm == null ? '—' : '${widget.currentRpm}',
         unit: widget.currentRpm == null ? null : 'RPM',
         subtitle: currentTemperature == null
@@ -701,14 +712,14 @@ class _FanSummaryCard extends StatelessWidget {
   const _FanSummaryCard({
     required this.title,
     required this.value,
-    required this.subtitle,
+    this.subtitle,
     this.unit,
     this.accent,
   });
 
   final String title;
   final String value;
-  final String subtitle;
+  final String? subtitle;
   final String? unit;
   final Color? accent;
 
@@ -742,8 +753,10 @@ class _FanSummaryCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                if (subtitle case final text?) ...[
+                  const SizedBox(height: 2),
+                  Text(text, style: Theme.of(context).textTheme.bodySmall),
+                ],
               ],
             ),
           ),

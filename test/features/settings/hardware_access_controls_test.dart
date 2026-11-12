@@ -63,6 +63,122 @@ void main() {
       null,
     );
   });
+  testWidgets(
+    'installed-only builds explain permission without a disabled choice',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final repository = Repository();
+      when(
+        repository.loadSnapshot,
+      ).thenAnswer((_) async => const SettingsSnapshot(services: []));
+      final store = Store();
+      when(store.load).thenReturn(ControlMode.installedService);
+      final container = ProviderContainer(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          controlModeStoreProvider.overrideWithValue(store),
+          portableControlAvailableProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: MediaQuery(
+                  data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+                  child: const HardwareAccessControls(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Permission to change settings'), findsOneWidget);
+      expect(
+        find.textContaining('may require administrator approval'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'This version sends approved changes to the Legion control service',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(find.textContaining('not available in this build'), findsNothing);
+      verifyNever(() => store.save(ControlMode.temporaryHelper));
+      verifyNever(() => store.save(ControlMode.installedService));
+      final otherPermissions = find.text('Other hardware permissions');
+      await tester.ensureVisible(otherPermissions);
+      await tester.pumpAndSettle();
+      await tester.tap(otherPermissions);
+      await tester.pumpAndSettle();
+      final explanation = find.textContaining(
+        'does not grant access to keyboard lighting or CPU power readings',
+      );
+      await tester.ensureVisible(explanation);
+      await tester.pumpAndSettle();
+      expect(explanation.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'a saved unavailable helper can be changed back to the installed service',
+    (tester) async {
+      final repository = Repository();
+      when(
+        repository.loadSnapshot,
+      ).thenAnswer((_) async => const SettingsSnapshot(services: []));
+      final store = Store();
+      when(store.load).thenReturn(ControlMode.temporaryHelper);
+      when(
+        () => store.save(ControlMode.installedService),
+      ).thenAnswer((_) async {});
+      final container = ProviderContainer(
+        overrides: [
+          settingsRepositoryProvider.overrideWithValue(repository),
+          controlModeStoreProvider.overrideWithValue(store),
+          controlModeProvider.overrideWithValue(ControlMode.installedService),
+          portableControlAvailableProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(child: HardwareAccessControls()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Choose Installed service for the next launch'),
+        findsOneWidget,
+      );
+      final temporary = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'Temporary helper'),
+      );
+      expect(temporary.selected, isTrue);
+      expect(temporary.onSelected, isNull);
+      await tester.tap(find.text('Installed service'));
+      await tester.pumpAndSettle();
+      verify(() => store.save(ControlMode.installedService)).called(1);
+      expect(find.byType(ChoiceChip), findsNothing);
+      expect(container.read(controlModeProvider), ControlMode.installedService);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final brightness in [Brightness.light, if (review) Brightness.dark]) {
     for (final compact in [false, true]) {
       testWidgets(
@@ -121,13 +237,25 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
+          await tester.ensureVisible(find.text('Temporary helper'));
+          await tester.pumpAndSettle();
           await tester.tap(find.text('Temporary helper'));
           await tester.pumpAndSettle();
           expect(find.text('Use a temporary helper?'), findsOneWidget);
+          expect(
+            find.textContaining('Stopping it does not undo changes'),
+            findsOneWidget,
+          );
+          expect(
+            find.textContaining('15 minutes without a request from the app'),
+            findsOneWidget,
+          );
           await tester.ensureVisible(find.text('Cancel'));
           await tester.tap(find.text('Cancel'));
           await tester.pumpAndSettle();
           verifyNever(() => store.save(ControlMode.temporaryHelper));
+          await tester.ensureVisible(find.text('Temporary helper'));
+          await tester.pumpAndSettle();
           await tester.tap(find.text('Temporary helper'));
           await tester.pumpAndSettle();
           await tester.ensureVisible(find.text('Use on next launch'));
@@ -139,11 +267,19 @@ void main() {
             ControlMode.installedService,
           );
           expect(
-            find.textContaining('Reopen the app to use Temporary helper'),
+            find.textContaining(
+              'Close and reopen the app to use Temporary helper',
+            ),
             findsOneWidget,
           );
           expect(tester.takeException(), isNull);
           if (review) {
+            await tester.ensureVisible(
+              find.textContaining(
+                'Close and reopen the app to use Temporary helper',
+              ),
+            );
+            await tester.pumpAndSettle();
             final boundary = tester.renderObject<RenderRepaintBoundary>(
               find.byKey(const ValueKey('capture')),
             );

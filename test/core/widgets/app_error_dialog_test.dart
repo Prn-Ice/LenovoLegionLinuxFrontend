@@ -62,7 +62,8 @@ void main() {
           home: Scaffold(body: AppErrorDialog(message: failure)),
         ),
       );
-      expect(find.text('Short message\n\n$raw'), findsOneWidget);
+      expect(find.textContaining('Short message'), findsOneWidget);
+      expect(find.textContaining(raw), findsOneWidget);
       await tester.tap(find.text('Copy details'));
       await tester.pumpAndSettle();
       expect(copied, 'Short message\n\n$raw');
@@ -192,11 +193,13 @@ void main() {
       AppFailure(
         'Backend wording changed.',
         kind: AppFailureKind.graphicsBlocked,
-      ): 'Graphics change blocked',
+        details: 'raw graphics diagnostic',
+      ): 'Graphics mode was not changed',
       AppFailure(
         'Backend wording changed.',
         kind: AppFailureKind.graphicsPending,
-      ): 'Graphics policy did not settle',
+        details: 'raw graphics diagnostic',
+      ): 'Graphics mode switch incomplete',
     }.entries) {
       await tester.pumpWidget(
         MaterialApp(
@@ -206,16 +209,9 @@ void main() {
 
       expect(find.text(failure.value), findsOneWidget);
       expect(find.text(failure.key.message), findsOneWidget);
-      if (failure.key.kind == AppFailureKind.graphicsBlocked) {
-        expect(
-          find.textContaining('before writing to firmware'),
-          findsOneWidget,
-        );
-        expect(find.textContaining('Firmware accepted'), findsNothing);
-      } else {
-        expect(find.textContaining('Firmware accepted'), findsOneWidget);
-        expect(find.textContaining('was not confirmed'), findsOneWidget);
-      }
+      expect(find.text('raw graphics diagnostic'), findsOneWidget);
+      expect(find.text('Technical details'), findsOneWidget);
+      expect(find.textContaining('could not confirm'), findsNothing);
       expect(tester.takeException(), isNull);
     }
   });
@@ -236,6 +232,44 @@ void main() {
     expect(find.text('Action could not be completed'), findsOneWidget);
     expect(find.text('NixOS'), findsNothing);
   });
+
+  testWidgets(
+    'an incomplete graphics switch shows recovery once and keeps diagnostics separate',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const recovery =
+          'The setting for Integrated graphics only was saved, but the switch did not finish. Save your work and restart the laptop before trying another mode.';
+      const diagnostic = 'driver exit status: 3';
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AppErrorDialog(
+              message: AppFailure(
+                recovery,
+                kind: AppFailureKind.graphicsPending,
+                details: diagnostic,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Graphics mode switch incomplete'), findsOneWidget);
+      expect(find.text(recovery), findsOneWidget);
+      expect(find.text(diagnostic), findsOneWidget);
+      expect(find.text('Technical details'), findsOneWidget);
+      expect(find.textContaining('could not confirm'), findsNothing);
+      expect(
+        find.textContaining('The requested action did not complete'),
+        findsNothing,
+      );
+      expect(find.text('Close').hitTestable(), findsOneWidget);
+      expect(find.text('Copy details').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('queues a different kind with the same text without stacking', (
     tester,
@@ -264,10 +298,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('Graphics change blocked'), findsOneWidget);
+    expect(find.text('Graphics mode was not changed'), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
-    expect(find.text('Graphics policy did not settle'), findsOneWidget);
+    expect(find.text('Graphics mode switch incomplete'), findsOneWidget);
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
     failure.value = const AppFailure(

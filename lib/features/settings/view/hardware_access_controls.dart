@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:yaru/yaru.dart';
 
 import '../../../core/models/control_mode.dart';
 import '../../../core/providers/system_services_provider.dart';
@@ -16,70 +17,102 @@ class HardwareAccessControls extends ConsumerWidget {
     final state = ref.watch(settingsBlocProvider);
     final available = ref.watch(portableControlAvailableProvider);
     final textTheme = Theme.of(context).textTheme;
+    final canChooseMode =
+        available ||
+        state.nextControlMode == ControlMode.temporaryHelper ||
+        state.activeControlMode == ControlMode.temporaryHelper;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Hardware access', style: textTheme.titleSmall),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final mode in ControlMode.values)
-              _ModeChip(
-                label: mode.label,
-                selected: state.nextControlMode == mode,
-                onSelected:
-                    state.isSavingControlMode ||
-                        (mode == ControlMode.temporaryHelper && !available)
-                    ? null
-                    : () async {
-                        if (ref.read(settingsBlocProvider).nextControlMode ==
-                            mode) {
-                          return;
-                        }
-                        if (mode == ControlMode.temporaryHelper) {
-                          final confirmed = await confirmPrivilegedAction(
-                            context,
-                            title: 'Use a temporary helper?',
-                            message:
-                                'After you reopen the app, hardware changes may ask for administrator approval. Access ends when the app closes or after 15 minutes idle. Persistent services and boot-time changes require installed integration.',
-                            confirmLabel: 'Use on next launch',
-                          );
-                          if (!context.mounted || !confirmed) return;
-                        }
-                        final current = ref.read(settingsBlocProvider);
-                        if (current.isSavingControlMode ||
-                            (mode == ControlMode.temporaryHelper &&
-                                !ref.read(portableControlAvailableProvider))) {
-                          return;
-                        }
-                        ref
-                            .read(settingsBlocProvider.bloc)
-                            .add(ControlModeChanged(mode));
-                      },
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          state.isSavingControlMode
-              ? "Saving hardware access preference…"
-              : state.nextControlMode == state.activeControlMode
-              ? 'Current session: ${state.activeControlMode.label}. Changes apply when you reopen the app.'
-              : 'Current session: ${state.activeControlMode.label}. Reopen the app to use ${state.nextControlMode.label}.',
-          style: textTheme.bodySmall,
-        ),
-        if (!available) ...[
-          const SizedBox(height: 4),
-          const Text(
-            'Temporary hardware control is not available in this build.',
-          ),
-        ],
-
+        Text('Permission to change settings', style: textTheme.titleSmall),
         const SizedBox(height: 8),
         const Text(
-          'Keyboard permissions and optional power telemetry are set up separately.',
+          'Changing fan, power, battery, or graphics settings may require administrator approval.',
+        ),
+        const SizedBox(height: 8),
+        if (canChooseMode) ...[
+          const Text(
+            'Installed service sends changes to a background program already installed on your system. '
+            'Temporary helper starts a program just for this app session, without installing a system service.',
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mode in ControlMode.values)
+                _ModeChip(
+                  label: mode.label,
+                  selected: state.nextControlMode == mode,
+                  onSelected:
+                      state.isSavingControlMode ||
+                          (mode == ControlMode.temporaryHelper && !available)
+                      ? null
+                      : () async {
+                          if (ref.read(settingsBlocProvider).nextControlMode ==
+                              mode) {
+                            return;
+                          }
+                          if (mode == ControlMode.temporaryHelper) {
+                            final confirmed = await confirmPrivilegedAction(
+                              context,
+                              title: 'Use a temporary helper?',
+                              message:
+                                  'After you close and reopen the app, the first hardware change may ask for administrator approval. '
+                                  'The helper stops when you close the app or after 15 minutes without a request from the app. '
+                                  'Stopping it does not undo changes already made. '
+                                  'It cannot manage background services or graphics changes scheduled for the next boot.',
+                              confirmLabel: 'Use on next launch',
+                            );
+                            if (!context.mounted || !confirmed) return;
+                          }
+                          final current = ref.read(settingsBlocProvider);
+                          if (current.isSavingControlMode ||
+                              (mode == ControlMode.temporaryHelper &&
+                                  !ref.read(
+                                    portableControlAvailableProvider,
+                                  ))) {
+                            return;
+                          }
+                          ref
+                              .read(settingsBlocProvider.bloc)
+                              .add(ControlModeChanged(mode));
+                        },
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            state.isSavingControlMode
+                ? 'Saving your choice…'
+                : state.nextControlMode == state.activeControlMode
+                ? 'In use now: ${state.activeControlMode.label}. A different choice takes effect after you close and reopen the app.'
+                : 'In use now: ${state.activeControlMode.label}. Close and reopen the app to use ${state.nextControlMode.label}.',
+            style: textTheme.bodySmall,
+          ),
+          if (!available) ...[
+            const SizedBox(height: 4),
+            const Text(
+              'The temporary helper is not included in this version of the app. Choose Installed service for the next launch.',
+            ),
+          ],
+        ] else
+          const Text(
+            'This version sends approved changes to the Legion control service, a background program that must be installed on your system.',
+          ),
+        const SizedBox(height: 12),
+        YaruExpandable(
+          isExpanded: false,
+          expandIconSemanticLabel: 'Toggle other hardware permissions',
+          expandButtonPosition: YaruExpandableButtonPosition.end,
+          header: const Text('Other hardware permissions'),
+          child: const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'This setting does not grant access to keyboard lighting or CPU power readings. '
+              'Those features need separate device permissions or services.',
+            ),
+          ),
         ),
       ],
     );

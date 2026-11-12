@@ -32,7 +32,7 @@ void main() {
     expect(find.textContaining('profile'), findsNothing);
     expect(find.text('Silent'), findsOneWidget);
     expect(find.text('Aggressive'), findsOneWidget);
-    expect(find.text('Current CPU fan'), findsOneWidget);
+    expect(find.text('Current CPU fan speed'), findsOneWidget);
   });
 
   testWidgets('full page has no overflow at wide width', (tester) async {
@@ -196,7 +196,7 @@ void main() {
       find.byKey(const ValueKey('fan-channel-toggle')),
     );
     expect(toggle.isSelected, [false, true]);
-    expect(find.text('Current GPU fan'), findsOneWidget);
+    expect(find.text('Current GPU fan speed'), findsOneWidget);
   });
 
   testWidgets('missing controller keeps a useful curve workspace', (
@@ -208,13 +208,52 @@ void main() {
       snapshot: _fansSnapshot(curveAvailable: false),
     );
 
-    expect(find.text('Custom curve editing is not available'), findsOneWidget);
+    expect(find.text('Fan curve editing unavailable'), findsOneWidget);
+    expect(
+      find.textContaining('Current fan speed and temperature are shown below'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Live reading'), findsNothing);
     expect(find.byKey(const ValueKey('fan-curve-chart-plot')), findsNothing);
     expect(find.text('64°C'), findsWidgets);
     expect(find.text('2180'), findsOneWidget);
     expect(find.text('Silent'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final readings in [(1800, null), (null, 47.0), (null, null)]) {
+    testWidgets(
+      'missing curve describes available measurements (${readings.$1}, ${readings.$2})',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: FanCurveUnavailablePanel(
+                  channel: FanChannel.cpu,
+                  currentRpm: readings.$1,
+                  currentTemperature: readings.$2,
+                  accent: Colors.blue,
+                ),
+              ),
+            ),
+          ),
+        );
+        final expected = switch (readings) {
+          (null, null) => 'Fan speed and temperature are also unavailable.',
+          (null, _) =>
+            'Current temperature is shown below. Fan speed is unavailable.',
+          (_, null) =>
+            'Current fan speed is shown below. Temperature is unavailable.',
+          _ => throw StateError('Unexpected fixture'),
+        };
+        expect(find.textContaining(expected), findsOneWidget);
+        expect(find.textContaining('remain available'), findsNothing);
+        expect(find.textContaining('Live reading'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('supported hardware controls use a plain Yaru settings section', (
     tester,

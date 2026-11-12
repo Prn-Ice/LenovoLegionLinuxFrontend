@@ -170,8 +170,8 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
             actionErrorMessage ?? error,
             message: actionErrorMessage == null
                 ? 'Failed to load GPU status: $error'
-                : '$actionErrorMessage\n\nAuthoritative graphics status also '
-                      'could not be reloaded: $error',
+                : '$actionErrorMessage\n\nThe app also could not reload the '
+                      'graphics mode and NVIDIA GPU status: $error',
           ),
         ),
       );

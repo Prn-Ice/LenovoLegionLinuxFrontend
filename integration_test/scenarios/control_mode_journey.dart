@@ -45,12 +45,15 @@ void main() {
     await app.launch(additionalOverrides: safeSettingsOverrides());
     await _openSettings(tester);
     await tester.ensureVisible(find.text('Temporary helper'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Temporary helper'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel').hitTestable());
     await tester.pumpAndSettle();
     final preferences = Hive.box<dynamic>('preferences');
     expect(ControlModeStore(preferences).load(), ControlMode.installedService);
+    await tester.ensureVisible(find.text('Temporary helper'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Temporary helper'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Use on next launch'));
@@ -61,7 +64,7 @@ void main() {
       description: 'saved next-launch hardware access',
     );
     expect(
-      find.textContaining('Current session: Installed service'),
+      find.textContaining('In use now: Installed service'),
       findsOneWidget,
     );
     expect(app.authorizations, 0);
@@ -70,10 +73,7 @@ void main() {
     app = await SafeApp.create(fixtureDirectory: fixture);
     await app.launch(additionalOverrides: safeSettingsOverrides());
     await _openSettings(tester);
-    expect(
-      find.textContaining('Current session: Temporary helper'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('In use now: Temporary helper'), findsOneWidget);
     expect(app.authorizations, 0);
     expect(tester.takeException(), isNull);
   });

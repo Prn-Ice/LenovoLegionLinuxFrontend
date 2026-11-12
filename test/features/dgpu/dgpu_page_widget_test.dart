@@ -49,13 +49,17 @@ void main() {
     expect(find.text('P2'), findsOneWidget);
     expect(find.text('Usage %'), findsOneWidget);
     expect(find.text('Graphics mode'), findsOneWidget);
-    expect(find.text('Selected policy'), findsOneWidget);
-    expect(find.text('Effective dGPU'), findsOneWidget);
-    expect(find.text('Expected dGPU'), findsOneWidget);
-    expect(find.text('Reconciliation'), findsOneWidget);
-    expect(find.text('Settled'), findsNWidgets(2));
-    expect(find.textContaining('Hybrid iGPU-only'), findsNWidgets(2));
-    expect(find.textContaining('Hybrid Auto'), findsNWidgets(2));
+    expect(find.text('Selected mode'), findsOneWidget);
+    expect(find.text('NVIDIA GPU'), findsOneWidget);
+    expect(find.text('Detected'), findsOneWidget);
+    expect(find.text('Matches mode'), findsOneWidget);
+    expect(find.text('Reconciliation'), findsNothing);
+    expect(find.textContaining('privileged preflight'), findsNothing);
+    expect(find.text(GraphicsMode.hybridIgpuOnly.description), findsOneWidget);
+    expect(find.text(GraphicsMode.discrete.description), findsOneWidget);
+    expect(find.textContaining('Hybrid Auto'), findsNothing);
+    expect(find.textContaining('The app checks'), findsNothing);
+    expect(find.textContaining('cannot check every program'), findsNothing);
     expect(
       find.byKey(const ValueKey('set-graphics-hybrid-igpu-only')),
       findsOneWidget,
@@ -105,9 +109,14 @@ void main() {
       final graphicsCard = find.byKey(const ValueKey('graphics-mode-status'));
       await tester.ensureVisible(graphicsCard);
       expect(
-        find.textContaining(
-          'Hybrid Auto can eject the dGPU after AC is unplugged',
-        ),
+        find.textContaining('Hybrid Auto is unsafe for desktop use'),
+        findsOneWidget,
+      );
+      expect(find.text('Unsafe mode'), findsOneWidget);
+      expect(find.text('Matches mode'), findsNothing);
+      expect(find.textContaining('Keep the charger connected'), findsOneWidget);
+      expect(
+        find.textContaining('choose Hybrid/Switchable graphics in BIOS'),
         findsOneWidget,
       );
       expect(
@@ -128,7 +137,7 @@ void main() {
     await tester.tap(action);
     await tester.pumpAndSettle();
 
-    expect(find.text('Switch to Hybrid iGPU-only'), findsOneWidget);
+    expect(find.text('Switch to Integrated graphics only'), findsOneWidget);
     expect(find.textContaining('Disconnect external displays'), findsOneWidget);
     verifyNever(() => repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly));
 
@@ -151,9 +160,10 @@ void main() {
     );
 
     expect(find.text('Graphics mode'), findsOneWidget);
-    expect(find.text('Hybrid iGPU-only'), findsNWidgets(2));
-    expect(find.text('Detached'), findsNWidgets(2));
-    expect(find.text('Discrete GPU detached'), findsOneWidget);
+    expect(find.text('Integrated graphics only'), findsNWidgets(2));
+    expect(find.text('Not detected'), findsOneWidget);
+    expect(find.text('NVIDIA GPU not detected'), findsOneWidget);
+    expect(find.textContaining('currently in use'), findsNothing);
     expect(find.text('GPU unavailable'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -169,9 +179,7 @@ void main() {
     );
 
     expect(
-      find.textContaining(
-        'Authoritative combined graphics status is unavailable',
-      ),
+      find.textContaining('Use Refresh to reload it before changing modes'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('set-graphics-hybrid')), findsNothing);
@@ -180,6 +188,107 @@ void main() {
       findsNothing,
     );
     expect(find.byKey(const ValueKey('set-graphics-discrete')), findsNothing);
+  });
+
+  testWidgets('graphics details are secondary and can be opened', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 420, height: 500, processes: const []);
+    final details = find.text('Graphics details');
+    await tester.ensureVisible(details);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Expected NVIDIA GPU: Detected').hitTestable(),
+      findsNothing,
+    );
+    await tester.tap(details);
+    await tester.pumpAndSettle();
+    final expected = find.text('Expected NVIDIA GPU: Detected');
+    await tester.ensureVisible(expected);
+    await tester.pumpAndSettle();
+    expect(expected.hitTestable(), findsOneWidget);
+    expect(find.textContaining('cannot check every program'), findsNothing);
+    expect(find.textContaining('Hybrid Auto'), findsNothing);
+    expect(find.textContaining('Supported choices:'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final reconciliation in [
+    GraphicsReconciliation.needed,
+    GraphicsReconciliation.blocked,
+    GraphicsReconciliation.unknown,
+  ]) {
+    testWidgets(
+      'graphics status gives a recovery action (${reconciliation.name})',
+      (tester) async {
+        await _pumpPage(
+          tester,
+          width: 420,
+          processes: const [],
+          graphicsModeStatus: GraphicsModeStatus(
+            selectedMode: GraphicsMode.hybridIgpuOnly,
+            effectiveState: DgpuTopology.partial,
+            expectedState: DgpuTopology.detached,
+            reconciliation: reconciliation,
+            clientInspectionComplete: false,
+            activeClients: const [],
+            availableModes: GraphicsMode.values,
+            reconciliationAttempts: 1,
+          ),
+        );
+        final recovery = switch (reconciliation) {
+          GraphicsReconciliation.needed =>
+            'Save your work and restart the laptop',
+          GraphicsReconciliation.blocked =>
+            'Close applications using NVIDIA graphics',
+          _ => 'Use Refresh to reload graphics status',
+        };
+        expect(find.textContaining(recovery), findsOneWidget);
+        expect(find.textContaining('do not assume'), findsNothing);
+        expect(find.textContaining('not confirmed'), findsNothing);
+        expect(find.text('Partly detected'), findsOneWidget);
+        expect(find.text('Matches mode'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'NVIDIA-only confirmation explains the required restart and can be canceled',
+    (tester) async {
+      final repository = await _pumpPage(
+        tester,
+        width: 420,
+        height: 500,
+        processes: const [],
+      );
+      final action = find.byKey(const ValueKey('set-graphics-discrete'));
+      await tester.ensureVisible(action);
+      await tester.pumpAndSettle();
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(find.text('Switch to NVIDIA graphics only'), findsOneWidget);
+      expect(find.textContaining('must restart the laptop'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      verifyNever(() => repository.setGraphicsMode(GraphicsMode.discrete));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('graphics choices fit with enlarged text', (tester) async {
+    await _pumpPage(
+      tester,
+      width: 420,
+      height: 500,
+      textScale: 2,
+      processes: const [],
+    );
+    final action = find.byKey(const ValueKey('set-graphics-hybrid-igpu-only'));
+    await tester.ensureVisible(action);
+    await tester.pumpAndSettle();
+    expect(action.hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('GPU identity uses the reported vendor mark', (tester) async {
@@ -237,12 +346,14 @@ void main() {
 Future<_MockDgpuRepository> _pumpPage(
   WidgetTester tester, {
   required double width,
+  double height = 1400,
+  double textScale = 1,
   required List<DgpuProcess> processes,
   String gpuName = 'NVIDIA GeForce RTX 4060',
   bool dgpuAvailable = true,
   GraphicsModeStatus? graphicsModeStatus = _hybridStatus,
 }) async {
-  tester.view.physicalSize = Size(width, 1400);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -347,6 +458,12 @@ Future<_MockDgpuRepository> _pumpPage(
           theme: yaru.theme,
           darkTheme: yaru.darkTheme,
           themeMode: ThemeMode.dark,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
           home: const Scaffold(body: DgpuPage()),
         ),
       ),
