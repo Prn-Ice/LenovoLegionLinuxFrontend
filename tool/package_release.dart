@@ -69,11 +69,15 @@ Future<Map<String, Object>> recordReleaseBuild(
   Directory bundle,
   Map<String, Object> inputs, {
   bool portableControl = false,
+  bool staticPortableHelper = false,
 }) async => {
   'inputs': inputs,
   'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
   'bundle': await inventoryReleaseTree(bundle),
-  'build_config': {'portable_control': portableControl},
+  'build_config': {
+    'portable_control': portableControl,
+    if (staticPortableHelper) 'static_portable_helper': true,
+  },
 };
 
 /// Record source contents before building, so later edits cannot silently become
@@ -178,6 +182,27 @@ The original pubspec.lock records the hosted versions; pub get replaces their
 locations with these local paths. Flutter SDK source and host libraries are
 obtained separately. Different compilers or system libraries can change the
 rebuilt binary's checksum.
+${(stamp['build_config'] as Map?)?['static_portable_helper'] == true ? '''
+This AppImage also contains distro libraries and a statically linked helper.
+Their exact source packages and checksums are in
+release-inputs/native/native-runtime.json; the archives are beside it under
+sources/. Each .dsc and its companion archives retain the distribution patches
+and build recipes. The shipped copyright notices are under
+share/licenses/appimage-native/ in the app bundle. The source code above and
+these library sources provide the material needed to modify and relink the
+helper. Build its static dependencies on Ubuntu 22.04, then run:
+
+```sh
+bash source/tool/build_static_helper.sh source \\
+  release-inputs/native/sources/util-linux/*.dsc /tmp/legion-static-rebuild \\
+  source/build/linux/x64/release/bundle/libexec/legion-portable-control
+```
+
+The AppImage builder Dockerfile lists the development packages and tools.
+For a modified library, rebuild its source package and install the resulting
+development archive before relinking. See source/docs/appimage.md for desktop
+runtime staging and the host graphics baseline.
+''' : ''}
 ''',
     );
     final manifest = <String, Object>{

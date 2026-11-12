@@ -18,7 +18,7 @@ def stop(process):
             process.wait(timeout=5)
 
 
-def gui(image, log_name, label, expected_executable=None):
+def gui(image, log_name, label, expected_executable=None, bundled_libraries=False):
     assert os.getuid() != 0
     log_path = Path.home() / log_name
     with (
@@ -61,6 +61,20 @@ def gui(image, log_name, label, expected_executable=None):
                     executable = Path("/proc/" + pid + "/exe").resolve()
                     if expected_executable is not None:
                         assert executable == Path(expected_executable), executable
+                    if bundled_libraries:
+                        maps = Path("/proc/" + pid + "/maps").read_text()
+                        for library in (
+                            "libgtk-3.so.0",
+                            "libglib-2.0.so.0",
+                            "libpango-1.0.so.0",
+                        ):
+                            assert any(
+                                "/usr/lib/legion_frontend/lib/" + library in line
+                                for line in maps.splitlines()
+                            ), (library, maps)
+                        (
+                            Path.home() / ("appimage-runtime-" + label + ".txt")
+                        ).write_text(maps)
                     print("PASS: visible Flutter window from " + label, flush=True)
                     break
                 if process.poll() is not None or time.monotonic() >= deadline:

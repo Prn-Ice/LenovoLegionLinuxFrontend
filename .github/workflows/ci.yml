@@ -173,7 +173,7 @@ jobs:
           if-no-files-found: ignore
 
   appimage:
-    name: AppImage build and Ubuntu acceptance
+    name: AppImage build and Ubuntu/NixOS acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
@@ -205,6 +205,22 @@ jobs:
           checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/appimage-jammy.SHA256SUMS)"
           bash tool/test_portable_distro.sh /tmp/appimage-jammy.img "$checksum" \
             build/appimage-qualification --appimage build/appimage-release
+      - uses: cachix/install-nix-action@v31
+        with:
+          enable_kvm: true
+      - name: Test the same AppImage through the NixOS compatibility runner
+        run: |
+          bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
+          cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          directory = Path('build/appimage-qualification')
+          manifest = json.loads((directory / 'manifest.json').read_text())
+          name = 'appimage-nixos-qualification.tar.gz'
+          manifest['files'][name] = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+          (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7

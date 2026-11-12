@@ -18,12 +18,13 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 
-def archive_json(path, name, value):
-    data = json.dumps(value).encode()
+def archive_json(path, name, value, additional=None):
     with tarfile.open(path, "w:gz") as archive:
-        info = tarfile.TarInfo(name)
-        info.size = len(data)
-        archive.addfile(info, io.BytesIO(data))
+        for filename, contents in {name: value, **(additional or {})}.items():
+            data = json.dumps(contents).encode()
+            info = tarfile.TarInfo(filename)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
 
 
 class ReleaseWorkflowTest(unittest.TestCase):
@@ -201,6 +202,97 @@ class ReleaseWorkflowTest(unittest.TestCase):
 
     def prepare(self):
         return release.prepare(self.root, self.tag, self.inputs, self.output)
+
+    def enable_native_runtime(self):
+        library = "usr/lib/legion_frontend/lib/libgtk-3.so.0"
+        entry = {"type": "file", "mode": "644", "sha256": "d" * 64}
+        self.manifest["appdir"]["./" + library] = entry
+        self.sources["bundle"]["./lib/libgtk-3.so.0"] = entry
+        self.sources["build_config"]["static_portable_helper"] = True
+        native = {
+            "format": 1,
+            "files": {library: {"sha256": "d" * 64, "package": "gtk"}},
+            "packages": {"gtk": {"source": "gtk", "source_version": "1"}},
+            "sources": {"gtk": {"version": "1", "archives": {"gtk.tar.xz": "e" * 64}}},
+            "helper": {
+                "linkage": "static",
+                "cleanup": {"size": 4096, "sha256": "f" * 64},
+            },
+        }
+        self.sources["release_inputs"] = {
+            "./native/sources/gtk/gtk.tar.xz": {"sha256": "e" * 64},
+            "./native/portable-cleanup.elf": {"sha256": "f" * 64},
+        }
+        self.manifest["native_runtime"] = native
+        archive_json(
+            self.binary / self.source,
+            "./SOURCE-MANIFEST.json",
+            self.sources,
+            {"./release-inputs/native/native-runtime.json": native},
+        )
+        self.refresh()
+        self.refresh_debian()
+
+    def add_nixos_evidence(self, image_sha256=None):
+        name = "appimage-nixos-qualification.tar.gz"
+        archive_json(
+            self.qa / name,
+            "manifest.json",
+            {
+                "commit": self.commit,
+                "appimage_sha256": image_sha256
+                or release._sha256(self.binary / self.image),
+                "nixos": "host-namespace desktop and static helper control verified",
+            },
+        )
+        self.evidence["files"][name] = release._sha256(self.qa / name)
+        (self.qa / "manifest.json").write_text(json.dumps(self.evidence))
+
+    def test_bundled_native_runtime_requires_nixos_acceptance(self):
+        self.enable_native_runtime()
+        with self.assertRaisesRegex(ValueError, "evidence file list"):
+            self.prepare()
+
+    def test_static_build_cannot_omit_native_runtime_metadata(self):
+        self.enable_native_runtime()
+        del self.manifest["native_runtime"]
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "lacks its native runtime"):
+            self.prepare()
+
+    def test_native_sources_and_both_host_checks_are_retained(self):
+        self.enable_native_runtime()
+        self.add_nixos_evidence()
+        plan = self.prepare()
+        evidence = next(
+            name for name in plan["assets"] if name.endswith("acceptance.tar.gz")
+        )
+        with tarfile.open(self.output / evidence) as archive:
+            self.assertIn("appimage-nixos-qualification.tar.gz", archive.getnames())
+
+    def test_nixos_acceptance_cannot_qualify_another_appimage(self):
+        self.enable_native_runtime()
+        self.add_nixos_evidence("f" * 64)
+        with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
+            self.prepare()
+
+    def test_runtime_library_must_match_the_shipped_file(self):
+        self.enable_native_runtime()
+        self.manifest["native_runtime"]["files"][
+            "usr/lib/legion_frontend/lib/libgtk-3.so.0"
+        ]["sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "shipped file"):
+            release.validate_appimage_runtime(
+                self.manifest, self.sources, self.manifest["native_runtime"]
+            )
+
+    def test_native_library_source_archive_cannot_be_omitted(self):
+        self.enable_native_runtime()
+        del self.sources["release_inputs"]["./native/sources/gtk/gtk.tar.xz"]
+        with self.assertRaisesRegex(ValueError, "exact native archive"):
+            release.validate_appimage_runtime(
+                self.manifest, self.sources, self.manifest["native_runtime"]
+            )
 
     def test_base_tag_matches_pubspec_build_number_and_annotated_commit(self):
         metadata = release.check_tag(self.root, self.tag)

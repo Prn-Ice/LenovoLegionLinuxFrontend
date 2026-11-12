@@ -1,11 +1,38 @@
 #!/bin/sh
 set -eu
-if ! command -v xdg-user-dir >/dev/null 2>&1; then
-  printf '%s\n' 'Legion Frontend needs xdg-user-dir to find your Documents directory.' \
-    'Install xdg-user-dirs with your package manager, then reopen the AppImage.' >&2
-  exit 127
-fi
 appdir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-LD_LIBRARY_PATH="$appdir/usr/lib/legion_frontend/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export LD_LIBRARY_PATH
-exec "$appdir/usr/lib/legion_frontend/legion_frontend" "$@"
+bundle="$appdir/usr/lib/legion_frontend"
+PATH="$appdir/usr/bin:$PATH"
+LD_LIBRARY_PATH="$bundle/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+GSETTINGS_SCHEMA_DIR="$appdir/usr/share/glib-2.0/schemas"
+GIO_MODULE_DIR="$bundle/lib/gio/modules"
+FONTCONFIG_FILE="$appdir/usr/etc/fonts/fonts.conf"
+XDG_DATA_DIRS="$appdir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export PATH LD_LIBRARY_PATH GSETTINGS_SCHEMA_DIR GIO_MODULE_DIR FONTCONFIG_FILE XDG_DATA_DIRS
+unset GIO_EXTRA_MODULES GTK_MODULES GTK3_MODULES
+
+runtime=$(LD_LIBRARY_PATH='' mktemp -d "${TMPDIR:-/tmp}/legion-appimage.XXXXXXXX")
+app_pid=
+# ShellCheck cannot follow the EXIT trap that owns this cleanup.
+# shellcheck disable=SC2329
+cleanup() {
+  trap - EXIT HUP INT TERM
+  if [ -n "$app_pid" ]; then
+    kill "$app_pid" 2>/dev/null || true
+    wait "$app_pid" 2>/dev/null || true
+  fi
+  LD_LIBRARY_PATH='' rm -rf -- "$runtime"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+GDK_PIXBUF_MODULE_FILE="$runtime/loaders.cache"
+export GDK_PIXBUF_MODULE_FILE
+"$bundle/libexec/gdk-pixbuf-query-loaders" "$bundle/lib/pixbuf-loaders/"*.so > "$GDK_PIXBUF_MODULE_FILE"
+"$bundle/legion_frontend" "$@" &
+app_pid=$!
+status=0
+wait "$app_pid" || status=$?
+app_pid=
+exit "$status"

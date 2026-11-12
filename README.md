@@ -70,8 +70,15 @@ On NixOS, use the [native Nix package](docs/nix.md):
 nix run .#frontend
 ```
 
-The Nix package supplies its library dependencies. The AppImage uses the Ubuntu
-host library baseline. See the [Debian package](docs/debian.md),
+The Nix package supplies its library dependencies. The AppImage bundles its
+desktop libraries and uses host graphics and core system libraries. On NixOS,
+launch that artifact from a regular host terminal with the pinned Nix launcher:
+
+```bash
+nix run .#appimage-run -- /path/to/legion-frontend.AppImage
+```
+
+See the [Debian package](docs/debian.md),
 [AppImage build and trial instructions](docs/appimage.md), or
 [run tests with synthetic hardware](CONTRIBUTING.md#test-without-hardware).
 

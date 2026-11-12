@@ -210,6 +210,47 @@ def _archived_json(archive, name):
         return json.load(contents.extractfile(member))
 
 
+def validate_appimage_runtime(manifest, sources, archived):
+    native = manifest["native_runtime"]
+    if (
+        native != archived
+        or native["format"] != 1
+        or native["helper"]["linkage"] != "static"
+    ):
+        raise ValueError(
+            "The native runtime source manifest differs from the AppImage."
+        )
+    if sources["build_config"].get("static_portable_helper") is not True:
+        raise ValueError(
+            "The source companion lacks the static helper build configuration."
+        )
+    cleanup = native["helper"].get("cleanup", {})
+    if not 0 < cleanup.get("size", 0) < 64 * 1024 or sources["release_inputs"].get(
+        "./native/portable-cleanup.elf", {}
+    ).get("sha256") != cleanup.get("sha256"):
+        raise ValueError("The source companion lacks the bounded cleanup ELF.")
+    if "usr/lib/legion_frontend/lib/libgtk-3.so.0" not in native["files"]:
+        raise ValueError("The AppImage runtime lacks bundled GTK.")
+    for path, record in native["files"].items():
+        if manifest["appdir"].get("./" + path, {}).get("sha256") != record["sha256"]:
+            raise ValueError("The native runtime differs from a shipped file: " + path)
+        if record["package"] not in native["packages"]:
+            raise ValueError("Missing source package attribution for " + path)
+    for package, record in native["packages"].items():
+        if (
+            native["sources"].get(record["source"], {}).get("version")
+            != record["source_version"]
+        ):
+            raise ValueError("Missing exact source version for " + package)
+    for name, record in native["sources"].items():
+        for archive, digest in record["archives"].items():
+            path = "./native/sources/" + name + "/" + archive
+            if sources["release_inputs"].get(path, {}).get("sha256") != digest:
+                raise ValueError(
+                    "The source companion lacks an exact native archive: " + path
+                )
+
+
 def prepare(root, tag, inputs, output):
     release = check_tag(root, tag)
     prefix = f"legion-frontend-{release['version']}-x86_64"
@@ -259,6 +300,21 @@ def prepare(root, tag, inputs, output):
     ]:
         if shipped.get(path, {}).get("type") != "file":
             raise ValueError(f"The shipped bundle lacks {path}.")
+    if (
+        sources["build_config"].get("static_portable_helper") is True
+        and "native_runtime" not in manifest
+    ):
+        raise ValueError(
+            "The static AppImage lacks its native runtime source metadata."
+        )
+    if "native_runtime" in manifest:
+        validate_appimage_runtime(
+            manifest,
+            sources,
+            _archived_json(
+                directory / source, "./release-inputs/native/native-runtime.json"
+            ),
+        )
     qa = _json(qa_directory / "manifest.json")
     if qa["commit"] != release["commit"] or qa["source_worktree_modified"] is not False:
         raise ValueError(
@@ -267,6 +323,8 @@ def prepare(root, tag, inputs, output):
     if qa["appimage"] != QUALIFIED_APPIMAGE:
         raise ValueError("AppImage VM acceptance has not passed.")
     qa_files = {"native-source.tar.gz", "appimage-qualification.tar.gz"}
+    if "native_runtime" in manifest:
+        qa_files.add("appimage-nixos-qualification.tar.gz")
     if set(qa["files"]) != qa_files:
         raise ValueError("The VM evidence file list is incomplete.")
     for name in qa_files:
@@ -277,6 +335,17 @@ def prepare(root, tag, inputs, output):
     )
     if tested != manifest:
         raise ValueError("The VM tested different release artifacts.")
+    if "native_runtime" in manifest:
+        nixos = _archived_json(
+            qa_directory / "appimage-nixos-qualification.tar.gz", "manifest.json"
+        )
+        if (
+            nixos["commit"] != release["commit"]
+            or nixos["appimage_sha256"] != checksums[image]
+            or nixos["nixos"]
+            != "host-namespace desktop and static helper control verified"
+        ):
+            raise ValueError("NixOS acceptance did not verify this AppImage.")
     if output.exists():
         raise ValueError("Release output already exists.")
     output.mkdir(parents=True)
@@ -284,12 +353,7 @@ def prepare(root, tag, inputs, output):
     for name in assets[:3]:
         shutil.copyfile(directory / name, output / name)
     with tarfile.open(output / assets[3], "w:gz") as archive:
-        for name in [
-            "manifest.json",
-            "native-source.tar.gz",
-            "appimage-qualification.tar.gz",
-            "qualification.log",
-        ]:
+        for name in ["manifest.json", "qualification.log", *sorted(qa_files)]:
             archive.add(_file(qa_directory / name), arcname=name, recursive=False)
     assets.extend(prepare_debian(release, inputs, output))
     (output / "SHA256SUMS").write_text(

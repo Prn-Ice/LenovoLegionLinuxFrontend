@@ -26,13 +26,21 @@ void main() {
     bundle = Directory('${temporary.path}/bundle')..createSync();
     inputs = Directory('${temporary.path}/inputs')..createSync();
     commands = Directory('${temporary.path}/commands')..createSync();
-    final dirname = await Process.run('/bin/sh', ['-c', 'command -v dirname']);
-    expect(dirname.exitCode, 0);
-    Link(
-      '${commands.path}/dirname',
-    ).createSync((dirname.stdout as String).trim());
-    write('${commands.path}/xdg-user-dir', '#!/bin/sh\nexit 0\n');
-    await Process.run('chmod', ['755', '${commands.path}/xdg-user-dir']);
+    for (final name in ['dirname', 'mktemp', 'rm', 'sleep']) {
+      final command = await Process.run('/bin/sh', ['-c', 'command -v $name']);
+      expect(command.exitCode, 0);
+      Link(
+        '${commands.path}/$name',
+      ).createSync((command.stdout as String).trim());
+    }
+    write(
+      '${bundle.path}/libexec/gdk-pixbuf-query-loaders',
+      '#!/bin/sh\nexit 0\n',
+    );
+    await Process.run('chmod', [
+      '755',
+      '${bundle.path}/libexec/gdk-pixbuf-query-loaders',
+    ]);
     write(
       '${bundle.path}/legion_frontend',
       '#!/bin/sh\nprintf \'%s\\n\' "\$@" "\$LD_LIBRARY_PATH"\n',
@@ -142,20 +150,32 @@ void main() {
   });
 
   test(
-    'AppRun explains a missing xdg-user-dir before starting the app',
+    'AppRun uses its bundled directory command and removes its temporary cache',
     () async {
       final appdir = Directory('${temporary.path}/Legion.AppDir');
       await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
-      File('${commands.path}/xdg-user-dir').deleteSync();
+      write(
+        '${appdir.path}/usr/bin/xdg-user-dir',
+        '#!/bin/sh\nprintf \'bundled documents\\n\'\n',
+      );
+      await Process.run('chmod', [
+        '755',
+        '${appdir.path}/usr/bin/xdg-user-dir',
+      ]);
+      write(
+        '${appdir.path}/usr/lib/legion_frontend/legion_frontend',
+        '#!/bin/sh\nxdg-user-dir DOCUMENTS\nprintf \'%s\\n\' "\$GDK_PIXBUF_MODULE_FILE"\nexit 17\n',
+      );
+      final runtime = Directory('${temporary.path}/runtime')..createSync();
       final result = await Process.run(
         '${appdir.path}/AppRun',
         [],
-        environment: {'PATH': commands.path},
+        environment: {'PATH': commands.path, 'TMPDIR': runtime.path},
       );
-      expect(result.exitCode, 127);
-      expect(result.stdout, isEmpty);
-      expect(result.stderr, contains('Documents directory'));
-      expect(result.stderr, contains('Install xdg-user-dirs'));
+      expect(result.exitCode, 17, reason: result.stderr.toString());
+      expect(result.stdout, startsWith('bundled documents\n'));
+      expect(result.stdout, contains(runtime.path));
+      expect(runtime.listSync(), isEmpty);
     },
   );
 
@@ -171,6 +191,37 @@ void main() {
       throwsStateError,
     );
   });
+
+  test(
+    'terminating AppRun stops the desktop child and removes its cache',
+    () async {
+      final appdir = Directory('${temporary.path}/Legion.AppDir');
+      await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
+      write(
+        '${appdir.path}/usr/lib/legion_frontend/legion_frontend',
+        '#!/bin/sh\nprintf \'%s\\n\' "\$\$"\nexec sleep 60\n',
+      );
+      final runtime = Directory('${temporary.path}/runtime')..createSync();
+      final process = await Process.start(
+        '${appdir.path}/AppRun',
+        [],
+        environment: {'PATH': commands.path, 'TMPDIR': runtime.path},
+      );
+      addTearDown(() => process.kill());
+      final child = int.parse(
+        await process.stdout
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .first
+            .timeout(const Duration(seconds: 5)),
+      );
+      expect(runtime.listSync(), hasLength(1));
+      expect(process.kill(), isTrue);
+      expect(await process.exitCode.timeout(const Duration(seconds: 5)), 143);
+      expect(Directory('/proc/$child').existsSync(), isFalse);
+      expect(runtime.listSync(), isEmpty);
+    },
+  );
 
   test('rejects a corrupted runtime before packaging', () async {
     write('${inputs.path}/runtime-x86_64', 'replacement');

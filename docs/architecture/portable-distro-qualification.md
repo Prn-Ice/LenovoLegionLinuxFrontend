@@ -66,9 +66,9 @@ and qualification archive hash. The qualification archive contains the helper,
 ELF headers, and exact distro package versions. CI retains these files in the
 `portable-ubuntu-22.04-qualification` artifact.
 
-The helper uses the host loader cache and host libraries. This check rejects an
-RPATH or RUNPATH in that binary. The result is a native qualification artifact;
-the [AppImage check](../appimage.md) also builds the Flutter bundle and exercises
-FUSE, extraction, desktop launch, and the bundled helper. Debian packages,
-actual CLI imports/configuration, desktop approval, and hardware writes remain
-unverified.
+This native helper check uses the host loader cache and host libraries and
+rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
+separately builds a static helper, bundles the desktop runtime, and exercises
+FUSE and extracted launch without host GTK. Its NixOS VM tests the same AppImage
+through a Nix launcher that retains the host ownership namespace. Actual CLI imports/configuration, desktop
+approval, and hardware writes need separate evidence.

@@ -12,6 +12,7 @@
 #include <vector>
 
 namespace {
+enum class SnapshotInput { file, embedded };
 template <typename T>
 void Put(std::vector<unsigned char> &bytes, size_t offset, const T &value) {
   memcpy(bytes.data() + offset, &value, sizeof(value));
@@ -85,48 +86,60 @@ int Source(const std::vector<unsigned char> &bytes) {
 }
 
 void Reject(const std::vector<unsigned char> &bytes, const char *reason) {
-  const int fd = Source(bytes);
-  std::string error;
-  g_assert_cmpint(legion_control::CreateExecutableSnapshot(fd, &error), ==, -1);
-  g_test_message("rejected helper: %s", error.c_str());
-  g_assert_nonnull(strstr(error.c_str(), reason));
-  close(fd);
+  for (const auto input : {SnapshotInput::file, SnapshotInput::embedded}) {
+    const int fd = Source(bytes);
+    std::string error;
+    const int snapshot =
+        input == SnapshotInput::embedded
+            ? legion_control::CreateExecutableSnapshot(bytes, &error)
+            : legion_control::CreateExecutableSnapshot(fd, &error);
+    g_assert_cmpint(snapshot, ==, -1);
+    g_test_message("rejected helper: %s", error.c_str());
+    g_assert_nonnull(strstr(error.c_str(), reason));
+    close(fd);
+  }
 }
 
 void test_snapshot_exec_and_mutation() {
-  const auto bytes = Executable();
-  const int source = Source(bytes);
-  std::string error;
-  const int snapshot = legion_control::CreateExecutableSnapshot(source, &error);
-  g_assert_cmpstr(error.c_str(), ==, "");
-  g_assert_cmpint(snapshot, >=, 0);
-  // Simulate source mutation during the authorization wait.
-  g_assert_cmpint(ftruncate(source, 0), ==, 0);
-  close(source);
-  g_assert_cmpint(pwrite(snapshot, "x", 1, 0), ==, -1);
-  g_assert_cmpint(errno, ==, EPERM);
-  g_assert_cmpint(ftruncate(snapshot, 0), ==, -1);
-  g_assert_cmpint(errno, ==, EPERM);
-  g_assert_cmpint(ftruncate(snapshot, bytes.size() + 1), ==, -1);
-  g_assert_cmpint(errno, ==, EPERM);
-  void *writable = mmap(nullptr, bytes.size(), PROT_READ | PROT_WRITE,
-                        MAP_SHARED, snapshot, 0);
-  g_assert_true(writable == MAP_FAILED);
-  g_assert_cmpint(errno, ==, EPERM);
-  const pid_t child = fork();
-  g_assert_cmpint(child, >=, 0);
-  if (child == 0) {
-    char name[] = "snapshot-fixture";
-    char *argv[] = {name, nullptr};
-    char *environment[] = {nullptr};
-    fexecve(snapshot, argv, environment);
-    _exit(127);
+  for (const auto input : {SnapshotInput::file, SnapshotInput::embedded}) {
+    auto bytes = Executable();
+    const int source = Source(bytes);
+    std::string error;
+    const int snapshot =
+        input == SnapshotInput::embedded
+            ? legion_control::CreateExecutableSnapshot(bytes, &error)
+            : legion_control::CreateExecutableSnapshot(source, &error);
+    g_assert_cmpstr(error.c_str(), ==, "");
+    g_assert_cmpint(snapshot, >=, 0);
+    // Neither an edited file nor changed embedded bytes may change approval.
+    bytes[0] = 0;
+    g_assert_cmpint(ftruncate(source, 0), ==, 0);
+    close(source);
+    g_assert_cmpint(pwrite(snapshot, "x", 1, 0), ==, -1);
+    g_assert_cmpint(errno, ==, EPERM);
+    g_assert_cmpint(ftruncate(snapshot, 0), ==, -1);
+    g_assert_cmpint(errno, ==, EPERM);
+    g_assert_cmpint(ftruncate(snapshot, bytes.size() + 1), ==, -1);
+    g_assert_cmpint(errno, ==, EPERM);
+    void *writable = mmap(nullptr, bytes.size(), PROT_READ | PROT_WRITE,
+                          MAP_SHARED, snapshot, 0);
+    g_assert_true(writable == MAP_FAILED);
+    g_assert_cmpint(errno, ==, EPERM);
+    const pid_t child = fork();
+    g_assert_cmpint(child, >=, 0);
+    if (child == 0) {
+      char name[] = "snapshot-fixture";
+      char *argv[] = {name, nullptr};
+      char *environment[] = {nullptr};
+      fexecve(snapshot, argv, environment);
+      _exit(127);
+    }
+    int status;
+    g_assert_cmpint(waitpid(child, &status, 0), ==, child);
+    g_assert_true(WIFEXITED(status));
+    g_assert_cmpint(WEXITSTATUS(status), ==, 23);
+    close(snapshot);
   }
-  int status;
-  g_assert_cmpint(waitpid(child, &status, 0), ==, child);
-  g_assert_true(WIFEXITED(status));
-  g_assert_cmpint(WEXITSTATUS(status), ==, 23);
-  close(snapshot);
 }
 
 void test_invalid_headers() {

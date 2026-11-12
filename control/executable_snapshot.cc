@@ -216,6 +216,15 @@ int CreateExecutableSnapshot(int source_fd, std::string *error) {
     }
     offset += count;
   }
+  return CreateExecutableSnapshot(bytes, error);
+}
+
+int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
+                             std::string *error) {
+  if (bytes.empty() || bytes.size() > maximum_size) {
+    Fail(error, "helper must be smaller than 64 MiB");
+    return -1;
+  }
   if (!Validate(bytes, error))
     return -1;
 
@@ -233,7 +242,7 @@ int CreateExecutableSnapshot(int source_fd, std::string *error) {
     Fail(error, "this host could not create an executable snapshot");
     return -1;
   }
-  offset = 0;
+  size_t offset = 0;
   while (offset < bytes.size()) {
     const auto count =
         write(snapshot, bytes.data() + offset, bytes.size() - offset);

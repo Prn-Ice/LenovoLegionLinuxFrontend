@@ -1,11 +1,11 @@
 """Check release launch and the bundled helper from FUSE and extraction."""
 
+import hashlib
 import json
 import os
 import shlex
 import subprocess
 import sys
-import tempfile
 from datetime import timedelta
 from pathlib import Path
 
@@ -14,7 +14,12 @@ from desktop_test_support import gui, stop
 from distro_test_support import LocalMachine, persistent_files
 
 if len(sys.argv) == 4 and sys.argv[1] == "--gui":
-    gui(sys.argv[2], "appimage-gui-" + sys.argv[3] + ".log", sys.argv[3])
+    gui(
+        sys.argv[2],
+        "appimage-gui-" + sys.argv[3] + ".log",
+        sys.argv[3],
+        bundled_libraries=True,
+    )
     sys.exit(0)
 
 marker = Path("/etc/legion-control-lifecycle-test-vm")
@@ -33,8 +38,9 @@ assert (
     manifest["portable_control"]
     and manifest["default_control_mode"] == "installedService"
 )
-assert manifest["host_executables"] == ["xdg-user-dir"]
-machine.succeed("runuser -u approved -- xdg-user-dir DOCUMENTS")
+assert manifest["host_executables"] == ["/bin/sh", "dirname", "mktemp", "rm"]
+assert manifest["native_runtime"]["helper"]["linkage"] == "static"
+assert "libgtk-3.so.0" not in machine.succeed("ldconfig -p")
 print("ARTIFACT_SHA256 " + manifest["files"][image.name] + " " + image.name, flush=True)
 assert not Path("/usr/lib/jvm").exists(), "The acceptance VM must not supply a JVM"
 before = persistent_files()
@@ -42,6 +48,16 @@ before = persistent_files()
 
 def check_helper(appdir):
     helper = str(appdir) + "/usr/lib/legion_frontend/libexec/legion-portable-control"
+    elf = machine.succeed(
+        session.portable_as_user("approved", "readelf -lW -dW " + shlex.quote(helper))
+    )
+    assert "INTERP" not in elf and "(NEEDED)" not in elf, elf
+    documents = machine.succeed(
+        session.portable_as_user(
+            "approved", shlex.quote(str(appdir / "usr/bin/xdg-user-dir")) + " DOCUMENTS"
+        )
+    ).strip()
+    assert documents.startswith("/home/approved"), documents
     digest = machine.succeed(
         session.portable_as_user("approved", "sha256sum " + shlex.quote(helper))
     ).split()[0]
@@ -60,6 +76,8 @@ def check_helper(appdir):
     assert app.value("battery-conservation") == "enabled\n"
     app.send("disable")
     assert app.value("battery-conservation") == "disabled\n"
+    maps = machine.succeed("cat /proc/" + str(app.helper) + "/maps")
+    assert ".so" not in maps, "The static helper loaded a shared library:\n" + maps
     app.close()
     machine.wait_until_succeeds(
         "test -z \"$(systemctl list-units --all --plain --no-legend 'legion-portable-control-*')\"",
@@ -111,31 +129,35 @@ machine.succeed(
     )
 )
 appdir = extraction / "squashfs-root"
-with tempfile.TemporaryDirectory(prefix="appimage-empty-path-") as empty_path:
-    Path(empty_path).chmod(0o755)
-    result = subprocess.run(
-        [
-            "runuser",
-            "-u",
-            "approved",
-            "--",
-            "/usr/bin/env",
-            "PATH=" + empty_path,
-            str(appdir / "AppRun"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=15,
-        check=False,
-    )
-    assert result.returncode == 127, result
-    assert not result.stdout, result
-    assert "Install xdg-user-dirs" in result.stderr, result
-    Path("/home/approved/appimage-missing-xdg.log").write_text(result.stderr)
-print(
-    "PASS: missing xdg-user-dir reports how to install it before GUI startup",
-    flush=True,
+cleanup = manifest["native_runtime"]["helper"]["cleanup"]
+helper_bytes = (
+    appdir / "usr/lib/legion_frontend/libexec/legion-portable-control"
+).read_bytes()
+offset = helper_bytes.find(b"\x7fELF", 1)
+cleanup_bytes = None
+while offset >= 0:
+    candidate = helper_bytes[offset : offset + cleanup["size"]]
+    if hashlib.sha256(candidate).hexdigest() == cleanup["sha256"]:
+        cleanup_bytes = candidate
+        break
+    offset = helper_bytes.find(b"\x7fELF", offset + 1)
+assert cleanup_bytes is not None, (
+    "The recorded cleanup ELF is not embedded in the helper"
 )
+unsealed = Path("/tmp/legion-unsealed-cleanup")
+unsealed.write_bytes(cleanup_bytes)
+unsealed.chmod(0o555)
+try:
+    for command in (
+        [str(unsealed)],
+        ["runuser", "-u", "approved", "--", str(unsealed)],
+    ):
+        result = subprocess.run(
+            command, capture_output=True, text=True, check=False, timeout=5
+        )
+        assert result.returncode == 2 and not result.stdout, result
+finally:
+    unsealed.unlink()
 check_helper(appdir)
 print(
     "PASS: bundled helper from extraction with synthetic write/readback/restore",

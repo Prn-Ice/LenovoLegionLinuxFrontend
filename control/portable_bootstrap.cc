@@ -1,5 +1,8 @@
 // Starts one approved sealed helper and supervises its app session.
 #include "executable_snapshot.h"
+#ifdef LEGION_EMBEDDED_CLEANUP
+#include "portable_cleanup_image.h"
+#endif
 #include "portable_lifetime.h"
 #ifdef LEGION_PORTABLE_TEST
 #include "test/test_vm_guard.h"
@@ -18,6 +21,7 @@
 #include <gio/gunixfdlist.h>
 #include <glib-unix.h>
 #include <initializer_list>
+#include <iterator>
 #include <poll.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
@@ -331,8 +335,26 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     if (lifetime >= 0)
       close(lifetime);
     GVariant *cleanup_image = nullptr;
+    int cleanup_handle = image_handle;
     if (lifetime_handle >= 0) {
-      auto *mapped = g_mapped_file_new_from_fd(snapshot, FALSE, &launch.error);
+      int cleanup_descriptor = snapshot;
+#ifdef LEGION_EMBEDDED_CLEANUP
+      const std::vector<unsigned char> cleanup_bytes(
+          std::begin(legion_cleanup_image), std::end(legion_cleanup_image));
+      std::string snapshot_error;
+      cleanup_descriptor = legion_control::CreateExecutableSnapshot(
+          cleanup_bytes, &snapshot_error);
+      if (cleanup_descriptor < 0)
+        g_set_error_literal(&launch.error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                            snapshot_error.c_str());
+      else
+        cleanup_handle =
+            g_unix_fd_list_append(fds, cleanup_descriptor, &launch.error);
+#endif
+      auto *mapped = cleanup_handle >= 0 && cleanup_descriptor >= 0
+                         ? g_mapped_file_new_from_fd(cleanup_descriptor, FALSE,
+                                                     &launch.error)
+                         : nullptr;
       if (mapped) {
         auto *bytes = g_mapped_file_get_bytes(mapped);
         cleanup_image =
@@ -340,6 +362,10 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
         g_bytes_unref(bytes);
         g_mapped_file_unref(mapped);
       }
+#ifdef LEGION_EMBEDDED_CLEANUP
+      if (cleanup_descriptor >= 0)
+        close(cleanup_descriptor);
+#endif
     }
     if (cleanup_image) {
       property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
@@ -447,9 +473,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                               "RuntimeDirectoryMode",
                               g_variant_new_uint32(0711));
       }
-      // Old systemd releases close inactive units' stdio descriptors. Retain
-      // the same approved bytes as unit data so it can create a sealed memfd
-      // at cleanup time. Versions retaining the descriptor use it directly.
+      // Retain sealed cleanup bytes for managers that close inactive stdio
+      // descriptors. Static builds embed a small cleanup ELF so newer managers
+      // can serialize this data without serializing the full static runtime.
       constexpr char no_op[] = "/proc/self/fd/0";
       g_variant_builder_add(&cleanup_properties, "(sv)", "StandardInput",
                             g_variant_new_string("data"));
@@ -457,7 +483,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                             cleanup_image);
       g_variant_builder_add(&cleanup_properties, "(sv)",
                             "StandardInputFileDescriptor",
-                            g_variant_new_handle(image_handle));
+                            g_variant_new_handle(cleanup_handle));
       const char *cleanup_arguments[] = {no_op, "--cleanup", nullptr};
       GVariantBuilder cleanup_commands;
       g_variant_builder_init(&cleanup_commands, G_VARIANT_TYPE("a(sasas)"));

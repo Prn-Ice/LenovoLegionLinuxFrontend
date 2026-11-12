@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.13)
 project(legion_telemetry LANGUAGES CXX)
 
+option(BUILD_PORTABLE_CONTROL_STATIC "Link the AppImage helper without host libraries" OFF)
+if(BUILD_PORTABLE_CONTROL_STATIC)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  set(PKG_CONFIG_ARGN --static)
+  add_compile_options(-ffunction-sections -fdata-sections)
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
 pkg_check_modules(GIO_UNIX REQUIRED IMPORTED_TARGET gio-unix-2.0)
@@ -112,6 +119,25 @@ endfunction()
 
 if(BUILD_PORTABLE_CONTROL_HELPER)
   add_portable_helper(legion_portable_control)
+  if(BUILD_PORTABLE_CONTROL_STATIC)
+    target_link_options(legion_portable_control PRIVATE -static -Wl,--gc-sections -Wl,-t)
+    add_executable(legion_portable_cleanup ../control/portable_cleanup.cc)
+    target_compile_features(legion_portable_cleanup PRIVATE cxx_std_14)
+    target_compile_options(legion_portable_cleanup PRIVATE
+      -Os -fno-pie -fno-stack-protector -fno-exceptions -fno-rtti
+      -fno-asynchronous-unwind-tables -fno-unwind-tables)
+    target_link_options(legion_portable_cleanup PRIVATE
+      -nostdlib -static -no-pie -Wl,--build-id=none -Wl,-e,_start)
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/portable_cleanup_image.h"
+      COMMAND ${CMAKE_COMMAND} -DINPUT=$<TARGET_FILE:legion_portable_cleanup>
+        -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/portable_cleanup_image.h
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/../control/embed_cleanup.cmake"
+      DEPENDS legion_portable_cleanup ../control/embed_cleanup.cmake VERBATIM)
+    add_custom_target(portable_cleanup_image DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/portable_cleanup_image.h")
+    add_dependencies(legion_portable_control portable_cleanup_image)
+    target_include_directories(legion_portable_control PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_definitions(legion_portable_control PRIVATE LEGION_EMBEDDED_CLEANUP)
+  endif()
   if(CMAKE_VERSION VERSION_LESS 3.16)
     message(FATAL_ERROR "Portable helper builds require CMake 3.16 or later.")
   endif()

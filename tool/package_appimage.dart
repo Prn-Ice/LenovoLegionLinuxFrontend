@@ -63,12 +63,40 @@ Future<void> main(List<String> args) async {
           'The built bundle changed while staging; build again.',
         );
       }
+      final nativeInputs = Directory('${scratch.path}/native-inputs');
+      await runPackagingCommand('python3', [
+        '${root.path}/tool/bundle_appimage_runtime.py',
+        '--appdir',
+        appdir.path,
+        '--inputs',
+        nativeInputs.path,
+      ]);
+      final nativeManifest =
+          jsonDecode(
+                await File(
+                  '${nativeInputs.path}/native-runtime.json',
+                ).readAsString(),
+              )
+              as Map;
+      final releaseInputs = Directory('${scratch.path}/release-inputs');
+      await releaseInputs.create();
+      await runPackagingCommand('cp', [
+        '-a',
+        '${inputs.path}/.',
+        releaseInputs.path,
+      ]);
+      await runPackagingCommand('cp', [
+        '-a',
+        nativeInputs.path,
+        '${releaseInputs.path}/native',
+      ]);
       final elf = await inspectDesktopPackage(appdir);
       final appBundle = Directory('${appdir.path}/usr/lib/legion_frontend');
       final stamp = await recordReleaseBuild(
         appBundle,
         (built['inputs'] as Map).cast<String, Object>(),
         portableControl: true,
+        staticPortableHelper: true,
       );
       await output.create(recursive: true);
       final name = 'legion-frontend-$version-x86_64';
@@ -78,7 +106,7 @@ Future<void> main(List<String> args) async {
         appBundle,
         source,
         stamp,
-        additionalSources: inputs,
+        additionalSources: releaseInputs,
       );
       await verifyRuntimeInputs(root, inputs);
       final squashfs = '${scratch.path}/payload.squashfs';
@@ -111,7 +139,8 @@ Future<void> main(List<String> args) async {
         'build_os': os,
         'portable_control': true,
         'default_control_mode': 'installedService',
-        'host_executables': ['xdg-user-dir'],
+        'host_executables': ['/bin/sh', 'dirname', 'mktemp', 'rm'],
+        'native_runtime': nativeManifest,
         'elf_dependencies': elf,
         'appdir': await inventoryReleaseTree(appdir),
         'runtime': jsonDecode(
