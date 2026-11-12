@@ -1,5 +1,9 @@
 # AppImage qualification build
 
+For NixOS, use the [native Nix package](nix.md), which supplies its library
+dependencies through the Nix store. This AppImage targets the Ubuntu 22.04 host
+library baseline; direct launch on NixOS is not a qualified path.
+
 Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
 contains the Flutter bundle and uses host GTK, GLib, Polkit, EGL/GLES graphics,
 and C/C++ libraries.
@@ -26,8 +30,7 @@ existing NixOS bootstrap check also passed with the shared test driver.
 
 The builder needs Docker, Git, Python 3, and curl. It runs the compiler as an
 ordinary user in an Ubuntu container. It mounts no host devices or system bus.
-Source packaging requires a clean committed checkout. NixOS users can use the
-[Nix frontend](nix.md); this artifact targets the Ubuntu host library baseline.
+Source packaging requires a clean committed checkout.
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
@@ -74,9 +77,27 @@ Test-only Polkit decisions approve the synthetic helper session. Live password
 prompts remain a separate check. Persistent service, policy, and udev files must
 match their state before the AppImage tests.
 
-For a desktop trial, verify `SHA256SUMS`, make the AppImage executable, and open
-it as your normal user. With FUSE unavailable, extract it with
-`--appimage-extract` and run `squashfs-root/AppRun`.
+## Desktop trial
+
+On a host with the Ubuntu library baseline, verify `SHA256SUMS`, make the AppImage
+executable, and open it as your normal user from a regular desktop terminal.
+The FUSE path needs access to `/dev/fuse`. The pinned runtime also looks for a
+root-owned setuid `fusermount` or `fusermount3` executable in `PATH`. Ubuntu's
+`fuse3` package supplies the mounting tool.
+
+`No suitable fusermount binary found` can mean the tool is missing, its ownership
+or permissions do not meet the runtime's checks, or it cannot execute. A terminal
+inside an FHS sandbox can hide root ownership and prevent setuid mounting. In
+that case, retry from a regular desktop terminal before assessing the host's
+FUSE setup. An explicit `FUSERMOUNT_PROG` path cannot remove a mount restriction.
+
+An error loading `libgtk-3.so.0` after a `/tmp/.mount_...` path means mounting
+succeeded and the desktop app could not load GTK. Extraction still needs the
+same host libraries. On NixOS, follow the native Nix instructions above.
+
+To test the separate extraction path on a compatible host, run
+`--appimage-extract` and then `squashfs-root/AppRun`. Record this result separately
+from FUSE launch.
 
 ## Runtime inputs
 

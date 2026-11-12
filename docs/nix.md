@@ -1,6 +1,8 @@
 # Nix frontend
 
-Build or launch the desktop app on x86_64 Linux:
+Use this package for NixOS. It links the desktop app and temporary helper to
+their Nix store libraries and needs no FUSE mount or AppImage extraction.
+From the project directory, build or launch it on x86_64 Linux:
 
 ```bash
 nix build .#frontend
@@ -29,6 +31,13 @@ Installed service remains the default. To use the bundled helper, choose
 a temporary systemd unit; exiting the app ends that unit. Keep the existing
 [NixOS service module](../packaging/nixos/legion-telemetry.nix) enabled if you use
 Installed service mode.
+
+For a desktop trial, launch from a regular desktop terminal, select Temporary
+helper, close the app, and launch it again with the same command. Change one
+reversible setting, such as Conservation mode, and approve the desktop password
+prompt. Confirm the readback, restore the original value, and close the app.
+This tests the installed driver, actual CLI, and desktop authentication together;
+the VM checks below use a synthetic CLI.
 
 ## Source and dependency updates
 

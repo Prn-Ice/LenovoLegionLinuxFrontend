@@ -64,7 +64,15 @@ services.legionControl = {
 
 Hardware controls require `legion_cli`. Installed mode finds it in `PATH` for
 reads; temporary mode checks fixed administrator-controlled host locations.
-See the [Debian package](docs/debian.md), [AppImage build and trial instructions](docs/appimage.md), or
+On NixOS, use the [native Nix package](docs/nix.md):
+
+```bash
+nix run .#frontend
+```
+
+The Nix package supplies its library dependencies. The AppImage uses the Ubuntu
+host library baseline. See the [Debian package](docs/debian.md),
+[AppImage build and trial instructions](docs/appimage.md), or
 [run tests with synthetic hardware](CONTRIBUTING.md#test-without-hardware).
 
 ```bash
