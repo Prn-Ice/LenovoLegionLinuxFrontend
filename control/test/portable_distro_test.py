@@ -1,8 +1,8 @@
 """Exercise the production helper against Ubuntu's systemd and Polkit."""
 
+import shlex
 from datetime import timedelta
 from pathlib import Path
-import shlex
 
 import portable_session_test as session
 from distro_test_support import LocalMachine, persistent_files
@@ -94,4 +94,5 @@ second.close()
 first.close()
 collected()
 assert persistent_files() == before, "Portable use changed persistent integration files"
+session.assert_cleanup_succeeded()
 print("PASS: Ubuntu production helper qualification with synthetic hardware", flush=True)

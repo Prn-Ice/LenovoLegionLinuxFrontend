@@ -11,6 +11,15 @@ def portable_as_user(user, command):
     return "runuser -u " + shlex.quote(user) + " -- sh -c " + shlex.quote(command)
 
 
+def assert_cleanup_succeeded():
+    journal = machine.succeed("journalctl -b --no-pager")
+    failures = [line for line in journal.splitlines() if re.search(
+        r"legion-(?:bootstrap-probe|portable-control)-\S+-cleanup\.service.*(?:[Ff]ailed|203/EXEC)",
+        line,
+    )]
+    assert not failures, "Cleanup unit failed:\n" + "\n".join(failures)
+
+
 class PortableSession:
     """Drive the VM-only app client while inspecting its synthetic backend."""
 
@@ -79,3 +88,9 @@ class PortableSession:
         self.begin("close")
         machine.wait_until_succeeds("grep CLIENT_CLOSED " + shlex.quote(self.output), timeout=timedelta(seconds=8))
         machine.wait_until_succeeds("test ! -e " + self.runtime, timeout=timedelta(seconds=8))
+        cleanup = self.unit.removesuffix(".service") + "-cleanup.service"
+        machine.wait_until_succeeds(
+            "journalctl -b --no-pager -u " + shlex.quote(cleanup)
+            + " | grep -F 'Legion control cleanup complete.'",
+            timeout=timedelta(seconds=8),
+        )

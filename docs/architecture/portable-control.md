@@ -349,9 +349,13 @@ can start. Its cleanup service cancels a start still waiting on ordering
 dependencies, even after launcher death. Once the helper receives live process
 handles, it stops this startup timer and observes those handles directly.
 Helper success or failure triggers the same cleanup service with replacement
-job mode. Cleanup executes the same approved sealed bytes with `--cleanup`; it
-uses no distribution-specific no-op executable. The launcher observes the helper unit ending and exits, releasing its
-unit reference. Cleanup also removes the private socket directory after
+job mode. Cleanup executes the same approved sealed bytes with `--cleanup`.
+The unit retains these bytes as `StandardInputData` because older systemd
+versions release inactive units' file descriptors. At cleanup, those versions
+create a sealed input from the retained bytes; newer versions can use the
+original descriptor. Cleanup reports completion after verifying the executable
+is still sealed. The launcher observes the helper unit ending and exits,
+releasing its unit reference. Cleanup also removes the private socket directory after
 disconnect, idle exit, or a crash. Runtime limits bound a running helper.
 
 Installed and portable helpers use `/run/legion-control/operation.lock` to

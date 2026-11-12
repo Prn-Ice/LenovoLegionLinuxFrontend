@@ -330,7 +330,18 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                       : -1;
     if (lifetime >= 0)
       close(lifetime);
-    if (handle >= 0 && image_handle >= 0 && lifetime_handle >= 0) {
+    GVariant *cleanup_image = nullptr;
+    if (lifetime_handle >= 0) {
+      auto *mapped = g_mapped_file_new_from_fd(snapshot, FALSE, &launch.error);
+      if (mapped) {
+        auto *bytes = g_mapped_file_get_bytes(mapped);
+        cleanup_image =
+            g_variant_new_from_bytes(G_VARIANT_TYPE("ay"), bytes, TRUE);
+        g_bytes_unref(bytes);
+        g_mapped_file_unref(mapped);
+      }
+    }
+    if (cleanup_image) {
       property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
       property("StandardInputFileDescriptor",
                g_variant_new_handle(image_handle));
@@ -436,11 +447,14 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                               "RuntimeDirectoryMode",
                               g_variant_new_uint32(0711));
       }
-      // Completing this fixed no-op lets systemd collect the cleanup unit after
-      // its Conflicts dependency has replaced the helper's queued start job.
-      // The cleanup uses the same approved sealed bytes as the session.
-      // It needs neither a host no-op path nor another installed executable.
+      // Old systemd releases close inactive units' stdio descriptors. Retain
+      // the same approved bytes as unit data so it can create a sealed memfd
+      // at cleanup time. Versions retaining the descriptor use it directly.
       constexpr char no_op[] = "/proc/self/fd/0";
+      g_variant_builder_add(&cleanup_properties, "(sv)", "StandardInput",
+                            g_variant_new_string("data"));
+      g_variant_builder_add(&cleanup_properties, "(sv)", "StandardInputData",
+                            cleanup_image);
       g_variant_builder_add(&cleanup_properties, "(sv)",
                             "StandardInputFileDescriptor",
                             g_variant_new_handle(image_handle));
@@ -548,8 +562,12 @@ int main(int argc, char **argv) {
   if (argc == 4 && std::string(argv[1]) == "--helper")
     return Helper(argv[2], argv[3]);
 #endif
-  if (argc == 2 && std::string(argv[1]) == "--cleanup")
-    return ApprovedSnapshot() ? 0 : 2;
+  if (argc == 2 && std::string(argv[1]) == "--cleanup") {
+    if (!ApprovedSnapshot())
+      return 2;
+    puts("Legion control cleanup complete.");
+    return 0;
+  }
   if (argc == 5 && std::string(argv[1]) == "--control-helper") {
     char *pid_end, *uid_end;
     const long pid = strtol(argv[2], &pid_end, 10);

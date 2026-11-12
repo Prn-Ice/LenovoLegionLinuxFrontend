@@ -127,6 +127,7 @@ def main():
     assert not Path("/usr/lib/legion_frontend").exists()
     assert not Path("/usr/bin/legion_frontend").exists()
     assert persistent_files() == coexistence, "Purge changed existing integration files"
+    session.assert_cleanup_succeeded()
     checks = {
         name: True
         for name in [

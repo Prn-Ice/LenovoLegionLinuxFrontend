@@ -304,5 +304,6 @@ pkgs.testers.runNixOSTest {
             wait_production_collected()
 
     machine.succeed("test ! -e /etc/systemd/system/legion-control.service; test ! -e /run/systemd/system/legion-control.service")
+    assert_cleanup_succeeded()
   '';
 }
