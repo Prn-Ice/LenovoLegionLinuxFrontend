@@ -154,7 +154,7 @@ void main() {
       }
       for (final label in [
         'Appearance',
-        'Backend',
+        'Hardware control',
         'Boot Logo',
         'Win Key',
         'Camera',

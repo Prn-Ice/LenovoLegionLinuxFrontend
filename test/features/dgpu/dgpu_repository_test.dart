@@ -41,7 +41,7 @@ void main() {
               .having(
                 (failure) => failure.message,
                 'context',
-                contains('Authoritative graphics status'),
+                contains('Graphics mode and NVIDIA GPU status'),
               ),
         ),
       );
@@ -121,7 +121,7 @@ void main() {
         isA<DgpuRepositoryException>().having(
           (error) => error.message,
           'message',
-          contains('Authoritative graphics status could not be reloaded'),
+          contains('Graphics mode and NVIDIA GPU status could not be reloaded'),
         ),
       ),
     );
@@ -174,7 +174,7 @@ void main() {
           isA<DgpuRepositoryException>().having(
             (error) => error.message,
             'message',
-            contains('not available as a desktop action'),
+            contains('Hybrid Auto cannot be selected here'),
           ),
         ),
       );

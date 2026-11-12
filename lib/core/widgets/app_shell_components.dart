@@ -191,9 +191,9 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     };
     final consequence = switch (errorKind) {
       AppFailureKind.graphicsBlocked =>
-        'Safety checks blocked this change before writing to firmware.',
+        'Safety checks stopped the graphics change. The setting was not changed.',
       AppFailureKind.graphicsPending =>
-        'Firmware accepted the selected graphics policy, but the requested GPU configuration was not confirmed.',
+        'The graphics setting was accepted, but the app could not confirm whether the NVIDIA GPU changed as expected.',
       _ =>
         'The requested action did not complete. No confirmation was received that the setting changed.',
     };

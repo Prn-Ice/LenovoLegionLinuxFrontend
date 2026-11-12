@@ -25,6 +25,20 @@ import 'package:legion_frontend/features/automation/bloc/automation_state.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
 import 'package:legion_frontend/features/lighting/providers/lighting_provider.dart';
+import 'package:legion_frontend/features/analytics/bloc/analytics_bloc.dart';
+import 'package:legion_frontend/features/analytics/bloc/analytics_event.dart';
+import 'package:legion_frontend/features/analytics/bloc/analytics_state.dart';
+import 'package:legion_frontend/features/analytics/providers/analytics_provider.dart';
+import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
+import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
+import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
+import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
+import 'package:legion_frontend/features/dgpu/providers/dgpu_provider.dart';
+import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
+import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
+import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
+import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
+import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 import 'support/keyboard_automation_fakes.dart';
 import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
@@ -100,6 +114,13 @@ class _Display extends MockBloc<DisplayEvent, DisplayState>
 class _Settings extends MockBloc<SettingsEvent, SettingsState>
     implements SettingsBloc {}
 
+class _Dgpu extends MockBloc<DgpuEvent, DgpuState> implements DgpuBloc {}
+
+class _Fans extends MockBloc<FansEvent, FansState> implements FansBloc {}
+
+class _Analytics extends MockBloc<AnalyticsEvent, AnalyticsState>
+    implements AnalyticsBloc {}
+
 const _enabled = bool.fromEnvironment('VISUAL_REVIEW');
 const _output = String.fromEnvironment(
   'VISUAL_REVIEW_DIR',
@@ -137,6 +158,8 @@ void main() {
         AppSection.settings,
         AppSection.automation,
         AppSection.power,
+        AppSection.dgpu,
+        AppSection.fans,
       ]) {
         testWidgets('${section.name} $variant', (tester) async {
           final navigation = NavigationBloc()
@@ -170,7 +193,53 @@ void main() {
           whenListen(
             sensors,
             const Stream<LiveSensorState>.empty(),
-            initialState: LiveSensorState.initial().copyWith(isLoading: false),
+            initialState: LiveSensorState.initial().copyWith(
+              isLoading: false,
+              snapshot: section == AppSection.fans ? _fanReadings : null,
+            ),
+          );
+          final dgpu = _Dgpu();
+          whenListen(
+            dgpu,
+            const Stream<DgpuState>.empty(),
+            initialState: DgpuState.initial().copyWith(
+              hasLoaded: true,
+              isActive: true,
+              name: 'NVIDIA GeForce RTX 4060',
+              graphicsModeStatus: const GraphicsModeStatus(
+                selectedMode: GraphicsMode.hybrid,
+                effectiveState: DgpuTopology.attached,
+                expectedState: DgpuTopology.attached,
+                reconciliation: GraphicsReconciliation.settled,
+                clientInspectionComplete: false,
+                activeClients: [],
+                availableModes: GraphicsMode.values,
+                reconciliationAttempts: null,
+              ),
+            ),
+          );
+          final fans = _Fans();
+          whenListen(
+            fans,
+            const Stream<FansState>.empty(),
+            initialState: FansState.initial().copyWith(
+              platformProfile: 'balanced',
+              onPowerSupply: true,
+              availablePresets: [
+                'quiet-ac',
+                'balanced-ac',
+                'performance-ac',
+                'balanced-performance-ac',
+              ],
+              maximumFanSpeedEnabled: false,
+              lockFanControllerEnabled: true,
+            ),
+          );
+          final analytics = _Analytics();
+          whenListen(
+            analytics,
+            const Stream<AnalyticsState>.empty(),
+            initialState: AnalyticsState.initial(),
           );
           final automation = _Automation();
           final battery = _Battery();
@@ -286,6 +355,9 @@ void main() {
                 devicesBlocProvider.overrideWith((ref) => devices),
                 displayBlocProvider.overrideWith((ref) => display),
                 settingsBlocProvider.overrideWith((ref) => settings),
+                dgpuBlocProvider.overrideWith((ref) => dgpu),
+                fansBlocProvider.overrideWith((ref) => fans),
+                analyticsBlocProvider.overrideWith((ref) => analytics),
               ],
               child: const NavigationShell(),
             ),
@@ -295,6 +367,23 @@ void main() {
             await tester.ensureVisible(find.text('Reference').first);
             await tester.pumpAndSettle();
             await _capture(tester, 'power-reference-$variant');
+          }
+          if (section == AppSection.dgpu) {
+            await tester.ensureVisible(find.text('Graphics mode'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'graphics-mode-$variant');
+            await tester.ensureVisible(
+              find.byKey(const ValueKey('set-graphics-discrete')),
+            );
+            await tester.pumpAndSettle();
+            await _capture(tester, 'graphics-mode-choices-$variant');
+          }
+          if (section == AppSection.settings) {
+            await tester.ensureVisible(
+              find.text('Permission to change settings'),
+            );
+            await tester.pumpAndSettle();
+            await _capture(tester, 'hardware-permission-$variant');
           }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
@@ -356,6 +445,31 @@ void main() {
     }
   }
 }
+
+// Synthetic sensor values keep copy review independent of the host's hardware.
+const _fanReadings = LiveSensorSnapshot(
+  cpuName: null,
+  cpuTempC: 47,
+  cpuUtilPercent: null,
+  cpuClockGhz: null,
+  cpuPackagePowerW: null,
+  fan1Rpm: 1800,
+  fan2Rpm: 1600,
+  gpuName: null,
+  gpuTempC: 43,
+  gpuUtilPercent: null,
+  gpuClockGhz: null,
+  gpuVramUsedGb: null,
+  gpuVramTotalGb: null,
+  gpuFanPercent: null,
+  gpuPowerDrawW: null,
+  gpuIsDiscrete: true,
+  motherboardTempC: null,
+  batteryPercent: null,
+  batteryCharging: null,
+  batteryPowerDrawW: null,
+  diskTempC: null,
+);
 
 Future<void> _render(
   WidgetTester tester,

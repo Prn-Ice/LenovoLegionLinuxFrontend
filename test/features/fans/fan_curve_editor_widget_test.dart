@@ -30,7 +30,7 @@ void main() {
     await _pumpEditor(tester, width: 320, dirty: true);
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Current CPU fan'), findsOneWidget);
+    expect(find.text('Current CPU fan speed'), findsOneWidget);
     await _expandPreciseControls(tester);
     expect(find.byKey(const ValueKey('fan-point-selector')), findsOneWidget);
   });

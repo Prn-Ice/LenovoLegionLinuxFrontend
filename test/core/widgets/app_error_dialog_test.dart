@@ -208,13 +208,13 @@ void main() {
       expect(find.text(failure.key.message), findsOneWidget);
       if (failure.key.kind == AppFailureKind.graphicsBlocked) {
         expect(
-          find.textContaining('before writing to firmware'),
+          find.textContaining('The setting was not changed'),
           findsOneWidget,
         );
-        expect(find.textContaining('Firmware accepted'), findsNothing);
+        expect(find.textContaining('setting was accepted'), findsNothing);
       } else {
-        expect(find.textContaining('Firmware accepted'), findsOneWidget);
-        expect(find.textContaining('was not confirmed'), findsOneWidget);
+        expect(find.textContaining('setting was accepted'), findsOneWidget);
+        expect(find.textContaining('could not confirm'), findsOneWidget);
       }
       expect(tester.takeException(), isNull);
     }

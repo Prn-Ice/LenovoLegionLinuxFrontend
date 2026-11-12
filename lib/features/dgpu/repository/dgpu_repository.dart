@@ -71,7 +71,7 @@ class DgpuRepository extends PrivilegedRepository {
       if (!result.ok) {
         if (required) {
           throw DgpuRepositoryException(
-            'Authoritative graphics status could not be reloaded after the '
+            'Graphics mode and NVIDIA GPU status could not be reloaded after the '
             'mode request. Backend output: ${result.stderr}',
           );
         }
@@ -84,7 +84,7 @@ class DgpuRepository extends PrivilegedRepository {
       if (required) {
         final failure = AppFailure.from(error);
         throw DgpuRepositoryException(
-          'Authoritative graphics status could not be reloaded after the mode '
+          'Graphics mode and NVIDIA GPU status could not be reloaded after the mode '
           'request: $error',
           kind: failure.kind,
           details: failure.details,
@@ -97,8 +97,8 @@ class DgpuRepository extends PrivilegedRepository {
   Future<void> setGraphicsMode(GraphicsMode mode) async {
     if (mode == GraphicsMode.hybridAuto) {
       throw const DgpuRepositoryException(
-        'Hybrid Auto is not available as a desktop action because it can '
-        'detach the dGPU after AC is unplugged without another client preflight.',
+        'Hybrid Auto cannot be selected here. It can disable NVIDIA graphics '
+        'when you unplug the charger without checking again for programs using it.',
       );
     }
 
@@ -116,9 +116,9 @@ class DgpuRepository extends PrivilegedRepository {
       switch (error.code) {
         case LegionBridgeErrorCode.graphicsBlocked:
           throw DgpuRepositoryException(
-            'Could not switch to ${mode.label}. The firmware policy was not '
-            'changed because the privileged preflight found active dGPU/DRM '
-            'clients or could not complete client inspection. Close '
+            'Could not switch to ${mode.label}. The graphics setting was not '
+            'changed because programs are using the GPU or the control service '
+            'could not check all programs. Close '
             'GPU-accelerated applications and external-display sessions, then '
             'retry from a text console.$technicalDetails',
             kind: AppFailureKind.graphicsBlocked,
@@ -126,9 +126,9 @@ class DgpuRepository extends PrivilegedRepository {
           );
         case LegionBridgeErrorCode.graphicsPending:
           throw DgpuRepositoryException(
-            '${mode.label} was selected, but the effective GPU topology did '
-            'not settle. The firmware policy may have changed, so do not '
-            'assume the requested mode is active. Check authoritative status '
+            '${mode.label} was selected, but the NVIDIA GPU did not reach '
+            'the expected state. The graphics setting may have changed, so do not '
+            'assume the requested mode is active. Check the graphics status '
             'and restore Hybrid from a text console or reboot before '
             'continuing.$technicalDetails',
             kind: AppFailureKind.graphicsPending,
@@ -136,8 +136,8 @@ class DgpuRepository extends PrivilegedRepository {
           );
         case _:
           throw DgpuRepositoryException(
-            'Could not request ${mode.label}. No authoritative confirmation '
-            'was received that the graphics policy changed.$technicalDetails',
+            'Could not switch to ${mode.label}. The app could not confirm '
+            'whether the graphics setting changed.$technicalDetails',
             kind: AppFailure.from(error).kind,
             details: error.details,
           );

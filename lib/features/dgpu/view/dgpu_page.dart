@@ -6,6 +6,7 @@ import 'package:yaru/yaru.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/responsive_card_grid.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../analytics/bloc/analytics_event.dart';
 import '../../analytics/models/sensor_record.dart';
@@ -72,18 +73,18 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             title:
                 state.graphicsModeStatus?.effectiveState ==
                     DgpuTopology.detached
-                ? 'Discrete GPU detached'
+                ? 'NVIDIA GPU not detected'
                 : 'GPU unavailable',
             children: [
               Text(
                 state.graphicsModeStatus?.effectiveState ==
                         DgpuTopology.detached
-                    ? 'The selected graphics policy currently expects the '
-                          'NVIDIA dGPU to be absent. AMD graphics can continue '
-                          'driving the internal display.'
+                    ? 'Linux does not currently detect the NVIDIA GPU. '
+                          'Check the selected graphics mode above. In '
+                          'integrated-only mode, the laptop uses integrated graphics instead.'
                     : 'The system found no NVIDIA display controller with '
                           'runtime power management. Refresh after checking the '
-                          'driver and graphics policy.',
+                          'driver and selected graphics mode.',
               ),
               const SizedBox(height: 12),
               AppRefreshButton(
@@ -188,17 +189,18 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
   ) async {
     final message = switch (mode) {
       GraphicsMode.hybrid =>
-        'This restores normal Hybrid graphics and requests that the system '
-            'attach the NVIDIA dGPU. A MUX policy change may require a reboot. '
+        'This makes integrated and NVIDIA graphics available. '
+            'Changing which GPU drives the display may require a restart. '
             'Save your work before continuing.',
       GraphicsMode.hybridIgpuOnly =>
-        'This can remove the NVIDIA dGPU from the running system. Disconnect '
+        'This can disable NVIDIA graphics while the laptop is running. Disconnect '
             'external displays, save your work, and close GPU-accelerated '
-            'applications first. The privileged backend will inspect clients '
-            'again and block the write if detaching is unsafe.',
+            'applications first. The control service checks for programs using '
+            'the GPU and blocks the change if it cannot confirm it is safe.',
       GraphicsMode.discrete =>
-        'This selects the NVIDIA dGPU as the discrete graphics path. The MUX '
-            'change requires a reboot. Save your work before continuing.',
+        'This selects NVIDIA graphics to drive the display. '
+            'You must restart the laptop for the display change to take effect. '
+            'Save your work before continuing.',
       GraphicsMode.hybridAuto => '',
     };
     if (mode == GraphicsMode.hybridAuto || state.isApplying) return;
@@ -302,7 +304,7 @@ class _GpuOverview extends StatelessWidget {
                     ),
                     Text(
                       'Discrete GPU · '
-                      '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'} policy',
+                      '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -586,8 +588,7 @@ class _GraphicsModeCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Firmware policy and observed NVIDIA topology are reported '
-            'separately.',
+            'Choose which graphics hardware the laptop can use.',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -595,9 +596,8 @@ class _GraphicsModeCard extends StatelessWidget {
           const SizedBox(height: 16),
           if (status == null)
             Text(
-              'Authoritative combined graphics status is unavailable. Legacy '
-              'Hybrid controls are disabled because they cannot distinguish '
-              'iGPU-only or Auto policy.',
+              'The app could not read the selected mode and NVIDIA GPU status. '
+              'Mode changes are disabled until both can be checked. Refresh to try again.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -605,7 +605,7 @@ class _GraphicsModeCard extends StatelessWidget {
           else ...[
             LayoutBuilder(
               builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 620 ? 4 : 2;
+                final columns = 2;
                 final spacing = 16.0;
                 final width =
                     (constraints.maxWidth - spacing * (columns - 1)) / columns;
@@ -615,53 +615,25 @@ class _GraphicsModeCard extends StatelessWidget {
                   children: [
                     _GraphicsFact(
                       width: width,
-                      label: 'Selected policy',
+                      label: 'Selected mode',
                       value: status.selectedMode.label,
                     ),
                     _GraphicsFact(
                       width: width,
-                      label: 'Effective dGPU',
+                      label: 'NVIDIA GPU',
                       value: status.effectiveState.label,
-                    ),
-                    _GraphicsFact(
-                      width: width,
-                      label: 'Expected dGPU',
-                      value: status.expectedState.label,
-                    ),
-                    _GraphicsFact(
-                      width: width,
-                      label: 'Reconciliation',
-                      value: status.reconciliation.label,
                     ),
                   ],
                 );
               },
             ),
-            const SizedBox(height: 16),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            Text(
-              'Firmware reports',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              status.availableModes.map((mode) => mode.label).join('  ·  '),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              status.clientInspectionComplete
-                  ? '${status.activeClients.length} dGPU device client(s) '
-                        'observed by the backend.'
-                  : 'Client inspection is limited in this desktop view. A '
-                        'privileged preflight is required before any detach.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-            ),
+            if (status.effectiveState == DgpuTopology.attached) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Detected does not mean the GPU is currently in use.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (status.selectedMode == GraphicsMode.hybridAuto) ...[
               const SizedBox(height: 12),
               Row(
@@ -671,9 +643,10 @@ class _GraphicsModeCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Hybrid Auto can eject the dGPU after AC is unplugged, '
-                      'even while desktop applications are using it. Return to '
-                      'Hybrid from a TTY before normal use.',
+                      'Hybrid Auto can disable NVIDIA graphics when you unplug '
+                      'the charger, even while applications are using it. '
+                      'Save your work and switch back to Hybrid from a text '
+                      'console before continuing.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -683,8 +656,8 @@ class _GraphicsModeCard extends StatelessWidget {
             if (status.reconciliation != GraphicsReconciliation.settled) ...[
               const SizedBox(height: 12),
               Text(
-                'Selected policy and observed topology are not settled. Do not '
-                'treat the requested graphics mode as active.',
+                'The app has not confirmed the selected mode. Refresh to check '
+                'again; do not assume the change is complete.',
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: scheme.warning),
@@ -694,21 +667,20 @@ class _GraphicsModeCard extends StatelessWidget {
             const Divider(height: 1),
             const SizedBox(height: 12),
             Text(
-              'Change policy',
+              'Change graphics mode',
               style: Theme.of(
                 context,
               ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 3),
             Text(
-              'Every change uses privileged preflight and authoritative '
-              'readback. Hybrid Auto remains status-only.',
+              'You may be asked for administrator approval. The app checks '
+              'whether it is safe to switch, then checks whether the change took effect.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            ResponsiveCardGrid(
+              minCardWidth: 280,
               children: [
                 for (final mode in const [
                   GraphicsMode.hybrid,
@@ -716,22 +688,32 @@ class _GraphicsModeCard extends StatelessWidget {
                   GraphicsMode.discrete,
                 ])
                   if (status.availableModes.contains(mode))
-                    OutlinedButton.icon(
-                      key: ValueKey('set-graphics-${mode.wireValue}'),
-                      onPressed:
-                          state.isApplying ||
-                              (mode == status.selectedMode &&
-                                  status.reconciliation ==
-                                      GraphicsReconciliation.settled)
-                          ? null
-                          : () => onModeSelected(mode),
-                      icon: Icon(
-                        mode == status.selectedMode
-                            ? YaruIcons.ok
-                            : YaruIcons.chip,
-                        size: 17,
-                      ),
-                      label: Text(mode.label),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        OutlinedButton.icon(
+                          key: ValueKey('set-graphics-${mode.wireValue}'),
+                          onPressed:
+                              state.isApplying ||
+                                  (mode == status.selectedMode &&
+                                      status.reconciliation ==
+                                          GraphicsReconciliation.settled)
+                              ? null
+                              : () => onModeSelected(mode),
+                          icon: Icon(
+                            mode == status.selectedMode
+                                ? YaruIcons.ok
+                                : YaruIcons.chip,
+                            size: 17,
+                          ),
+                          label: Text(mode.label),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          mode.description,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
               ],
             ),
@@ -747,12 +729,46 @@ class _GraphicsModeCard extends StatelessWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Applying policy and verifying GPU topology...',
+                      'Changing graphics mode and checking the result…',
                     ),
                   ),
                 ],
               ),
             ],
+            if (status.availableModes.contains(GraphicsMode.hybridAuto) &&
+                status.selectedMode != GraphicsMode.hybridAuto) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Hybrid Auto cannot be selected here because unplugging the charger can disable NVIDIA graphics while applications are using it.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 16),
+            YaruExpandable(
+              isExpanded: false,
+              expandIconSemanticLabel: 'Toggle graphics details',
+              expandButtonPosition: YaruExpandableButtonPosition.end,
+              header: const Text('Graphics details'),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Expected NVIDIA GPU: ${status.expectedState.label}'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Modes reported by the laptop: ${status.availableModes.map((mode) => mode.label).join(', ')}',
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      status.clientInspectionComplete
+                          ? '${status.activeClients.length} ${status.activeClients.length == 1 ? 'program was' : 'programs were'} found using NVIDIA graphics.'
+                          : 'This view cannot check every program using NVIDIA graphics. The control service checks again before disabling the GPU.',
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),
