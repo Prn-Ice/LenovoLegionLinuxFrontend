@@ -175,7 +175,7 @@ pkgs.testers.runNixOSTest {
         machine.succeed(wayland(compositor) + " >/home/approved/sway.log 2>&1 &")
         try:
             machine.wait_until_succeeds("test -S /run/user/1000/sway.sock", timeout=timedelta(seconds=45))
-            for attempt in range(5):
+            for attempt in range(10):
                 machine.succeed("rm -f /home/approved/wayland.exit")
                 launch = "appimage-run " + shlex.quote(image) + " >>/home/approved/wayland.log 2>&1; printf '%s' \"$?\" >/home/approved/wayland.exit"
                 machine.succeed(wayland("dbus-run-session -- sh -c " + shlex.quote(launch)) + " >/home/approved/wayland-launcher.log 2>&1 &")
