@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test the exact AppImage through the host-namespace NixOS launcher.
+# Test direct AppImage launch with standard NixOS nix-ld support.
 set -euo pipefail
 if [[ $# != 2 ]]; then
   echo 'Usage: bash tool/test_appimage_nixos.sh APPIMAGE OUTPUT_DIRECTORY' >&2
@@ -29,8 +29,7 @@ nix build --impure --print-build-logs --out-link "$output/result" --expr "
     flake = builtins.getFlake config.flake;
     pkgs = import flake.inputs.nixpkgs { system = \"x86_64-linux\"; };
     image = builtins.path { path = config.image; name = \"legion-frontend.AppImage\"; };
-    runner = flake.packages.x86_64-linux.appimage-run;
-  in import (flake.outPath + \"/control/test/appimage_nixos.nix\") { inherit pkgs image runner; }
+  in import (flake.outPath + \"/control/test/appimage_nixos.nix\") { inherit pkgs image; }
 " 2>&1 | tee "$output/build-and-vm.log"
 python3 - "$root" "$image" "$output" <<'PY'
 import hashlib
@@ -42,7 +41,7 @@ root, image, output = map(Path, sys.argv[1:])
 manifest = {
     'commit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
     'appimage_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
-    'nixos': 'host-namespace desktop and static helper control verified',
+    'nixos': 'direct FUSE launch with nix-ld and static helper control verified',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
 }

@@ -343,7 +343,7 @@ def prepare(root, tag, inputs, output):
             nixos["commit"] != release["commit"]
             or nixos["appimage_sha256"] != checksums[image]
             or nixos["nixos"]
-            != "host-namespace desktop and static helper control verified"
+            != "direct FUSE launch with nix-ld and static helper control verified"
         ):
             raise ValueError("NixOS acceptance did not verify this AppImage.")
     if output.exists():

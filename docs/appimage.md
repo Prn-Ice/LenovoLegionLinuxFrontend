@@ -1,19 +1,30 @@
 # AppImage qualification build
 
-For NixOS, use the [native Nix package](nix.md) or launch this AppImage through
-the pinned Nix launcher from the project directory in a regular host terminal:
+On NixOS, this AppImage uses standard [nix-ld](https://github.com/nix-community/nix-ld)
+and FUSE support. Set these options in your NixOS configuration, apply the
+configuration, and open a regular host terminal:
 
-```bash
-nix run .#appimage-run -- /path/to/legion-frontend.AppImage
+```nix
+programs.fuse.enable = true;
+programs.nix-ld = {
+  enable = true;
+  libraries = with pkgs; [ libglvnd libx11 libxcb wayland ];
+};
 ```
 
-The launcher uses Nix to cache an extracted copy, changes only the desktop and
-image-loader executables' interpreter paths, and supplies core and graphics
-libraries from the pinned Nixpkgs. It preserves every bundled library and the
-static helper. It leaves the host ownership and process namespaces intact, so
-CLI trust checks see real root ownership. The stock FHS `appimage-run` hides that
-ownership and is unsuitable for these checks. Direct AppImage launch on an
-unconfigured NixOS host remains unqualified.
+If you enabled `programs.appimage.binfmt`, set it to `false` for direct launch;
+otherwise NixOS sends AppImages through `appimage-run` automatically. The
+`appimage-run` FHS environment hides host root ownership. Temporary control
+through that runner remains unsupported because the app cannot verify the CLI
+and root helper there. Direct launch with `nix-ld` preserves those checks and
+requires no project launcher or binary patching:
+
+```bash
+chmod +x ./legion-frontend.AppImage
+./legion-frontend.AppImage
+```
+
+The [native Nix package](nix.md) is also available.
 
 Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
 contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
@@ -111,10 +122,11 @@ Test the same artifact through the NixOS launcher:
 bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
 ```
 
-This separate NixOS VM checks the public launch command, first frame, bundled
-GTK libraries, unchanged host namespace, and static helper write/readback/restore
-and cleanup. It uses a
-synthetic CLI in the system profile. CI runs both VM checks and keeps their
+This separate NixOS VM launches the AppImage directly with standard `nix-ld` and
+FUSE support. It checks the first frame, bundled GTK libraries, unchanged host
+namespace, and mounted static helper write/readback/restore and cleanup. It also
+checks denied approval and a missing authentication agent. It uses a synthetic
+CLI in the system profile. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
@@ -135,9 +147,8 @@ FUSE setup. An explicit `FUSERMOUNT_PROG` path cannot remove a mount restriction
 An error loading `libgtk-3.so.0` after a `/tmp/.mount_...` path means mounting
 succeeded and the desktop app could not load GTK. Earlier qualification builds
 used host GTK. The bundled build includes it; verify that you are testing the
-new artifact and its matching checksums. On NixOS, use the compatibility runner
-above so the core loader and graphics libraries are also available without
-changing the CLI ownership view.
+new artifact and its matching checksums. On NixOS, the configuration above
+supplies the core loader and graphics libraries while preserving host ownership.
 
 To test the separate extraction path on a compatible host, run
 `--appimage-extract` and then `squashfs-root/AppRun`. Record this result separately

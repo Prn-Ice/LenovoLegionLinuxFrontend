@@ -72,10 +72,12 @@ nix run .#frontend
 
 The Nix package supplies its library dependencies. The AppImage bundles its
 desktop libraries and uses host graphics and core system libraries. On NixOS,
-launch that artifact from a regular host terminal with the pinned Nix launcher:
+enable standard `nix-ld` and FUSE support as described in the
+[AppImage instructions](docs/appimage.md), then launch it directly from a regular
+host terminal:
 
 ```bash
-nix run .#appimage-run -- /path/to/legion-frontend.AppImage
+./legion-frontend.AppImage
 ```
 
 See the [Debian package](docs/debian.md),

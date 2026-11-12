@@ -52,26 +52,12 @@
         extraPkgConfigPackages = [ pkgs.libthai ];
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
-      appimageRunner = pkgs.writeShellApplication {
-        name = "legion-appimage-run";
-        runtimeInputs = [
-          pkgs.nix
-          pkgs.coreutils
-          pkgs.python3
-        ];
-        runtimeEnv = {
-          LLLF_APPIMAGE_NIXPKGS = "${nixpkgs}";
-          LLLF_APPIMAGE_PACKAGING = "${./packaging/nix/appimage.nix}";
-        };
-        text = builtins.readFile ./tool/run_appimage_nixos.sh;
-      };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
     in
     {
       packages.${system} = {
         default = frontend;
         inherit frontend;
-        appimage-run = appimageRunner;
         frontend-source = frontendSource;
       };
       apps.${system} = {
@@ -82,10 +68,6 @@
         frontend = {
           type = "app";
           program = pkgs.lib.getExe frontend;
-        };
-        appimage-run = {
-          type = "app";
-          program = pkgs.lib.getExe appimageRunner;
         };
       };
       checks.${system} = {

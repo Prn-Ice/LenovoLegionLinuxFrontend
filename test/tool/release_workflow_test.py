@@ -233,7 +233,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.refresh()
         self.refresh_debian()
 
-    def add_nixos_evidence(self, image_sha256=None):
+    def add_nixos_evidence(self, image_sha256=None, *, status=None):
         name = "appimage-nixos-qualification.tar.gz"
         archive_json(
             self.qa / name,
@@ -242,7 +242,8 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 "commit": self.commit,
                 "appimage_sha256": image_sha256
                 or release._sha256(self.binary / self.image),
-                "nixos": "host-namespace desktop and static helper control verified",
+                "nixos": status
+                or "direct FUSE launch with nix-ld and static helper control verified",
             },
         )
         self.evidence["files"][name] = release._sha256(self.qa / name)
@@ -273,6 +274,14 @@ class ReleaseWorkflowTest(unittest.TestCase):
     def test_nixos_acceptance_cannot_qualify_another_appimage(self):
         self.enable_native_runtime()
         self.add_nixos_evidence("f" * 64)
+        with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
+            self.prepare()
+
+    def test_custom_launcher_evidence_cannot_qualify_direct_launch(self):
+        self.enable_native_runtime()
+        self.add_nixos_evidence(
+            status="host-namespace desktop and static helper control verified"
+        )
         with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
             self.prepare()
 

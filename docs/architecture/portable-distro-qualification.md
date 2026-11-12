@@ -69,6 +69,7 @@ ELF headers, and exact distro package versions. CI retains these files in the
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
 separately builds a static helper, bundles the desktop runtime, and exercises
-FUSE and extracted launch without host GTK. Its NixOS VM tests the same AppImage
-through a Nix launcher that retains the host ownership namespace. Actual CLI imports/configuration, desktop
-approval, and hardware writes need separate evidence.
+FUSE and extracted launch without host GTK. Its NixOS VM launches the same
+AppImage directly with standard `nix-ld` and FUSE support. Actual CLI
+imports/configuration, desktop approval, and hardware writes need separate
+evidence.

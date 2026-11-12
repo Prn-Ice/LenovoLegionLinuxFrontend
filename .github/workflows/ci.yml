@@ -208,7 +208,7 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
-      - name: Test the same AppImage through the NixOS compatibility runner
+      - name: Test direct launch of the same AppImage with NixOS nix-ld
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
