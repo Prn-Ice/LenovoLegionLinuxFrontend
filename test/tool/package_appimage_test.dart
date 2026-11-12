@@ -9,6 +9,7 @@ void main() {
   late Directory temporary;
   late Directory bundle;
   late Directory inputs;
+  late Directory commands;
   final root = Directory.current;
 
   void write(String path, String contents) {
@@ -24,6 +25,14 @@ void main() {
     addTearDown(() => temporary.delete(recursive: true));
     bundle = Directory('${temporary.path}/bundle')..createSync();
     inputs = Directory('${temporary.path}/inputs')..createSync();
+    commands = Directory('${temporary.path}/commands')..createSync();
+    final dirname = await Process.run('/bin/sh', ['-c', 'command -v dirname']);
+    expect(dirname.exitCode, 0);
+    Link(
+      '${commands.path}/dirname',
+    ).createSync((dirname.stdout as String).trim());
+    write('${commands.path}/xdg-user-dir', '#!/bin/sh\nexit 0\n');
+    await Process.run('chmod', ['755', '${commands.path}/xdg-user-dir']);
     write(
       '${bundle.path}/legion_frontend',
       '#!/bin/sh\nprintf \'%s\\n\' "\$@" "\$LD_LIBRARY_PATH"\n',
@@ -121,7 +130,7 @@ void main() {
     final result = await Process.run(
       '${appdir.path}/AppRun',
       ['argument with spaces', r'$literal'],
-      environment: {'LD_LIBRARY_PATH': '/original/lib'},
+      environment: {'PATH': commands.path, 'LD_LIBRARY_PATH': '/original/lib'},
     );
     expect(result.exitCode, 0, reason: result.stderr.toString());
     expect((result.stdout as String).split('\n'), [
@@ -131,6 +140,24 @@ void main() {
       '',
     ]);
   });
+
+  test(
+    'AppRun explains a missing xdg-user-dir before starting the app',
+    () async {
+      final appdir = Directory('${temporary.path}/Legion.AppDir');
+      await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
+      File('${commands.path}/xdg-user-dir').deleteSync();
+      final result = await Process.run(
+        '${appdir.path}/AppRun',
+        [],
+        environment: {'PATH': commands.path},
+      );
+      expect(result.exitCode, 127);
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, contains('Documents directory'));
+      expect(result.stderr, contains('Install xdg-user-dirs'));
+    },
+  );
 
   test('rejects a bundle without the portable helper', () async {
     File('${bundle.path}/libexec/legion-portable-control').deleteSync();

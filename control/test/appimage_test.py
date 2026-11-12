@@ -5,6 +5,7 @@ import os
 import shlex
 import subprocess
 import sys
+import tempfile
 from datetime import timedelta
 from pathlib import Path
 
@@ -32,6 +33,8 @@ assert (
     manifest["portable_control"]
     and manifest["default_control_mode"] == "installedService"
 )
+assert manifest["host_executables"] == ["xdg-user-dir"]
+machine.succeed("runuser -u approved -- xdg-user-dir DOCUMENTS")
 print("ARTIFACT_SHA256 " + manifest["files"][image.name] + " " + image.name, flush=True)
 assert not Path("/usr/lib/jvm").exists(), "The acceptance VM must not supply a JVM"
 before = persistent_files()
@@ -108,6 +111,31 @@ machine.succeed(
     )
 )
 appdir = extraction / "squashfs-root"
+with tempfile.TemporaryDirectory(prefix="appimage-empty-path-") as empty_path:
+    Path(empty_path).chmod(0o755)
+    result = subprocess.run(
+        [
+            "runuser",
+            "-u",
+            "approved",
+            "--",
+            "/usr/bin/env",
+            "PATH=" + empty_path,
+            str(appdir / "AppRun"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 127, result
+    assert not result.stdout, result
+    assert "Install xdg-user-dirs" in result.stderr, result
+    Path("/home/approved/appimage-missing-xdg.log").write_text(result.stderr)
+print(
+    "PASS: missing xdg-user-dir reports how to install it before GUI startup",
+    flush=True,
+)
 check_helper(appdir)
 print(
     "PASS: bundled helper from extraction with synthetic write/readback/restore",

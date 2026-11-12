@@ -111,6 +111,7 @@ Future<void> main(List<String> args) async {
         'build_os': os,
         'portable_control': true,
         'default_control_mode': 'installedService',
+        'host_executables': ['xdg-user-dir'],
         'elf_dependencies': elf,
         'appdir': await inventoryReleaseTree(appdir),
         'runtime': jsonDecode(

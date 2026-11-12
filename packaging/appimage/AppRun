@@ -1,5 +1,10 @@
 #!/bin/sh
 set -eu
+if ! command -v xdg-user-dir >/dev/null 2>&1; then
+  printf '%s\n' 'Legion Frontend needs xdg-user-dir to find your Documents directory.' \
+    'Install xdg-user-dirs with your package manager, then reopen the AppImage.' >&2
+  exit 127
+fi
 appdir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 LD_LIBRARY_PATH="$appdir/usr/lib/legion_frontend/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LD_LIBRARY_PATH

@@ -3,6 +3,12 @@
 Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
 contains the Flutter bundle and uses host GTK, GLib, Polkit, EGL/GLES graphics,
 and C/C++ libraries.
+It also needs the host's `xdg-user-dir` command from `xdg-user-dirs` to find the
+Documents directory used by the app's existing Hive storage. On Ubuntu, install
+it with `sudo apt-get install xdg-user-dirs`. AppRun reports this requirement
+before starting the app if the command is missing. The build manifest lists
+required host executables alongside ELF library dependencies.
+
 Temporary hardware access requires the installed driver and `legion_cli`, systemd,
 and a desktop authentication agent. Installed service remains the default mode;
 choose Temporary helper in Settings and reopen the app to use it.
@@ -61,6 +67,9 @@ The VM first runs the native helper checks. It then verifies artifact hashes,
 opens a real Flutter window under Xvfb through FUSE and through extraction, and
 uses the bundled helper from both locations for synthetic write/readback/restore.
 Paths contain spaces. The acceptance guest has no JVM or installed Legion service.
+The VM installs `xdg-user-dirs` explicitly and records its package version. A
+launch with an empty command path must report how to install the missing tool
+before starting the GUI; both normal launches must render their first frame.
 Test-only Polkit decisions approve the synthetic helper session. Live password
 prompts remain a separate check. Persistent service, policy, and udev files must
 match their state before the AppImage tests.
