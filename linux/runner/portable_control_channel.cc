@@ -188,7 +188,8 @@ void FindHostCli(FlMethodCall *call) {
   g_task_run_in_thread(
       task, [](GTask *task, gpointer, gpointer, GCancellable *) {
         std::string reason;
-        const auto path = legion_control::FindHostLegionCli(&reason);
+        const auto path = legion_control::FindHostLegionCli(
+            &reason, legion_control::CliAccess::readOnly);
         if (path.empty() || !g_utf8_validate(path.c_str(), -1, nullptr))
           g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "%s",
                                   reason.empty()
@@ -231,14 +232,15 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
     auto *address = Field(arguments, "address", FL_VALUE_TYPE_STRING);
     auto *unit = Field(arguments, "unit", FL_VALUE_TYPE_STRING);
     auto *pid = Field(arguments, "helperPid", FL_VALUE_TYPE_INT);
-    if (!address || !unit || !pid || fl_value_get_int(pid) <= 1 ||
+    auto *bus_name = Field(arguments, "busName", FL_VALUE_TYPE_STRING);
+    if (!address || !unit || !pid || !bus_name || fl_value_get_int(pid) <= 1 ||
         fl_value_get_int(pid) > INT_MAX) {
       Error(call, "invalid-arguments", "Invalid portable helper endpoint.");
       return;
     }
-    legion_control::PortableEndpoint endpoint{fl_value_get_string(address),
-                                              fl_value_get_string(unit),
-                                              guint32(fl_value_get_int(pid))};
+    legion_control::PortableEndpoint endpoint{
+        fl_value_get_string(address), fl_value_get_string(unit),
+        guint32(fl_value_get_int(pid)), fl_value_get_string(bus_name)};
     GError *error = nullptr;
     if (!legion_control::ValidatePortableEndpoint(endpoint, &error)) {
       Error(call, "invalid-arguments", error->message);

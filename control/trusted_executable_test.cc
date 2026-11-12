@@ -76,6 +76,22 @@ void test_fixed_host_discovery() {
   g_assert_true(legion_control::TrustedExecutable(cli, &resolved));
   g_assert_cmpstr(resolved.c_str(), ==, cli.c_str());
 }
+
+void test_read_only_discovery() {
+  std::string error;
+  const auto cli = legion_control::FindHostLegionCli(
+      &error, legion_control::CliAccess::readOnly);
+  if (cli.empty()) {
+    g_test_skip("No fixed-location CLI is available for read-only discovery.");
+    return;
+  }
+  g_assert_true(error.empty());
+  struct stat info{};
+  g_assert_cmpint(stat(cli.c_str(), &info), ==, 0);
+  g_assert_true(S_ISREG(info.st_mode));
+  g_assert_cmpint(access(cli.c_str(), X_OK), ==, 0);
+  g_test_message("READ_CLI %s", cli.c_str());
+}
 } // namespace
 
 int main(int argc, char **argv) {
@@ -85,5 +101,6 @@ int main(int argc, char **argv) {
   g_test_add_func("/trusted-executable/root-links",
                   test_root_links_and_permissions);
   g_test_add_func("/trusted-executable/host-cli", test_fixed_host_discovery);
+  g_test_add_func("/trusted-executable/read-cli", test_read_only_discovery);
   return g_test_run();
 }

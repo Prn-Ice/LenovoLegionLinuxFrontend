@@ -5,7 +5,7 @@ legion_control::PortableEndpoint Endpoint() {
   return {"unix:path=/run/legion-example/"
           "control.sock,guid=0123456789abcdef0123456789abcdef",
           "legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service",
-          123};
+          123, ":1.23"};
 }
 
 void test_endpoint_validation() {
@@ -39,6 +39,12 @@ void test_endpoint_validation() {
   endpoint.helper_pid = 1;
   g_assert_false(legion_control::ValidatePortableEndpoint(endpoint, &error));
   g_clear_error(&error);
+  for (const char *name : {"", "org.freedesktop.systemd1", "not-a-bus-name"}) {
+    endpoint = Endpoint();
+    endpoint.bus_name = name;
+    g_assert_false(legion_control::ValidatePortableEndpoint(endpoint, &error));
+    g_clear_error(&error);
+  }
 }
 
 void test_cancelled_connect_never_uses_host_bus() {

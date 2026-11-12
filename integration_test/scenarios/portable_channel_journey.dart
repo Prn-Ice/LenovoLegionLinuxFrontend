@@ -31,6 +31,7 @@ void main() {
             unit:
                 'legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service',
             helperPid: 123,
+            busName: ':1.23',
           ),
         ),
       );

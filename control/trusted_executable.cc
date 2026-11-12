@@ -113,7 +113,7 @@ bool TrustedDirectory(const std::string &input, std::string *resolved) {
   return TrustedPath(input, resolved, PathKind::directory);
 }
 
-std::string FindHostLegionCli(std::string *error) {
+std::string FindHostLegionCli(std::string *error, CliAccess access) {
   error->clear();
   for (const char *candidate :
        {"/run/current-system/sw/bin/legion_cli",
@@ -123,7 +123,13 @@ std::string FindHostLegionCli(std::string *error) {
     if (lstat(candidate, &info) != 0 && (errno == ENOENT || errno == ENOTDIR))
       continue;
     std::string resolved;
-    if (TrustedExecutable(candidate, &resolved))
+    if (access == CliAccess::readOnly) {
+      Descriptor executable(open(candidate, O_PATH | O_CLOEXEC));
+      if (executable.value >= 0 && fstat(executable.value, &info) == 0 &&
+          S_ISREG(info.st_mode) && CanonicalPath(executable.value, &resolved) &&
+          ::access(resolved.c_str(), X_OK) == 0)
+        return resolved;
+    } else if (TrustedExecutable(candidate, &resolved))
       return resolved;
     *error = std::string("Installed CLI path is unsafe or inaccessible: ") +
              candidate;

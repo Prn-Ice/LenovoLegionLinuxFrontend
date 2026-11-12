@@ -243,7 +243,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 "appimage_sha256": image_sha256
                 or release._sha256(self.binary / self.image),
                 "nixos": status
-                or "direct FUSE launch with nix-ld and static helper control verified",
+                or "official appimage-run desktop and temporary control verified",
             },
         )
         self.evidence["files"][name] = release._sha256(self.qa / name)
@@ -277,10 +277,18 @@ class ReleaseWorkflowTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
             self.prepare()
 
-    def test_custom_launcher_evidence_cannot_qualify_direct_launch(self):
+    def test_custom_launcher_evidence_cannot_qualify_official_runner(self):
         self.enable_native_runtime()
         self.add_nixos_evidence(
             status="host-namespace desktop and static helper control verified"
+        )
+        with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
+            self.prepare()
+
+    def test_direct_launch_evidence_cannot_qualify_official_runner(self):
+        self.enable_native_runtime()
+        self.add_nixos_evidence(
+            status="direct FUSE launch with nix-ld and static helper control verified"
         )
         with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
             self.prepare()

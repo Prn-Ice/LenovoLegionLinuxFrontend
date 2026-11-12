@@ -124,8 +124,11 @@ Installed mode searches `PATH` for reads, the generic service unit uses
 legacy installed-mode reads with its service configuration remains separate work.
 
 Portable reads use native `findHostCli` before any authorization. This accepts no
-caller-selected path and runs the shared fixed-location validator on a GLib
-worker. `LegionCliService` shares and caches that canonical path across readers.
+caller-selected path and resolves fixed locations on a GLib worker. Discovery
+for unprivileged reads establishes no root trust: an AppImage compatibility
+namespace may hide host file ownership. The root helper independently applies
+the full ownership validator on the host before executing privileged commands.
+`LegionCliService` shares and caches the canonical read path across readers.
 The root helper reports its selected CLI in percent-encoded readiness output.
 The portable transport compares both paths before creating the private peer; a
 changed selection ends startup and requires a fresh app session. Discovery during
@@ -236,10 +239,12 @@ production dispatcher and command runner. It authenticates one app with D-Bus
 from the startup packet. A recycled PID cannot inherit the session. Approval
 trusts the app process and its code.
 
-The VM app client verifies the root server before D-Bus authentication: the
-underlying Unix socket must report UID 0 and the helper PID reported by the real
-systemd unit. A user-owned impostor is rejected before authentication bytes are
-sent. A different process, another user, and extra connections are rejected by
+The VM app client verifies the root server before D-Bus authentication. The
+helper reports its unique host system-bus connection name. The host bus must
+report UID 0 and the same PID as the real systemd unit and underlying socket.
+A process descriptor pins that PID during setup. A user-owned impostor is
+rejected before authentication bytes are sent. A different process, another
+user, and extra connections are rejected by
 the helper. Portable `Authorize` establishes the API session after host approval.
 
 The test covers synthetic enable/readback/restore, native argument validation,
@@ -254,8 +259,10 @@ uses the `io.github.prnice.legion/portable_control` Flutter method channel.
 `linux/runner/portable_control_channel.cc` owns the GDBus connection in the same
 process as the app. This preserves the helper's app-PID authentication.
 
-The shared verifier in `control/portable_peer.cc` checks systemd's helper PID
-and the raw Unix socket's root UID/PID before sending authentication bytes.
+The shared verifier in `control/portable_peer.cc` checks systemd's helper PID,
+the host bus's UID/PID, and the raw Unix socket's PID before authentication.
+The [D-Bus credentials API](https://dbus.freedesktop.org/doc/dbus-specification.html#bus-messages-get-connection-credentials)
+provides the host identity even when a namespace maps socket UID 0 to `nobody`.
 It pins the systemd manager's unique bus owner during lookup. Connection setup
 runs on a GLib worker with a five-second deadline and explicit cancellation.
 Each native session has its own identifier; a late callback or close from an

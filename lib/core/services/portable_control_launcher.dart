@@ -159,7 +159,7 @@ class PortableControlLauncher {
     '^SNAPSHOT_READY launcher=([1-9][0-9]*) unit=($_unitPattern)\$',
   );
   static final _control = RegExp(
-    '^CONTROL_READY helper=([1-9][0-9]*) unit=($_unitPattern) address=(\\S+)(?: cli=(\\S+))?\$',
+    '^CONTROL_READY helper=([1-9][0-9]*) unit=($_unitPattern) address=(\\S+) bus=(:[0-9]+\\.[0-9]+)(?: cli=(\\S+))?\$',
   );
 
   void _consumeStdout(List<int> bytes) {
@@ -218,9 +218,9 @@ class PortableControlLauncher {
       _acknowledged = true;
     } else if (control != null && _endpoint == null && control[2] == _unit) {
       final pid = int.tryParse(control[1]!);
-      final cliPath = control[4] == null
+      final cliPath = control[5] == null
           ? null
-          : Uri.decodeComponent(control[4]!);
+          : Uri.decodeComponent(control[5]!);
       if ((control[2]!.startsWith('legion-portable-control-') &&
               cliPath == null) ||
           (cliPath != null &&
@@ -252,6 +252,7 @@ class PortableControlLauncher {
         address: control[3]!,
         unit: control[2]!,
         helperPid: pid,
+        busName: control[4]!,
         cliPath: cliPath,
       );
     } else {

@@ -11,6 +11,7 @@ const endpoint = PortableControlEndpoint(
   address: 'unix:path=/run/legion-example/control.sock',
   unit: 'legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service',
   helperPid: 123,
+  busName: ':1.23',
 );
 
 void main() {
@@ -56,6 +57,7 @@ void main() {
     final session = calls.first.arguments['session'];
     expect(calls.every((call) => call.arguments['session'] == session), isTrue);
     expect(calls.first.arguments['helperPid'], 123);
+    expect(calls.first.arguments['busName'], ':1.23');
     expect(calls[3].arguments['method'], 'SetToggle');
     expect(calls[3].arguments['arguments'], ['battery-conservation', true]);
     expect(calls.last.arguments['arguments'].single, isA<Uint8List>());

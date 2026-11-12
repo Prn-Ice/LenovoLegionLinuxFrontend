@@ -51,6 +51,9 @@ class PortableSession:
         self.address = match.group(4)
         selected_cli = re.search(r" cli=(\S+)", ready)
         self.cli = unquote(selected_cli.group(1)) if selected_cli else None
+        bus_name = re.search(r" bus=(\S+)", ready)
+        assert bus_name, ready
+        self.bus_name = bus_name.group(1)
         self.runtime = "/run/" + self.unit.removesuffix(".service")
 
     def begin(self, command):

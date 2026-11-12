@@ -34,7 +34,15 @@ int FakePeer(const char *path, bool stall = false) {
           0 ||
       chmod(path, 0666) != 0 || listen(listener, 1) != 0)
     return 1;
-  puts("FAKE_READY");
+  g_autoptr(GDBusConnection) identity = g_dbus_connection_new_for_address_sync(
+      "unix:path=/run/dbus/system_bus_socket",
+      static_cast<GDBusConnectionFlags>(
+          G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
+          G_DBUS_CONNECTION_FLAGS_MESSAGE_BUS_CONNECTION),
+      nullptr, nullptr, nullptr);
+  if (!identity)
+    return 1;
+  printf("FAKE_READY bus=%s\n", g_dbus_connection_get_unique_name(identity));
   fflush(stdout);
   const int peer = accept4(listener, nullptr, nullptr, SOCK_CLOEXEC);
   char byte;
@@ -77,11 +85,12 @@ bool ReadLine(int descriptor, std::string *line) {
 }
 
 GDBusConnection *Connect(const std::string &address, const std::string &unit,
-                         guint32 expected_pid, int *failure) {
+                         guint32 expected_pid, const std::string &bus_name,
+                         int *failure) {
   GError *error = nullptr;
   bool verified = false;
   auto *connection = legion_control::ConnectPortablePeerSync(
-      {address, unit, expected_pid}, nullptr, &error, &verified);
+      {address, unit, expected_pid, bus_name}, nullptr, &error, &verified);
   *failure = verified ? 7 : 8;
   g_clear_error(&error);
   return connection;
@@ -190,13 +199,14 @@ int main(int argc, char **argv) {
     return FakePeer(argv[2], true);
   if (getuid() == 0 || getuid() != geteuid())
     return 2;
-  if (argc == 5 && (std::string(argv[1]) == "--connection-timeout" ||
+  if (argc == 6 && (std::string(argv[1]) == "--connection-timeout" ||
                     std::string(argv[1]) == "--connection-cancel")) {
     const bool cancel = std::string(argv[1]) == "--connection-cancel";
     const auto started = g_get_monotonic_time();
     GError *error = nullptr;
     auto *peer = ConnectAsync(
-        {argv[2], argv[3], static_cast<guint32>(strtoul(argv[4], nullptr, 10))},
+        {argv[2], argv[3], static_cast<guint32>(strtoul(argv[4], nullptr, 10)),
+         argv[5]},
         &error, cancel);
     const auto elapsed = g_get_monotonic_time() - started;
     const bool expected =
@@ -211,11 +221,11 @@ int main(int argc, char **argv) {
   }
   if (argc == 3 && std::string(argv[1]) == "--fake-peer")
     return FakePeer(argv[2]);
-  if (argc == 5 && std::string(argv[1]) == "--intrude") {
+  if (argc == 6 && std::string(argv[1]) == "--intrude") {
     int failure;
-    auto *connection =
-        Connect(argv[2], argv[3],
-                static_cast<guint32>(strtoul(argv[4], nullptr, 10)), &failure);
+    auto *connection = Connect(
+        argv[2], argv[3], static_cast<guint32>(strtoul(argv[4], nullptr, 10)),
+        argv[5], &failure);
     if (!connection)
       return failure;
     g_dbus_connection_close_sync(connection, nullptr, nullptr);
@@ -233,7 +243,7 @@ int main(int argc, char **argv) {
   }
   const int descriptor = g_unix_input_stream_get_fd(
       G_UNIX_INPUT_STREAM(g_subprocess_get_stdout_pipe(launcher)));
-  std::string line, address, unit, cli;
+  std::string line, address, unit, cli, bus_name;
   guint32 helper_pid = 0;
   while (ReadLine(descriptor, &line)) {
     if (line.compare(0, 14, "CONTROL_READY ") != 0)
@@ -248,26 +258,29 @@ int main(int argc, char **argv) {
         unit = field.substr(5);
       if (field.compare(0, 4, "cli=") == 0)
         cli = field.substr(4);
+      if (field.compare(0, 4, "bus=") == 0)
+        bus_name = field.substr(4);
       if (field.compare(0, 8, "address=") == 0)
         address = field.substr(8);
     }
     break;
   }
-  if (address.empty() || unit.empty() || !helper_pid) {
+  if (address.empty() || unit.empty() || bus_name.empty() || !helper_pid) {
     g_subprocess_send_signal(launcher, SIGTERM);
     g_subprocess_wait(launcher, nullptr, nullptr);
     g_object_unref(launcher);
     return 1;
   }
-  printf("CLIENT_READY client=%d helper=%u unit=%s address=%s cli=%s\n",
-         getpid(), helper_pid, unit.c_str(), address.c_str(), cli.c_str());
+  printf("CLIENT_READY client=%d helper=%u unit=%s address=%s cli=%s bus=%s\n",
+         getpid(), helper_pid, unit.c_str(), address.c_str(), cli.c_str(),
+         bus_name.c_str());
   fflush(stdout);
   GDBusConnection *connection = nullptr;
   while (std::getline(std::cin, line)) {
     std::string result;
     if (line == "connect") {
       GError *error = nullptr;
-      connection = ConnectAsync({address, unit, helper_pid}, &error);
+      connection = ConnectAsync({address, unit, helper_pid, bus_name}, &error);
       g_clear_error(&error);
       result = connection ? Call(connection, "GetCapabilities", nullptr,
                                  G_VARIANT_TYPE("(uas)"))

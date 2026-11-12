@@ -1,30 +1,30 @@
 # AppImage qualification build
 
-On NixOS, this AppImage uses standard [nix-ld](https://github.com/nix-community/nix-ld)
-and FUSE support. Set these options in your NixOS configuration, apply the
-configuration, and open a regular host terminal:
+On NixOS, use the standard [AppImage support](https://wiki.nixos.org/wiki/Appimage).
+Set these options in your NixOS configuration and apply the configuration:
 
 ```nix
-programs.fuse.enable = true;
-programs.nix-ld = {
+programs.appimage = {
   enable = true;
-  libraries = with pkgs; [ libglvnd libx11 libxcb wayland ];
+  binfmt = true;
 };
 ```
 
-If you enabled `programs.appimage.binfmt`, set it to `false` for direct launch;
-otherwise NixOS sends AppImages through `appimage-run` automatically. The
-`appimage-run` FHS environment hides host root ownership. Temporary control
-through that runner remains unsupported because the app cannot verify the CLI
-and root helper there. Direct launch with `nix-ld` preserves those checks and
-requires no project launcher or binary patching:
+Launch with the standard runner:
 
 ```bash
-chmod +x ./legion-frontend.AppImage
-./legion-frontend.AppImage
+appimage-run ./legion-frontend.AppImage
 ```
 
-The [native Nix package](nix.md) is also available.
+With `binfmt` enabled, executable AppImages also launch directly. The runner
+extracts and caches the AppImage in its usual compatibility environment. The
+app resolves fixed host CLI locations for unprivileged reads. The host root
+helper independently validates the CLI before privileged execution, and the
+app requires both paths to match. The host system bus reports the helper's
+actual UID and PID, which are checked against systemd, a pinned process handle,
+and the socket's PID before authentication. Namespace-visible `nobody` ownership
+is never accepted as root evidence. This uses no project launcher or patched
+executables. The [native Nix package](nix.md) is also available.
 
 Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
 contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
@@ -122,11 +122,13 @@ Test the same artifact through the NixOS launcher:
 bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
 ```
 
-This separate NixOS VM launches the AppImage directly with standard `nix-ld` and
-FUSE support. It checks the first frame, bundled GTK libraries, unchanged host
-namespace, and mounted static helper write/readback/restore and cleanup. It also
-checks denied approval and a missing authentication agent. It uses a synthetic
-CLI in the system profile. CI runs both VM checks and keeps their
+This separate NixOS VM launches the actual app through official `appimage-run`.
+It saves Temporary helper through Settings, reopens the app, and uses the Battery
+page to change and restore a synthetic setting. It checks private GTK libraries,
+the runner's user namespace, static helper execution, cleanup, denied approval,
+and a missing authentication agent. Fixed-location CLI discovery is also tested
+inside the runner. The synthetic CLI and kernel files exist only in the VM;
+real hardware is not involved. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
@@ -147,8 +149,8 @@ FUSE setup. An explicit `FUSERMOUNT_PROG` path cannot remove a mount restriction
 An error loading `libgtk-3.so.0` after a `/tmp/.mount_...` path means mounting
 succeeded and the desktop app could not load GTK. Earlier qualification builds
 used host GTK. The bundled build includes it; verify that you are testing the
-new artifact and its matching checksums. On NixOS, the configuration above
-supplies the core loader and graphics libraries while preserving host ownership.
+new artifact and its matching checksums. On NixOS, the standard runner above
+supplies the core loader and graphics libraries.
 
 To test the separate extraction path on a compatible host, run
 `--appimage-extract` and then `squashfs-root/AppRun`. Record this result separately

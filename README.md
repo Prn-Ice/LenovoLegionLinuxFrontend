@@ -63,7 +63,8 @@ services.legionControl = {
 ## Running
 
 Hardware controls require `legion_cli`. Installed mode finds it in `PATH` for
-reads; temporary mode checks fixed administrator-controlled host locations.
+reads; temporary mode selects fixed host locations. The temporary helper checks
+root ownership before executing privileged commands.
 On NixOS, use the [native Nix package](docs/nix.md):
 
 ```bash
@@ -72,12 +73,11 @@ nix run .#frontend
 
 The Nix package supplies its library dependencies. The AppImage bundles its
 desktop libraries and uses host graphics and core system libraries. On NixOS,
-enable standard `nix-ld` and FUSE support as described in the
-[AppImage instructions](docs/appimage.md), then launch it directly from a regular
-host terminal:
+enable standard AppImage support as described in the
+[AppImage instructions](docs/appimage.md), then run:
 
 ```bash
-./legion-frontend.AppImage
+appimage-run ./legion-frontend.AppImage
 ```
 
 See the [Debian package](docs/debian.md),

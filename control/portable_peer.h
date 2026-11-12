@@ -9,12 +9,14 @@ struct PortableEndpoint {
   std::string address;
   std::string unit;
   guint32 helper_pid = 0;
+  std::string bus_name;
 };
 
 bool ValidatePortableEndpoint(const PortableEndpoint &, GError **error);
 
 // The caller owns the returned connection. The fixed host system bus supplies
-// the unit's MainPID; kernel socket credentials are checked before EXTERNAL.
+// the unit's MainPID and helper's host UID/PID. Kernel socket credentials and
+// a pinned process descriptor bind that identity before EXTERNAL.
 GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &,
                                          GCancellable *, GError **error,
                                          bool *server_verified = nullptr);

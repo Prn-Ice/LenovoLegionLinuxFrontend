@@ -10,7 +10,11 @@ bool TrustedExecutable(const std::string &input, std::string *resolved);
 // Applies the same ownership and traversal checks to host library directories.
 bool TrustedDirectory(const std::string &input, std::string *resolved);
 
-// Inspect fixed administrator-controlled installation locations, in order.
-// A present but unsafe candidate stops discovery; the caller receives a reason.
-std::string FindHostLegionCli(std::string *error);
+enum class CliAccess { privileged, readOnly };
+
+// Select a canonical CLI from fixed host locations. Privileged use requires
+// root-controlled paths. Read-only discovery establishes no root trust; the
+// helper independently validates the same selected path before any writes.
+std::string FindHostLegionCli(std::string *error,
+                              CliAccess access = CliAccess::privileged);
 } // namespace legion_control

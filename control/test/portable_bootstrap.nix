@@ -179,7 +179,9 @@ pkgs.testers.runNixOSTest {
             machine.succeed("systemd-run --quiet --collect --service-type=exec --unit=" + unit + " --property=RuntimeMaxSec=15 --property=StandardOutput=append:" + output + " ${fixtures}/bin/legion-portable-test-client --stall-peer " + socket)
             machine.wait_until_succeeds("grep FAKE_READY " + output, timeout=timedelta(seconds=5))
             helper = machine.succeed("systemctl show --property=MainPID --value " + unit).strip()
-            command = "legion-portable-test-client --connection-" + mode + " unix:path=" + socket + " " + unit + " " + helper
+            bus_name = re.search(r"bus=(\S+)", machine.succeed("cat " + output))
+            assert bus_name
+            command = "legion-portable-test-client --connection-" + mode + " unix:path=" + socket + " " + unit + " " + helper + " " + bus_name.group(1)
             if mode == "timeout":
                 machine.succeed(portable_as_user("approved", command))
             else:
@@ -193,22 +195,40 @@ pkgs.testers.runNixOSTest {
             machine.wait_until_succeeds("grep AUTH_CLOSED " + output, timeout=timedelta(seconds=3))
             wait_collected()
 
+    with subtest("a user service cannot impersonate the root helper"):
+        unit = "legion-bootstrap-probe-01234567-89ab-4cde-8fab-999999999999.service"
+        socket = "/home/approved/user-service.sock"
+        output = "/tmp/user-service-peer.out"
+        machine.succeed("systemd-run --quiet --collect --service-type=exec --unit=" + unit + " --property=User=approved --property=RuntimeMaxSec=15 --property=StandardOutput=append:" + output + " ${fixtures}/bin/legion-portable-test-client --fake-peer " + socket)
+        machine.wait_until_succeeds("grep FAKE_READY " + output, timeout=timedelta(seconds=5))
+        helper = machine.succeed("systemctl show --property=MainPID --value " + unit).strip()
+        bus_name = re.search(r"bus=(\S+)", machine.succeed("cat " + output))
+        assert bus_name
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude unix:path=" + socket + " " + unit + " " + helper + " " + bus_name.group(1)))
+        assert code == 8, code
+        assert "FAKE_CLOSED_BEFORE_AUTH" not in machine.succeed("cat " + output)
+        machine.succeed("systemctl stop " + unit)
+        wait_collected()
+
     with subtest("approved root peer validates and applies typed commands"):
         app = PortableSession("approved", "${probe}/bin/portable-bootstrap-probe")
         app.prepare("success")
+        manager_owner = shlex.split(machine.succeed("busctl --system call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus GetNameOwner s org.freedesktop.systemd1"))[1]
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper) + " " + manager_owner))
+        assert code == 8, code
         machine.succeed(portable_as_user("approved", "legion-portable-test-client --fake-peer /home/approved/fake.sock") + " >/tmp/fake-peer.out 2>/tmp/fake-peer.err &")
         machine.wait_until_succeeds("grep FAKE_READY /tmp/fake-peer.out", timeout=timedelta(seconds=5))
-        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude unix:path=/home/approved/fake.sock " + app.unit + " " + str(app.helper)))
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude unix:path=/home/approved/fake.sock " + app.unit + " " + str(app.helper) + " " + app.bus_name))
         assert code == 8, code
         machine.wait_until_succeeds("grep FAKE_CLOSED_BEFORE_AUTH /tmp/fake-peer.out", timeout=timedelta(seconds=5))
         # A different process of the same user reaches the root socket, then
         # fails EXTERNAL authentication before any methods are exported to it.
-        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper) + " " + app.bus_name))
         assert code == 7, code
-        code, _ = machine.execute(portable_as_user("denied", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        code, _ = machine.execute(portable_as_user("denied", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper) + " " + app.bus_name))
         assert code == 7, code
         app.send("connect")
-        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper)))
+        code, _ = machine.execute(portable_as_user("approved", "legion-portable-test-client --intrude " + shlex.quote(app.address) + " " + app.unit + " " + str(app.helper) + " " + app.bus_name))
         assert code == 8, code
         app.send("enable", "org.freedesktop.DBus.Error.AccessDenied")
         app.send("authorize")

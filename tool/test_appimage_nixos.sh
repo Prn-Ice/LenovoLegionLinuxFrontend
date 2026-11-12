@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test direct AppImage launch with standard NixOS nix-ld support.
+# Test the packaged app's temporary controls through official appimage-run.
 set -euo pipefail
 if [[ $# != 2 ]]; then
   echo 'Usage: bash tool/test_appimage_nixos.sh APPIMAGE OUTPUT_DIRECTORY' >&2
@@ -41,7 +41,7 @@ root, image, output = map(Path, sys.argv[1:])
 manifest = {
     'commit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
     'appimage_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
-    'nixos': 'direct FUSE launch with nix-ld and static helper control verified',
+    'nixos': 'official appimage-run desktop and temporary control verified',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
 }

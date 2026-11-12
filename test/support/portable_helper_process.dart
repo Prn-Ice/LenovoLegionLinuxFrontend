@@ -38,7 +38,7 @@ class PortableHelperProcess implements Process {
     line('SNAPSHOT_READY launcher=$pid unit=$portableTestUnit');
     if (acknowledgementFirst) line('START_ACKNOWLEDGED');
     line(
-      'CONTROL_READY helper=123 unit=$portableTestUnit address=$portableTestAddress cli=${Uri.encodeComponent(portableTestCli)}',
+      'CONTROL_READY helper=123 unit=$portableTestUnit address=$portableTestAddress bus=:1.23 cli=${Uri.encodeComponent(portableTestCli)}',
     );
     if (!acknowledgementFirst) line('START_ACKNOWLEDGED');
   }

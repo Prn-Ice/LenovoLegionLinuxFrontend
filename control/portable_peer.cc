@@ -4,6 +4,9 @@
 #include <climits>
 #include <cstring>
 #include <gio/gunixsocketaddress.h>
+#include <poll.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include <utility>
 
 namespace legion_control {
@@ -53,7 +56,8 @@ struct ConnectTask {
 bool ValidatePortableEndpoint(const PortableEndpoint &endpoint,
                               GError **error) {
   if (!ValidPortableUnit(endpoint.unit) || endpoint.helper_pid <= 1 ||
-      endpoint.helper_pid > INT_MAX || SocketPath(endpoint.address).empty())
+      endpoint.helper_pid > INT_MAX || SocketPath(endpoint.address).empty() ||
+      !g_dbus_is_unique_name(endpoint.bus_name.c_str()))
     return Fail(error, G_IO_ERROR_INVALID_ARGUMENT,
                 "invalid portable helper endpoint");
   return true;
@@ -68,6 +72,20 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
     return nullptr;
   if (g_cancellable_set_error_if_cancelled(cancel, error))
     return nullptr;
+  const int process = syscall(SYS_pidfd_open, endpoint.helper_pid, 0);
+  if (process < 0) {
+    Fail(error, G_IO_ERROR_PERMISSION_DENIED,
+         "could not pin the portable helper process");
+    return nullptr;
+  }
+  struct PinnedProcess {
+    int descriptor;
+    ~PinnedProcess() { close(descriptor); }
+    bool Alive() const {
+      pollfd state{descriptor, POLLIN, 0};
+      return poll(&state, 1, 0) == 0;
+    }
+  } pinned{process};
   auto *manager = g_dbus_connection_new_for_address_sync(
       "unix:path=/run/dbus/system_bus_socket",
       static_cast<GDBusConnectionFlags>(
@@ -113,16 +131,38 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
     g_variant_unref(value);
     g_variant_unref(pid_reply);
   }
+  auto *identity =
+      actual_pid == endpoint.helper_pid
+          ? g_dbus_connection_call_sync(
+                manager, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                "org.freedesktop.DBus", "GetConnectionCredentials",
+                g_variant_new("(s)", endpoint.bus_name.c_str()),
+                G_VARIANT_TYPE("(a{sv})"), G_DBUS_CALL_FLAGS_NO_AUTO_START,
+                2000, cancel, error)
+          : nullptr;
+  bool root_service = false;
+  if (identity) {
+    GVariant *credentials;
+    g_variant_get(identity, "(@a{sv})", &credentials);
+    guint32 uid, pid;
+    root_service = g_variant_lookup(credentials, "UnixUserID", "u", &uid) &&
+                   uid == 0 &&
+                   g_variant_lookup(credentials, "ProcessID", "u", &pid) &&
+                   pid == endpoint.helper_pid;
+    g_variant_unref(credentials);
+    g_variant_unref(identity);
+  }
   if (location)
     g_variant_unref(location);
   if (owner)
     g_variant_unref(owner);
   g_dbus_connection_close_sync(manager, nullptr, nullptr);
   g_object_unref(manager);
-  if (!actual_pid || actual_pid != endpoint.helper_pid) {
+  if (!root_service || !actual_pid || actual_pid != endpoint.helper_pid ||
+      !pinned.Alive()) {
     if (!error || !*error)
       Fail(error, G_IO_ERROR_PERMISSION_DENIED,
-           "portable helper does not match the systemd unit");
+           "portable helper does not match a host root systemd service");
     return nullptr;
   }
   auto *socket_client = g_socket_client_new();
@@ -139,12 +179,11 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
       g_socket_get_credentials(g_socket_connection_get_socket(stream), error);
   bool verified = false;
   if (credentials) {
-    const auto uid = g_credentials_get_unix_user(credentials, error);
-    if (!error || !*error) {
-      const auto pid = g_credentials_get_unix_pid(credentials, error);
-      verified = (!error || !*error) && uid == 0 &&
-                 pid == static_cast<pid_t>(endpoint.helper_pid);
-    }
+    // The host bus supplies the UID. Socket credentials bind its process to
+    // this connection; the socket UID is ambiguous inside a user namespace.
+    const auto pid = g_credentials_get_unix_pid(credentials, error);
+    verified = (!error || !*error) &&
+               pid == static_cast<pid_t>(endpoint.helper_pid) && pinned.Alive();
     g_object_unref(credentials);
   }
   if (!verified) {

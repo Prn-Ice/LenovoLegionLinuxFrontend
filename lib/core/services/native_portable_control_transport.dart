@@ -88,6 +88,7 @@ class NativePortableControlTransport extends LegionControlTransport {
       'address': _endpoint.address,
       'unit': _endpoint.unit,
       'helperPid': _endpoint.helperPid,
+      'busName': _endpoint.busName,
     });
     _ensureOpen();
   }

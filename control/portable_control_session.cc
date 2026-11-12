@@ -200,6 +200,7 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
   }
   session.control.runner = legion_control::CreateManagedCommandRunner(
       manager, parent_unit, {}, "/run/legion-control/operation.lock");
+  const std::string bus_name = g_dbus_connection_get_unique_name(manager);
   g_object_unref(manager);
   session.control.info = g_dbus_node_info_new_for_xml(xml, &error);
   if (!session.control.info) {
@@ -271,9 +272,9 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
       nullptr);
   g_autofree char *selected_cli =
       g_uri_escape_string(session.control.cli.c_str(), nullptr, FALSE);
-  printf("CONTROL_READY helper=%d unit=%s address=%s cli=%s\n", getpid(),
+  printf("CONTROL_READY helper=%d unit=%s address=%s bus=%s cli=%s\n", getpid(),
          parent_unit.c_str(), g_dbus_server_get_client_address(session.server),
-         selected_cli);
+         bus_name.c_str(), selected_cli);
   fflush(stdout);
   const guint app_watch = g_unix_fd_add(
       STDIN_FILENO, G_IO_IN,

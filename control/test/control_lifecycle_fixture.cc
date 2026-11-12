@@ -164,6 +164,13 @@ int main(int argc, char **argv) {
   std::ifstream mode_file(std::string(directory) + "/mode");
   std::string mode;
   std::getline(mode_file, mode);
+  if (mode.empty()) {
+    // The packaged GUI test has no fixture client to prepare PrivateTmp.
+    std::ifstream gui_mode("/run/legion-gui-fixture-mode");
+    std::getline(gui_mode, mode);
+    if (mode == "success" && mkdir(directory, 0700) != 0 && errno != EEXIST)
+      return 65;
+  }
   if (fan) {
     struct stat info{};
     if (stat(argv[2], &info) != 0 || info.st_uid != 0 ||

@@ -21,6 +21,9 @@ stdenv.mkDerivation {
       ../portable_peer.cc
       ../portable_peer.h
       ../portable_unit.h
+      ../trusted_executable.cc
+      ../trusted_executable.h
+      ../trusted_executable_test.cc
     ];
   };
   nativeBuildInputs = [

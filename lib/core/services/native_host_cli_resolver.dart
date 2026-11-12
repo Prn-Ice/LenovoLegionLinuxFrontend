@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 
 import 'legion_control_client.dart';
 
-/// Resolves a canonical CLI from administrator-controlled host locations.
-/// This method inspects paths without launching the control helper.
+/// Selects a canonical CLI for unprivileged reads from fixed host locations.
+/// The root helper independently validates this selection before writes.
 Future<String> resolveNativeHostCli() async {
   try {
     final path = await const MethodChannel(

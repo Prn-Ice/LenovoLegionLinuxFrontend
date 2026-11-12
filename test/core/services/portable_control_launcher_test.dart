@@ -131,7 +131,7 @@ void main() {
     process.line('SNAPSHOT_READY launcher=${process.pid} unit=$unit');
     process.line('START_ACKNOWLEDGED');
     process.line(
-      'CONTROL_READY helper=123 unit=$unit address=$address cli=${Uri.encodeComponent(portableTestCli)}',
+      'CONTROL_READY helper=123 unit=$unit address=$address bus=:1.23 cli=${Uri.encodeComponent(portableTestCli)}',
     );
     expect((await starting).unit, unit);
   });

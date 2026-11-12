@@ -70,6 +70,7 @@ This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
 separately builds a static helper, bundles the desktop runtime, and exercises
 FUSE and extracted launch without host GTK. Its NixOS VM launches the same
-AppImage directly with standard `nix-ld` and FUSE support. Actual CLI
+AppImage through official `appimage-run` and exercises a GUI hardware change
+and restoration against synthetic kernel files and a synthetic CLI. Actual CLI
 imports/configuration, desktop approval, and hardware writes need separate
 evidence.
