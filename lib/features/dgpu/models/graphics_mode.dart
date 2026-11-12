@@ -9,11 +9,7 @@ enum GraphicsMode {
     'Integrated graphics only',
     'Disable NVIDIA graphics to reduce power use. Displays connected through NVIDIA may stop working.',
   ),
-  hybridAuto(
-    'hybrid-auto',
-    'Hybrid Auto',
-    'Can disable NVIDIA graphics when you unplug the charger. It cannot be selected here.',
-  ),
+  hybridAuto('hybrid-auto', 'Hybrid Auto', 'Unsupported on this desktop.'),
   discrete(
     'discrete',
     'NVIDIA graphics only',
@@ -58,8 +54,8 @@ enum DgpuTopology {
 enum GraphicsReconciliation {
   settled('settled', 'Matches mode'),
   blocked('blocked', 'Change blocked'),
-  needed('needed', 'Not confirmed'),
-  unknown('unknown', 'Unknown');
+  needed('needed', 'Switch incomplete'),
+  unknown('unknown', 'Status unavailable');
 
   const GraphicsReconciliation(this.wireValue, this.label);
 

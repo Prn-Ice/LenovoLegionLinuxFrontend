@@ -57,10 +57,9 @@ void main() {
     expect(find.textContaining('privileged preflight'), findsNothing);
     expect(find.text(GraphicsMode.hybridIgpuOnly.description), findsOneWidget);
     expect(find.text(GraphicsMode.discrete.description), findsOneWidget);
-    expect(
-      find.textContaining('does not mean the GPU is currently in use'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Hybrid Auto'), findsNothing);
+    expect(find.textContaining('The app checks'), findsNothing);
+    expect(find.textContaining('cannot check every program'), findsNothing);
     expect(
       find.byKey(const ValueKey('set-graphics-hybrid-igpu-only')),
       findsOneWidget,
@@ -110,9 +109,14 @@ void main() {
       final graphicsCard = find.byKey(const ValueKey('graphics-mode-status'));
       await tester.ensureVisible(graphicsCard);
       expect(
-        find.textContaining(
-          'Hybrid Auto can disable NVIDIA graphics when you unplug',
-        ),
+        find.textContaining('Hybrid Auto is unsafe for desktop use'),
+        findsOneWidget,
+      );
+      expect(find.text('Unsafe mode'), findsOneWidget);
+      expect(find.text('Matches mode'), findsNothing);
+      expect(find.textContaining('Keep the charger connected'), findsOneWidget);
+      expect(
+        find.textContaining('choose Hybrid/Switchable graphics in BIOS'),
         findsOneWidget,
       );
       expect(
@@ -175,9 +179,7 @@ void main() {
     );
 
     expect(
-      find.textContaining(
-        'Mode changes are disabled until both can be checked',
-      ),
+      find.textContaining('Use Refresh to reload it before changing modes'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('set-graphics-hybrid')), findsNothing);
@@ -205,10 +207,9 @@ void main() {
     await tester.ensureVisible(expected);
     await tester.pumpAndSettle();
     expect(expected.hitTestable(), findsOneWidget);
-    expect(
-      find.textContaining('cannot check every program using NVIDIA'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('cannot check every program'), findsNothing);
+    expect(find.textContaining('Hybrid Auto'), findsNothing);
+    expect(find.textContaining('Supported choices:'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -218,7 +219,7 @@ void main() {
     GraphicsReconciliation.unknown,
   ]) {
     testWidgets(
-      'unconfirmed mode explains uncertainty (${reconciliation.name})',
+      'graphics status gives a recovery action (${reconciliation.name})',
       (tester) async {
         await _pumpPage(
           tester,
@@ -235,10 +236,16 @@ void main() {
             reconciliationAttempts: 1,
           ),
         );
-        expect(
-          find.textContaining('do not assume the change is complete'),
-          findsOneWidget,
-        );
+        final recovery = switch (reconciliation) {
+          GraphicsReconciliation.needed =>
+            'Save your work and restart the laptop',
+          GraphicsReconciliation.blocked =>
+            'Close applications using NVIDIA graphics',
+          _ => 'Use Refresh to reload graphics status',
+        };
+        expect(find.textContaining(recovery), findsOneWidget);
+        expect(find.textContaining('do not assume'), findsNothing);
+        expect(find.textContaining('not confirmed'), findsNothing);
         expect(find.text('Partly detected'), findsOneWidget);
         expect(find.text('Matches mode'), findsNothing);
         expect(tester.takeException(), isNull);

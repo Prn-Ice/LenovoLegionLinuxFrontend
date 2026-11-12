@@ -195,8 +195,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
       GraphicsMode.hybridIgpuOnly =>
         'This can disable NVIDIA graphics while the laptop is running. Disconnect '
             'external displays, save your work, and close GPU-accelerated '
-            'applications first. The control service checks for programs using '
-            'the GPU and blocks the change if it cannot confirm it is safe.',
+            'applications first.',
       GraphicsMode.discrete =>
         'This selects NVIDIA graphics to drive the display. '
             'You must restart the laptop for the display change to take effect. '
@@ -596,8 +595,7 @@ class _GraphicsModeCard extends StatelessWidget {
           const SizedBox(height: 16),
           if (status == null)
             Text(
-              'The app could not read the selected mode and NVIDIA GPU status. '
-              'Mode changes are disabled until both can be checked. Refresh to try again.',
+              'Graphics status is unavailable. Use Refresh to reload it before changing modes.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -627,13 +625,6 @@ class _GraphicsModeCard extends StatelessWidget {
                 );
               },
             ),
-            if (status.effectiveState == DgpuTopology.attached) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Detected does not mean the GPU is currently in use.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
             if (status.selectedMode == GraphicsMode.hybridAuto) ...[
               const SizedBox(height: 12),
               Row(
@@ -643,10 +634,10 @@ class _GraphicsModeCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Hybrid Auto can disable NVIDIA graphics when you unplug '
-                      'the charger, even while applications are using it. '
-                      'Save your work and switch back to Hybrid from a text '
-                      'console before continuing.',
+                      'Hybrid Auto is unsafe for desktop use. Unplugging the '
+                      'charger can interrupt the display and running applications. '
+                      'Keep the charger connected. Save your work, restart the '
+                      'laptop, and choose Hybrid/Switchable graphics in BIOS.',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
@@ -656,8 +647,15 @@ class _GraphicsModeCard extends StatelessWidget {
             if (status.reconciliation != GraphicsReconciliation.settled) ...[
               const SizedBox(height: 12),
               Text(
-                'The app has not confirmed the selected mode. Refresh to check '
-                'again; do not assume the change is complete.',
+                switch (status.reconciliation) {
+                  GraphicsReconciliation.needed =>
+                    'Save your work and restart the laptop before changing graphics modes again.',
+                  GraphicsReconciliation.blocked =>
+                    'Close applications using NVIDIA graphics and disconnect external displays, then try again. '
+                        'If the desktop is using NVIDIA graphics, log out and switch modes from a text console.',
+                  _ =>
+                    'Use Refresh to reload graphics status before changing modes.',
+                },
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: scheme.warning),
@@ -671,12 +669,6 @@ class _GraphicsModeCard extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              'You may be asked for administrator approval. The app checks '
-              'whether it is safe to switch, then checks whether the change took effect.',
-              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 10),
             ResponsiveCardGrid(
@@ -727,20 +719,8 @@ class _GraphicsModeCard extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Changing graphics mode and checking the result…',
-                    ),
-                  ),
+                  Expanded(child: Text('Switching graphics mode…')),
                 ],
-              ),
-            ],
-            if (status.availableModes.contains(GraphicsMode.hybridAuto) &&
-                status.selectedMode != GraphicsMode.hybridAuto) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Hybrid Auto cannot be selected here because unplugging the charger can disable NVIDIA graphics while applications are using it.',
-                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
             const SizedBox(height: 16),
@@ -757,13 +737,7 @@ class _GraphicsModeCard extends StatelessWidget {
                     Text('Expected NVIDIA GPU: ${status.expectedState.label}'),
                     const SizedBox(height: 6),
                     Text(
-                      'Modes reported by the laptop: ${status.availableModes.map((mode) => mode.label).join(', ')}',
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      status.clientInspectionComplete
-                          ? '${status.activeClients.length} ${status.activeClients.length == 1 ? 'program was' : 'programs were'} found using NVIDIA graphics.'
-                          : 'This view cannot check every program using NVIDIA graphics. The control service checks again before disabling the GPU.',
+                      'Supported choices: ${status.availableModes.where((mode) => mode != GraphicsMode.hybridAuto).map((mode) => mode.label).join(', ')}',
                     ),
                   ],
                 ),
@@ -817,13 +791,17 @@ class _ReconciliationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final settled = status?.reconciliation == GraphicsReconciliation.settled;
+    final unsafeMode = status?.selectedMode == GraphicsMode.hybridAuto;
+    final settled =
+        !unsafeMode && status?.reconciliation == GraphicsReconciliation.settled;
     final color = status == null
         ? scheme.onSurfaceVariant
         : settled
         ? const Color(0xff3FBF6F)
         : scheme.warning;
-    final label = status?.reconciliation.label ?? 'Unavailable';
+    final label = unsafeMode
+        ? 'Unsafe mode'
+        : status?.reconciliation.label ?? 'Unavailable';
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),

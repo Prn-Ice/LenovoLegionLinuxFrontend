@@ -178,24 +178,15 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final errorKind = AppFailure.from(widget.message).kind;
     final isPrivilegeSetup = errorKind == AppFailureKind.privilegeSetup;
     final title = switch (errorKind) {
       AppFailureKind.privilegeSetup => 'Privileged access needs setup',
       AppFailureKind.portableSetup => 'Temporary hardware access needs setup',
-      AppFailureKind.graphicsBlocked => 'Graphics change blocked',
-      AppFailureKind.graphicsPending => 'Graphics policy did not settle',
+      AppFailureKind.graphicsBlocked => 'Graphics mode was not changed',
+      AppFailureKind.graphicsPending => 'Graphics mode switch incomplete',
       _ => 'Action could not be completed',
-    };
-    final consequence = switch (errorKind) {
-      AppFailureKind.graphicsBlocked =>
-        'Safety checks stopped the graphics change. The setting was not changed.',
-      AppFailureKind.graphicsPending =>
-        'The graphics setting was accepted, but the app could not confirm whether the NVIDIA GPU changed as expected.',
-      _ =>
-        'The requested action did not complete. No confirmation was received that the setting changed.',
     };
 
     return AlertDialog(
@@ -221,13 +212,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
                   ? _buildPortableSetupContent(context)
                   : isPrivilegeSetup
                   ? _buildPrivilegeSetupContent(context)
-                  : [
-                      Text(consequence),
-                      const SizedBox(height: 16),
-                      Text('Details', style: textTheme.titleSmall),
-                      const SizedBox(height: 6),
-                      Text(AppFailure.from(widget.message).displayText),
-                    ],
+                  : _buildFailureContent(context),
             ),
           ),
         ),
@@ -248,6 +233,25 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
         ),
       ],
     );
+  }
+
+  List<Widget> _buildFailureContent(BuildContext context) {
+    final failure = AppFailure.from(widget.message);
+    final details = failure.details;
+    return [
+      Text(failure.message),
+      if (details != null &&
+          details.trim().isNotEmpty &&
+          !failure.message.contains(details)) ...[
+        const SizedBox(height: 16),
+        Text(
+          'Technical details',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 6),
+        Text(details),
+      ],
+    ];
   }
 
   List<Widget> _buildPortableSetupContent(BuildContext context) => [

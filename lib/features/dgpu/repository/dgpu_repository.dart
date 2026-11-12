@@ -97,8 +97,7 @@ class DgpuRepository extends PrivilegedRepository {
   Future<void> setGraphicsMode(GraphicsMode mode) async {
     if (mode == GraphicsMode.hybridAuto) {
       throw const DgpuRepositoryException(
-        'Hybrid Auto cannot be selected here. It can disable NVIDIA graphics '
-        'when you unplug the charger without checking again for programs using it.',
+        'Automatic graphics switching is not supported. Choose Hybrid instead.',
       );
     }
 
@@ -110,34 +109,38 @@ class DgpuRepository extends PrivilegedRepository {
         timeout: const Duration(seconds: 45),
       );
     } on LegionBridgeException catch (error) {
-      final technicalDetails = error.details.isEmpty
-          ? ''
-          : '\n\nTechnical details:\n${error.details}';
       switch (error.code) {
         case LegionBridgeErrorCode.graphicsBlocked:
           throw DgpuRepositoryException(
-            'Could not switch to ${mode.label}. The graphics setting was not '
-            'changed because programs are using the GPU or the control service '
-            'could not check all programs. Close '
-            'GPU-accelerated applications and external-display sessions, then '
-            'retry from a text console.$technicalDetails',
+            '${mode.label} was not applied. Close applications using NVIDIA '
+            'graphics and disconnect external displays, then try again. '
+            'If the desktop is using NVIDIA graphics, log out and switch '
+            'modes from a text console.',
             kind: AppFailureKind.graphicsBlocked,
             details: error.details,
           );
         case LegionBridgeErrorCode.graphicsPending:
           throw DgpuRepositoryException(
-            '${mode.label} was selected, but the NVIDIA GPU did not reach '
-            'the expected state. The graphics setting may have changed, so do not '
-            'assume the requested mode is active. Check the graphics status '
-            'and restore Hybrid from a text console or reboot before '
-            'continuing.$technicalDetails',
+            'The setting for ${mode.label} was saved, but the switch did not '
+            'finish. Save your work and restart the laptop before trying another '
+            'mode. If the problem continues, restore Hybrid/Switchable graphics '
+            'in BIOS.',
             kind: AppFailureKind.graphicsPending,
             details: error.details,
           );
         case _:
           throw DgpuRepositoryException(
-            'Could not switch to ${mode.label}. The app could not confirm '
-            'whether the graphics setting changed.$technicalDetails',
+            switch (error.code) {
+              LegionBridgeErrorCode.timeout =>
+                'Switching to ${mode.label} timed out. Use Refresh to check '
+                    'the current mode, then close and reopen the app before trying again.',
+              LegionBridgeErrorCode.busy =>
+                'Another hardware change is running. Wait for it to finish, '
+                    'then try switching to ${mode.label} again.',
+              _ =>
+                'Could not switch to ${mode.label}. Use Refresh to check '
+                    'the current mode before trying again.',
+            },
             kind: AppFailure.from(error).kind,
             details: error.details,
           );
