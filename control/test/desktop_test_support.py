@@ -76,6 +76,31 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                             Path.home() / ("appimage-runtime-" + label + ".txt")
                         ).write_text(maps)
                     print("PASS: visible Flutter window from " + label, flush=True)
+                    window = result.stdout.splitlines()[0]
+                    geometry = subprocess.check_output(
+                        ["xdotool", "getwindowgeometry", "--shell", window], text=True
+                    )
+                    width = int(
+                        dict(line.split("=", 1) for line in geometry.splitlines())[
+                            "WIDTH"
+                        ]
+                    )
+                    subprocess.run(
+                        [
+                            "xdotool",
+                            "mousemove",
+                            "--window",
+                            window,
+                            str(width - 22),
+                            "23",
+                            "click",
+                            "1",
+                        ],
+                        check=True,
+                    )
+                    status = process.wait(timeout=15)
+                    assert status == 0, (status, log_path.read_text())
+                    print("PASS: close button exits normally from " + label, flush=True)
                     break
                 if process.poll() is not None or time.monotonic() >= deadline:
                     raise AssertionError(

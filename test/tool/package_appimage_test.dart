@@ -121,7 +121,12 @@ void main() {
       );
       expect(
         File('${appdir.path}/$appId.svg').readAsStringSync(),
-        File('${root.path}/assets/branding/legion_mark.svg').readAsStringSync(),
+        File('${root.path}/assets/branding/legion_app.svg').readAsStringSync(),
+      );
+      expect(await Link('${appdir.path}/.DirIcon').target(), '$appId.png');
+      expect(
+        File('${appdir.path}/.DirIcon').readAsBytesSync(),
+        File('${root.path}/assets/branding/legion_app.png').readAsBytesSync(),
       );
       expect(
         File(

@@ -233,7 +233,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.refresh()
         self.refresh_debian()
 
-    def add_nixos_evidence(self, image_sha256=None, *, status=None):
+    def add_nixos_evidence(self, image_sha256=None, *, status=None, shutdown=True):
         name = "appimage-nixos-qualification.tar.gz"
         archive_json(
             self.qa / name,
@@ -244,10 +244,21 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 or release._sha256(self.binary / self.image),
                 "nixos": status
                 or "official appimage-run desktop and temporary control verified",
+                **(
+                    {"desktop_shutdown": "X11 close button and Wayland window close verified"}
+                    if shutdown
+                    else {}
+                ),
             },
         )
         self.evidence["files"][name] = release._sha256(self.qa / name)
         (self.qa / "manifest.json").write_text(json.dumps(self.evidence))
+
+    def test_native_runtime_requires_normal_window_close_evidence(self):
+        self.enable_native_runtime()
+        self.add_nixos_evidence(shutdown=False)
+        with self.assertRaisesRegex(ValueError, "NixOS acceptance"):
+            self.prepare()
 
     def test_bundled_native_runtime_requires_nixos_acceptance(self):
         self.enable_native_runtime()

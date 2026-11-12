@@ -35,7 +35,9 @@ Future<void> stageDesktopPackage(
     'applications/$appId.desktop': '$packaging/$appId.desktop',
     'metainfo/$appId.metainfo.xml': '$packaging/$appId.metainfo.xml',
     'icons/hicolor/scalable/apps/$appId.svg':
-        '${root.path}/assets/branding/legion_mark.svg',
+        '${root.path}/assets/branding/legion_app.svg',
+    'icons/hicolor/256x256/apps/$appId.png':
+        '${root.path}/assets/branding/legion_app.png',
     'licenses/legion_frontend/branding/README.md':
         '${root.path}/assets/branding/README.md',
   }.entries) {

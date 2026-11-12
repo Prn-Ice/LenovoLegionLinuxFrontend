@@ -188,8 +188,12 @@ Future<void> stageAppDir(
   await runPackagingCommand('chmod', ['755', '${appdir.path}/AppRun']);
   await File('$packaging/$appId.desktop').copy('${appdir.path}/$appId.desktop');
   await File(
-    '${root.path}/assets/branding/legion_mark.svg',
+    '${root.path}/assets/branding/legion_app.svg',
   ).copy('${appdir.path}/$appId.svg');
+  await File(
+    '${root.path}/assets/branding/legion_app.png',
+  ).copy('${appdir.path}/$appId.png');
+  await Link('${appdir.path}/.DirIcon').create('$appId.png');
   final specification =
       jsonDecode(await File('$packaging/build-inputs.json').readAsString())
           as Map;

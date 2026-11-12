@@ -13,6 +13,12 @@ Use compatible stable packages and commit `pubspec.lock`.
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
 
+Flutter 3.50.0 was tested on 2026-11-12. Its Material package split conflicts with
+Yaru 11.0.0, the latest stable Yaru release: migrated `ThemeData` and `ColorScheme`
+types differ from those Yaru uses. Keep 3.47.9 until stable Yaru supports the
+split (`lllf-dt0.5.12`). The SDK trial resolved newer code generators, but they
+remain held back by the qualified SDK's test dependencies described below.
+
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
 development dependency. It follows the installed Flutter version. These tests
 need no external desktop automation tool or production test-mode flag. See

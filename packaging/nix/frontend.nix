@@ -103,8 +103,10 @@ in
       "$out/share/applications/${applicationId}.desktop"
     install -Dm644 packaging/appimage/${applicationId}.metainfo.xml \
       "$out/share/metainfo/${applicationId}.metainfo.xml"
-    install -Dm644 assets/branding/legion_mark.svg \
+    install -Dm644 assets/branding/legion_app.svg \
       "$out/share/icons/hicolor/scalable/apps/${applicationId}.svg"
+    install -Dm644 assets/branding/legion_app.png \
+      "$out/share/icons/hicolor/256x256/apps/${applicationId}.png"
     install -Dm644 assets/branding/README.md \
       "$bundle/share/licenses/legion_frontend/branding/README.md"
   '';
