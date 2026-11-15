@@ -8,6 +8,8 @@ if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
 fi
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=portable_distro_readiness.sh
+source "$root/tool/portable_distro_readiness.sh"
 image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
@@ -97,7 +99,7 @@ until ssh -o StrictHostKeyChecking=accept-new "${ssh_options[@]}" -p "$port" roo
   sleep 1
 done
 remote() { ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1 "$@"; }
-remote 'timeout 180 cloud-init status --wait'
+wait_for_cloud_init 180 ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1
 export LLLF_QUALIFICATION_COMMIT LLLF_QUALIFICATION_MODIFIED
 LLLF_QUALIFICATION_COMMIT="$(git -C "$root" rev-parse HEAD)"
 LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control telemetry packaging tool LICENSE THIRD_PARTY_NOTICES.md)"
