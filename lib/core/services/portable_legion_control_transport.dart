@@ -7,35 +7,27 @@ import 'native_portable_control_transport.dart';
 import 'portable_control_launcher.dart';
 import 'native_host_cli_resolver.dart';
 
-/// Owns one approved launch and its private connection for the app session.
+/// Owns approval attempts and one approved private connection for the app session.
 class PortableLegionControlTransport extends LegionControlTransport {
   PortableLegionControlTransport({
-    PortableControlLauncher? launcher,
+    PortableControlLauncher Function()? createLauncher,
     Future<String> Function()? resolveCliPath,
     LegionControlTransport Function(PortableControlEndpoint)? connect,
   }) : _resolveCliPath = resolveCliPath ?? resolveNativeHostCli,
-       _launcher =
-           launcher ??
-           PortableControlLauncher(
+       _createLauncher =
+           createLauncher ??
+           (() => PortableControlLauncher(
              executable:
                  '${File(Platform.resolvedExecutable).parent.path}/libexec/legion-portable-control',
-           ),
+           )),
        _connect =
            connect ??
-           ((endpoint) => NativePortableControlTransport(endpoint: endpoint)) {
-    _launcher.ended.then((error) {
-      _failure ??= error;
-      unawaited(
-        close().catchError((Object _) {
-          // The cached close future retains cleanup failures for the owner.
-        }),
-      );
-    });
-  }
+           ((endpoint) => NativePortableControlTransport(endpoint: endpoint));
 
-  final PortableControlLauncher _launcher;
+  final PortableControlLauncher Function() _createLauncher;
   final Future<String> Function() _resolveCliPath;
   final LegionControlTransport Function(PortableControlEndpoint) _connect;
+  PortableControlLauncher? _launcher;
   LegionControlTransport? _peer;
   LegionControlException? _failure;
   Future<LegionControlTransport>? _opening;
@@ -55,14 +47,29 @@ class PortableLegionControlTransport extends LegionControlTransport {
     try {
       final expectedCli = await _resolveCliPath();
       _ensureOpen();
-      final endpoint = await _launcher.start();
+      final launcher = _launcher = _createLauncher();
+      final endpoint = await launcher.start();
       if (endpoint.cliPath != expectedCli) {
         throw const LegionControlPortableSetupException(
           'The installed CLI changed after this app session started. Restart the app to select it again before changing hardware settings.',
         );
       }
       _ensureOpen();
-      return _peer = _connect(endpoint);
+      final peer = _peer = _connect(endpoint);
+      launcher.ended.then((error) {
+        _failure ??= error;
+        unawaited(
+          close().catchError((Object _) {
+            // The cached close future retains cleanup failures for the owner.
+          }),
+        );
+      });
+      return peer;
+    } on LegionControlStartupDeniedException {
+      await _launcher?.close();
+      _ensureOpen();
+      _launcher = null;
+      rethrow;
     } catch (_) {
       await close();
       rethrow;
@@ -73,7 +80,14 @@ class PortableLegionControlTransport extends LegionControlTransport {
     Future<T> Function(LegionControlTransport) operation,
   ) async {
     _ensureOpen();
-    final peer = await (_opening ??= _open());
+    final opening = _opening ??= _open();
+    final LegionControlTransport peer;
+    try {
+      peer = await opening;
+    } on LegionControlStartupDeniedException {
+      if (identical(_opening, opening)) _opening = null;
+      rethrow;
+    }
     _ensureOpen();
     final value = await operation(peer);
     _ensureOpen();
@@ -87,6 +101,8 @@ class PortableLegionControlTransport extends LegionControlTransport {
   Future<ControlCapabilities> getCapabilities() async {
     try {
       return await _withPeer((peer) => peer.getCapabilities());
+    } on LegionControlStartupDeniedException {
+      rethrow;
     } catch (_) {
       await close();
       rethrow;
@@ -110,7 +126,7 @@ class PortableLegionControlTransport extends LegionControlTransport {
     await Future.wait([
       if (_peer case final peer?)
         peer.close().timeout(const Duration(seconds: 5)),
-      _launcher.close(),
+      if (_launcher case final launcher?) launcher.close(),
     ]);
   }
 }

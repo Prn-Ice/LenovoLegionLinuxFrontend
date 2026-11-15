@@ -47,6 +47,7 @@ class AppFailure extends Equatable implements Exception {
     }
     final kind = switch (error) {
       LegionBridgeException(:final code) => switch (code) {
+        LegionBridgeErrorCode.startupDenied ||
         LegionBridgeErrorCode.permissionDenied =>
           AppFailureKind.permissionDenied,
         LegionBridgeErrorCode.portableSetup => AppFailureKind.portableSetup,

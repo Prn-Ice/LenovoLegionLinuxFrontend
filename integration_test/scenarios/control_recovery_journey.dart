@@ -31,7 +31,18 @@ void main() {
       });
       expect(find.text('Action could not be completed'), findsOneWidget);
       expect(
-        find.textContaining('No confirmation was received'),
+        find.textContaining('Failed to set battery conservation to on'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(switch (failure) {
+          ControlFailure.permissionDenied =>
+            'Test authorization was denied. Approve authentication and retry.',
+          ControlFailure.unavailable =>
+            'Test control service is unavailable. Reconnect and retry.',
+          ControlFailure.commandFailed =>
+            'Test backend rejected the write. Fix the backend and retry.',
+        }),
         findsOneWidget,
       );
       expect(tester.widget<YaruSwitch>(healthSwitch).value, isFalse);

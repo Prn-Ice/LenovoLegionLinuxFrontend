@@ -38,6 +38,7 @@ class PortableControlLauncher {
   final Map<String, String> _environment;
   final _ready = Completer<PortableControlEndpoint>();
   final _ended = Completer<LegionControlException>();
+  final _stdoutDone = Completer<void>();
   final _stderrDone = Completer<void>();
   final _line = <int>[];
   final _stderr = <int>[];
@@ -112,6 +113,7 @@ class PortableControlLauncher {
         ),
       ),
       onDone: () {
+        _stdoutDone.complete();
         if (!_closed && _line.isNotEmpty) {
           _fail(
             const LegionControlSetupException(
@@ -274,9 +276,14 @@ class PortableControlLauncher {
   Future<void> _watchExit(Process process) async {
     _exitCode = await process.exitCode;
     if (_closed) return;
+    var outputComplete = false;
     if (!_ready.isCompleted) {
       try {
-        await _stderrDone.future.timeout(const Duration(seconds: 1));
+        await Future.wait([
+          _stdoutDone.future,
+          _stderrDone.future,
+        ]).timeout(const Duration(seconds: 1));
+        outputComplete = true;
       } on TimeoutException {
         /* Report exit with diagnostics received so far. */
       }
@@ -286,13 +293,23 @@ class PortableControlLauncher {
     final details = utf8.decode(_stderr, allowMalformed: true).trim();
     final message = 'Portable helper exited with status $_exitCode. $details'
         .trim();
-    _fail(
-      details.contains('org.freedesktop.DBus.Error.AccessDenied')
-          ? LegionControlPermissionDeniedException(message)
-          : startupFailed
+    final LegionControlException error;
+    if (details.contains('org.freedesktop.DBus.Error.AccessDenied')) {
+      // A rejected start cannot have created a helper or accepted any writes.
+      error =
+          startupFailed &&
+              outputComplete &&
+              _unit != null &&
+              !_acknowledged &&
+              _endpoint == null
+          ? LegionControlStartupDeniedException(message)
+          : LegionControlPermissionDeniedException(message);
+    } else {
+      error = startupFailed
           ? LegionControlSetupException(message)
-          : LegionControlUnavailableException(message),
-    );
+          : LegionControlUnavailableException(message);
+    }
+    _fail(error);
   }
 
   void _fail(LegionControlException error) {

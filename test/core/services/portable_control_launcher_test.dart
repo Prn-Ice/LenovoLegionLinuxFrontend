@@ -241,6 +241,68 @@ void main() {
     await rejected;
   });
 
+  for (final acknowledged in [false, true]) {
+    test(
+      'startup denial retry requires no start acknowledgement ($acknowledged)',
+      () async {
+        LegionControlException? failure;
+        final starting = launcher.start().catchError((Object error) {
+          failure = error as LegionControlException;
+          throw error;
+        });
+        final rejected = expectLater(
+          starting,
+          throwsA(isA<LegionControlPermissionDeniedException>()),
+        );
+        await process.listening.future;
+        process.line(
+          'SNAPSHOT_READY launcher=${process.pid} unit=$portableTestUnit',
+        );
+        if (acknowledged) process.line('START_ACKNOWLEDGED');
+        process.errors.add(
+          utf8.encode(
+            'GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: denied',
+          ),
+        );
+        process.finish(1);
+        await rejected;
+        expect(failure is LegionControlStartupDeniedException, !acknowledged);
+      },
+    );
+  }
+
+  test(
+    'drains a late start acknowledgement before allowing approval retry',
+    () async {
+      LegionControlException? failure;
+      final starting = launcher.start().catchError((Object error) {
+        failure = error as LegionControlException;
+        throw error;
+      });
+      final rejected = expectLater(
+        starting,
+        throwsA(isA<LegionControlPermissionDeniedException>()),
+      );
+      await process.listening.future;
+      process.line(
+        'SNAPSHOT_READY launcher=${process.pid} unit=$portableTestUnit',
+      );
+      process.errors.add(
+        utf8.encode(
+          'GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: denied',
+        ),
+      );
+      unawaited(process.errors.close());
+      process.exit.complete(1);
+      await Future<void>.delayed(Duration.zero);
+      expect(failure, isNull);
+      process.line('START_ACKNOWLEDGED');
+      await process.output.close();
+      await rejected;
+      expect(failure, isNot(isA<LegionControlStartupDeniedException>()));
+    },
+  );
+
   test('closing while spawn is pending stops the late child', () async {
     final spawned = Completer<Process>();
     launcher = PortableControlLauncher(

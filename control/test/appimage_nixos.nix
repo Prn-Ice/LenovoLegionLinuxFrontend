@@ -9,7 +9,11 @@ pkgs.testers.runNixOSTest {
     security.polkit.extraConfig = ''
       polkit.addRule(function(action, subject) {
         if (action.id != "org.freedesktop.systemd1.manage-units") return;
-        if (subject.user == "approved") return polkit.Result.YES;
+        if (subject.user == "approved") {
+          if (polkit.spawn(["${pkgs.coreutils}/bin/cat", "/run/legion-gui-approval"]).trim() == "deny")
+            return polkit.Result.NO;
+          return polkit.Result.YES;
+        }
         if (subject.user == "denied") return polkit.Result.NO;
         if (subject.user == "challenge") return polkit.Result.AUTH_ADMIN;
       });
@@ -58,6 +62,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("mkdir -p /sys/bus/platform/drivers/ideapad_acpi/VPC2004:00")
     machine.succeed("echo 0 >" + conservation)
     machine.succeed("echo success >/run/legion-gui-fixture-mode")
+    machine.succeed("echo allow >/run/legion-gui-approval")
 
     def start_gui():
         machine.succeed("rm -f /home/approved/app.pid /home/approved/window.id /home/approved/app.exit")
@@ -96,8 +101,8 @@ pkgs.testers.runNixOSTest {
         machine.wait_until_succeeds("test -s /home/approved/app.exit", timeout=timedelta(seconds=15))
         assert machine.succeed("cat /home/approved/app.exit").strip() == "0", machine.succeed("cat /home/approved/gui.log")
 
-    def wait_text(text, region):
-        command = desktop("sh -c " + shlex.quote("magick import -window root /home/approved/current.png && magick /home/approved/current.png -crop " + region + " -resize 300% /home/approved/label.png && tesseract /home/approved/label.png stdout --psm 7 2>/dev/null"))
+    def wait_text(text, region, layout=7):
+        command = desktop("sh -c " + shlex.quote("magick import -window root /home/approved/current.png && magick /home/approved/current.png -crop " + region + " -resize 300% /home/approved/label.png && tesseract /home/approved/label.png stdout --psm " + str(layout) + " 2>/dev/null"))
         try:
             machine.wait_until_succeeds(command + " | grep -Fi -- " + shlex.quote(text), timeout=timedelta(seconds=30))
         except Exception:
@@ -138,6 +143,20 @@ pkgs.testers.runNixOSTest {
         wait_text("mode", "260x25+359+648")
         unit_query = "systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'"
         try:
+            machine.succeed("echo deny >/run/legion-gui-approval")
+            machine.succeed(click(734, 667))
+            wait_text("Action could not be completed", "1280x720+0+0", 11)
+            assert machine.succeed("cat " + conservation).strip() == "0"
+            assert machine.succeed(unit_query).strip() == ""
+            screenshot("temporary-control-denied")
+            machine.succeed("echo allow >/run/legion-gui-approval")
+            words = machine.succeed(desktop("tesseract /home/approved/current.png stdout --psm 11 tsv 2>/dev/null"))
+            close_words = [line.split("\t") for line in words.splitlines() if line.split("\t")[-1] == "Close"]
+            assert len(close_words) == 1, words
+            word = close_words[0]
+            machine.succeed(click(int(word[6]) + int(word[8]) // 2, int(word[7]) + int(word[9]) // 2))
+            wait_text("mode", "260x25+359+648")
+            # The same running app must request fresh approval on explicit retry.
             machine.succeed(click(734, 667))
             machine.wait_until_succeeds("test -n \"$(" + unit_query + ")\"", timeout=timedelta(seconds=30))
             unit = machine.succeed(unit_query).strip()

@@ -74,6 +74,11 @@ and required capabilities before API authorization. Portable preparation include
 host approval to start the helper. The client shares the initial metadata
 request between concurrent callers and caches a successful result for that
 connection. Unknown capabilities are ignored.
+If systemd rejects startup approval before acknowledging the start, the launcher
+exits without a helper. After its cleanup finishes, a later explicit action can
+request fresh approval in the same app. Concurrent requests share one attempt;
+denial never retries automatically. Timeouts, uncertain cleanup, CLI mismatch,
+and failures after a start acknowledgement still require a new app session.
 An older service, malformed reply, incompatible protocol, or missing interactive
 controls produces setup guidance before API authorization or writes.
 

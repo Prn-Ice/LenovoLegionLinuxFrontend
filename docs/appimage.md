@@ -52,11 +52,19 @@ choose Temporary helper in Settings and reopen the app to use it.
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
 
-On 2026-11-11, the Ubuntu 22.04.5 VM checks passed for FUSE launch, extracted
-launch, and synthetic helper write/readback/restore from both locations. The
-desktop rendered its first Flutter frame with GTK 3.24.33, FUSE 3.10.5, and Mesa
-23.2.1. The guest had no Legion driver, JVM, or installed Legion service. The
-existing NixOS bootstrap check also passed with the shared test driver.
+Build `46b827e` passed Ubuntu 22.04 FUSE and extracted launches, normal window
+closes, and synthetic helper write/readback/restore. The same AppImage passed
+official NixOS `appimage-run` control checks and ten normal Wayland closes.
+Neither VM reported Pango font errors. The user also confirmed the font fix on
+KDE Wayland with hybrid graphics. These checks do not establish real hardware
+control or desktop password-prompt behavior.
+
+Wayland startup still reports `Unable to load  from the cursor theme`.
+Flutter initializes its cursor name to an empty string before GTK realizes the
+view. The pinned engine and stable Flutter 3.50.0 both contain this behavior;
+an SDK upgrade alone does not resolve it. Track the upstream fix in
+`lllf-dt0.5.10.1`. Keep the standard launch command; no cursor shim or log filter
+is included.
 
 ## Build
 
@@ -124,8 +132,10 @@ service. Both normal launches must display the Dashboard and map GTK, GLib,
 and Pango from the AppImage. The tests press the X button and require exit status
 zero. They retain screenshots, logs, and desktop memory maps. The helper must
 load no shared libraries; the bundled directory command is also checked.
-The VM uses QEMU's recommended host CPU profile with KVM, or `max` with software
-emulation. The evidence records that profile and the guest's CPU information.
+The VM uses QEMU's host CPU profile with KVM, or the named 64-bit `Nehalem`
+profile with software emulation. Mesa's LLVM can misidentify the generic `max`
+profile as a 32-bit AMD processor. The evidence records the selected profile and
+the guest's CPU information.
 Test-only Polkit decisions approve the synthetic helper session. Live password
 prompts remain a separate check. Persistent service, policy, and udev files must
 match their state before the AppImage tests.
@@ -147,6 +157,14 @@ evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
 ## Desktop trial
+
+After opening the app, choose **Temporary helper** in Settings, close it, and
+reopen it with the same command. Record the current Conservation mode value.
+Change it and, if a password prompt appears, cancel first: the setting must stay
+unchanged. Retry, approve, and confirm the new value in the app. Restore the
+original value, confirm it, and close the app normally. Record any error and the
+terminal exit status. This checks the actual driver, CLI, and desktop approval;
+the VM tests use synthetic hardware and test-only approval policies.
 
 On a host with the core library and graphics baseline, verify `SHA256SUMS`, make the AppImage
 executable, and open it as your normal user from a regular desktop terminal.

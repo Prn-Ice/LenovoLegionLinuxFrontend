@@ -30,6 +30,12 @@ class LegionControlPermissionDeniedException extends LegionControlException {
   const LegionControlPermissionDeniedException(super.message);
 }
 
+/// Startup approval was denied before a helper was started.
+class LegionControlStartupDeniedException
+    extends LegionControlPermissionDeniedException {
+  const LegionControlStartupDeniedException(super.message);
+}
+
 class LegionControlTimeoutException extends LegionControlException {
   const LegionControlTimeoutException(super.message);
 }
@@ -247,7 +253,13 @@ class LegionControlClient {
   /// Checks the selected helper's protocol before API authorization.
   Future<ControlCapabilities> getCapabilities() async {
     _ensureOpen();
-    await (_preparing ??= _prepareConnection());
+    final preparing = _preparing ??= _prepareConnection();
+    try {
+      await preparing;
+    } on LegionControlStartupDeniedException {
+      if (identical(_preparing, preparing)) _preparing = null;
+      rethrow;
+    }
     _ensureOpen();
     final pending = _capabilities ??= _loadCapabilities();
     try {
@@ -277,6 +289,8 @@ class LegionControlClient {
       );
       await _closeWith(error);
       throw error;
+    } on LegionControlStartupDeniedException {
+      rethrow;
     } catch (error) {
       await close();
       if (error is LegionControlSetupException) {

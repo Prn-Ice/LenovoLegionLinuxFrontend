@@ -7,6 +7,7 @@ import 'legion_cli_service.dart';
 import 'legion_control_client.dart';
 
 enum LegionBridgeErrorCode {
+  startupDenied,
   permissionDenied,
   privilegeSetup,
   portableSetup,
@@ -39,6 +40,8 @@ class LegionBridgeException implements Exception {
 
   String get guidance {
     return switch (code) {
+      LegionBridgeErrorCode.startupDenied =>
+        'Authentication was cancelled or denied before temporary access started. Try the action again to request approval.',
       LegionBridgeErrorCode.permissionDenied =>
         controlMode == ControlMode.temporaryHelper
             ? 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
@@ -316,6 +319,8 @@ class LegionFrontendBridgeService {
       LegionControlPortableSetupException() =>
         LegionBridgeErrorCode.portableSetup,
       LegionControlSetupException() => LegionBridgeErrorCode.privilegeSetup,
+      LegionControlStartupDeniedException() =>
+        LegionBridgeErrorCode.startupDenied,
       LegionControlPermissionDeniedException() =>
         LegionBridgeErrorCode.permissionDenied,
       LegionControlBusyException() => LegionBridgeErrorCode.busy,
@@ -351,6 +356,8 @@ class LegionFrontendBridgeService {
         : _classifyFailureCode(outputLower, result.exitCode);
 
     final message = switch (code) {
+      LegionBridgeErrorCode.startupDenied =>
+        'Temporary access was not approved for $method.',
       LegionBridgeErrorCode.portableSetup =>
         'Temporary hardware access could not start for $method.',
       LegionBridgeErrorCode.permissionDenied =>

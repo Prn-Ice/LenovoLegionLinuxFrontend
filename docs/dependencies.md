@@ -14,10 +14,12 @@ See [contributor setup](../CONTRIBUTING.md) for installation commands and option
 Nix/direnv configuration.
 
 Flutter 3.50.0 was tested on 2026-11-12. Its Material package split conflicts with
-Yaru 11.0.0, the latest stable Yaru release: migrated `ThemeData` and `ColorScheme`
-types differ from those Yaru uses. Keep 3.47.9 until stable Yaru supports the
-split (`lllf-dt0.5.12`). The SDK trial resolved newer code generators, but they
-remain held back by the qualified SDK's test dependencies described below.
+Yaru 11.0.0: migrated `ThemeData` and `ColorScheme` types differ from those Yaru
+uses. Stable [Yaru 12.0.0](https://pub.dev/packages/yaru/versions/12.0.0) now uses
+`material_ui`; qualify that migration with Flutter 3.50 before updating the build
+pins (`lllf-dt0.5.12`). Keep the qualified 3.47.9 release inputs until then.
+The SDK trial resolved newer code generators, but they remain held back by the
+qualified SDK's test dependencies described below.
 
 Flutter's Linux task runner can dispatch queued work after its owner is freed
 during window shutdown ([upstream report](https://github.com/flutter/flutter/issues/193742)).
@@ -25,7 +27,7 @@ The native application retains its engine until `MyApplication.dispose`, after
 `g_application_run` returns. This small lifetime workaround was approved on
 2026-11-12; it requires no change to installation or launch. Remove it after a
 compatible stable SDK includes [the upstream fix](https://github.com/flutter/flutter/pull/194525)
-and repeated window-close checks pass (`lllf-dt0.5.11`).
+and repeated window-close checks pass (`lllf-dt0.5.13`).
 
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
 development dependency. It follows the installed Flutter version. These tests

@@ -97,7 +97,7 @@ void main() {
           ) {
             expect(mode, ControlMode.temporaryHelper);
             return PortableLegionControlTransport(
-              launcher: launcher,
+              createLauncher: () => launcher,
               resolveCliPath: resolvePath,
               connect: (_) => DeniedTransport(),
             );

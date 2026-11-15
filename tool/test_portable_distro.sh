@@ -66,12 +66,13 @@ qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 # into the guest; only the native source archive is copied over SSH.
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
 accelerator=tcg
-vm_cpu=max
+vm_cpu=Nehalem
 if [[ -r /dev/kvm && -w /dev/kvm ]]; then
   accelerator=kvm
   vm_cpu=host
 fi
-# Use QEMU's recommended CPU configuration instead of its legacy qemu64 default.
+# LLVM can mistake the generic TCG max CPU for a 32-bit AMD processor.
+# Use a named 64-bit model for software rendering; KVM uses the host CPU.
 echo "Starting disposable distro VM with $accelerator, CPU $vm_cpu; logs: $output"
 qemu-system-x86_64 -accel "$accelerator" -cpu "$vm_cpu" -m 2048 -smp 2 -display none \
   -serial "file:$output/serial.log" -monitor none -no-reboot \

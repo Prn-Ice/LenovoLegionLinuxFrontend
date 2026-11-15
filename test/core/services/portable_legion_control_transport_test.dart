@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/control_capabilities.dart';
@@ -64,7 +65,7 @@ void main() {
     );
     client = LegionControlClient(
       transport: PortableLegionControlTransport(
-        launcher: launcher,
+        createLauncher: () => launcher,
         resolveCliPath: () async => portableTestCli,
         connect: (endpoint) {
           connections++;
@@ -76,12 +77,102 @@ void main() {
   });
   tearDown(() => client.close());
 
+  for (final closeDuringRetry in [false, true]) {
+    test(
+      closeDuringRetry
+          ? 'disposal during approval retry prevents a late helper launch'
+          : 'denied startup allows a fresh explicit approval and typed write',
+      () async {
+        final retry = PortableHelperProcess();
+        final retryPath = Completer<String>();
+        final discoveringRetry = Completer<void>();
+        var discoveries = 0;
+        var starts = 0;
+        client = LegionControlClient(
+          transport: PortableLegionControlTransport(
+            resolveCliPath: () async {
+              if (++discoveries == 1) return portableTestCli;
+              discoveringRetry.complete();
+              return retryPath.future;
+            },
+            createLauncher: () => PortableControlLauncher(
+              executable: '/bundle/helper',
+              startProcess:
+                  (
+                    _,
+                    _, {
+                    required environment,
+                    required workingDirectory,
+                    required includeParentEnvironment,
+                  }) async => ++starts == 1 ? process : retry,
+            ),
+            connect: (_) {
+              connections++;
+              return peer;
+            },
+          ),
+        );
+        final denied = expectLater(
+          Future.wait([
+            client.setToggle(ControlToggle.batteryConservation, true),
+            client.setToggle(ControlToggle.rapidCharging, false),
+          ]),
+          throwsA(isA<LegionControlStartupDeniedException>()),
+        );
+        await process.listening.future;
+        process.line(
+          'SNAPSHOT_READY launcher=${process.pid} unit=$portableTestUnit',
+        );
+        process.errors.add(
+          utf8.encode(
+            'GDBus.Error:org.freedesktop.DBus.Error.AccessDenied: cancelled',
+          ),
+        );
+        process.finish(1);
+        await denied;
+        expect(starts, 1);
+        expect(connections, 0);
+        expect(peer.calls, isEmpty);
+
+        final writing = Future.wait([
+          client.setToggle(ControlToggle.batteryConservation, true),
+          client.setToggle(ControlToggle.rapidCharging, false),
+        ]);
+        if (closeDuringRetry) {
+          final rejected = expectLater(
+            writing,
+            throwsA(isA<LegionControlUnavailableException>()),
+          );
+          await discoveringRetry.future;
+          await client.close();
+          retryPath.complete(portableTestCli);
+          await rejected;
+          await Future<void>.delayed(Duration.zero);
+          expect(starts, 1);
+          expect(connections, 0);
+          expect(peer.calls, isEmpty);
+          return;
+        }
+        retryPath.complete(portableTestCli);
+        await retry.listening.future;
+        expect(starts, 2);
+        retry.ready();
+        await writing;
+        expect(connections, 1);
+        expect(peer.calls, ['metadata', 'authorize', 'SetToggle', 'SetToggle']);
+        await client.close();
+        expect(retry.signals, [ProcessSignal.sigterm]);
+        expect(peer.closes, 1);
+      },
+    );
+  }
+
   test(
     'CLI mismatch closes startup before creating or authorizing a peer',
     () async {
       client = LegionControlClient(
         transport: PortableLegionControlTransport(
-          launcher: launcher,
+          createLauncher: () => launcher,
           resolveCliPath: () async => '/other/version/legion_cli',
           connect: (_) {
             connections++;
@@ -121,7 +212,7 @@ void main() {
     );
     client = LegionControlClient(
       transport: PortableLegionControlTransport(
-        launcher: owner,
+        createLauncher: () => owner,
         resolveCliPath: () => path.future,
         connect: (_) => peer,
       ),

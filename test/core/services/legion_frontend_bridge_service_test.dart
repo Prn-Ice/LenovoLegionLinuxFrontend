@@ -334,6 +334,8 @@ void main() {
           LegionBridgeErrorCode.unavailable,
       const LegionControlPermissionDeniedException('permission'):
           LegionBridgeErrorCode.permissionDenied,
+      const LegionControlStartupDeniedException('startup approval'):
+          LegionBridgeErrorCode.startupDenied,
       const LegionControlBusyException('busy'): LegionBridgeErrorCode.busy,
       const LegionControlTimeoutException('timeout'):
           LegionBridgeErrorCode.timeout,
