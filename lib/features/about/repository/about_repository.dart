@@ -53,16 +53,18 @@ class AboutRepository {
         : name == null
         ? family
         : '$family ($name)';
-    final cliPathExists = File(_cli.cliPath).existsSync();
+
     final pythonAvailable = await _isCommandAvailable('python3');
     final controlServiceActive = await _isControlServiceActive();
     final systemctlAvailable = await _isCommandAvailable('systemctl');
     final cliProbe = await _probeCliHealth();
+    final cliPath = _cli.cliPath;
+    final cliPathExists = cliPath != null && File(cliPath).existsSync();
     final cliVersion = await _readCliVersion();
 
     return AboutSnapshot(
       updatedAt: DateTime.now(),
-      cliPath: _cli.cliPath,
+      cliPath: cliPath,
       cliPathExists: cliPathExists,
       pythonAvailable: pythonAvailable,
       controlServiceActive: controlServiceActive,

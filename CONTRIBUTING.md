@@ -12,6 +12,8 @@ services.
 - GLib/GIO development files for native service tests
 - Polkit development files for control-service builds
 
+Nix qualification bundles with the portable helper also need `patchelf`.
+
 Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
 On Debian/Ubuntu, install the build dependencies with:
 
@@ -30,6 +32,9 @@ flutter pub get
 
 Run `nix develop` for the project's development shell, or `direnv allow` to load
 it automatically with nix-direnv.
+
+See [the Nix frontend build](docs/nix.md) for the packaged app, source archive,
+dependency metadata updates, and disposable VM acceptance check.
 
 ## Test without hardware
 
@@ -50,7 +55,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint starts the native user journeys. The battery journey
+The `app_test.dart` entrypoint runs the native app scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -66,17 +71,35 @@ assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting
 unchanged. The mode-switching journey checks assigned profiles while navigating
 away from Automation and preserves manual edits during same-mode refreshes.
+The keyboard recovery journeys return failed OpenRGB process results on Lighting
+and Automation. They check that errors appear, failed writes preserve the last
+successful colors and saved configuration, and retry stays disabled until a
+pending command completes.
 
-Profile-error journeys recover a missing assignment and retry a failed profile
-load in Lighting while preserving the previous confirmed colors. The Fans
-journey cancels a preset confirmation, then applies the preset and checks its
-curve readback through the real repository.
+The missing-profile journey deletes an assigned profile and clears its missing
+assignment without another RGB write. The Fans journey cancels a preset
+confirmation, then applies the preset and checks its curve readback through the
+real repository.
 
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
 exits. The second reopens the same temporary Hive/config data and verifies the
 assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
+
+The portable-control scenario uses the real Linux method channel to check that
+an invalid endpoint is rejected before connection. It starts no helper. The native
+discovery scenario rejects caller-selected CLI paths before inspecting the host.
+The hardware-access journey saves a mode,
+reopens the app fixture, and verifies that the saved mode becomes active without
+requesting authorization. After the journeys, check native method names, argument
+types, and payload limits with:
+
+```bash
+flutter build linux --debug --no-pub
+cmake --build build/linux/x64/debug --target portable_control_channel_test
+build/linux/x64/debug/runner/portable_control_channel_test
+```
 
 To run only the journeys in the first app process:
 
@@ -100,8 +123,9 @@ used for the setting under test. A fake control transport writes only the
 fixture and rejects other operations. System service status and live sensors
 use fixed repository results because they contain direct host reads. CLI
 execution, display access, and system telemetry are blocked. HID and OpenRGB
-access are blocked by default; the keyboard journey supplies a recording
-OpenRGB service and confines Spectrum discovery to temporary fixture paths.
+access are blocked by default; the keyboard journeys supply OpenRGB process
+results to the real CLI service and confine Spectrum discovery to temporary
+fixture paths.
 Hive data and keyboard assignments are temporary.
 
 No sudo, installed service, or Legion hardware is needed. This journey does not
@@ -129,7 +153,7 @@ To build and test native service code without installing it:
 
 ```bash
 cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test
+cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test portable_cli_test
 ctest --test-dir build/native --output-on-failure
 ```
 
@@ -137,6 +161,35 @@ For the AppImage control experiment, run the
 [hardware-free portable-control probe](docs/architecture/portable-control.md#hardware-free-prototype).
 It tests a private D-Bus connection with simulated authorization and a synthetic
 backend, using an opt-in native build.
+
+To check backend process cleanup with real systemd, run the disposable VM test:
+
+```bash
+nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
+```
+
+This uses QEMU/KVM and synthetic backend commands inside NixOS. See
+[backend process containment](docs/architecture/portable-control.md#backend-process-containment)
+for the lifecycle cases it covers.
+
+To test administrator startup from an immutable helper snapshot:
+
+```bash
+nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+```
+
+This separate disposable VM uses real systemd and Polkit with deterministic test
+policies. The startup probe uses a synthetic CLI and refuses to run on the host.
+See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
+for its trust boundary and remaining checks.
+
+To build and test the production helper with Ubuntu 22.04's libraries, follow
+the [Ubuntu VM qualification](docs/architecture/portable-distro-qualification.md).
+It uses a synthetic CLI and records the image, source, package versions, and results.
+
+To build and test the actual AppImage through FUSE and extraction, follow
+[the AppImage instructions](docs/appimage.md). Its acceptance VM uses synthetic
+hardware and verifies desktop launch without a JVM.
 
 To capture screenshots for visual review:
 

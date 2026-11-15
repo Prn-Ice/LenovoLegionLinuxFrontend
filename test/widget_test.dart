@@ -327,6 +327,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
+    await tester.ensureVisible(find.text('Diagnostics and export'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Diagnostics and export'));
     await tester.pumpAndSettle();
     expect(find.byType(DiagnosticsPage), findsOneWidget);

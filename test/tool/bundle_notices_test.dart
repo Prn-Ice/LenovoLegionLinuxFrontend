@@ -112,6 +112,42 @@ void main() {
     expect(File('${root.path}/$path').readAsStringSync(), 'truncated');
   });
 
+  test('uses the build SDK when its Flutter package has a store alias', () async {
+    final flutterPackage = Directory('${root.path}/sdk/packages/flutter')
+      ..createSync(recursive: true);
+    final alias = Link('${root.path}/store-flutter')
+      ..createSync(flutterPackage.path);
+    final config = File('${root.path}/.dart_tool/package_config.json');
+    final data = jsonDecode(config.readAsStringSync()) as Map;
+    for (final package in data['packages'] as List) {
+      if (package['name'] == 'flutter') {
+        package['rootUri'] = alias.uri.toString();
+      }
+    }
+    config.writeAsStringSync(jsonEncode(data));
+
+    await bundleNotices(
+      root,
+      bundle,
+      flutterSdk: Directory('${root.path}/sdk'),
+    );
+    final copied = File(
+      '${bundle.path}/share/licenses/legion_frontend/flutter/MaterialIcons_LICENSE.txt',
+    );
+    expect(
+      copied.readAsBytesSync(),
+      File(
+        '${root.path}/sdk/bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt',
+      ).readAsBytesSync(),
+    );
+    await bundleNotices(
+      root,
+      bundle,
+      check: true,
+      flutterSdk: Directory('${root.path}/sdk'),
+    );
+  });
+
   test('missing nested source notice fails before packaging', () async {
     File(
       '${root.path}/packages/handy_window/linux/libhandy/src/COPYING',

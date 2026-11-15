@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/app.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
+import 'package:legion_frontend/features/settings/repository/control_mode_store.dart';
 import 'package:legion_frontend/core/models/power_profiles_daemon_snapshot.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
@@ -172,13 +174,18 @@ class SafeApp {
       sysRoot: '${directory.path}/sys',
       procRoot: '${directory.path}/proc',
     );
+    final controlStore = ControlModeStore(Hive.box<dynamic>('preferences'));
+    final mode = controlStore.load();
     runApp(
       ProviderScope(
         overrides: _mergeOverrides([
+          controlModeProvider.overrideWithValue(mode),
+          controlModeStoreProvider.overrideWithValue(controlStore),
           legionSysfsServiceProvider.overrideWithValue(sysfs),
           legionControlClientProvider.overrideWith((ref) {
             final client = LegionControlClient(
               transport: _FixtureControl(this),
+              controlMode: mode,
             );
             _controlCreated = true;
             ref.onDispose(() => unawaited(client.close()));
@@ -254,9 +261,15 @@ class SafeApp {
   }
 }
 
-class _FixtureControl implements LegionControlTransport {
+class _FixtureControl extends LegionControlTransport {
   _FixtureControl(this.app);
   final SafeApp app;
+
+  @override
+  Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(
+    protocolVersion: ControlCapabilities.currentProtocolVersion,
+    supported: ControlCapability.values,
+  );
 
   @override
   Future<void> authorize() async {

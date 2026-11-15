@@ -7,10 +7,9 @@ import '../services/legion_frontend_bridge_service.dart';
 /// Base class for repositories that issue privileged commands through the
 /// [LegionFrontendBridgeService].
 ///
-/// Centralizes the shared try/catch plumbing that every feature repository used
-/// to duplicate: forwarding the command to the bridge and translating a
-/// [LegionBridgeException] into the feature's own exception type via
-/// [wrapBridgeError].
+/// Centralizes error handling for repositories by forwarding commands to the
+/// bridge and translating [LegionBridgeException] into the feature exception
+/// through [wrapBridgeError].
 ///
 /// Repository writes default to a 5-second timeout, shorter than the bridge's
 /// 15-second default. Subclasses explicitly request longer timeouts when needed.

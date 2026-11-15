@@ -25,7 +25,9 @@ class AutomationPage extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? lighting.visibleErrorMessage,
+      onErrorDismissed: (error) =>
+          ref.read(rgbLightingBlocProvider.bloc).add(RgbErrorDismissed(error)),
       children: [
         SurfaceCard(
           child: Column(
@@ -41,7 +43,7 @@ class AutomationPage extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Applies when the app opens and when the mode changes. Keep the app open for automatic switching.',
+                'The app applies assignments when it opens and when the power mode changes. Keep the app open for automatic switching.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),

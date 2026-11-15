@@ -9,9 +9,11 @@ void main() {
 
     expect(message, contains('Native Spectrum RGB is unavailable'));
     expect(message, isNot(contains('Start OpenRGB')));
+    expect(message, contains('when supported'));
   });
 
   test('missing native device retains the OpenRGB fallback guidance', () {
     expect(rgbUnavailableMessage(), contains('Start OpenRGB'));
+    expect(rgbUnavailableMessage(), contains('when supported'));
   });
 }

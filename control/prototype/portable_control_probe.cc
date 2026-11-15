@@ -1,16 +1,29 @@
-// Reuse the production dispatcher and subprocess runner without starting its
-// system-bus daemon.
-#define main legion_control_daemon_main
-#include "../legion_control_service.cc"
-#undef main
+// Reuse the production dispatcher with an ordinary-user fixture runner, without
+// starting its system-bus daemon.
+#include "../control_protocol.h"
+#include "../control_service_runtime.h"
+#include "../test_support/direct_command_runner.h"
 
+#include <cerrno>
+#include <climits>
+#include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <glib-unix.h>
 #include <limits>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
+using legion_control::ControlContext;
+using legion_control::dispatch;
+using legion_control::done;
+using legion_control::reply_capabilities;
+constexpr const char *path = legion_control::control_object_path,
+                     *xml = legion_control::control_xml;
+
 struct Probe {
-  Ctx control{};
+  ControlContext control{};
   GDBusServer *server = nullptr;
   GDBusAuthObserver *observer = nullptr;
   std::string temp_dir;
@@ -83,6 +96,10 @@ void probe_call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
                 const gchar *method, GVariant *parameters,
                 GDBusMethodInvocation *invocation, gpointer data) {
   auto *probe = static_cast<Probe *>(data);
+  if (g_str_equal(method, "GetCapabilities")) {
+    reply_capabilities(&probe->control, invocation);
+    return;
+  }
   if (g_str_equal(method, "Authorize")) {
     if (!probe->peer_verified) {
       g_dbus_method_invocation_return_dbus_error(
@@ -245,7 +262,7 @@ void cleanup(Probe *probe) {
                                         probe->control.reg);
   if (probe->control.active) {
     probe->control.active->disconnected = true;
-    g_subprocess_force_exit(probe->control.active->subprocess);
+    probe->control.active->command->Cancel();
     while (probe->control.active)
       g_main_context_iteration(nullptr, TRUE);
   }
@@ -302,6 +319,7 @@ int main(int argc, char **argv) {
   }
 
   Probe probe{};
+  probe.control.runner = legion_control::CreateDirectCommandRunner();
   probe.expected_uid = getuid();
   probe.expected_pid = static_cast<pid_t>(client_pid);
   probe.cancel_authorization = cancel_authorization;

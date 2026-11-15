@@ -19,10 +19,11 @@ class _Cli extends Mock implements LegionCliService {}
 class _Sysfs extends Mock implements LegionSysfsService {}
 
 void main() {
-  testWidgets('control failure survives bridge, repository, Bloc and dialog', (
+  testWidgets('control failure survives bridge, repository, Bloc, and dialog', (
     tester,
   ) async {
     final control = _Control();
+    when(() => control.authorize()).thenAnswer((_) async {});
     when(() => control.setToggle(ControlToggle.touchpad, true)).thenThrow(
       const LegionControlSetupException('Service diagnostic wording changed'),
     );

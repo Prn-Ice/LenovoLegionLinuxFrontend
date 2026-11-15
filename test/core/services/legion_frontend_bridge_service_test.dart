@@ -4,28 +4,131 @@ import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
+import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockCliService extends Mock implements LegionCliService {}
 
-class _Transport implements LegionControlTransport {
+class _Transport extends LegionControlTransport {
   Object? failure;
+  Completer<void>? pendingAuthorization;
+  final authorizationStarted = Completer<void>();
+  var writes = 0;
+  var closes = 0;
 
   @override
-  Future<void> authorize() async {}
+  Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(
+    protocolVersion: ControlCapabilities.currentProtocolVersion,
+    supported: ControlCapability.values,
+  );
+
+  @override
+  Future<void> authorize() async {
+    if (!authorizationStarted.isCompleted) authorizationStarted.complete();
+    await pendingAuthorization?.future;
+  }
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
     if (failure != null) throw failure!;
+    writes++;
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closes++;
+  }
 }
 
 void main() {
+  test('the command deadline starts after approval completes', () async {
+    final transport = _Transport()..pendingAuthorization = Completer<void>();
+    final client = LegionControlClient(transport: transport);
+    addTearDown(client.close);
+    final bridge = LegionFrontendBridgeService(
+      cliService: _MockCliService(),
+      controlClient: client,
+    );
+    var completed = false;
+    final writing = bridge
+        .runControlOperation(
+          method: 'toggle',
+          timeout: Duration.zero,
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, true),
+        )
+        .then((_) {
+          completed = true;
+        });
+    await transport.authorizationStarted.future;
+    await Future<void>.delayed(Duration.zero);
+    expect(completed, isFalse);
+    expect(transport.closes, 0);
+    transport.pendingAuthorization!.complete();
+    await writing;
+    expect(transport.writes, 1);
+  });
+
+  test(
+    'authorization timeout closes access and prevents a late write',
+    () async {
+      final transport = _Transport()..pendingAuthorization = Completer<void>();
+      final client = LegionControlClient(
+        transport: transport,
+        authorizationTimeout: Duration.zero,
+      );
+      final cli = _MockCliService();
+      final bridge = LegionFrontendBridgeService(
+        cliService: cli,
+        controlClient: client,
+      );
+      final timedOut = expectLater(
+        bridge.runControlOperation(
+          method: 'toggle',
+          retries: 1,
+          timeout: Duration.zero,
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, true),
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.timeout,
+          ),
+        ),
+      );
+      await transport.authorizationStarted.future;
+      await timedOut;
+      expect(transport.closes, 1);
+      transport.pendingAuthorization!.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(transport.writes, 0);
+      await expectLater(
+        bridge.runControlOperation(
+          method: 'retry',
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, false),
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.unavailable,
+          ),
+        ),
+      );
+      expect(transport.writes, 0);
+      expect(bridge.commandHistory.map((record) => record.succeeded), [
+        false,
+        false,
+      ]);
+      verifyZeroInteractions(cli);
+    },
+  );
+
   test(
     'serializes callbacks, rejects duplicates, and recovers after failure',
     () async {
@@ -96,7 +199,7 @@ void main() {
   );
 
   test(
-    'timeout releases the queue and records failure without retry by default',
+    'timeout releases the queue and requires a fresh control session',
     () async {
       final bridge = LegionFrontendBridgeService(
         cliService: _MockCliService(),
@@ -121,10 +224,23 @@ void main() {
           ),
         ),
       );
-      await bridge.runControlOperation(method: 'next', operation: (_) async {});
+      await expectLater(
+        bridge.runControlOperation(
+          method: 'next',
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, true),
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.unavailable,
+          ),
+        ),
+      );
       release.complete();
       expect(calls, 1);
-      expect(bridge.commandHistory.map((e) => e.succeeded), [false, true]);
+      expect(bridge.commandHistory.map((e) => e.succeeded), [false, false]);
     },
   );
 
@@ -218,6 +334,8 @@ void main() {
           LegionBridgeErrorCode.unavailable,
       const LegionControlPermissionDeniedException('permission'):
           LegionBridgeErrorCode.permissionDenied,
+      const LegionControlStartupDeniedException('startup approval'):
+          LegionBridgeErrorCode.startupDenied,
       const LegionControlBusyException('busy'): LegionBridgeErrorCode.busy,
       const LegionControlTimeoutException('timeout'):
           LegionBridgeErrorCode.timeout,
@@ -234,7 +352,8 @@ void main() {
       );
       await expectLater(
         bridge.runControlOperation(
-          operation: (client) => client.setToggle(ControlToggle.hybridMode, true),
+          operation: (client) =>
+              client.setToggle(ControlToggle.hybridMode, true),
           method: 'toggle',
           args: const ['true'],
         ),

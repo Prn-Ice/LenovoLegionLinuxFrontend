@@ -13,12 +13,36 @@ Use compatible stable packages and commit `pubspec.lock`.
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
 
+Flutter 3.50.0 was tested on 2026-11-12. Its Material package split conflicts with
+Yaru 11.0.0: migrated `ThemeData` and `ColorScheme` types differ from those Yaru
+uses. Stable [Yaru 12.0.0](https://pub.dev/packages/yaru/versions/12.0.0) now uses
+`material_ui`; qualify that migration with Flutter 3.50 before updating the build
+pins (`lllf-dt0.5.12`). Keep the qualified 3.47.9 release inputs until then.
+The SDK trial resolved newer code generators, but they remain held back by the
+qualified SDK's test dependencies described below.
+
+Flutter's Linux task runner can dispatch queued work after its owner is freed
+during window shutdown ([upstream report](https://github.com/flutter/flutter/issues/193742)).
+The native application retains its engine until `MyApplication.dispose`, after
+`g_application_run` returns. This small lifetime workaround was approved on
+2026-11-12; it requires no change to installation or launch. Remove it after a
+compatible stable SDK includes [the upstream fix](https://github.com/flutter/flutter/pull/194525)
+and repeated window-close checks pass (`lllf-dt0.5.13`).
+
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
-development dependency. It follows the installed Flutter version; no external
-desktop automation tool or production test-mode flag is needed. See
+development dependency. It follows the installed Flutter version. These tests
+need no external desktop automation tool or production test-mode flag. See
 [the integration journey command](../CONTRIBUTING.md#linux-app-integration-journey).
 
 ## Why some packages are held back
+
+### AppImage runtime
+
+AppImage qualification pins the versioned type-2 runtime `20251108`, its binary
+checksum, source archives, and notices in `packaging/appimage/build-inputs.json`.
+The upstream `continuous` build changes in place. Recheck versioned releases when
+upgrading the runtime. See [the AppImage build](appimage.md) for the host library
+baseline and remaining runtime package-provenance checks.
 
 ### Equatable 2.1
 

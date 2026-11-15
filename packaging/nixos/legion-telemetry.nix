@@ -202,6 +202,9 @@ in
         serviceConfig = {
           Type = "dbus";
           BusName = "io.github.prnice.LegionControl1";
+          RuntimeDirectory = "legion-control";
+          RuntimeDirectoryMode = "0711";
+          RuntimeDirectoryPreserve = "yes";
           ExecStart =
             "${control.package}/libexec/legion-control-service --cli ${control.backendPackage}/bin/legion_cli --systemctl ${pkgs.systemd}/bin/systemctl"
             + lib.optionalString control.nextBootGraphics " --graphics-boot-helper ${graphicsBoot}";

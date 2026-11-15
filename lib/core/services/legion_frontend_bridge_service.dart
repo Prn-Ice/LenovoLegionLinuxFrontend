@@ -2,12 +2,15 @@ import 'dart:async';
 import 'dart:collection';
 
 import '../models/bridge_command_record.dart';
+import '../models/control_mode.dart';
 import 'legion_cli_service.dart';
 import 'legion_control_client.dart';
 
 enum LegionBridgeErrorCode {
+  startupDenied,
   permissionDenied,
   privilegeSetup,
+  portableSetup,
   unavailable,
   busy,
   timeout,
@@ -24,6 +27,7 @@ class LegionBridgeException implements Exception {
     this.stdout,
     this.stderr,
     this.exitCode,
+    this.controlMode = ControlMode.installedService,
   });
 
   final LegionBridgeErrorCode code;
@@ -32,21 +36,30 @@ class LegionBridgeException implements Exception {
   final String? stdout;
   final String? stderr;
   final int? exitCode;
+  final ControlMode controlMode;
 
   String get guidance {
     return switch (code) {
+      LegionBridgeErrorCode.startupDenied =>
+        'Authentication was cancelled or denied before temporary access started. Try the action again to request approval.',
       LegionBridgeErrorCode.permissionDenied =>
-        'Permission was denied or authentication was canceled. Ensure a polkit agent is running and approve the prompt.',
+        controlMode == ControlMode.temporaryHelper
+            ? 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
+            : 'Permission was denied or authentication was cancelled. Ensure a Polkit authentication agent is running and approve the prompt.',
+      LegionBridgeErrorCode.portableSetup =>
+        'Temporary hardware access could not start. Check the installed CLI and app files, then reopen the app.',
       LegionBridgeErrorCode.privilegeSetup =>
-        'The legion-control service could not provide privileged access. Verify the service and its Polkit policy are installed and running.',
+        'The legion-control service could not provide privileged access. Verify that the service and its Polkit policy are installed and running.',
       LegionBridgeErrorCode.unavailable =>
-        'The legion-control service or requested capability is unavailable. Verify the service is installed and running.',
+        controlMode == ControlMode.temporaryHelper
+            ? 'Temporary hardware access is unavailable. Read the current settings and reopen the app before retrying.'
+            : 'The legion-control service or requested capability is unavailable. Verify that the service is installed and running.',
       LegionBridgeErrorCode.busy =>
         'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
-        'The privileged command timed out. Retry and check system load or blocking prompts.',
+        'The command timed out. Read the current settings before retrying.',
       LegionBridgeErrorCode.graphicsBlocked =>
-        'The graphics change was blocked before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
+        'The system blocked the graphics change before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
       LegionBridgeErrorCode.graphicsPending =>
         'The selected graphics policy may have changed, but effective topology did not settle. Restore Hybrid from a TTY or reboot before continuing.',
       LegionBridgeErrorCode.commandFailed => '',
@@ -76,11 +89,14 @@ class LegionFrontendBridgeService {
   LegionFrontendBridgeService({
     required LegionCliService cliService,
     LegionControlClient? controlClient,
+    ControlMode controlMode = ControlMode.installedService,
   }) : _cliService = cliService,
-       _controlClient = controlClient;
+       _controlClient = controlClient,
+       _controlMode = controlMode;
 
   final LegionCliService _cliService;
   final LegionControlClient? _controlClient;
+  final ControlMode _controlMode;
   final Set<String> _pendingActionKeys = <String>{};
   Future<void> _privilegedQueue = Future<void>.value();
   static const int _historyCapacity = 20;
@@ -97,6 +113,7 @@ class LegionFrontendBridgeService {
 
   /// Queues a typed control call. [args] are history and duplicate-key metadata,
   /// never executable commands. The timeout begins when the operation starts.
+  /// A timed-out write closes control access; it requires a fresh app session.
   Future<void> runControlOperation({
     required Future<void> Function(LegionControlClient) operation,
     required String method,
@@ -111,6 +128,7 @@ class LegionFrontendBridgeService {
     final actionKey = _buildActionKey(method: method, args: args);
     if (_pendingActionKeys.contains(actionKey)) {
       throw LegionBridgeException(
+        controlMode: _controlMode,
         code: LegionBridgeErrorCode.busy,
         method: method,
         message: 'Action is already pending for $method.',
@@ -218,6 +236,7 @@ class LegionFrontendBridgeService {
         throw error;
       } on TimeoutException {
         final error = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
@@ -229,10 +248,13 @@ class LegionFrontendBridgeService {
         }
 
         throw error;
+      } on LegionControlException catch (error) {
+        throw _translateControlError(method, error);
       } on LegionBridgeException {
         rethrow;
       } on Object catch (error) {
         throw LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
@@ -257,27 +279,33 @@ class LegionFrontendBridgeService {
             'The legion-control service is not configured.',
           );
         }
+        await client.authorize();
         await operation(client).timeout(timeout);
         return;
       } on TimeoutException {
         failure = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
+          stderr: 'Control access was closed. Restart the app before retrying.',
         );
       } on LegionControlException catch (error) {
         failure = _translateControlError(method, error);
       } catch (error) {
         failure = LegionBridgeException(
+          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
           stderr: '$error',
         );
       }
-      if (attempt >= retries ||
-          (failure.code != LegionBridgeErrorCode.busy &&
-              failure.code != LegionBridgeErrorCode.timeout)) {
+      if (failure.code == LegionBridgeErrorCode.timeout) {
+        await _controlClient?.close();
+        throw failure;
+      }
+      if (attempt >= retries || failure.code != LegionBridgeErrorCode.busy) {
         throw failure;
       }
     }
@@ -288,7 +316,11 @@ class LegionFrontendBridgeService {
     LegionControlException error,
   ) {
     final code = switch (error) {
+      LegionControlPortableSetupException() =>
+        LegionBridgeErrorCode.portableSetup,
       LegionControlSetupException() => LegionBridgeErrorCode.privilegeSetup,
+      LegionControlStartupDeniedException() =>
+        LegionBridgeErrorCode.startupDenied,
       LegionControlPermissionDeniedException() =>
         LegionBridgeErrorCode.permissionDenied,
       LegionControlBusyException() => LegionBridgeErrorCode.busy,
@@ -302,9 +334,12 @@ class LegionFrontendBridgeService {
       _ => LegionBridgeErrorCode.commandFailed,
     };
     return LegionBridgeException(
+      controlMode: _controlMode,
       code: code,
       method: method,
-      message: 'Failed to run $method.',
+      message: code == LegionBridgeErrorCode.timeout
+          ? 'Control access timed out. Restart the app before retrying.'
+          : 'Failed to run $method.',
       stderr: error.message,
     );
   }
@@ -321,6 +356,10 @@ class LegionFrontendBridgeService {
         : _classifyFailureCode(outputLower, result.exitCode);
 
     final message = switch (code) {
+      LegionBridgeErrorCode.startupDenied =>
+        'Temporary access was not approved for $method.',
+      LegionBridgeErrorCode.portableSetup =>
+        'Temporary hardware access could not start for $method.',
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',
       LegionBridgeErrorCode.privilegeSetup =>
@@ -337,6 +376,7 @@ class LegionFrontendBridgeService {
     };
 
     return LegionBridgeException(
+      controlMode: _controlMode,
       code: code,
       method: method,
       message: message,

@@ -2,8 +2,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(runner LANGUAGES CXX)
 
-# The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
+# Desktop executable name.
 set(BINARY_NAME "legion_frontend")
 # The unique GTK application identifier for this application. See:
 # https://wiki.gnome.org/HowDoI/ChooseApplicationID
@@ -34,11 +33,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Profile" "Release")
 endif()
 
-# Compilation settings that should be applied to most targets.
-#
-# Be cautious about adding new options here, as plugins use this function by
-# default. In most cases, you should add new options to specific targets instead
-# of modifying this function.
+# Shared compiler settings, including plugins. Add target-specific options at
+# the target rather than changing every plugin's build.
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
@@ -60,18 +56,15 @@ add_subdirectory("runner")
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
-# Only the install-generated bundle's copy of the executable will launch
-# correctly, since the resources must in the right relative locations. To avoid
-# people trying to run the unbundled copy, put it in a subdirectory instead of
-# the default top-level location.
+# Run the installed bundle: its resources sit beside the executable. Keep the
+# unbundled binary in a subdirectory to discourage launching it by mistake.
 set_target_properties(${BINARY_NAME}
   PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/intermediates_do_not_run"
 )
 
 
-# Generated plugin build rules, which manage building the plugins and adding
-# them to the application.
+# Build and bundle generated plugin targets.
 include(flutter/generated_plugins.cmake)
 
 
@@ -95,6 +88,26 @@ add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
+# Qualification builds can include the helper without installing system units.
+if(BUILD_PORTABLE_CONTROL_HELPER)
+  install(TARGETS legion_portable_control
+    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/libexec" COMPONENT Runtime)
+  get_target_property(portable_install_rpath legion_portable_control INSTALL_RPATH)
+  if(portable_install_rpath)
+    # Nix compiler wrappers may retain extra rpaths after CMake installation.
+    # Set the complete installed value so development directories cannot survive.
+    find_program(PORTABLE_PATCHELF patchelf)
+    if(NOT PORTABLE_PATCHELF)
+      message(FATAL_ERROR "Nix portable helper bundles require patchelf.")
+    endif()
+    string(REPLACE ";" ":" portable_install_rpath "${portable_install_rpath}")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/portable_helper_install.cmake.in"
+      "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake" @ONLY)
+    install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake"
+      COMPONENT Runtime)
+  endif()
+endif()
+
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
@@ -116,8 +129,7 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
-# Fully re-copy the assets directory on each build to avoid having stale files
-# from a previous install.
+# Replace bundled assets on each install to remove stale files.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
 install(CODE "
   file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/${FLUTTER_ASSET_DIR_NAME}\")
@@ -139,6 +151,7 @@ install(CODE "
   execute_process(
     COMMAND \"${FLUTTER_SDK_DIR}/bin/dart\"
       \"${CMAKE_CURRENT_SOURCE_DIR}/../tool/bundle_notices.dart\"
+      --flutter-sdk \"${FLUTTER_SDK_DIR}\"
       \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}\"
     RESULT_VARIABLE notices_result
     ERROR_VARIABLE notices_error)

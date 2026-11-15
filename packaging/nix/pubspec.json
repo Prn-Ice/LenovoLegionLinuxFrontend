@@ -1,0 +1,49 @@
+{
+  "dependencies": {
+    "cupertino_icons": "^2.0.0",
+    "dbus": "^0.8.0",
+    "equatable": "^2.1.0",
+    "ffi": "^2.2.0",
+    "file_picker": "^13.3.2",
+    "fl_chart": "^1.3.0",
+    "flutter": {
+      "sdk": "flutter"
+    },
+    "flutter_riverpod": "^3.4.3",
+    "flutter_svg": "^2.3.2",
+    "handy_window": "^0.4.2",
+    "hive_ce": "^2.22.0",
+    "hive_ce_flutter": "^2.5.0",
+    "riverbloc": "^3.0.0",
+    "yaru": "^11.0.0"
+  },
+  "description": "Flutter desktop frontend for LenovoLegionLinux - laptop control on Linux.",
+  "dev_dependencies": {
+    "bloc_test": "^10.0.0",
+    "build_runner": "^2.15.1",
+    "flutter_lints": "^6.0.0",
+    "flutter_test": {
+      "sdk": "flutter"
+    },
+    "hive_ce_generator": "^1.11.2",
+    "integration_test": {
+      "sdk": "flutter"
+    },
+    "mocktail": "^1.0.4"
+  },
+  "environment": {
+    "flutter": ">=3.47.9",
+    "sdk": "^3.11.0"
+  },
+  "flutter": {
+    "assets": [
+      "assets/branding/",
+      "assets/gpu_vendors/",
+      "pubspec.yaml"
+    ],
+    "uses-material-design": true
+  },
+  "name": "legion_frontend",
+  "publish_to": "none",
+  "version": "1.0.0+1"
+}

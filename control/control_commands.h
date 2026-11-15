@@ -22,6 +22,7 @@ Command FeatureCommand(const std::string &, const std::string &);
 Command ToggleCommand(const std::string &, bool);
 Command PresetCommand(const std::string &);
 Command CurrentPresetCommand();
+std::vector<std::string> InteractiveCliCommands();
 Command FileCommand(const std::string &);
 Command BootLogoCommand(const std::string &);
 Command RestoreBootLogoCommand();

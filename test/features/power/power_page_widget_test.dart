@@ -111,7 +111,7 @@ void main() {
     registerFallbackValue(<PowerLimitReading>[]);
   });
 
-  testWidgets('Power page follows the handoff at compact width', (
+  testWidgets('Power controls and reference values fit at compact width', (
     tester,
   ) async {
     await _pumpPage(tester, width: 320);
@@ -136,6 +136,12 @@ void main() {
       '54 W',
     );
     expect(find.text('Additional limits'), findsOneWidget);
+    expect(find.text('Reference'), findsWidgets);
+    expect(find.text('Default'), findsNothing);
+    expect(
+      find.textContaining('not verified factory defaults'),
+      findsOneWidget,
+    );
     expect(find.text('CPU overclock'), findsOneWidget);
     expect(find.text('GPU overclock'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
@@ -171,10 +177,7 @@ void main() {
       tester.getSize(quietControl.first).width,
       lessThan(tester.getSize(performanceControl.first).width),
     );
-    expect(
-      find.text('Quick when you need it, calm when you do not.'),
-      findsOneWidget,
-    );
+    expect(find.text('Balances performance and power use.'), findsOneWidget);
     expect(find.byType(Slider), findsNWidgets(3));
   });
 
@@ -255,7 +258,7 @@ void main() {
     expect(tester.widget<Slider>(find.byType(Slider).first).onChanged, isNull);
   });
 
-  testWidgets('controller-only limits show values and hardware defaults', (
+  testWidgets('controller-only limits show current and reference values', (
     tester,
   ) async {
     await _pumpPage(tester, width: 800);
@@ -378,7 +381,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('unknown hardware keeps the default baseline truthful', (
+  testWidgets('unknown hardware shows reference values as unavailable', (
     tester,
   ) async {
     final limit = PowerLimitReading(

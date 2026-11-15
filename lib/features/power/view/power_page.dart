@@ -569,7 +569,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
           ] else ...[
             const SizedBox(height: 8),
             Text(
-              'Compare current controller values with verified hardware defaults.',
+              'Reference values come from recorded readings for a matching model and BIOS, not verified factory defaults.',
               style: textTheme.bodySmall?.copyWith(
                 color: scheme.onSurface.withValues(alpha: 0.7),
               ),
@@ -727,7 +727,7 @@ class _PowerLimitSlider extends StatelessWidget {
                 ),
                 const SizedBox(width: 18),
                 _LimitDatum(
-                  label: 'Default',
+                  label: 'Reference',
                   value: _hardwareDefaultValue(reading),
                   valueKey: ValueKey('power-limit-default-${spec.id}'),
                 ),
@@ -803,7 +803,7 @@ class _AdditionalLimitRow extends StatelessWidget {
       valueKey: ValueKey('power-limit-current-${reading.spec.id}'),
     );
     final baseline = _LimitDatum(
-      label: 'Default',
+      label: 'Reference',
       value: _hardwareDefaultValue(reading),
       valueKey: ValueKey('power-limit-default-${reading.spec.id}'),
     );

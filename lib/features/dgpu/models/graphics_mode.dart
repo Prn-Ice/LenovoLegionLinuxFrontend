@@ -3,15 +3,24 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 enum GraphicsMode {
-  hybrid('hybrid', 'Hybrid'),
-  hybridIgpuOnly('hybrid-igpu-only', 'Hybrid iGPU-only'),
-  hybridAuto('hybrid-auto', 'Hybrid Auto'),
-  discrete('discrete', 'Discrete');
+  hybrid('hybrid', 'Hybrid', 'Keep integrated and NVIDIA graphics available.'),
+  hybridIgpuOnly(
+    'hybrid-igpu-only',
+    'Integrated graphics only',
+    'Disable NVIDIA graphics to reduce power use. Displays connected through NVIDIA may stop working.',
+  ),
+  hybridAuto('hybrid-auto', 'Hybrid Auto', 'Unsupported on this desktop.'),
+  discrete(
+    'discrete',
+    'NVIDIA graphics only',
+    'Use NVIDIA graphics. Switching to this mode requires a restart.',
+  );
 
-  const GraphicsMode(this.wireValue, this.label);
+  const GraphicsMode(this.wireValue, this.label, this.description);
 
   final String wireValue;
   final String label;
+  final String description;
 
   static GraphicsMode parse(Object? value) => switch (value) {
     'hybrid' => hybrid,
@@ -23,9 +32,9 @@ enum GraphicsMode {
 }
 
 enum DgpuTopology {
-  attached('attached', 'Attached'),
-  detached('detached', 'Detached'),
-  partial('partial', 'Partially attached'),
+  attached('attached', 'Detected'),
+  detached('detached', 'Not detected'),
+  partial('partial', 'Partly detected'),
   unknown('unknown', 'Unknown');
 
   const DgpuTopology(this.wireValue, this.label);
@@ -43,10 +52,10 @@ enum DgpuTopology {
 }
 
 enum GraphicsReconciliation {
-  settled('settled', 'Settled'),
-  blocked('blocked', 'Blocked'),
-  needed('needed', 'Needs reconciliation'),
-  unknown('unknown', 'Unknown');
+  settled('settled', 'Matches mode'),
+  blocked('blocked', 'Change blocked'),
+  needed('needed', 'Switch incomplete'),
+  unknown('unknown', 'Status unavailable');
 
   const GraphicsReconciliation(this.wireValue, this.label);
 

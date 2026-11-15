@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import '../../../core/models/control_mode.dart';
+import '../../../core/models/app_failure.dart';
 import 'package:flutter/material.dart';
 import 'package:yaru/yaru.dart';
 
@@ -53,4 +55,18 @@ final class YaruVariantChanged extends AppearanceChanged {
   final YaruVariant? variant;
   @override
   List<Object?> get props => [variant];
+}
+
+final class ControlModeChanged extends SettingsEvent {
+  const ControlModeChanged(this.mode);
+  final ControlMode mode;
+  @override
+  List<Object?> get props => [mode];
+}
+
+final class ControlModeErrorDismissed extends SettingsEvent {
+  const ControlModeErrorDismissed(this.error);
+  final AppFailure error;
+  @override
+  List<Object?> get props => [error];
 }

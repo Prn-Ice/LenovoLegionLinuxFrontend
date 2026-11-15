@@ -4,8 +4,7 @@ import 'package:yaru/yaru.dart';
 /// The standard dashboard card surface: a theme-aware fill, a hairline border,
 /// and a 13px radius.
 ///
-/// [YaruBorderContainer] defaults to a *transparent* fill, which left the cards
-/// flat; this gives them the design's raised look while staying theme-driven.
+/// Adds a theme-colored fill to [YaruBorderContainer]'s transparent default.
 class SurfaceCard extends StatelessWidget {
   const SurfaceCard({
     super.key,

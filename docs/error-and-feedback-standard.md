@@ -55,6 +55,14 @@ queues a different error if one is already visible rather than stacking
 dialogs. The dialog requires an explicit close action and keeps the underlying
 page layout unchanged.
 
+A feature can pass `onErrorDismissed` to acknowledge the displayed failure in
+its Bloc. Acknowledge only that failure, so closing an older dialog preserves a
+newer error. RGB hides the acknowledged message but retains the failure to keep
+animations stopped until retry succeeds. An immediate retry can then show the
+same failure again. Each error must have one presentation owner; Automation and
+Lighting own their RGB dialogs, while the navigation shell handles RGB errors on
+other pages.
+
 Errors produced directly by a view, such as a failed file export, use the same
 shared presentation:
 
@@ -73,6 +81,15 @@ different recovery steps.
 Use the privilege-setup error as the example for known failures:
 `LegionBridgeErrorCode.privilegeSetup`, returned when the
 `legion-control` D-Bus service or its authorization policy is not configured.
+
+### Temporary helper recovery
+
+`AppFailureKind.portableSetup` identifies temporary-helper setup failures. Use
+the shared dialog to explain the incomplete action, checking the installed CLI
+and app files, the desktop authentication prompt, and reopening the app. Keep
+installed-service setup instructions in the installed-service failure flow.
+Hardware-access preference failures are acknowledged when their dialog closes,
+so retry can show the same failure again without clearing a newer failure.
 
 ### Setup recovery
 

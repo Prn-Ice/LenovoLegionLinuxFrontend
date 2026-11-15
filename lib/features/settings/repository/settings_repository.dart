@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/control_mode.dart';
 import '../../../core/models/control_selectors.dart';
 import '../../../core/services/legion_control_client.dart';
 import '../models/service_control.dart';
@@ -11,10 +12,14 @@ class SettingsRepositoryException extends AppFailure {
 }
 
 class SettingsRepository {
-  SettingsRepository({required LegionControlClient controlClient})
-    : _controlClient = controlClient;
+  SettingsRepository({
+    required LegionControlClient controlClient,
+    ControlMode controlMode = ControlMode.installedService,
+  }) : _controlClient = controlClient,
+       _controlMode = controlMode;
 
   final LegionControlClient _controlClient;
+  final ControlMode _controlMode;
 
   static final List<ServiceControl> _serviceDefinitions = [
     const ServiceControl(
@@ -41,6 +46,9 @@ class SettingsRepository {
   ];
 
   Future<SettingsSnapshot> loadSnapshot() async {
+    if (_controlMode == ControlMode.temporaryHelper) {
+      return const SettingsSnapshot(services: []);
+    }
     final services = <ServiceControl>[];
 
     for (final definition in _serviceDefinitions) {

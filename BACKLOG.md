@@ -1,6 +1,7 @@
 # Community backlog
 
-Last reviewed: **2026-11-04**. This is a manually maintained summary of current
+Last reviewed: **2026-11-11**, against code and recorded evidence, without new
+hardware checks. This is a manually maintained summary of current
 work, not a release schedule or a promise that every item will ship. Update it
 when priorities, feature readiness, or hardware evidence change.
 
@@ -32,10 +33,10 @@ not establish real-device support.
 - **Safe power defaults:** obtain complete firmware-backed defaults before
   offering restoration. Current readings and recorded reference values are not
   factory defaults; the GPU power-boost default is still unresolved.
-- **Native Linux app tests:** expand the current Battery health journey to
-  lighting/profile persistence, automation, power, fans, graphics, navigation,
-  diagnostics, cancellation, and error recovery. Use a safe test backend rather
-  than changing the host's hardware or user data.
+- **Native Linux app tests:** extend the existing battery, power, keyboard,
+  automation, restart, recovery, and hardware-access journeys to fans, graphics,
+  diagnostics, and broader navigation. Keep using safe test backends rather than
+  changing the host's hardware or user data. See [test coverage](CONTRIBUTING.md#linux-app-integration-journey).
 - **Desktop integration:** connect the existing tray, on-screen display, and
   notification components to confirmed app state and actions. The components
   exist, but are not connected to the app yet.

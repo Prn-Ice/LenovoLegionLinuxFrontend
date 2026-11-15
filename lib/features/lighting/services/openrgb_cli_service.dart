@@ -1,6 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 
+import '../../../core/models/app_failure.dart';
 import '../models/rgb_lighting_device.dart';
+
+typedef OpenRgbProcessRunner =
+    Future<ProcessResult> Function(String executable, List<String> arguments);
+
+enum _OpenRgbWrite { apply, loadProfile, saveProfile }
 
 /// Builds the `openrgb` CLI argument list for an apply operation. Pure so the
 /// command construction (CLI order rules: `-z` after `-d`, mode/color after) is
@@ -24,19 +31,21 @@ List<String> openRgbApplyArgs({
   return args;
 }
 
-/// Thin wrapper over the `openrgb` command-line tool. Drives OpenRGB (which
-/// already supports the Legion keyboard) without depending on the buggy SDK
-/// socket package. Each call spawns a short-lived process that talks to the
-/// running OpenRGB server.
+/// Runs OpenRGB commands to discover devices and change keyboard lighting.
+/// Each call starts a process and checks its exit status.
 class OpenRgbCliService {
-  const OpenRgbCliService({this.executable = 'openrgb'});
+  const OpenRgbCliService({
+    this.executable = 'openrgb',
+    OpenRgbProcessRunner processRunner = Process.run,
+  }) : _processRunner = processRunner;
 
   final String executable;
+  final OpenRgbProcessRunner _processRunner;
 
-  /// True when the `openrgb` binary runs and reports devices.
+  /// Whether OpenRGB can list devices successfully.
   Future<bool> isAvailable() async {
     try {
-      final result = await Process.run(executable, ['--list-devices']);
+      final result = await _processRunner(executable, ['--list-devices']);
       return result.exitCode == 0;
     } on ProcessException {
       return false;
@@ -47,7 +56,7 @@ class OpenRgbCliService {
   Future<List<RgbLightingDevice>> listDevices() async {
     final ProcessResult result;
     try {
-      result = await Process.run(executable, ['--list-devices']);
+      result = await _processRunner(executable, ['--list-devices']);
     } on ProcessException {
       // OpenRGB is optional: the native Spectrum backend may still be usable.
       return const [];
@@ -65,8 +74,7 @@ class OpenRgbCliService {
     int? brightness,
     int? speed,
   }) async {
-    await Process.run(
-      executable,
+    await _runWrite(
       openRgbApplyArgs(
         device: device,
         zone: zone,
@@ -75,16 +83,51 @@ class OpenRgbCliService {
         brightness: brightness,
         speed: speed,
       ),
+      operation: _OpenRgbWrite.apply,
     );
   }
 
-  /// Loads a saved OpenRGB profile (the design's "saved looks").
+  /// Loads a saved OpenRGB profile.
   Future<void> loadProfile(String name) async {
-    await Process.run(executable, ['-p', name]);
+    await _runWrite(['-p', name], operation: _OpenRgbWrite.loadProfile);
   }
 
   /// Saves the current configuration to a named profile.
   Future<void> saveProfile(String name) async {
-    await Process.run(executable, ['-sp', name]);
+    await _runWrite(['-sp', name], operation: _OpenRgbWrite.saveProfile);
+  }
+
+  Future<void> _runWrite(
+    List<String> arguments, {
+    required _OpenRgbWrite operation,
+  }) async {
+    final command = 'Command: ${jsonEncode([executable, ...arguments])}';
+    final ProcessResult result;
+    try {
+      result = await _processRunner(executable, arguments);
+    } on ProcessException catch (error) {
+      throw AppFailure(
+        'OpenRGB could not start. Check that OpenRGB is installed and available, then retry.',
+        kind: AppFailureKind.unavailable,
+        details: '$command\n$error',
+      );
+    }
+    if (result.exitCode == 0) return;
+
+    final message = switch (operation) {
+      _OpenRgbWrite.apply =>
+        'OpenRGB could not apply keyboard lighting. The keyboard may be partly updated. Check the OpenRGB connection and selected device, then retry.',
+      _OpenRgbWrite.loadProfile =>
+        'OpenRGB could not load the profile. The keyboard may be partly updated. Check the profile in OpenRGB, then retry.',
+      _OpenRgbWrite.saveProfile =>
+        'OpenRGB could not save the profile. The profile file may be incomplete. Check the destination in OpenRGB, then save again.',
+    };
+    throw AppFailure(
+      message,
+      kind: AppFailureKind.commandFailed,
+      details:
+          '$command\nExit code: ${result.exitCode}\n'
+          'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
+    );
   }
 }

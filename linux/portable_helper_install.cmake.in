@@ -1,0 +1,8 @@
+execute_process(
+  COMMAND "@PORTABLE_PATCHELF@" --set-rpath "@portable_install_rpath@"
+    "$ENV{DESTDIR}@CMAKE_INSTALL_PREFIX@/libexec/legion-portable-control"
+  RESULT_VARIABLE portable_rpath_status
+)
+if(NOT portable_rpath_status EQUAL 0)
+  message(FATAL_ERROR "Could not set the portable helper host library paths.")
+endif()

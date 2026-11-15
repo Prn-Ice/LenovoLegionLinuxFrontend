@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
+import '../../../core/models/control_mode.dart';
+import 'hardware_access_controls.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/responsive_card_grid.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -51,7 +53,7 @@ class SettingsPage extends ConsumerWidget {
         Text('Accent follows power mode', style: textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
-          'Quiet, Balanced, Performance or Custom sets the accent '
+          'Quiet, Balanced, Performance, or Custom sets the accent '
           'throughout the app.',
           style: textTheme.bodySmall?.copyWith(
             color: Theme.of(
@@ -62,27 +64,34 @@ class SettingsPage extends ConsumerWidget {
       ],
     );
     final backend = _SettingsSection(
-      title: 'Backend',
-      description: 'Manage Legion services.',
+      title: 'Hardware control',
+      description:
+          'Manage permissions and background services for laptop settings.',
       children: [
+        const HardwareAccessControls(),
+        const Divider(height: 32),
         if (about.snapshot case final snapshot?) ...[
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Module version'),
+            title: const Text('Kernel driver version'),
             subtitle: Text(snapshot.moduleVersion ?? 'Unknown'),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('CLI'),
+            title: const Text('LenovoLegionLinux command-line tool'),
             subtitle: SelectableText(
-              '${snapshot.cliPath}\n${snapshot.cliHealthSummary}',
+              '${snapshot.cliPath ?? 'Unavailable'}\n${snapshot.cliHealthSummary}',
             ),
           ),
         ],
         const PrivilegedActionNotice(compact: true),
         const SizedBox(height: 8),
         if (state.services.isEmpty)
-          const Text('No service controls available.'),
+          Text(
+            state.activeControlMode == ControlMode.temporaryHelper
+                ? 'Use Installed service to manage background services. Close and reopen the app after changing that choice.'
+                : 'No service controls available.',
+          ),
         ...state.services.map(
           (service) => _ServiceTile(
             service: service,
@@ -91,7 +100,7 @@ class SettingsPage extends ConsumerWidget {
               final confirmed = await confirmPrivilegedAction(
                 context,
                 title: 'Update ${service.label}',
-                message: 'Changing services may ask you to authenticate.',
+                message: 'Changing services may require authentication.',
                 confirmLabel: 'Apply',
               );
               if (!context.mounted || !confirmed) {
@@ -141,7 +150,7 @@ class SettingsPage extends ConsumerWidget {
                       context,
                       title: 'Change Win Key',
                       message:
-                          'Changing the Win Key uses privileged access and may prompt for authentication.',
+                          'Changing the Win key uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -186,7 +195,7 @@ class SettingsPage extends ConsumerWidget {
                       context,
                       title: 'Toggle overdrive',
                       message:
-                          'Changing overdrive uses privileged access and may prompt for authentication.',
+                          'Changing overdrive uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -204,7 +213,9 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 8),
           if (display.availableRefreshRates == null ||
               display.availableRefreshRates!.isEmpty)
-            const Text('Unavailable — xrandr not accessible on this session.')
+            const Text(
+              'Unavailable — xrandr is not accessible in this session.',
+            )
           else
             Wrap(
               spacing: 8,
@@ -262,7 +273,11 @@ class SettingsPage extends ConsumerWidget {
     );
 
     return AppPageBody(
+      onErrorDismissed: (error) => ref
+          .read(settingsBlocProvider.bloc)
+          .add(ControlModeErrorDismissed(error)),
       errorMessage:
+          state.controlModeErrorMessage ??
           state.appearanceErrorMessage ??
           state.errorMessage ??
           bootLogoState.errorMessage ??

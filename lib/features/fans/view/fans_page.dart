@@ -174,7 +174,7 @@ class _FansPageState extends ConsumerState<FansPage> {
   ) async {
     final confirmed = await confirmPrivilegedAction(
       context,
-      title: 'Set lock fan controller',
+      title: 'Change fan controller lock',
       message:
           'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
       confirmLabel: 'Apply',
@@ -381,10 +381,10 @@ class _FanControls extends StatelessWidget {
           icon: YaruIcons.lock,
           value: value,
           onChanged: state.isApplying ? null : onLockFanControllerChanged,
-          title: 'Exclusive fan control',
+          title: 'Lock fan controller',
           subtitle: state.isApplying
               ? 'Applying change...'
-              : 'Prevent other tools from changing fan settings.',
+              : 'Enable the driver\'s fan controller lock.',
         ),
     ];
 

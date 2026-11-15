@@ -30,8 +30,8 @@ process names, device identifiers, and kernel messages; review before sharing.
 The data comes from the system journal. We include kernel messages, systemd
 sleep services, login management, the graphics boot helper, KWin display events,
 and PowerDevil's sleep/error messages. Routine PowerDevil display-bus polling is
-filtered out so it does not overwrite the useful history. The last 30 minutes
-are copied on startup, followed by new events. Reading these logs works with
+filtered out so it does not overwrite the useful history. The recorder copies the
+last 30 minutes on startup, followed by new events. Reading these logs works with
 the current user's journal access; if permissions change, incomplete access may
 omit some sources. Seeing one event is not proof that every source is available.
 

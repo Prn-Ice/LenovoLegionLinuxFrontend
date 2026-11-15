@@ -1,16 +1,13 @@
 import 'package:flutter/material.dart';
 
 /// Mode colors approximated from photos of a Legion laptop's power button.
-/// [custom] covers manual/custom
-/// tuning (including the `balanced-performance` platform profile, which the app
-/// already surfaces as "Custom").
+/// [custom] includes the `balanced-performance` profile, shown as "Custom".
 enum LegionAccentMode { quiet, balanced, performance, custom }
 
-/// A single source of truth for the app's mode-accent styling.
+/// Colors and labels used to show power modes.
 ///
-/// Kept dependency-free of the `features/` layer: callers map their own power
-/// mode to an accent via [fromPowerModeValue] (pass `PowerMode.value`), and fall
-/// back to `Theme.of(context).colorScheme.primary` when it returns null.
+/// Does not depend on feature code. Pass a platform profile to
+/// [fromPowerModeValue]; unknown profiles return null.
 class LegionAccent {
   const LegionAccent({
     required this.mode,

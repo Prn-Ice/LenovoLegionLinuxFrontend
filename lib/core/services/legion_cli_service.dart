@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'host_command_environment.dart';
+
 typedef ProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
 
@@ -18,28 +20,56 @@ class LegionCliResult {
 }
 
 class LegionCliService {
-  LegionCliService({String? cliPath, ProcessRunner? processRunner})
-    : _cliPath = cliPath ?? _resolveCliPath(),
-      _processRunner = processRunner ?? Process.run;
+  LegionCliService({
+    String? cliPath,
+    Future<String> Function()? pathResolver,
+    ProcessRunner? processRunner,
+  }) : _cliPath = cliPath,
+       _pathResolver = pathResolver ?? (() async => _resolveInstalledCliPath()),
+       _processRunner = processRunner ?? _runHostCommand;
 
-  final String _cliPath;
+  String? _cliPath;
+  final Future<String> Function() _pathResolver;
   final ProcessRunner _processRunner;
-  String get cliPath => _cliPath;
+  Future<String>? _resolving;
+  bool _closed = false;
+  String? get cliPath => _cliPath;
+
+  Future<String> resolvePath() async {
+    if (_closed) throw StateError('CLI access is closed.');
+    final path = _cliPath ?? await (_resolving ??= _pathResolver());
+    if (_closed) throw StateError('CLI access is closed.');
+    if (path.isEmpty) throw StateError('The installed CLI path is empty.');
+    _cliPath = path;
+    return path;
+  }
+
+  void close() => _closed = true;
+
+  static Future<ProcessResult> _runHostCommand(
+    String executable,
+    List<String> arguments,
+  ) {
+    return Process.run(
+      executable,
+      arguments,
+      workingDirectory: '/',
+      environment: hostCommandEnvironment(Platform.environment),
+      includeParentEnvironment: false,
+    );
+  }
 
   Future<LegionCliResult> runCommand(List<String> args) async {
     final cliArgs = _withHwmonExpectation(args);
 
-    final result = await _processRunner(_cliPath, cliArgs);
+    final path = await resolvePath();
+    final result = await _processRunner(path, cliArgs);
 
     return LegionCliResult(
       exitCode: result.exitCode,
       stdout: '${result.stdout}',
       stderr: '${result.stderr}',
     );
-  }
-
-  static String _resolveCliPath() {
-    return _resolveInstalledCliPath();
   }
 
   static List<String> _withHwmonExpectation(List<String> args) {

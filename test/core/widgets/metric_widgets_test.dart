@@ -35,7 +35,7 @@ void main() {
     expect(find.textContaining('—'), findsOneWidget);
   });
 
-  testWidgets('MetricTile renders label, value and a bar', (tester) async {
+  testWidgets('MetricTile renders label, value, and a bar', (tester) async {
     await _pump(tester, const MetricTile(label: 'RAM', value: 40));
 
     expect(find.text('RAM'), findsOneWidget);

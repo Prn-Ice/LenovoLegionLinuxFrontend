@@ -17,6 +17,7 @@ class AppPageBody extends StatelessWidget {
     this.subtitle,
     this.headerAction,
     this.errorMessage,
+    this.onErrorDismissed,
     required this.children,
   });
 
@@ -28,6 +29,7 @@ class AppPageBody extends StatelessWidget {
 
   /// Prefer [AppFailure]. Legacy text is displayed as an unclassified failure.
   final Object? errorMessage;
+  final ValueChanged<AppFailure>? onErrorDismissed;
   final List<Widget> children;
 
   @override
@@ -36,6 +38,7 @@ class AppPageBody extends StatelessWidget {
 
     return AppErrorDialogListener(
       errorMessage: errorMessage,
+      onErrorDismissed: onErrorDismissed,
       child: ListView(
         padding: const EdgeInsets.all(kYaruPagePadding),
         children: [
@@ -90,10 +93,12 @@ class AppErrorDialogListener extends StatefulWidget {
   const AppErrorDialogListener({
     super.key,
     this.errorMessage,
+    this.onErrorDismissed,
     required this.child,
   });
 
   final Object? errorMessage;
+  final ValueChanged<AppFailure>? onErrorDismissed;
   final Widget child;
 
   @override
@@ -136,6 +141,7 @@ class _AppErrorDialogListenerState extends State<AppErrorDialogListener> {
     await showAppErrorDialog(context, message);
     if (!mounted) return;
     _dialogVisible = false;
+    widget.onErrorDismissed?.call(message);
 
     final pendingMessage = _pendingMessage;
     _pendingMessage = null;
@@ -172,23 +178,15 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final errorKind = AppFailure.from(widget.message).kind;
     final isPrivilegeSetup = errorKind == AppFailureKind.privilegeSetup;
     final title = switch (errorKind) {
       AppFailureKind.privilegeSetup => 'Privileged access needs setup',
-      AppFailureKind.graphicsBlocked => 'Graphics change blocked',
-      AppFailureKind.graphicsPending => 'Graphics policy did not settle',
+      AppFailureKind.portableSetup => 'Temporary hardware access needs setup',
+      AppFailureKind.graphicsBlocked => 'Graphics mode was not changed',
+      AppFailureKind.graphicsPending => 'Graphics mode switch incomplete',
       _ => 'Action could not be completed',
-    };
-    final consequence = switch (errorKind) {
-      AppFailureKind.graphicsBlocked =>
-        'The protected preflight stopped this change before firmware was written.',
-      AppFailureKind.graphicsPending =>
-        'Firmware accepted the selected policy, but the requested GPU topology was not confirmed.',
-      _ =>
-        'The requested action did not complete. No confirmation was received that the setting changed.',
     };
 
     return AlertDialog(
@@ -210,15 +208,11 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: isPrivilegeSetup
+              children: errorKind == AppFailureKind.portableSetup
+                  ? _buildPortableSetupContent(context)
+                  : isPrivilegeSetup
                   ? _buildPrivilegeSetupContent(context)
-                  : [
-                      Text(consequence),
-                      const SizedBox(height: 16),
-                      Text('Details', style: textTheme.titleSmall),
-                      const SizedBox(height: 6),
-                      Text(AppFailure.from(widget.message).displayText),
-                    ],
+                  : _buildFailureContent(context),
             ),
           ),
         ),
@@ -241,6 +235,44 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     );
   }
 
+  List<Widget> _buildFailureContent(BuildContext context) {
+    final failure = AppFailure.from(widget.message);
+    final details = failure.details;
+    return [
+      Text(failure.message),
+      if (details != null &&
+          details.trim().isNotEmpty &&
+          !failure.message.contains(details)) ...[
+        const SizedBox(height: 16),
+        Text(
+          'Technical details',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 6),
+        Text(details),
+      ],
+    ];
+  }
+
+  List<Widget> _buildPortableSetupContent(BuildContext context) => [
+    const Text(
+      'Temporary hardware control could not start. The requested action did not complete. Recheck the current settings before retrying.',
+    ),
+    const SizedBox(height: 16),
+    Text('Before retrying', style: Theme.of(context).textTheme.titleSmall),
+    const SizedBox(height: 6),
+    const Text(
+      'Check the installed legion_cli and app files. Your desktop must provide a Polkit authentication prompt. Then reopen the app and approve the prompt when making a hardware change.',
+    ),
+    const SizedBox(height: 12),
+    const Text(
+      'You can choose Installed service in Settings for the next launch if that integration is already installed.',
+    ),
+    const SizedBox(height: 16),
+    Text('Technical details', style: Theme.of(context).textTheme.titleSmall),
+    const SizedBox(height: 6),
+    Text(AppFailure.from(widget.message).displayText),
+  ];
   List<Widget> _buildPrivilegeSetupContent(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;

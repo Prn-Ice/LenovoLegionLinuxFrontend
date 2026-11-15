@@ -56,6 +56,7 @@ Future<bool> confirmPrivilegedAction(
   final approved = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
+      scrollable: true,
       constraints: const BoxConstraints(maxWidth: 460),
       titlePadding: EdgeInsets.zero,
       title: YaruDialogTitleBar(title: Text(title)),
