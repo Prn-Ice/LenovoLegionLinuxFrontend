@@ -18,6 +18,8 @@ def main():
     assert os.getuid() == 0 and marker.stat().st_uid == 0
     assert marker.read_text() == "legion-control-disposable-lifecycle-vm\n"
     machine = LocalMachine()
+    # Package operations run more slowly under CI software emulation.
+    package_timeout = 180
     assert machine.succeed("systemd-detect-virt --vm").strip() in ["kvm", "qemu"]
     session.machine = machine
     release = Path(sys.argv[1])
@@ -36,7 +38,8 @@ def main():
     before = persistent_files()
     machine.fail("systemctl cat legion-control.service")
     machine.succeed(
-        "apt-get install -y --no-install-recommends " + shlex.quote(str(package))
+        "apt-get install -y --no-install-recommends " + shlex.quote(str(package)),
+        timeout=package_timeout,
     )
     assert (
         machine.succeed("dpkg-query -W -f='${Version}' legion-linux-frontend").strip()
@@ -117,7 +120,10 @@ def main():
     machine.succeed(
         "dpkg-deb --root-owner-group -Znone --build /tmp/upgrade /tmp/upgrade.deb"
     )
-    machine.succeed("apt-get install -y --no-install-recommends /tmp/upgrade.deb")
+    machine.succeed(
+        "apt-get install -y --no-install-recommends /tmp/upgrade.deb",
+        timeout=package_timeout,
+    )
     assert (
         machine.succeed("dpkg-query -W -f='${Version}' legion-linux-frontend").strip()
         == upgraded
@@ -130,7 +136,7 @@ def main():
     assert persistent_files() == coexistence, (
         "Upgrade changed existing integration files"
     )
-    machine.succeed("apt-get purge -y legion-linux-frontend")
+    machine.succeed("apt-get purge -y legion-linux-frontend", timeout=package_timeout)
     assert not Path("/usr/lib/legion_frontend").exists()
     assert not Path("/usr/bin/legion_frontend").exists()
     assert persistent_files() == coexistence, "Purge changed existing integration files"

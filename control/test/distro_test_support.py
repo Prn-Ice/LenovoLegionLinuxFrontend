@@ -10,16 +10,24 @@ class LocalMachine:
     """Run the shared session driver inside the disposable VM."""
 
     def execute(self, command, timeout=45):
-        result = subprocess.run(
-            command,
-            check=False,
-            shell=True,
-            executable="/bin/bash",
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-        )
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                shell=True,
+                executable="/bin/bash",
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as error:
+            output = error.stdout or b""
+            if isinstance(output, bytes):
+                output = output.decode(errors="replace")
+            raise AssertionError(
+                f"Command timed out after {timeout} seconds: {command}\n{output}"
+            ) from error
         return result.returncode, result.stdout
 
     def succeed(self, command, timeout=45):
