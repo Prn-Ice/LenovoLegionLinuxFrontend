@@ -112,12 +112,11 @@ Future<void> _refreshAndWaitForReload(
     context,
   ).read(dashboardBlocProvider.bloc);
   final previousRead = dashboardBloc.state.snapshot.status.updatedAt;
-  var sawLoading = false;
   var reloadCompleted = false;
+  // Refresh can share an in-flight poll. Require a fresh successful snapshot,
+  // rather than a separate loading emission for the button press.
   final subscription = dashboardBloc.stream.listen((state) {
-    if (state.isLoading) {
-      sawLoading = true;
-    } else if (sawLoading &&
+    if (!state.isLoading &&
         state.errorMessage == null &&
         state.snapshot.status.updatedAt != previousRead &&
         state.snapshot.status.powerProfile == expectedMode) {
@@ -129,7 +128,7 @@ Future<void> _refreshAndWaitForReload(
     await waitFor(
       tester,
       () => reloadCompleted,
-      description: 'Dashboard refresh completed with $expectedMode mode',
+      description: 'fresh Dashboard snapshot with $expectedMode mode',
     );
     await _waitForDashboardMode(
       tester,

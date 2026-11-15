@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/widgets/surface_card.dart';
 import 'package:yaru/yaru.dart';
@@ -16,7 +17,11 @@ Future<void> waitFor(
   final deadline = DateTime.now().add(const Duration(seconds: 15));
   while (!ready()) {
     if (DateTime.now().isAfter(deadline)) {
-      debugDumpApp();
+      debugPrintSynchronously('Native journey timeout: $description');
+      debugPrintSynchronously(
+        WidgetsBinding.instance.rootElement?.toStringDeep() ??
+            'The app has no root element.',
+      );
       fail('Timed out waiting for $description after 15 seconds');
     }
     await tester.pump(const Duration(milliseconds: 50));
