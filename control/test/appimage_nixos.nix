@@ -150,11 +150,12 @@ pkgs.testers.runNixOSTest {
             assert machine.succeed(unit_query).strip() == ""
             screenshot("temporary-control-denied")
             machine.succeed("echo allow >/run/legion-gui-approval")
-            words = machine.succeed(desktop("tesseract /home/approved/current.png stdout --psm 11 tsv 2>/dev/null"))
-            close_words = [line.split("\t") for line in words.splitlines() if line.split("\t")[-1] == "Close"]
+            # Recognize the enlarged label image, then map back to window pixels.
+            words = machine.succeed(desktop("tesseract /home/approved/label.png stdout --psm 11 tsv 2>/dev/null"))
+            close_words = [line.split("\t") for line in words.splitlines() if line.split("\t")[-1].strip().lower() == "close"]
             assert len(close_words) == 1, words
             word = close_words[0]
-            machine.succeed(click(int(word[6]) + int(word[8]) // 2, int(word[7]) + int(word[9]) // 2))
+            machine.succeed(click((int(word[6]) + int(word[8]) // 2) // 3, (int(word[7]) + int(word[9]) // 2) // 3))
             wait_text("mode", "260x25+359+648")
             # The same running app must request fresh approval on explicit retry.
             machine.succeed(click(734, 667))
