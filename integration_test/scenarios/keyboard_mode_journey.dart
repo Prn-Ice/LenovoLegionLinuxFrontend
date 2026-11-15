@@ -25,10 +25,12 @@ void main() {
     await app.launch(additionalOverrides: lighting.overrides);
 
     await openLighting(tester);
+    _logCheckpoint('lighting opened');
     await paintKeyboard(tester, lighting, 'FF3311');
     await saveKeyboardProfile(tester, 'Journey Balanced');
     await paintKeyboard(tester, lighting, '1133FF');
     await saveKeyboardProfile(tester, 'Journey Performance');
+    _logCheckpoint('profiles saved');
 
     await openAutomation(tester);
     final beforeBalancedAssignment = lighting.writes.length;
@@ -42,6 +44,7 @@ void main() {
       () => lighting.writes.length == beforeBalancedAssignment + 1,
       description: 'current Balanced profile applied when assigned',
     );
+    _logCheckpoint('balanced assignment applied');
     expect(lighting.writes.last, ['FF3311', 'FF3311', 'FF3311']);
 
     final beforePerformanceAssignment = lighting.writes.length;
@@ -51,6 +54,7 @@ void main() {
       'Journey Performance',
     );
     expect(lighting.writes, hasLength(beforePerformanceAssignment));
+    _logCheckpoint('performance assignment stored');
 
     // Dashboard refresh observes the sysfs value that Fn+Q changes externally.
     await openDashboard(tester);
@@ -61,11 +65,13 @@ void main() {
       () => lighting.writes.length == beforePerformanceAssignment + 1,
       description: 'Performance profile applied after leaving Automation',
     );
+    _logCheckpoint('performance mode applied');
     expect(lighting.writes.last, ['1133FF', '1133FF', '1133FF']);
 
     final beforeUnrelatedRefresh = lighting.writes.length;
     await _refreshAndWaitForReload(tester, 'performance');
     expect(lighting.writes, hasLength(beforeUnrelatedRefresh));
+    _logCheckpoint('unrelated refresh preserved lighting');
 
     await openLighting(tester);
     await paintKeyboard(tester, lighting, '11CC44');
@@ -73,6 +79,7 @@ void main() {
     await openDashboard(tester);
     await _refreshAndWaitForReload(tester, 'performance');
     expect(lighting.writes, hasLength(beforeSameModeRefresh));
+    _logCheckpoint('same mode refresh preserved edit');
 
     await _setObservedMode(app, FixturePlatformProfile.balanced);
     await _refreshAndWaitForReload(tester, 'balanced');
@@ -81,9 +88,25 @@ void main() {
       () => lighting.writes.length == beforeSameModeRefresh + 1,
       description: 'Balanced profile reapplied after an observed mode change',
     );
+    _logCheckpoint('balanced mode applied');
     expect(lighting.writes.last, ['FF3311', 'FF3311', 'FF3311']);
-    expect(tester.takeException(), isNull);
+    final exception = tester.takeException();
+    if (exception != null) {
+      // ignore: avoid_print
+      print(
+        'KEYBOARD_MODE_UNEXPECTED_EXCEPTION: '
+        '${exception.runtimeType}: $exception',
+      );
+    }
+    expect(exception, isNull);
   });
+}
+
+// Keep checkpoints synchronous so a native runner cannot lose them behind the
+// widget tree dump when this journey fails.
+void _logCheckpoint(String message) {
+  // ignore: avoid_print
+  print('KEYBOARD_MODE_CHECKPOINT: $message');
 }
 
 Future<void> _setObservedMode(SafeApp app, FixturePlatformProfile mode) async {
@@ -108,9 +131,8 @@ Future<void> _refreshAndWaitForReload(
   String expectedMode,
 ) async {
   final context = tester.element(find.byType(DashboardPage));
-  final dashboardBloc = ProviderScope.containerOf(
-    context,
-  ).read(dashboardBlocProvider.bloc);
+  final dashboardBloc = ProviderScope.containerOf(context)
+      .read(dashboardBlocProvider.bloc);
   final previousRead = dashboardBloc.state.snapshot.status.updatedAt;
   var sawLoading = false;
   var reloadCompleted = false;
