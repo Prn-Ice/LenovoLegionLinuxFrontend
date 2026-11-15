@@ -18,9 +18,15 @@ apt-get install -y --no-install-recommends policykit-1 dbus python3 util-linux \
   libgtk-3-0 libgl1-mesa-dri libglx-mesa0 libegl1 libegl-mesa0 libgles2 \
   gsettings-desktop-schemas xvfb xauth xdotool desktop-file-utils appstream \
   imagemagick tesseract-ocr
+if [[ -n ${LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS:-} ]]; then
+  apt-get install -y --no-install-recommends binutils gdb systemd-coredump
+fi
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
+if [[ -n ${LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS:-} ]]; then
+  bash control/test/deb_core_diagnostic.sh prepare /root/deb-core-diagnostic
+fi
 if [[ $ID == ubuntu ]]; then
   mkdir -p /etc/polkit-1/localauthority/50-local.d
   cat > /etc/polkit-1/localauthority/50-local.d/legion-package-test.pkla <<'EOF'

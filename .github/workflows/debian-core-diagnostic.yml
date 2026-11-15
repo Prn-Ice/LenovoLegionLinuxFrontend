@@ -1,0 +1,110 @@
+name: PR 9 Debian core diagnostic
+
+on:
+  pull_request:
+    branches: [fix/stable-deployment]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pr9-debian-core-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  ubuntu:
+    name: Diagnostic only — Ubuntu 22.04 Debian close cores
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record hosted runner identity
+        run: |
+          mkdir -p build/hosted-debian-core-diagnostic
+          {
+            echo 'DIAGNOSTIC ONLY — NOT RELEASE QUALIFICATION'
+            echo "diagnostic_commit=$(git rev-parse HEAD)"
+            echo 'diagnostic_base=77a189e1e4620d544a85509b3417fc91f3800156'
+            echo 'package_source_run=43726942646'
+            echo 'package_source_artifact=14167018271'
+            uname -a
+            lscpu
+          } > build/hosted-debian-core-diagnostic/host-environment.txt
+      - name: Download the retained Debian package from run 43726942646
+        uses: actions/download-artifact@v8
+        with:
+          name: debian-amd64
+          path: build/original-debian-artifact
+          run-id: 43726942646
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify the retained package and source companion
+        run: |
+          release=build/original-debian-artifact/deb-release
+          cd "$release"
+          sha256sum --check SHA256SUMS
+          printf '%s  %s\n' \
+            3b169c4d1fe8cb684c958363ded0a43b399b1dfed226e390ef023af06a85bae2 \
+            legion-linux-frontend_1.0.0+1-1_amd64.deb | sha256sum --check
+          printf '%s  %s\n' \
+            321ec05b544d4977d0634fbcd088873d7a5669f07d5561fe6c3ed60686145162 \
+            legion-frontend-1.0.0+1-amd64-source.tar.gz | sha256sum --check
+          sha256sum \
+            legion-linux-frontend_1.0.0+1-1_amd64.deb \
+            legion-frontend-1.0.0+1-amd64-source.tar.gz \
+            >> ../../hosted-debian-core-diagnostic/host-environment.txt
+      - name: Install standard disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Require hosted KVM and record access
+        run: |
+          grep -Fq GenuineIntel /proc/cpuinfo
+          test -e /dev/kvm
+          sudo setfacl -m u:"$(id -un)":rw /dev/kvm
+          test -r /dev/kvm -a -w /dev/kvm
+      - name: Download the verified Ubuntu 22.04 image
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img \
+            -o /tmp/deb-core-jammy.img
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS \
+            -o /tmp/deb-core-jammy.SHA256SUMS
+      - name: Run 20 required normal-close checks and stop on the first failure
+        id: diagnostic
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/deb-core-jammy.SHA256SUMS)"
+          echo "ubuntu_image_sha256=$checksum" \
+            >> build/hosted-debian-core-diagnostic/host-environment.txt
+          set +e
+          LLLF_VM_ACCELERATOR=kvm LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS=20 \
+            bash tool/test_portable_distro.sh /tmp/deb-core-jammy.img "$checksum" \
+              build/hosted-debian-core-diagnostic/vm --deb \
+              build/original-debian-artifact/deb-release
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "qualification_status=$status" \
+            >> build/hosted-debian-core-diagnostic/host-environment.txt
+      - name: Upload the bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr9-debian-core-${{ github.run_id }}
+          path: build/hosted-debian-core-diagnostic
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve the package qualification result
+        if: always()
+        env:
+          QUALIFICATION_STATUS: ${{ steps.diagnostic.outputs.status }}
+        run: |
+          if [[ ! $QUALIFICATION_STATUS =~ ^[0-9]+$ ]]; then
+            echo 'The diagnostic command did not report a status.' >&2
+            exit 1
+          fi
+          exit "$QUALIFICATION_STATUS"
