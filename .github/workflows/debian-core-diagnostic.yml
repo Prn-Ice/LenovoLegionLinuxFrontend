@@ -15,7 +15,7 @@ concurrency:
 jobs:
   ubuntu:
     name: Diagnostic only — Ubuntu 22.04 Debian close cores
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -99,7 +99,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
       - name: Preserve the package qualification result
-        if: always()
+        if: always() && steps.diagnostic.outcome != 'skipped'
         env:
           QUALIFICATION_STATUS: ${{ steps.diagnostic.outputs.status }}
         run: |
