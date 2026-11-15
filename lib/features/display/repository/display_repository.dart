@@ -11,11 +11,10 @@ class DisplayRepositoryException extends AppFailure {
 
 class DisplayRepository extends PrivilegedRepository {
   const DisplayRepository({
-    required LegionSysfsService sysfsService,
+    required this._sysfsService,
     required super.bridgeService,
-    required XrandrService xrandrService,
-  }) : _sysfsService = sysfsService,
-       _xrandrService = xrandrService;
+    required this._xrandrService,
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DisplayRepositoryException(

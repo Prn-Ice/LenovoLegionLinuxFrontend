@@ -9,11 +9,9 @@ import 'dashboard_state.dart';
 
 class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   DashboardBloc({
-    required DashboardRepository repository,
-    Duration pollInterval = const Duration(seconds: 3),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(DashboardState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 3),
+  }) : super(DashboardState.initial()) {
     on<DashboardStarted>(_onStarted);
     on<DashboardRefreshRequested>(_onRefreshRequested);
     on<DashboardTicked>(_onTicked);

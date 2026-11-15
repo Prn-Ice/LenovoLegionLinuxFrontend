@@ -181,6 +181,12 @@ pkgs.testers.runNixOSTest {
         machine.fail("systemctl cat legion-control.service")
         machine.fail("systemctl cat legion-telemetry.service")
 
+    with subtest("official appimage-run closes normally on X11 repeatedly"):
+        for attempt in range(10):
+            start_gui()
+            wait_text("Dashboard", "380x32+288+7")
+            close_gui()
+
     gui_log = machine.succeed("cat /home/approved/gui.log")
     assert "Pango-CRITICAL" not in gui_log, gui_log
     machine.copy_from_machine("/home/approved/gui.log")

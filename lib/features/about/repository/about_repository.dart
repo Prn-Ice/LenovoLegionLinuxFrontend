@@ -10,16 +10,12 @@ import '../../lighting/services/spectrum_hid_service.dart';
 
 class AboutRepository {
   AboutRepository({
-    required LegionSysfsService sysfs,
-    required LegionCliService cli,
-    required LegionFrontendBridgeService bridge,
-    required SpectrumHidService spectrumHid,
+    required this._sysfs,
+    required this._cli,
+    required this._bridge,
+    required this._spectrumHid,
     ProcessRunner? processRunner,
-  }) : _sysfs = sysfs,
-       _cli = cli,
-       _bridge = bridge,
-       _spectrumHid = spectrumHid,
-       _processRunner = processRunner ?? Process.run;
+  }) : _processRunner = processRunner ?? Process.run;
 
   final LegionSysfsService _sysfs;
   final LegionCliService _cli;

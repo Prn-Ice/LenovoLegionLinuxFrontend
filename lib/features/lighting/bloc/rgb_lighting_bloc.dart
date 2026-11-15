@@ -17,14 +17,11 @@ import 'rgb_lighting_state.dart';
 /// Owns keyboard edits, saved profiles, and queued backend writes.
 class RgbLightingBloc extends Bloc<RgbLightingEvent, RgbLightingState> {
   RgbLightingBloc({
-    required RgbLightingRepository repository,
+    required this._repository,
     SpectrumRgbRepository? nativeRepository,
-    RgbLightingStore? store,
-    SpectrumEffectEngine? effectEngine,
-  }) : _repository = repository,
-       _native = nativeRepository,
-       _store = store,
-       _effectEngine = effectEngine,
+    this._store,
+    this._effectEngine,
+  }) : _native = nativeRepository,
        super(const RgbLightingState()) {
     // Startup, manual edits and mode-triggered profiles share one write queue.
     on<RgbLightingEvent>((event, emit) async {

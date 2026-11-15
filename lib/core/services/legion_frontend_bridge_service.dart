@@ -87,12 +87,10 @@ class LegionBridgeException implements Exception {
 
 class LegionFrontendBridgeService {
   LegionFrontendBridgeService({
-    required LegionCliService cliService,
-    LegionControlClient? controlClient,
-    ControlMode controlMode = ControlMode.installedService,
-  }) : _cliService = cliService,
-       _controlClient = controlClient,
-       _controlMode = controlMode;
+    required this._cliService,
+    this._controlClient,
+    this._controlMode = ControlMode.installedService,
+  });
 
   final LegionCliService _cliService;
   final LegionControlClient? _controlClient;

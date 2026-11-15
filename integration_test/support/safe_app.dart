@@ -40,8 +40,8 @@ class SafeApp {
   SafeApp._(
     this.directory,
     this.conservationFile, {
-    required bool ownsDirectory,
-  }) : _ownsDirectory = ownsDirectory;
+    required this._ownsDirectory,
+  });
 
   final Directory directory;
   final File conservationFile;

@@ -21,11 +21,10 @@ class LegionCliResult {
 
 class LegionCliService {
   LegionCliService({
-    String? cliPath,
+    this._cliPath,
     Future<String> Function()? pathResolver,
     ProcessRunner? processRunner,
-  }) : _cliPath = cliPath,
-       _pathResolver = pathResolver ?? (() async => _resolveInstalledCliPath()),
+  }) : _pathResolver = pathResolver ?? (() async => _resolveInstalledCliPath()),
        _processRunner = processRunner ?? _runHostCommand;
 
   String? _cliPath;

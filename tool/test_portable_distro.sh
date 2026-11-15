@@ -65,12 +65,16 @@ qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 # Bind SSH to loopback. The cloud image and host filesystem are never mounted
 # into the guest; only the native source archive is copied over SSH.
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
-accelerator=tcg
-vm_cpu=Nehalem
-if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-  accelerator=kvm
-  vm_cpu=host
+accelerator=${LLLF_VM_ACCELERATOR:-}
+if [[ -z $accelerator ]]; then
+  accelerator=tcg
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then accelerator=kvm; fi
 fi
+case "$accelerator" in
+  kvm) vm_cpu=host ;;
+  tcg) vm_cpu=Nehalem ;;
+  *) echo 'LLLF_VM_ACCELERATOR must be kvm or tcg.' >&2; exit 64 ;;
+esac
 # LLVM can mistake the generic TCG max CPU for a 32-bit AMD processor.
 # Use a named 64-bit model for software rendering; KVM uses the host CPU.
 echo "Starting disposable distro VM with $accelerator, CPU $vm_cpu; logs: $output"
@@ -106,6 +110,7 @@ if [[ -n $release ]]; then
   scp "${ssh_options[@]}" -P "$port" "$scratch/$format-release.tar.gz" "root@127.0.0.1:/root/$format-release.tar.gz"
   if [[ $format == appimage ]]; then
     guest_check=qualify_appimage_ubuntu.sh
+    guest_timeout=1500
   else
     guest_check=qualify_deb.sh
     guest_timeout=1500

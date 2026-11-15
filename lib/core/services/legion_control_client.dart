@@ -200,13 +200,11 @@ class DBusLegionControlTransport extends LegionControlTransport {
 /// Validates typed control operations against the D-Bus contract.
 class LegionControlClient {
   LegionControlClient({
-    required LegionControlTransport transport,
+    required this._transport,
     this.controlMode = ControlMode.installedService,
-    Duration authorizationTimeout = const Duration(minutes: 2),
-    Duration metadataTimeout = const Duration(seconds: 5),
-  }) : _transport = transport,
-       _authorizationTimeout = authorizationTimeout,
-       _metadataTimeout = metadataTimeout;
+    this._authorizationTimeout = const Duration(minutes: 2),
+    this._metadataTimeout = const Duration(seconds: 5),
+  });
 
   final LegionControlTransport _transport;
   final ControlMode controlMode;

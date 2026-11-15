@@ -55,7 +55,8 @@ bash tool/test_portable_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualif
 
 The runner verifies the supplied image checksum and creates a temporary overlay.
 It starts QEMU as the current user with SSH bound to loopback. KVM is used when
-accessible; otherwise QEMU uses software emulation. The guest downloads its build
+accessible; otherwise QEMU uses software emulation. Set `LLLF_VM_ACCELERATOR=tcg`
+to reproduce CI's software emulation on a KVM host. The guest downloads its build
 dependencies over the network. The runner copies native source directories into
 the VM and runs the setup script there. It terminates the VM and deletes the disk
 overlay and temporary SSH key on exit. It requires an unused output directory.

@@ -33,7 +33,7 @@ void main() {
           .firstWhere((s) => s.hasLoaded);
       await container.pump();
       expect(container.read(activeKeyboardAssignmentProvider).profile, isNull);
-      expect(container.exists(rgbLightingBlocProvider), isFalse);
+      expect(container.read(rgbLightingBlocProvider.exists), isFalse);
     },
   );
 

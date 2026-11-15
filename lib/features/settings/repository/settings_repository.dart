@@ -13,10 +13,9 @@ class SettingsRepositoryException extends AppFailure {
 
 class SettingsRepository {
   SettingsRepository({
-    required LegionControlClient controlClient,
-    ControlMode controlMode = ControlMode.installedService,
-  }) : _controlClient = controlClient,
-       _controlMode = controlMode;
+    required this._controlClient,
+    this._controlMode = ControlMode.installedService,
+  });
 
   final LegionControlClient _controlClient;
   final ControlMode _controlMode;

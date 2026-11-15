@@ -127,10 +127,9 @@ class DBusPowerProfilesDaemonClient implements PowerProfilesDaemonClient {
 
 class PowerProfileService {
   const PowerProfileService({
-    required LegionSysfsService sysfsService,
-    required PowerProfilesDaemonClient daemonClient,
-  }) : _sysfsService = sysfsService,
-       _daemonClient = daemonClient;
+    required this._sysfsService,
+    required this._daemonClient,
+  });
 
   final LegionSysfsService _sysfsService;
   final PowerProfilesDaemonClient _daemonClient;

@@ -6,9 +6,8 @@ import 'about_event.dart';
 import 'about_state.dart';
 
 class AboutBloc extends Bloc<AboutEvent, AboutState> {
-  AboutBloc({required AboutRepository repository})
-    : _repository = repository,
-      super(AboutState.initial()) {
+  AboutBloc({required this._repository})
+    : super(AboutState.initial()) {
     on<AboutStarted>(_onStarted);
     on<AboutRefreshRequested>(_onRefreshRequested);
   }

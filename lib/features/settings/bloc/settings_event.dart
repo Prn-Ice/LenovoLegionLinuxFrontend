@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import '../../../core/models/control_mode.dart';
 import '../../../core/models/app_failure.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:yaru/yaru.dart';
 
 sealed class SettingsEvent extends Equatable {

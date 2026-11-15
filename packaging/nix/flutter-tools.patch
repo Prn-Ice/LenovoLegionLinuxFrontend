@@ -1,0 +1,37 @@
+diff --git a/packages/flutter_tools/lib/src/runner/flutter_command.dart b/packages/flutter_tools/lib/src/runner/flutter_command.dart
+--- a/packages/flutter_tools/lib/src/runner/flutter_command.dart
++++ b/packages/flutter_tools/lib/src/runner/flutter_command.dart
+@@ -1624,5 +1624,5 @@
+     // Populate the cache. We call this before pub get below so that the
+     // sky_engine package is available in the flutter cache for pub to find.
+-    if (shouldUpdateCache) {
++    if (false) {
+       // First always update universal artifacts, as some of these (e.g.
+       // ios-deploy on macOS) are required to determine `requiredArtifacts`.
+diff --git a/packages/flutter_tools/lib/src/android/gradle_utils.dart b/packages/flutter_tools/lib/src/android/gradle_utils.dart
+--- a/packages/flutter_tools/lib/src/android/gradle_utils.dart
++++ b/packages/flutter_tools/lib/src/android/gradle_utils.dart
+@@ -18,4 +18,5 @@
+ import '../build_info.dart';
+ import '../cache.dart';
++import '../globals.dart' as globals;
+ import '../project.dart';
+ import 'android_sdk.dart';
+diff --git a/packages/flutter_tools/lib/src/base/os.dart b/packages/flutter_tools/lib/src/base/os.dart
+--- a/packages/flutter_tools/lib/src/base/os.dart
++++ b/packages/flutter_tools/lib/src/base/os.dart
+@@ -175,4 +175,14 @@
+   @protected
+   HostPlatform get defaultHostPlatform {
++    const nixHostPlatform = String.fromEnvironment('NIX_FLUTTER_HOST_PLATFORM');
++    if (nixHostPlatform.isNotEmpty) {
++      return switch (nixHostPlatform) {
++        'x86_64-linux' => HostPlatform.linux_x64,
++        'aarch64-linux' => HostPlatform.linux_arm64,
++        'x86_64-darwin' => HostPlatform.darwin_x64,
++        'aarch64-darwin' => HostPlatform.darwin_arm64,
++        String value => throw ArgumentError.value(value, 'NIX_FLUTTER_HOST_PLATFORM', 'Unknown Nix host platform!'),
++      };
++    }
+     return switch (_currentAbi) {
+       Abi.macosX64 => HostPlatform.darwin_x64,

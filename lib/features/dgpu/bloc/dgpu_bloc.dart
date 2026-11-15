@@ -10,11 +10,9 @@ import 'dgpu_state.dart';
 
 class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
   DgpuBloc({
-    required DgpuRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(DgpuState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(DgpuState.initial()) {
     on<DgpuStarted>(_onStarted);
     on<DgpuRefreshRequested>(_onRefreshRequested);
     on<DgpuTicked>(_onTicked);

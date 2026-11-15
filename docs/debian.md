@@ -24,8 +24,8 @@ user in the pinned Ubuntu 22.04 container used for AppImage builds. Build from
 a clean committed checkout:
 
 ```bash
-curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
-bash tool/build_deb.sh /tmp/flutter-3.47.9.tar.xz build/deb-release
+curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
+bash tool/build_deb.sh /tmp/flutter-3.50.0.tar.xz build/deb-release
 ```
 
 The script verifies the SDK checksum in `packaging/appimage/build-inputs.json`.

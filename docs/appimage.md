@@ -60,9 +60,8 @@ KDE Wayland with hybrid graphics. These checks do not establish real hardware
 control or desktop password-prompt behavior.
 
 Wayland startup still reports `Unable to load  from the cursor theme`.
-Flutter initializes its cursor name to an empty string before GTK realizes the
-view. The pinned engine and stable Flutter 3.50.0 both contain this behavior;
-an SDK upgrade alone does not resolve it. Track the upstream fix in
+Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
+the view. Track the upstream fix in
 `lllf-dt0.5.10.1`. Keep the standard launch command; no cursor shim or log filter
 is included.
 
@@ -73,9 +72,9 @@ ordinary user in an Ubuntu container. It mounts no host devices or system bus.
 Source packaging requires a clean committed checkout.
 
 ```bash
-curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
+curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
 python3 tool/fetch_appimage_runtime.py build/appimage-inputs
-bash tool/build_appimage.sh /tmp/flutter-3.47.9.tar.xz build/appimage-inputs build/appimage-release
+bash tool/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
 ```
 
 If a cached builder's exact source package returns HTTP 404, refresh the Ubuntu
