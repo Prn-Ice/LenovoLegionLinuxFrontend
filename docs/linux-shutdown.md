@@ -38,6 +38,19 @@ approval-cancel-retry test still needs a replacement image.
 
 ## Upstream work
 
+Flutter's open, Linux-triaged
+[engine shutdown issue](https://github.com/flutter/flutter/issues/132404)
+records the same lifecycle gap: the GTK application loop returns before the
+Linux embedder shuts down the Flutter engine and Dart root isolate. In the exact
+Flutter 3.50.0 source, the normal exit path detaches the GTK windows and quits
+`GApplication`; it does not stop the engine.
+
+Flutter 3.50.0's public `FlEngine` API has no stop, shutdown, renderer-fence, or
+idle-wait operation. Engine shutdown occurs only during internal GObject
+disposal. The runner cannot request that sequence through a supported API, and
+forcing disposal reaches the renderer race described above. Framework exit APIs
+use the same native exit path, so they do not provide an app-level mitigation.
+
 Flutter's [renderer lifetime work](https://github.com/flutter/flutter/pull/193533)
 proposes moving mutex and task-runner cleanup until raster references are gone
 and synchronizing graphics-resource teardown. It remains open and is not in
