@@ -62,7 +62,6 @@ jobs:
           sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
       - name: Require hosted KVM and record access
         run: |
-          grep -Fq GenuineIntel /proc/cpuinfo
           test -e /dev/kvm
           sudo setfacl -m u:"$(id -un)":rw /dev/kvm
           test -r /dev/kvm -a -w /dev/kvm
