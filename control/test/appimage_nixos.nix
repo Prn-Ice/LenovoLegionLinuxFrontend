@@ -188,7 +188,8 @@ pkgs.testers.runNixOSTest {
             close_gui()
 
     gui_log = machine.succeed("cat /home/approved/gui.log")
-    assert "Pango-CRITICAL" not in gui_log, gui_log
+    for diagnostic in ["Pango-CRITICAL", "GLib-CRITICAL", "GLib-GObject-CRITICAL"]:
+        assert diagnostic not in gui_log, gui_log
     machine.copy_from_machine("/home/approved/gui.log")
 
     with subtest("official appimage-run closes normally on Wayland"):
@@ -217,7 +218,8 @@ pkgs.testers.runNixOSTest {
                 machine.wait_until_succeeds("test -s /home/approved/wayland.exit", timeout=timedelta(seconds=15))
                 assert machine.succeed("cat /home/approved/wayland.exit").strip() == "0", machine.succeed("cat /home/approved/wayland.log")
             wayland_log = machine.succeed("cat /home/approved/wayland.log")
-            assert "Pango-CRITICAL" not in wayland_log, wayland_log
+            for diagnostic in ["Pango-CRITICAL", "GLib-CRITICAL", "GLib-GObject-CRITICAL"]:
+                assert diagnostic not in wayland_log, wayland_log
         except Exception:
             print(machine.execute("cat /home/approved/wayland.log /home/approved/sway.log")[1])
             raise

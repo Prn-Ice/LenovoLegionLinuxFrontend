@@ -137,9 +137,14 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                     )
                     status = process.wait(timeout=15)
                     assert status == 0, (status, log_path.read_text())
-                    assert "Pango-CRITICAL" not in log_path.read_text(), (
-                        log_path.read_text()
-                    )
+                    for diagnostic in (
+                        "Pango-CRITICAL",
+                        "GLib-CRITICAL",
+                        "GLib-GObject-CRITICAL",
+                    ):
+                        assert diagnostic not in log_path.read_text(), (
+                            log_path.read_text()
+                        )
                     print("PASS: close button exits normally from " + label, flush=True)
                     break
                 if process.poll() is not None or time.monotonic() >= deadline:

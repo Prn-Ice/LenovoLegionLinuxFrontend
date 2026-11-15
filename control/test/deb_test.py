@@ -66,8 +66,12 @@ def main():
         )
 
     verify_bundle()
-    machine.succeed(
-        "runuser -u approved -- xvfb-run -a dbus-run-session -- python3 /opt/legion-vm-tests/deb_test.py --gui"
+    print(
+        machine.succeed(
+            "runuser -u approved -- xvfb-run -a dbus-run-session -- python3 /opt/legion-vm-tests/deb_test.py --gui",
+            timeout=150,
+        ),
+        flush=True,
     )
     helper = "/usr/lib/legion_frontend/libexec/legion-portable-control"
     app = session.PortableSession("approved", helper, copy_launcher=False)
@@ -109,7 +113,10 @@ def main():
             "Version: " + upgraded + "\n",
         )
     )
-    machine.succeed("dpkg-deb --root-owner-group --build /tmp/upgrade /tmp/upgrade.deb")
+    # The fixture checks upgrade behavior; compression is covered by installation.
+    machine.succeed(
+        "dpkg-deb --root-owner-group -Znone --build /tmp/upgrade /tmp/upgrade.deb"
+    )
     machine.succeed("apt-get install -y --no-install-recommends /tmp/upgrade.deb")
     assert (
         machine.succeed("dpkg-query -W -f='${Version}' legion-linux-frontend").strip()

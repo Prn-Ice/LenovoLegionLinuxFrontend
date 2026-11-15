@@ -1,20 +1,29 @@
 """Local command boundary and persistent-file snapshots for disposable VMs."""
+
 import hashlib
-from pathlib import Path
 import subprocess
 import time
+from pathlib import Path
 
 
 class LocalMachine:
     """Run the shared session driver inside the disposable VM."""
 
-    def execute(self, command):
-        result = subprocess.run(command, shell=True, executable="/bin/bash", text=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=45)
+    def execute(self, command, timeout=45):
+        result = subprocess.run(
+            command,
+            check=False,
+            shell=True,
+            executable="/bin/bash",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+        )
         return result.returncode, result.stdout
 
-    def succeed(self, command):
-        code, output = self.execute(command)
+    def succeed(self, command, timeout=45):
+        code, output = self.execute(command, timeout=timeout)
         if code:
             raise AssertionError(f"Command failed ({code}): {command}\n{output}")
         return output
@@ -37,13 +46,24 @@ class LocalMachine:
 
 
 def persistent_files():
-    roots = ["/etc/systemd/system", "/usr/lib/systemd/system", "/etc/polkit-1",
-             "/usr/share/polkit-1/actions", "/etc/dbus-1/system.d",
-             "/usr/share/dbus-1/system.d", "/etc/udev/rules.d"]
+    roots = [
+        "/etc/systemd/system",
+        "/usr/lib/systemd/system",
+        "/etc/polkit-1",
+        "/usr/share/polkit-1/actions",
+        "/etc/dbus-1/system.d",
+        "/usr/share/dbus-1/system.d",
+        "/etc/udev/rules.d",
+    ]
     return {
-        str(path): (path.lstat().st_mode, path.lstat().st_uid,
-                    str(path.readlink()) if path.is_symlink()
-                    else hashlib.sha256(path.read_bytes()).hexdigest())
-        for root in roots for path in Path(root).rglob("*")
+        str(path): (
+            path.lstat().st_mode,
+            path.lstat().st_uid,
+            str(path.readlink())
+            if path.is_symlink()
+            else hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+        for root in roots
+        for path in Path(root).rglob("*")
         if path.is_file() or path.is_symlink()
     }

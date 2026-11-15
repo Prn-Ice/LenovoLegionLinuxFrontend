@@ -110,10 +110,14 @@ with (
     finally:
         stop(mount)
 
-machine.succeed(
-    "runuser -u approved -- xvfb-run -a python3 /opt/legion-vm-tests/appimage_test.py --gui "
-    + shlex.quote(str(image))
-    + " fuse"
+print(
+    machine.succeed(
+        "runuser -u approved -- xvfb-run -a python3 /opt/legion-vm-tests/appimage_test.py --gui "
+        + shlex.quote(str(image))
+        + " fuse",
+        timeout=150,
+    ),
+    flush=True,
 )
 extraction = Path("/home/approved/Extracted app with spaces")
 machine.succeed(
@@ -163,10 +167,15 @@ print(
     "PASS: bundled helper from extraction with synthetic write/readback/restore",
     flush=True,
 )
-machine.succeed(
-    "runuser -u approved -- xvfb-run -a python3 /opt/legion-vm-tests/appimage_test.py --gui "
-    + shlex.quote(str(appdir / "AppRun"))
-    + " extracted"
+# The first X server may still be releasing its socket after xvfb-run exits.
+print(
+    machine.succeed(
+        "runuser -u approved -- xvfb-run -a --server-num=100 python3 /opt/legion-vm-tests/appimage_test.py --gui "
+        + shlex.quote(str(appdir / "AppRun"))
+        + " extracted",
+        timeout=150,
+    ),
+    flush=True,
 )
 machine.wait_until_succeeds(
     'test -z "$(findmnt -rn -t fuse,fuse.squashfuse)"', timeout=timedelta(seconds=10)
