@@ -41,7 +41,8 @@ Mesa; explicitly destroying the retained window instead can abort in
 [renderer lifetime work](https://github.com/flutter/flutter/pull/193533) addresses
 resource cleanup across the GTK and raster threads, but is not in this stable
 SDK. Keep the published launch instructions and close assertions intact; a
-passing Dart suite does not qualify a desktop package.
+passing Dart suite does not qualify a desktop package. See the
+[shutdown evidence and follow-up](linux-shutdown.md).
 
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
 development dependency. It follows the installed Flutter version. These tests

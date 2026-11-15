@@ -2,9 +2,13 @@
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It checks the version,
 runs the full CI workflow on that commit, and creates a draft GitHub release
-with the checked AppImage, Debian package, and their companions. Drafts retain the current
+with the checked AppImage, Debian package, and their companions. Drafts retain
 qualification notes while real hardware and desktop password-prompt checks
 remain open.
+
+The Flutter 3.50 upgrade has an unresolved [Linux shutdown failure](linux-shutdown.md).
+Its package acceptance is incomplete; a tag build will stop if its close checks
+fail. The workflow is configured, but this candidate is not qualified for release.
 
 ## Push a tag
 
@@ -33,8 +37,8 @@ The tag workflow calls the same CI workflow used for main and pull requests:
 release-tool fixtures, Flutter analysis/tests and generated-source checks,
 native tests, NixOS lifecycle/bootstrap VMs, Ubuntu helper checks, Linux app
 journeys, Nix frontend build/acceptance, AppImage acceptance, and Debian package
-installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft job starts after every
-check succeeds.
+installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft job starts
+after every check succeeds.
 
 The release helper then verifies the tag version, app/source hashes, complete
 helper inventory, and the VM evidence. The evidence must describe a clean

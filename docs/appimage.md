@@ -155,6 +155,14 @@ real hardware is not involved. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
+## Known shutdown issue
+
+Flutter 3.50.0 can crash when closing the app in the NixOS VM. The SDK upgrade
+and a native cleanup experiment did not resolve it. The experiment was reverted;
+package acceptance remains incomplete. See the
+[shutdown evidence and follow-up](linux-shutdown.md) before treating a trial
+artifact as release-ready.
+
 ## Desktop trial
 
 After opening the app, choose **Temporary helper** in Settings, close it, and
