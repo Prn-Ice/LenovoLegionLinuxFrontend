@@ -84,8 +84,9 @@ Future<void> openAutomation(WidgetTester tester) async {
     tester,
     () =>
         find.byType(AutomationPage).evaluate().isNotEmpty &&
-        assignments.evaluate().length == KeyboardPowerMode.values.length,
-    description: 'loaded Automation page and profile assignment selectors',
+        assignments.evaluate().length == KeyboardPowerMode.values.length &&
+        find.textContaining('Current mode:').evaluate().isNotEmpty,
+    description: 'loaded Automation page, profile assignment selectors, and current mode',
   );
   await tester.pumpAndSettle();
 }
