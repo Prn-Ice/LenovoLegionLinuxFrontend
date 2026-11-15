@@ -2,6 +2,8 @@
 set -eu
 appdir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 bundle="$appdir/usr/lib/legion_frontend"
+# Fontconfig 2.13 resolves relative font directories from the working directory.
+cd -- "$appdir"
 PATH="$appdir/usr/bin:$PATH"
 LD_LIBRARY_PATH="$bundle/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 GSETTINGS_SCHEMA_DIR="$appdir/usr/share/glib-2.0/schemas"

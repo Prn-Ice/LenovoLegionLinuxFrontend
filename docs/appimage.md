@@ -70,6 +70,15 @@ python3 tool/fetch_appimage_runtime.py build/appimage-inputs
 bash tool/build_appimage.sh /tmp/flutter-3.47.9.tar.xz build/appimage-inputs build/appimage-release
 ```
 
+If a cached builder's exact source package returns HTTP 404, refresh the Ubuntu
+builder, then rerun the build. This updates its installed packages and source
+indices together:
+
+```sh
+docker build --no-cache --tag lllf-appimage-builder:ubuntu22.04 \
+  --file packaging/appimage/Dockerfile packaging/appimage
+```
+
 The scripts check the SDK, runtime, and source archive hashes against
 `packaging/appimage/build-inputs.json`. The output includes the versioned
 `.AppImage`, source companion, build manifest, and `SHA256SUMS`. Keep these files
@@ -89,6 +98,8 @@ licenses. Installed service units, D-Bus policies, and Polkit actions are remove
 from the AppDir. Running it installs no persistent integration files.
 
 AppRun selects the bundled desktop libraries, schemas, fonts, and GIO modules.
+It starts in the AppDir so bundled Fontconfig 2.13 can resolve `usr/share/fonts`.
+That version does not support the newer `prefix="relative"` configuration syntax.
 It creates an image-loader cache for the current mount path and removes that
 cache when the desktop exits. Signals stop its desktop child and clean up the
 cache. Host CLI reads and helper startup filter out the bundled library, font,

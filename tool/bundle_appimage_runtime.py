@@ -309,7 +309,7 @@ def bundle_runtime(root, appdir, inputs):
     fontconfig.write_text("""<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <fontconfig>
-  <dir prefix="relative">../../share/fonts</dir>
+  <dir>usr/share/fonts</dir>
   <dir>/usr/share/fonts</dir>
   <dir>/usr/local/share/fonts</dir>
   <dir prefix="xdg">fonts</dir>

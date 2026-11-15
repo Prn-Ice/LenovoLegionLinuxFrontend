@@ -161,6 +161,8 @@ pkgs.testers.runNixOSTest {
         machine.fail("systemctl cat legion-control.service")
         machine.fail("systemctl cat legion-telemetry.service")
 
+    gui_log = machine.succeed("cat /home/approved/gui.log")
+    assert "Pango-CRITICAL" not in gui_log, gui_log
     machine.copy_from_machine("/home/approved/gui.log")
 
     with subtest("official appimage-run closes normally on Wayland"):
@@ -188,6 +190,8 @@ pkgs.testers.runNixOSTest {
                 machine.succeed(wayland("swaymsg '[app_id=\"io.github.prnice.legion_linux_frontend\"] kill'"))
                 machine.wait_until_succeeds("test -s /home/approved/wayland.exit", timeout=timedelta(seconds=15))
                 assert machine.succeed("cat /home/approved/wayland.exit").strip() == "0", machine.succeed("cat /home/approved/wayland.log")
+            wayland_log = machine.succeed("cat /home/approved/wayland.log")
+            assert "Pango-CRITICAL" not in wayland_log, wayland_log
         except Exception:
             print(machine.execute("cat /home/approved/wayland.log /home/approved/sway.log")[1])
             raise

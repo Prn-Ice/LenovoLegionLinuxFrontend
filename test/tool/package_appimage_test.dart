@@ -137,22 +137,36 @@ void main() {
     },
   );
 
-  test('AppRun preserves arguments and paths containing spaces', () async {
-    final appdir = Directory('${temporary.path}/Legion.AppDir');
-    await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
-    final result = await Process.run(
-      '${appdir.path}/AppRun',
-      ['argument with spaces', r'$literal'],
-      environment: {'PATH': commands.path, 'LD_LIBRARY_PATH': '/original/lib'},
-    );
-    expect(result.exitCode, 0, reason: result.stderr.toString());
-    expect((result.stdout as String).split('\n'), [
-      'argument with spaces',
-      r'$literal',
-      '${appdir.path}/usr/lib/legion_frontend/lib:/original/lib',
-      '',
-    ]);
-  });
+  test(
+    'AppRun uses its bundle directory and preserves arguments with spaces',
+    () async {
+      final caller = Directory('${temporary.path}/unrelated caller')
+        ..createSync();
+      write(
+        '${bundle.path}/legion_frontend',
+        '#!/bin/sh\nprintf \'%s\\n\' "\$PWD" "\$@" "\$LD_LIBRARY_PATH"\n',
+      );
+      final appdir = Directory('${temporary.path}/Legion.AppDir');
+      await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
+      final result = await Process.run(
+        '${appdir.path}/AppRun',
+        ['argument with spaces', r'$literal'],
+        workingDirectory: caller.path,
+        environment: {
+          'PATH': commands.path,
+          'LD_LIBRARY_PATH': '/original/lib',
+        },
+      );
+      expect(result.exitCode, 0, reason: result.stderr.toString());
+      expect((result.stdout as String).split('\n'), [
+        appdir.path,
+        'argument with spaces',
+        r'$literal',
+        '${appdir.path}/usr/lib/legion_frontend/lib:/original/lib',
+        '',
+      ]);
+    },
+  );
 
   test(
     'AppRun uses its bundled directory command and removes its temporary cache',
