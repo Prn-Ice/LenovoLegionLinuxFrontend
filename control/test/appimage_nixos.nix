@@ -192,39 +192,62 @@ pkgs.testers.runNixOSTest {
         assert diagnostic not in gui_log, gui_log
     machine.copy_from_machine("/home/approved/gui.log")
 
-    with subtest("official appimage-run closes normally on Wayland"):
+    with subtest("official appimage-run closes normally on Wayland repeatedly"):
         machine.succeed("install -d -o approved -g users -m700 /run/user/1000")
+        machine.succeed("install -d -o approved -g users /home/approved/wayland-diagnostics")
         machine.succeed("printf '%s\\n' 'output HEADLESS-1 resolution 1280x900' 'default_border none' >/home/approved/sway.conf")
 
         def wayland(command):
             environment = "env XDG_RUNTIME_DIR=/run/user/1000 SWAYSOCK=/run/user/1000/sway.sock WAYLAND_DISPLAY=wayland-1 GDK_BACKEND=wayland LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory "
             return portable_as_user("approved", environment + "sh -c " + shlex.quote(command))
 
+        app_id = "io.github.prnice.legion_linux_frontend"
+        windows = "[.. | objects | select(.app_id? == $app)]"
+        visible_window = windows + " | select(length == 1) | .[0] | select(.visible == true and .rect.width > 0 and .rect.height > 0)"
+        no_window = windows + " | length == 0"
         compositor = "WLR_BACKENDS=headless WLR_RENDERER=pixman dbus-run-session -- sway -c /home/approved/sway.conf"
         machine.succeed(wayland(compositor) + " >/home/approved/sway.log 2>&1 &")
         try:
             machine.wait_until_succeeds("test -S /run/user/1000/sway.sock", timeout=timedelta(seconds=45))
             for attempt in range(10):
+                number = attempt + 1
+                prefix = "/home/approved/wayland-diagnostics/attempt-" + str(number)
                 machine.succeed("rm -f /home/approved/wayland.exit")
-                launch = "appimage-run " + shlex.quote(image) + " >>/home/approved/wayland.log 2>&1; printf '%s' \"$?\" >/home/approved/wayland.exit"
-                machine.succeed(wayland("dbus-run-session -- sh -c " + shlex.quote(launch)) + " >/home/approved/wayland-launcher.log 2>&1 &")
-                visible = "swaymsg -t get_tree | jq -e '.. | objects | select(.app_id? == \"io.github.prnice.legion_linux_frontend\")'"
+                launch = "appimage-run " + shlex.quote(image) + " >>/home/approved/wayland.log 2>&1 & app=$!; printf '%s' \"$app\" >" + prefix + "-launcher.pid; wait \"$app\"; status=$?; printf '%s' \"$status\" >/home/approved/wayland.exit; exit \"$status\""
+                machine.succeed(wayland("dbus-run-session -- sh -c " + shlex.quote(launch)) + " >>/home/approved/wayland-launcher.log 2>&1 &")
+                visible = "swaymsg -t get_tree | jq -e --arg app " + shlex.quote(app_id) + " " + shlex.quote(visible_window) + " >/dev/null"
                 machine.wait_until_succeeds(wayland(visible), timeout=timedelta(seconds=60))
-                frame = "grim /home/approved/wayland.png && magick /home/approved/wayland.png -crop 380x32+288+7 -resize 300% /home/approved/wayland-label.png && tesseract /home/approved/wayland-label.png stdout --psm 7 2>/dev/null | grep -Fi Dashboard"
+                frame = (
+                    "swaymsg -t get_tree >" + prefix + "-tree.json; "
+                    "node=$(jq -cer --arg app " + shlex.quote(app_id) + " " + shlex.quote(visible_window) + " " + prefix + "-tree.json) || exit; "
+                    "printf '%s\\n' \"$node\" >" + prefix + "-window.json; "
+                    "geometry=$(printf '%s\\n' \"$node\" | jq -r '.rect | \"\\(.x),\\(.y) \\(.width)x\\(.height)\"'); "
+                    "printf 'attempt=%s launcher_pid=%s app_pid=%s geometry=%s visible=%s\\n' " + str(number) + " \"$(cat " + prefix + "-launcher.pid)\" \"$(printf '%s\\n' \"$node\" | jq -r .pid)\" \"$geometry\" \"$(printf '%s\\n' \"$node\" | jq -r .visible)\" >" + prefix + "-window.txt; "
+                    "grim -g \"$geometry\" " + prefix + "-frame.png; "
+                    "magick " + prefix + "-frame.png -resize 200% " + prefix + "-ocr.png; "
+                    "tesseract " + prefix + "-ocr.png " + prefix + "-ocr --psm 11 2>/dev/null; "
+                    "grep -Fi Dashboard " + prefix + "-ocr.txt"
+                )
                 machine.wait_until_succeeds(wayland(frame), timeout=timedelta(seconds=30))
+                print(machine.succeed("cat " + prefix + "-window.txt"))
                 # Sway's kill command sends the native window-close request;
                 # it does not send a process signal.
-                machine.succeed(wayland("swaymsg '[app_id=\"io.github.prnice.legion_linux_frontend\"] kill'"))
+                machine.succeed(wayland("swaymsg '[app_id=\"" + app_id + "\"] kill'"))
                 machine.wait_until_succeeds("test -s /home/approved/wayland.exit", timeout=timedelta(seconds=15))
                 assert machine.succeed("cat /home/approved/wayland.exit").strip() == "0", machine.succeed("cat /home/approved/wayland.log")
+                absent = "swaymsg -t get_tree | jq -e --arg app " + shlex.quote(app_id) + " " + shlex.quote(no_window) + " >/dev/null"
+                machine.wait_until_succeeds(wayland(absent), timeout=timedelta(seconds=15))
             wayland_log = machine.succeed("cat /home/approved/wayland.log")
             for diagnostic in ["Pango-CRITICAL", "GLib-CRITICAL", "GLib-GObject-CRITICAL"]:
                 assert diagnostic not in wayland_log, wayland_log
         except Exception:
-            print(machine.execute("cat /home/approved/wayland.log /home/approved/sway.log")[1])
+            print(machine.execute("cat /home/approved/wayland.log /home/approved/wayland-launcher.log /home/approved/sway.log; for file in /home/approved/wayland-diagnostics/*-window.txt; do test -f \"$file\" || continue; cat \"$file\"; done; latest=$(ls -1v /home/approved/wayland-diagnostics/*-ocr.txt 2>/dev/null | tail -n1); if test -n \"$latest\"; then echo ===\"$latest\"; cat \"$latest\"; frame=''${latest%-ocr.txt}-frame.png; magick identify \"$frame\"; fi; journalctl -b --no-pager -k | tail -n 100")[1])
             raise
         finally:
             machine.copy_from_machine("/home/approved/wayland.log")
+            machine.copy_from_machine("/home/approved/wayland-launcher.log")
+            machine.copy_from_machine("/home/approved/sway.log")
+            machine.copy_from_machine("/home/approved/wayland-diagnostics")
             machine.execute(wayland("swaymsg exit"))
 
     with subtest("the same helper still rejects denied approval and a missing agent"):
