@@ -13,8 +13,6 @@ struct _MyApplication {
   char** dart_entrypoint_arguments;
   // Keep the engine alive until the main loop stops: flutter/flutter#193742.
   FlEngine* engine;
-  // Flutter detaches this window from GtkApplication when quitting.
-  GtkWindow* window;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -210,7 +208,6 @@ static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
-  g_set_object(&self->window, window);
 
   // Use a header bar under GNOME and Wayland. Use a traditional title bar on
   // X11 when not using GNOME to support tiling window managers.
@@ -298,13 +295,9 @@ static void my_application_startup(GApplication* application) {
 
 // Implements GApplication::shutdown.
 static void my_application_shutdown(GApplication* application) {
-  MyApplication* self = MY_APPLICATION(application);
-  // Stop the renderer after the main loop, before process library teardown.
-  if (self->window != nullptr) gtk_widget_destroy(GTK_WIDGET(self->window));
-  g_clear_object(&self->window);
-  // Pending engine tasks can retain references after the window is destroyed.
-  if (self->engine != nullptr) g_object_run_dispose(G_OBJECT(self->engine));
-  g_clear_object(&self->engine);
+  // MyApplication* self = MY_APPLICATION(object);
+
+  // Perform any actions required at application shutdown.
 
   G_APPLICATION_CLASS(my_application_parent_class)->shutdown(application);
 }
@@ -313,7 +306,6 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
-  g_clear_object(&self->window);
   g_clear_object(&self->engine);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }

@@ -27,15 +27,21 @@ Use upstream packaging when Nixpkgs supplies Flutter 3.50.
 
 Flutter's Linux task runner can dispatch queued work after its owner is freed
 during window shutdown ([upstream report](https://github.com/flutter/flutter/issues/193742)).
-The native application retains its window and engine until the
-[`GApplication::shutdown` hook](https://docs.gtk.org/gio/signal.Application.shutdown.html),
-after the main loop stops. Flutter detaches the window on quit, so the hook
-destroys it explicitly, disposes the engine to release pending task references,
-and drops both retained references. Without this cleanup, the renderer can
-survive into graphics-library teardown and crash in Mesa. Installation and launch
-use the standard commands. Recheck this cleanup after a compatible stable SDK
-includes [the task-runner fix](https://github.com/flutter/flutter/pull/194525)
-and repeated window-close checks pass (`lllf-dt0.5.13`, `lllf-dt0.5.16`).
+The native application retains its engine until `MyApplication.dispose`, after
+`g_application_run` returns. This small lifetime workaround was approved on
+2026-11-12; it requires no change to installation or launch. Remove it after a
+compatible stable SDK includes [the upstream fix](https://github.com/flutter/flutter/pull/194525)
+and repeated window-close checks pass (`lllf-dt0.5.13`).
+
+
+Flutter 3.50 package qualification remains blocked by Linux renderer teardown
+(`lllf-dt0.5.16`). The NixOS AppImage can exit while its raster thread still uses
+Mesa; explicitly destroying the retained window instead can abort in
+`g_mutex_clear`. The experimental cleanup was rejected. Upstream
+[renderer lifetime work](https://github.com/flutter/flutter/pull/193533) addresses
+resource cleanup across the GTK and raster threads, but is not in this stable
+SDK. Keep the published launch instructions and close assertions intact; a
+passing Dart suite does not qualify a desktop package.
 
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
 development dependency. It follows the installed Flutter version. These tests
