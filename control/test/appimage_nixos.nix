@@ -217,16 +217,19 @@ pkgs.testers.runNixOSTest {
                 machine.succeed(wayland("dbus-run-session -- sh -c " + shlex.quote(launch)) + " >>/home/approved/wayland-launcher.log 2>&1 &")
                 visible = "swaymsg -t get_tree | jq -e --arg app " + shlex.quote(app_id) + " " + shlex.quote(visible_window) + " >/dev/null"
                 machine.wait_until_succeeds(wayland(visible), timeout=timedelta(seconds=60))
+                # Check the page heading, not the persistent Dashboard navigation item.
+                # The crop is relative to the current Sway window captured below.
                 frame = (
-                    "swaymsg -t get_tree >" + prefix + "-tree.json; "
-                    "node=$(jq -cer --arg app " + shlex.quote(app_id) + " " + shlex.quote(visible_window) + " " + prefix + "-tree.json) || exit; "
-                    "printf '%s\\n' \"$node\" >" + prefix + "-window.json; "
-                    "geometry=$(printf '%s\\n' \"$node\" | jq -r '.rect | \"\\(.x),\\(.y) \\(.width)x\\(.height)\"'); "
-                    "printf 'attempt=%s launcher_pid=%s app_pid=%s geometry=%s visible=%s\\n' " + str(number) + " \"$(cat " + prefix + "-launcher.pid)\" \"$(printf '%s\\n' \"$node\" | jq -r .pid)\" \"$geometry\" \"$(printf '%s\\n' \"$node\" | jq -r .visible)\" >" + prefix + "-window.txt; "
-                    "grim -g \"$geometry\" " + prefix + "-frame.png; "
-                    "magick " + prefix + "-frame.png -resize 200% " + prefix + "-ocr.png; "
-                    "tesseract " + prefix + "-ocr.png " + prefix + "-ocr --psm 11 2>/dev/null; "
-                    "grep -Fi Dashboard " + prefix + "-ocr.txt"
+                    "set -e; rm -f " + prefix + "-tree.json " + prefix + "-window.json " + prefix + "-window.txt " + prefix + "-frame.png " + prefix + "-header.png " + prefix + "-ocr.txt; "
+                    "swaymsg -t get_tree >" + prefix + "-tree.json && "
+                    "node=$(jq -cer --arg app " + shlex.quote(app_id) + " " + shlex.quote(visible_window) + " " + prefix + "-tree.json) && "
+                    "printf '%s\\n' \"$node\" >" + prefix + "-window.json && "
+                    "geometry=$(printf '%s\\n' \"$node\" | jq -r '.rect | \"\\(.x),\\(.y) \\(.width)x\\(.height)\"') && "
+                    "printf 'attempt=%s launcher_pid=%s app_pid=%s geometry=%s visible=%s\\n' " + str(number) + " \"$(cat " + prefix + "-launcher.pid)\" \"$(printf '%s\\n' \"$node\" | jq -r .pid)\" \"$geometry\" \"$(printf '%s\\n' \"$node\" | jq -r .visible)\" >" + prefix + "-window.txt && "
+                    "grim -g \"$geometry\" " + prefix + "-frame.png && "
+                    "magick " + prefix + "-frame.png -crop 380x32+288+7 +repage -resize 300% " + prefix + "-header.png && "
+                    "tesseract " + prefix + "-header.png " + prefix + "-ocr --psm 7 2>/dev/null && "
+                    "grep -Fxi -- Dashboard " + prefix + "-ocr.txt"
                 )
                 machine.wait_until_succeeds(wayland(frame), timeout=timedelta(seconds=30))
                 print(machine.succeed("cat " + prefix + "-window.txt"))
@@ -241,7 +244,7 @@ pkgs.testers.runNixOSTest {
             for diagnostic in ["Pango-CRITICAL", "GLib-CRITICAL", "GLib-GObject-CRITICAL"]:
                 assert diagnostic not in wayland_log, wayland_log
         except Exception:
-            print(machine.execute("cat /home/approved/wayland.log /home/approved/wayland-launcher.log /home/approved/sway.log; for file in /home/approved/wayland-diagnostics/*-window.txt; do test -f \"$file\" || continue; cat \"$file\"; done; latest=$(ls -1v /home/approved/wayland-diagnostics/*-ocr.txt 2>/dev/null | tail -n1); if test -n \"$latest\"; then echo ===\"$latest\"; cat \"$latest\"; frame=''${latest%-ocr.txt}-frame.png; magick identify \"$frame\"; fi; journalctl -b --no-pager -k | tail -n 100")[1])
+            print(machine.execute("cat /home/approved/wayland.log /home/approved/wayland-launcher.log /home/approved/sway.log; for file in /home/approved/wayland-diagnostics/*-window.txt; do test -f \"$file\" || continue; cat \"$file\"; done; latest=$(ls -1v /home/approved/wayland-diagnostics/*-ocr.txt 2>/dev/null | tail -n1); if test -n \"$latest\"; then echo ===\"$latest\"; cat \"$latest\"; frame=''${latest%-ocr.txt}-frame.png; header=''${latest%-ocr.txt}-header.png; magick identify \"$frame\" \"$header\"; fi; journalctl -b --no-pager -k | tail -n 100")[1])
             raise
         finally:
             machine.copy_from_machine("/home/approved/wayland.log")
