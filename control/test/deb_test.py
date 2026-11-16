@@ -69,13 +69,23 @@ def main():
         )
 
     verify_bundle()
-    print(
-        machine.succeed(
-            "runuser -u approved -- xvfb-run -a dbus-run-session -- python3 /opt/legion-vm-tests/deb_test.py --gui",
-            timeout=150,
-        ),
-        flush=True,
-    )
+    diagnostic_attempts = int(os.environ.get("LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS", "1"))
+    assert 1 <= diagnostic_attempts <= 20
+    for attempt in range(1, diagnostic_attempts + 1):
+        if diagnostic_attempts > 1:
+            print(
+                f"DIAGNOSTIC ONLY: required normal-close pass "
+                f"{attempt}/{diagnostic_attempts}",
+                flush=True,
+            )
+        print(
+            machine.succeed(
+                "runuser -u approved -- xvfb-run -a dbus-run-session -- "
+                "python3 /opt/legion-vm-tests/deb_test.py --gui",
+                timeout=150,
+            ),
+            flush=True,
+        )
     helper = "/usr/lib/legion_frontend/libexec/legion-portable-control"
     app = session.PortableSession("approved", helper, copy_launcher=False)
     assert app.cli == "/usr/local/bin/legion_cli", app.cli
