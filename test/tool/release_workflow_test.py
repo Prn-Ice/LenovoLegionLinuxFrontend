@@ -1,5 +1,6 @@
 """Exercise release validation and GitHub writes with local files and fake API replies."""
 
+import hashlib
 import importlib.util
 import io
 import json
@@ -52,7 +53,13 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.image = self.prefix + ".AppImage"
         self.source = self.prefix + "-source.tar.gz"
         self.metadata = self.prefix + ".json"
-        (self.binary / self.image).write_bytes(b"AppImage fixture")
+        self.helper_contents = b"\x7fELFsynthetic native helper"
+        self.payload = Path(self.temporary.name) / "payload"
+        helper = self.payload / release.HELPER_PATH
+        helper.parent.mkdir(parents=True)
+        helper.write_bytes(self.helper_contents)
+        helper.chmod(0o755)
+        self.package_appimage_fixture()
         bundle = {
             ".": {"type": "directory", "mode": "755"},
             "./legion_frontend": {"type": "file", "mode": "755", "sha256": "b" * 64},
@@ -60,7 +67,7 @@ class ReleaseWorkflowTest(unittest.TestCase):
             "./libexec/legion-portable-control": {
                 "type": "file",
                 "mode": "755",
-                "sha256": "a" * 64,
+                "sha256": hashlib.sha256(self.helper_contents).hexdigest(),
             },
         }
         self.sources = {
@@ -76,6 +83,8 @@ class ReleaseWorkflowTest(unittest.TestCase):
             "source_commit": self.commit,
             "architecture": "x86_64",
             "portable_control": True,
+            "default_control_mode": "temporaryHelper",
+            "runtime_size": self.runtime_size,
             "appdir": {
                 "./usr/lib/legion_frontend" + path[1:]: entry
                 for path, entry in bundle.items()
@@ -84,11 +93,47 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.refresh()
         self.refresh_debian()
 
-    def refresh_debian(self):
+    def package_appimage_fixture(self):
+        squashfs = Path(self.temporary.name) / "payload.squashfs"
+        squashfs.unlink(missing_ok=True)
+        subprocess.run(
+            [
+                "mksquashfs",
+                str(self.payload),
+                str(squashfs),
+                "-noappend",
+                "-processors",
+                "1",
+                "-no-progress",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        runtime = b"AppImage runtime fixture"
+        self.runtime_size = len(runtime)
+        (self.binary / self.image).write_bytes(runtime + squashfs.read_bytes())
+
+    def refresh_debian(self, changes=None):
         self.deb = self.inputs / "deb-release"
         self.deb.mkdir(exist_ok=True)
         package, source, metadata, _ = release.debian_names({"version": "1.2.3+7"})
-        (self.deb / package).write_bytes(b"Debian package fixture")
+        control = self.payload / "DEBIAN/control"
+        control.parent.mkdir(exist_ok=True)
+        control.write_text(
+            "Package: fixture\nVersion: 1.2.3+7-1\nArchitecture: amd64\n"
+            "Maintainer: Test <test@example.invalid>\nDescription: Package fixture\n"
+        )
+        subprocess.run(
+            [
+                "dpkg-deb",
+                "--root-owner-group",
+                "--build",
+                str(self.payload),
+                str(self.deb / package),
+            ],
+            check=True,
+            capture_output=True,
+        )
         archive_json(self.deb / source, "./SOURCE-MANIFEST.json", self.sources)
         self.deb_manifest = {
             "format": 1,
@@ -97,11 +142,12 @@ class ReleaseWorkflowTest(unittest.TestCase):
             "architecture": "amd64",
             "source_commit": self.commit,
             "portable_control": True,
-            "default_control_mode": "installedService",
+            "default_control_mode": "temporaryHelper",
             "bundle": self.sources["bundle"],
             "files": {
                 name: release._sha256(self.deb / name) for name in [package, source]
             },
+            **(changes or {}),
         }
         (self.deb / metadata).write_text(json.dumps(self.deb_manifest))
         (self.deb / "SHA256SUMS").write_text(
@@ -245,7 +291,9 @@ class ReleaseWorkflowTest(unittest.TestCase):
                 "nixos": status
                 or "official appimage-run desktop and temporary control verified",
                 **(
-                    {"desktop_shutdown": "X11 close button and Wayland window close verified"}
+                    {
+                        "desktop_shutdown": "X11 close button and Wayland window close verified"
+                    }
                     if shutdown
                     else {}
                 ),
@@ -396,10 +444,80 @@ class ReleaseWorkflowTest(unittest.TestCase):
         self.assertIn("synthetic CLI", notes)
         self.assertIn("password prompts still need qualification", notes)
         self.assertIn(self.commit, notes)
+        self.assertIn("bundled temporary helper", notes)
+        self.assertNotIn("Choose", notes)
         with tarfile.open(
             self.output / (self.prefix + "-acceptance.tar.gz")
         ) as archive:
             self.assertIn("appimage-qualification.tar.gz", archive.getnames())
+
+    def test_installed_service_default_cannot_be_released(self):
+        self.manifest["default_control_mode"] = "installedService"
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "AppImage manifest"):
+            self.prepare()
+
+    def test_debian_installed_service_default_cannot_be_released(self):
+        self.refresh_debian({"default_control_mode": "installedService"})
+        with self.assertRaisesRegex(ValueError, "Debian build differs"):
+            self.prepare()
+
+    def test_debian_helper_payload_must_match_its_inventory(self):
+        (self.payload / release.HELPER_PATH).write_bytes(b"replacement helper")
+        self.refresh_debian()
+        with self.assertRaisesRegex(ValueError, "Debian helper payload differs"):
+            self.prepare()
+
+    def test_debian_helper_must_be_executable(self):
+        (self.payload / release.HELPER_PATH).chmod(0o644)
+        self.refresh_debian()
+        with self.assertRaisesRegex(ValueError, "Debian helper payload differs"):
+            self.prepare()
+
+    def test_debian_helper_cannot_be_a_symlink(self):
+        helper = self.payload / release.HELPER_PATH
+        helper.unlink()
+        helper.symlink_to("missing")
+        self.refresh_debian()
+        with self.assertRaisesRegex(ValueError, "regular temporary helper"):
+            self.prepare()
+
+    def test_appimage_helper_payload_must_match_its_inventory(self):
+        entry = self.sources["bundle"]["./libexec/legion-portable-control"]
+        entry["sha256"] = "0" * 64
+        archive_json(self.binary / self.source, "./SOURCE-MANIFEST.json", self.sources)
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "AppImage helper payload differs"):
+            self.prepare()
+
+    def test_appimage_helper_cannot_be_absent_from_the_payload(self):
+        (self.payload / release.HELPER_PATH).unlink()
+        self.package_appimage_fixture()
+        self.refresh()
+        with self.assertRaises((ValueError, subprocess.CalledProcessError)):
+            self.prepare()
+
+    def test_appimage_helper_must_be_executable(self):
+        (self.payload / release.HELPER_PATH).chmod(0o644)
+        self.package_appimage_fixture()
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "AppImage helper payload differs"):
+            self.prepare()
+
+    def test_appimage_helper_cannot_be_a_symlink(self):
+        helper = self.payload / release.HELPER_PATH
+        helper.unlink()
+        helper.symlink_to("missing")
+        self.package_appimage_fixture()
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            self.prepare()
+
+    def test_invalid_appimage_payload_offset_is_rejected(self):
+        self.manifest["runtime_size"] = True
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, "runtime size"):
+            self.prepare()
 
     def test_missing_debian_acceptance_stops_the_draft(self):
         (self.inputs / "deb-debian-qualification/manifest.json").unlink()

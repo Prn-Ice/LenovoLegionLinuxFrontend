@@ -84,6 +84,9 @@
           cmake
           ninja
           pkg-config
+          # Release fixtures inspect Debian and AppImage payloads.
+          dpkg
+          squashfsTools
           git
           nix.out
           gtk3

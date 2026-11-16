@@ -43,7 +43,10 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Test tag validation and draft release handling
-        run: python3 -m unittest discover -s test/tool -p '*_test.py' -v
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake squashfs-tools
+          python3 -m unittest discover -s test/tool -p '*_test.py' -v
 
   test:
     name: Flutter Test & Analyze

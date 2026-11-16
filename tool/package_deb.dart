@@ -29,17 +29,13 @@ Future<void> main(List<String> args) async {
         .firstMatch(await File('${root.path}/pubspec.yaml').readAsString())!
         .group(1)!;
     final packageVersion = debianVersion(version);
-    final (bundle: bundle, stamp: built) = await buildLinuxRelease(
-      root,
-      portableControl: true,
-    );
+    final (bundle: bundle, stamp: built) = await buildLinuxRelease(root);
     final scratch = await Directory.systemTemp.createTemp('legion-deb-');
     try {
       final staging = Directory('${scratch.path}/package');
       await stageDesktopPackage(root, bundle, staging);
-      await File(
-        '${root.path}/packaging/debian/legion_frontend',
-      ).copy('${staging.path}/launcher');
+      await File('${root.path}/packaging/debian/legion_frontend')
+          .copy('${staging.path}/launcher');
       await runPackagingCommand('install', [
         '-Dm755',
         '${staging.path}/launcher',
@@ -65,7 +61,6 @@ Future<void> main(List<String> args) async {
       final stamp = await recordReleaseBuild(
         appBundle,
         (built['inputs'] as Map).cast<String, Object>(),
-        portableControl: true,
       );
       final dependencies = await debianDependencies(staging, elf.keys);
       final doc = Directory(
@@ -78,8 +73,8 @@ Future<void> main(List<String> args) async {
         '-sk',
         '${staging.path}/usr',
       ])).split(RegExp(r'\s+')).first;
-      await File('${control.path}/control').writeAsString(
-        '''Package: legion-linux-frontend
+      await File('${control.path}/control')
+          .writeAsString('''Package: legion-linux-frontend
 Version: $packageVersion
 Section: utils
 Priority: optional
@@ -91,9 +86,8 @@ Depends: $dependencies
 Description: Lenovo Legion hardware frontend
  Desktop controls for supported Lenovo Legion laptops. Temporary hardware
  access requires the separately installed driver, legion_cli, and a desktop
- authentication agent. Installed service mode remains the default.
-''',
-      );
+ authentication agent. The bundled helper requests temporary access.
+''');
       await output.create(recursive: true);
       final fixtureDirectory = '${root.path}/build/deb-fixtures';
       await runPackagingCommand('cmake', [
@@ -154,7 +148,7 @@ Description: Lenovo Legion hardware frontend
         'architecture': 'amd64',
         'build_os': os,
         'portable_control': true,
-        'default_control_mode': 'installedService',
+        'default_control_mode': 'temporaryHelper',
         'depends': dependencies,
         'vm_fixtures_sha256': await fileSha256(fixtures),
         'elf_dependencies': elf,
