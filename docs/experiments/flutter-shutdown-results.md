@@ -94,6 +94,8 @@ symbolized failing chain. Attempts to fetch the exact old libc package returned
 404; no mismatched newer libc was substituted for symbolization. No app reran.
 Systemd report SHA256: `c038e1a7b095c95a593f47ca48b25391cdb6f8d5d2223bfc82b78cd2254d00cb`.
 Offline raw-address/mappings SHA256: `515c90f29c0e7d2275cf232dcf532316592e8b90224fd355ddbb884777d9c741`.
+Collector follow-up: `lllf-dt0.5.16.1.2`; no app rerun is needed to improve
+independent evidence-command handling.
 
 ## Environments and instrumentation
 
