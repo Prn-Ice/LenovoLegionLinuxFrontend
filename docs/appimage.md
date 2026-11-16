@@ -52,17 +52,24 @@ choose Temporary helper in Settings and reopen the app to use it.
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
 
-Build `46b827e` passed Ubuntu 22.04 FUSE and extracted launches, normal window
-closes, and synthetic helper write/readback/restore. The same AppImage passed
+Build `46b827e`, using official Flutter 3.47.9, passed Ubuntu 22.04 FUSE and
+extracted launches, normal window closes, and synthetic helper
+write/readback/restore. The same AppImage passed
 official NixOS `appimage-run` control checks and ten normal Wayland closes.
 Neither VM reported Pango font errors. The user also confirmed the font fix on
 KDE Wayland with hybrid graphics. These checks do not establish real hardware
 control or desktop password-prompt behavior.
 
+The retained official Flutter 3.50.0 candidate and its matching source/checksums
+are listed in [the release record](releases.md#retained-official-candidate-16-november-2026).
+Its AppImage VM checks passed, but the same CI run's Debian normal-close failure
+still blocks release. The user subsequently reported that the official 3.50.0
+AppImage works on their machine, including retry. Hardware readback,
+restoration, helper cleanup, and numeric exit status were not explicitly reported.
+
 Wayland startup still reports `Unable to load  from the cursor theme`.
-Flutter initializes its cursor name to an empty string before GTK realizes the
-view. The pinned engine and stable Flutter 3.50.0 both contain this behavior;
-an SDK upgrade alone does not resolve it. Track the upstream fix in
+Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
+the view. Track the upstream fix in
 `lllf-dt0.5.10.1`. Keep the standard launch command; no cursor shim or log filter
 is included.
 
@@ -73,9 +80,9 @@ ordinary user in an Ubuntu container. It mounts no host devices or system bus.
 Source packaging requires a clean committed checkout.
 
 ```bash
-curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
+curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
 python3 tool/fetch_appimage_runtime.py build/appimage-inputs
-bash tool/build_appimage.sh /tmp/flutter-3.47.9.tar.xz build/appimage-inputs build/appimage-release
+bash tool/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
 ```
 
 If a cached builder's exact source package returns HTTP 404, refresh the Ubuntu
@@ -113,6 +120,30 @@ cache when the desktop exits. Signals stop its desktop child and clean up the
 cache. Host CLI reads and helper startup filter out the bundled library, font,
 module, schema, and data paths. Packaging rejects Nix store loader references and
 any dynamic interpreter, shared dependency, RPATH, or RUNPATH in the static helper.
+
+## AppImage icons
+
+Dolphin's file preview and Plasma's running-app icon use different lookups.
+The AppImage includes a PNG `.DirIcon` for file previews. KDE's installed
+AppImage thumbnail plugin successfully decoded the original official 3.50
+image and the user's Inkscape comparison image. The reported missing Dolphin
+preview is not yet reproduced by that plugin; the running-app fix below does
+not establish a fix for the file-manager display.
+
+Use the standard launch command above. Plasma can read an AppImage's bundled
+desktop entry and icon through the running process's `APPDIR`; users should not
+need to copy desktop files or install another launcher to get the taskbar icon.
+
+The AppDir root uses `Icon=legion_frontend` with matching PNG/SVG files and
+`.DirIcon`. Plasma 6.8's AppImage fallback mistakes the last part of a dotted
+icon name for a file extension. A short root icon name avoids that lookup error.
+The desktop filename, native application ID, and installed-package icon name
+remain `io.github.prnice.legion_linux_frontend`. The Legion artwork is unchanged.
+
+The icon lookup was checked with Plasma's actual task-manager library and the
+standard NixOS runner, without host desktop registration. Sway rendering and
+X11 `_NET_WM_ICON` checks do not prove the visible KDE taskbar result. Track that
+remaining desktop check in `lllf-dt0.5.18`.
 
 ## Test the artifact
 
@@ -155,6 +186,14 @@ inside the runner. The synthetic CLI and kernel files exist only in the VM;
 real hardware is not involved. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
+
+## Known shutdown issue
+
+Flutter 3.50.0 can crash when closing the app in the NixOS VM. The SDK upgrade
+and a native cleanup experiment did not resolve it. The experiment was reverted;
+package acceptance remains incomplete. See the
+[shutdown evidence and follow-up](linux-shutdown.md) before treating a trial
+artifact as release-ready.
 
 ## Desktop trial
 

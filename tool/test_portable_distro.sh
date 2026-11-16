@@ -8,6 +8,8 @@ if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
 fi
 
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tool/portable_distro_readiness.sh
+source "$root/tool/portable_distro_readiness.sh"
 image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
@@ -23,7 +25,7 @@ if [[ $# == 5 ]]; then
   release="$(realpath -- "$5")"
   qualification_archive="$format-qualification.tar.gz"
 fi
-for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3; do
+for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3 timeout; do
   if ! command -v "$program" >/dev/null; then
     echo "Required program is missing: $program" >&2
     exit 1
@@ -65,12 +67,16 @@ qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 # Bind SSH to loopback. The cloud image and host filesystem are never mounted
 # into the guest; only the native source archive is copied over SSH.
 port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
-accelerator=tcg
-vm_cpu=Nehalem
-if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-  accelerator=kvm
-  vm_cpu=host
+accelerator=${LLLF_VM_ACCELERATOR:-}
+if [[ -z $accelerator ]]; then
+  accelerator=tcg
+  if [[ -r /dev/kvm && -w /dev/kvm ]]; then accelerator=kvm; fi
 fi
+case "$accelerator" in
+  kvm) vm_cpu=host ;;
+  tcg) vm_cpu=Nehalem ;;
+  *) echo 'LLLF_VM_ACCELERATOR must be kvm or tcg.' >&2; exit 64 ;;
+esac
 # LLVM can mistake the generic TCG max CPU for a 32-bit AMD processor.
 # Use a named 64-bit model for software rendering; KVM uses the host CPU.
 echo "Starting disposable distro VM with $accelerator, CPU $vm_cpu; logs: $output"
@@ -93,7 +99,7 @@ until ssh -o StrictHostKeyChecking=accept-new "${ssh_options[@]}" -p "$port" roo
   sleep 1
 done
 remote() { ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1 "$@"; }
-remote 'timeout 180 cloud-init status --wait'
+wait_for_cloud_init 180 ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1
 export LLLF_QUALIFICATION_COMMIT LLLF_QUALIFICATION_MODIFIED
 LLLF_QUALIFICATION_COMMIT="$(git -C "$root" rev-parse HEAD)"
 LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control telemetry packaging tool LICENSE THIRD_PARTY_NOTICES.md)"
@@ -106,6 +112,7 @@ if [[ -n $release ]]; then
   scp "${ssh_options[@]}" -P "$port" "$scratch/$format-release.tar.gz" "root@127.0.0.1:/root/$format-release.tar.gz"
   if [[ $format == appimage ]]; then
     guest_check=qualify_appimage_ubuntu.sh
+    guest_timeout=1500
   else
     guest_check=qualify_deb.sh
     guest_timeout=1500

@@ -8,9 +8,8 @@ import 'boot_logo_state.dart';
 const _acceptedExtensions = {'.png', '.jpg', '.jpeg', '.bmp'};
 
 class BootLogoBloc extends Bloc<BootLogoEvent, BootLogoState> {
-  BootLogoBloc({required BootLogoRepository repository})
-    : _repository = repository,
-      super(BootLogoState.initial()) {
+  BootLogoBloc({required this._repository})
+    : super(BootLogoState.initial()) {
     on<BootLogoStarted>(_onStarted);
     on<BootLogoFileSelected>(_onFileSelected);
     on<BootLogoApplyRequested>(_onApplyRequested);

@@ -10,9 +10,9 @@ class DevicesRepositoryException extends AppFailure {
 
 class DevicesRepository extends PrivilegedRepository {
   const DevicesRepository({
-    required LegionSysfsService sysfsService,
+    required this._sysfsService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DevicesRepositoryException(

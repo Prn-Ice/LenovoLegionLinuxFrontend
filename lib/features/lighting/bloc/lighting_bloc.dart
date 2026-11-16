@@ -9,11 +9,9 @@ import 'lighting_state.dart';
 
 class LightingBloc extends Bloc<LightingEvent, LightingState> {
   LightingBloc({
-    required LightingRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(LightingState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(LightingState.initial()) {
     on<LightingEvent>(
       (event, emit) async {
         if (_closing) return;

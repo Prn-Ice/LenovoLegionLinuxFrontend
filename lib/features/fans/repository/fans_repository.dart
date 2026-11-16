@@ -14,9 +14,9 @@ class FansRepositoryException extends AppFailure {
 
 class FansRepository extends PrivilegedRepository {
   const FansRepository({
-    required LegionSysfsService sysfsService,
+    required this._sysfsService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => FansRepositoryException(

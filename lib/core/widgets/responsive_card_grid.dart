@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How many columns of at least [minCardWidth] (separated by [spacing]) fit in
 /// [availableWidth]. Returns at least one column.

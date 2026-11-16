@@ -36,8 +36,8 @@ List<String> openRgbApplyArgs({
 class OpenRgbCliService {
   const OpenRgbCliService({
     this.executable = 'openrgb',
-    OpenRgbProcessRunner processRunner = Process.run,
-  }) : _processRunner = processRunner;
+    this._processRunner = Process.run,
+  });
 
   final String executable;
   final OpenRgbProcessRunner _processRunner;

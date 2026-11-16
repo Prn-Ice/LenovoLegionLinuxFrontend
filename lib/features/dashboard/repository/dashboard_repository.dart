@@ -16,11 +16,10 @@ class DashboardRepositoryException extends AppFailure {
 
 class DashboardRepository extends PrivilegedRepository {
   const DashboardRepository({
-    required LegionSysfsService sysfsService,
-    required PowerProfileService powerProfileService,
+    required this._sysfsService,
+    required this._powerProfileService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService,
-       _powerProfileService = powerProfileService;
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DashboardRepositoryException(

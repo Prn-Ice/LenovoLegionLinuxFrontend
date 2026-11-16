@@ -49,4 +49,4 @@ manifest = {
 (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 PY
 tar -czf "$output/appimage-nixos-qualification.tar.gz" -C "$output" manifest.json build-and-vm.log \
-  -C "$(realpath "$output/result")" gui.log wayland.log
+  -C "$(realpath "$output/result")" gui.log sway.log wayland.log wayland-launcher.log wayland-diagnostics

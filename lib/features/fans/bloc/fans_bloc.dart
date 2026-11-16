@@ -9,11 +9,9 @@ import 'fans_state.dart';
 
 class FansBloc extends Bloc<FansEvent, FansState> {
   FansBloc({
-    required FansRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(FansState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(FansState.initial()) {
     on<FansEvent>(
       (event, emit) async {
         if (_closing) return;

@@ -39,7 +39,8 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
             [image], stdout=log, stderr=log, env=environment, start_new_session=True
         )
         try:
-            deadline = time.monotonic() + 30
+            started = time.monotonic()
+            deadline = started + 120
             while True:
                 result = subprocess.run(
                     [
@@ -108,7 +109,11 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                         (
                             Path.home() / ("appimage-runtime-" + label + ".txt")
                         ).write_text(maps)
-                    print("PASS: visible Flutter window from " + label, flush=True)
+                    print(
+                        f"PASS: visible Flutter window from {label} after "
+                        f"{time.monotonic() - started:.1f}s",
+                        flush=True,
+                    )
                     geometry = subprocess.check_output(
                         ["xdotool", "getwindowgeometry", "--shell", window], text=True
                     )
@@ -132,14 +137,20 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                     )
                     status = process.wait(timeout=15)
                     assert status == 0, (status, log_path.read_text())
-                    assert "Pango-CRITICAL" not in log_path.read_text(), (
-                        log_path.read_text()
-                    )
+                    for diagnostic in (
+                        "Pango-CRITICAL",
+                        "GLib-CRITICAL",
+                        "GLib-GObject-CRITICAL",
+                    ):
+                        assert diagnostic not in log_path.read_text(), (
+                            log_path.read_text()
+                        )
                     print("PASS: close button exits normally from " + label, flush=True)
                     break
                 if process.poll() is not None or time.monotonic() >= deadline:
                     raise AssertionError(
-                        "Desktop window did not appear:\n" + log_path.read_text()
+                        "Desktop window did not appear "
+                        f"(exit status: {process.poll()}):\n" + log_path.read_text()
                     )
                 time.sleep(0.1)
         finally:

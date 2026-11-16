@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/theme/legion_accent.dart';
 import 'package:legion_frontend/features/platform_surfaces/models/platform_event.dart';

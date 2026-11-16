@@ -9,7 +9,7 @@ nix build .#frontend
 nix run .#frontend
 ```
 
-The flake pins Flutter 3.47.9, Dart 3.13.7, Nixpkgs, and the pub.dev dependency
+The flake pins Flutter 3.50.0, Dart 3.14.0, Nixpkgs, and the pub.dev dependency
 hashes. Nix downloads these inputs first, then builds the app in its offline
 sandbox. The package contains the desktop launcher, icons, notices, and temporary
 helper. Installing it enables no persistent Legion service.

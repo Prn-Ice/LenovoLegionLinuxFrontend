@@ -12,9 +12,9 @@ class BatteryRepository extends PrivilegedRepository {
   static const bool _alwaysOnUsbWriteSupported = false;
 
   const BatteryRepository({
-    required LegionSysfsService sysfsService,
+    required this._sysfsService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => BatteryRepositoryException(

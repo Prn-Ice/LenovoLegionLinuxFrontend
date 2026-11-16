@@ -1,8 +1,8 @@
 {
   "flutter": {
-    "version": "3.47.9",
-    "url": "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz",
-    "sha256": "25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a"
+    "version": "3.50.0",
+    "url": "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz",
+    "sha256": "6ea2d806fd57269ae783e6788e2a81fc26eaad782f1e0d0ff38623bb765ff9f5"
   },
   "runtime": {
     "version": "20251108",
@@ -24,7 +24,10 @@
       "url": "https://github.com/libfuse/libfuse/releases/download/fuse-3.15.0/fuse-3.15.0.tar.xz",
       "sha256": "70589cfd5e1cff7ccd6ac91c86c01be340b227285c5e200baa284e401eea2ca0",
       "license": "fuse-3.15.0/LICENSE",
-      "additional_licenses": ["fuse-3.15.0/LGPL2.txt", "fuse-3.15.0/GPL2.txt"]
+      "additional_licenses": [
+        "fuse-3.15.0/LGPL2.txt",
+        "fuse-3.15.0/GPL2.txt"
+      ]
     },
     {
       "name": "squashfuse",

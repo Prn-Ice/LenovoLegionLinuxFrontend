@@ -4,7 +4,7 @@ Use compatible stable packages and commit `pubspec.lock`.
 
 ## Flutter and build tools
 
-- Flutter stable **3.47.9** or newer; CI pins 3.47.9 with Dart 3.13.7
+- Flutter stable **3.50.0** or newer; CI pins 3.50.0 with Dart 3.14.0
 - A Linux desktop compiler, CMake, Ninja, and pkg-config
 - GTK development headers and Flutter's native development libraries
 - GLib/GIO development files for native services
@@ -13,13 +13,17 @@ Use compatible stable packages and commit `pubspec.lock`.
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
 
-Flutter 3.50.0 was tested on 2026-11-12. Its Material package split conflicts with
-Yaru 11.0.0: migrated `ThemeData` and `ColorScheme` types differ from those Yaru
-uses. Stable [Yaru 12.0.0](https://pub.dev/packages/yaru/versions/12.0.0) now uses
-`material_ui`; qualify that migration with Flutter 3.50 before updating the build
-pins (`lllf-dt0.5.12`). Keep the qualified 3.47.9 release inputs until then.
-The SDK trial resolved newer code generators, but they remain held back by the
-qualified SDK's test dependencies described below.
+Flutter 3.50 uses the standalone `material_ui` package. Yaru 12 supplies matching
+themes, so the app and tests use those imports together. Dart's supported
+`migrate_design_widgets` fix updates the imports. The app uses Dart 3.14 syntax;
+the generator versions below support it.
+
+The Nix SDK uses the existing Nixpkgs builder. `packaging/nix/flutter.json` pins
+the official source, Dart and engine artifact hashes, plus the tool dependency
+lock from the official SDK. `packaging/nix/flutter-tools.patch` adapts Nixpkgs'
+cache and host-platform tool patches to moved methods and restores an import
+required by its Gradle patch. These changes leave the engine binary intact.
+Use upstream packaging when Nixpkgs supplies Flutter 3.50.
 
 Flutter's Linux task runner can dispatch queued work after its owner is freed
 during window shutdown ([upstream report](https://github.com/flutter/flutter/issues/193742)).
@@ -28,6 +32,17 @@ The native application retains its engine until `MyApplication.dispose`, after
 2026-11-12; it requires no change to installation or launch. Remove it after a
 compatible stable SDK includes [the upstream fix](https://github.com/flutter/flutter/pull/194525)
 and repeated window-close checks pass (`lllf-dt0.5.13`).
+
+
+Flutter 3.50 package qualification remains blocked by Linux renderer teardown
+(`lllf-dt0.5.16`). The NixOS AppImage can exit while its raster thread still uses
+Mesa; explicitly destroying the retained window instead can abort in
+`g_mutex_clear`. The experimental cleanup was rejected. Upstream
+[renderer lifetime work](https://github.com/flutter/flutter/pull/193533) addresses
+resource cleanup across the GTK and raster threads, but is not in this stable
+SDK. Keep the published launch instructions and close assertions intact; a
+passing Dart suite does not qualify a desktop package. See the
+[shutdown evidence and follow-up](linux-shutdown.md).
 
 The native Linux app journeys use Flutter's SDK-provided `integration_test` as a
 development dependency. It follows the installed Flutter version. These tests
@@ -52,36 +67,23 @@ but represent different commands. Keep `equatable: ^2.1.0` until an upgrade
 preserves event equality and hashing. `test/core/event_equality_test.dart` checks
 this behavior.
 
-### Hive code generation and test dependencies
+### Test dependencies and code generation
 
-Flutter 3.47.9's `flutter_test` pins `test_api` to 0.7.12 and `matcher` to 0.12.20.
-`bloc_test` brings in `test`; the compatible `test` 1.31.1 and `test_core` 0.6.18
-require analyzer below 14. Newer test releases require a different `test_api`.
+Flutter 3.50's `flutter_test` pins `test_api` to 0.7.14. `bloc_test` brings in
+`test`; the compatible versions are `test` 1.32.0 and `test_core` 0.6.20.
+`test` 1.33.0 requires `test_api` 0.7.15. Keep Flutter's pins rather than
+overriding them.
 
-The newest `hive_ce_generator` 1.12.1 and `build_runner` 2.17.1 require analyzer
-14. These versions conflict with Flutter's test dependencies. Do not override
-analyzer or Flutter's pinned test packages.
-
-Keep the latest mutually compatible releases:
+The generator conflict is resolved. Use these compatible stable releases:
 
 | Package | Resolved version |
 | --- | --- |
-| `hive_ce_generator` | 1.11.2 |
-| `build_runner` | 2.15.1 |
-| `analyzer` | 12.1.0 |
+| `hive_ce_generator` | 1.12.1 |
+| `build_runner` | 2.17.1 |
+| `analyzer` | 14.7.0 |
 
-Recheck when Flutter's test packages and the code generators support the same
-analyzer version. Let Pub choose indirect build and formatter dependencies.
-
-Checked on 2026-11-04: the conflict remains. Pub metadata reports `test` 1.33.0
-supports analyzer 14, but requires `test_api` 0.7.15 rather than Flutter's pinned
-0.7.12. Keep the versions above until Flutter supports the required test packages
-(tracked in `lllf-db5`).
-
-The app uses Dart 3.11 syntax so the code generators can parse it. It still runs
-with the newer Dart bundled with Flutter: Flutter 3.47.9 requires Dart 3.13 and
-supplies 3.13.7. Raise the language version only when the generators support it,
-then regenerate the code. Do not hide parser errors or edit generated files.
+Let Pub choose indirect build and formatter dependencies. Run the real generator
+after changes; do not hide parser errors or edit generated files.
 
 Some indirect dependencies are also held back by Flutter or other packages,
 including Yaru's layout/window dependencies, file picker's `cross_file`, and
@@ -120,8 +122,8 @@ automated tests. Note which checks you did not run.
 ## Primary sources
 
 - [Flutter stable release manifest](https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json)
-- [Flutter SDK test pins](https://github.com/flutter/flutter/blob/3.47.9/packages/flutter_test/pubspec.yaml)
-- [Flutter SDK tool changes](https://github.com/flutter/flutter/compare/3.47.4...3.47.9)
+- [Flutter SDK test pins](https://github.com/flutter/flutter/blob/3.50.0/packages/flutter_test/pubspec.yaml)
+- [Flutter SDK tool changes](https://github.com/flutter/flutter/compare/3.47.9...3.50.0)
 - [Equatable breaking changes](https://pub.dev/packages/equatable/changelog)
 - [Hive generator metadata](https://pub.dev/api/packages/hive_ce_generator)
 - [Build runner metadata](https://pub.dev/api/packages/build_runner)

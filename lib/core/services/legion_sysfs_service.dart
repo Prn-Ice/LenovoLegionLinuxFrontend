@@ -33,7 +33,7 @@ class LegionSysfsService {
     String? amdPstateRoot,
     String? cpuFreqRoot,
     String sysRoot = '/sys',
-    String procRoot = '/proc',
+    this._procRoot = '/proc',
   }) : _hwmonRoot = hwmonRoot ?? '$sysRoot/class/hwmon',
        _legionPlatformRoots = legionPlatformRoots ?? _platformRoots(sysRoot),
        _fanHwmonRoots = fanHwmonRoot == null
@@ -48,8 +48,7 @@ class LegionSysfsService {
        _amdPstateRoot =
            amdPstateRoot ?? '$sysRoot/devices/system/cpu/amd_pstate',
        _cpuFreqRoot = cpuFreqRoot ?? '$sysRoot/devices/system/cpu/cpufreq',
-       _sysRoot = sysRoot,
-       _procRoot = procRoot;
+       _sysRoot = sysRoot;
 
   String _sys(String path) => path.replaceFirst('/sys', _sysRoot);
   static List<String> _platformRoots(String sysRoot) => [

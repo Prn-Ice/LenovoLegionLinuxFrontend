@@ -14,10 +14,9 @@ export '../models/portable_control_endpoint.dart';
 /// The caller must first obtain an endpoint from an explicitly approved launch.
 class NativePortableControlTransport extends LegionControlTransport {
   NativePortableControlTransport({
-    required PortableControlEndpoint endpoint,
+    required this._endpoint,
     MethodChannel? channel,
-  }) : _endpoint = endpoint,
-       _channel =
+  }) : _channel =
            channel ??
            const MethodChannel('io.github.prnice.legion/portable_control');
 

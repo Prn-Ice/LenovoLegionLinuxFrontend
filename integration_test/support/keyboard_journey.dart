@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
@@ -84,8 +84,9 @@ Future<void> openAutomation(WidgetTester tester) async {
     tester,
     () =>
         find.byType(AutomationPage).evaluate().isNotEmpty &&
-        assignments.evaluate().length == KeyboardPowerMode.values.length,
-    description: 'loaded Automation page and profile assignment selectors',
+        assignments.evaluate().length == KeyboardPowerMode.values.length &&
+        find.textContaining('Current mode:').evaluate().isNotEmpty,
+    description: 'loaded Automation page, profile assignment selectors, and current mode',
   );
   await tester.pumpAndSettle();
 }

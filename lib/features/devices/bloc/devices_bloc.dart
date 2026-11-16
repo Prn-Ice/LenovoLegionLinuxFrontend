@@ -9,11 +9,9 @@ import 'devices_state.dart';
 
 class DevicesBloc extends Bloc<DevicesEvent, DevicesState> {
   DevicesBloc({
-    required DevicesRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(DevicesState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(DevicesState.initial()) {
     on<DevicesEvent>(
       (event, emit) async {
         if (_closing) return;

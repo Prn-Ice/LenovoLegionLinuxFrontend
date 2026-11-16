@@ -7,6 +7,43 @@ the project owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every
 feature has been verified even on that laptop. Other models and BIOS versions
 have not been tested. See [model support and recorded checks](docs/model-support.md).
 
+## Help wanted
+
+Much of this app is AI-generated code. I need as much help as I can get with the
+backend and system interactions.
+
+If you see something wrong, or the model making code more complicated than it
+needs to be (it does that a lot), please
+[open an issue](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/issues/new/choose).
+If something is broken on your Legion, please open an issue too.
+
+## Screenshots
+
+Captured with Spectacle on my Legion Slim 7 16APH8.
+
+![Dashboard showing power modes, temperatures, fan speeds, and quick controls](docs/screenshots/dashboard.png)
+
+<details>
+<summary>Power, fans, lighting, and GPU screenshots</summary>
+
+### Power
+
+![Power page showing CPU policy details and power limits](docs/screenshots/power.png)
+
+### Fans
+
+![Fans page showing current fan speed, temperature, and unavailable fan curve editing](docs/screenshots/fans.png)
+
+### Lighting
+
+![Lighting page showing per-key keyboard colors, effects, and brightness](docs/screenshots/lighting.png)
+
+### Discrete GPU
+
+![Discrete GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
+
+</details>
+
 ## Features and readiness
 
 Summary reviewed on **2026-11-11** against code and recorded evidence; no new

@@ -11,15 +11,13 @@ import 'settings_state.dart';
 
 class SettingsBloc extends Bloc<SettingsEvent, SettingsState> {
   SettingsBloc({
-    required SettingsRepository repository,
+    required this._repository,
     AppearanceStore? appearanceStore,
     ControlModeStore? controlModeStore,
     ControlMode activeControlMode = ControlMode.installedService,
-    bool portableControlAvailable = false,
-  }) : _repository = repository,
-       _appearanceStore = appearanceStore,
+    this._portableControlAvailable = false,
+  }) : _appearanceStore = appearanceStore,
        _controlModeStore = controlModeStore,
-       _portableControlAvailable = portableControlAvailable,
        super(
          _initialState(appearanceStore).copyWith(
            activeControlMode: activeControlMode,

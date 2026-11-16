@@ -9,11 +9,9 @@ import 'analytics_state.dart';
 
 class AnalyticsBloc extends Bloc<AnalyticsEvent, AnalyticsState> {
   AnalyticsBloc({
-    required AnalyticsRepository repository,
-    Duration pollInterval = const Duration(seconds: 30),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(AnalyticsState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 30),
+  }) : super(AnalyticsState.initial()) {
     on<AnalyticsStarted>(_onStarted);
     on<AnalyticsTicked>(_onTicked);
     on<AnalyticsCollectionSetRequested>(_onCollectionSetRequested);
