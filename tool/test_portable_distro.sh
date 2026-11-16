@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
-  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage|--deb RELEASE_DIRECTORY]" >&2
+  echo "Usage: bash tool/test_portable_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage|--deb|--template RELEASE_DIRECTORY]" >&2
   exit 64
 fi
 
@@ -20,6 +20,7 @@ if [[ $# == 5 ]]; then
   case "$4" in
     --appimage) format=appimage ;;
     --deb) format=deb ;;
+    --template) format=template ;;
     *) echo "Unknown option: $4" >&2; exit 64 ;;
   esac
   release="$(realpath -- "$5")"
@@ -113,6 +114,9 @@ if [[ -n $release ]]; then
   if [[ $format == appimage ]]; then
     guest_check=qualify_appimage_ubuntu.sh
     guest_timeout=1500
+  elif [[ $format == template ]]; then
+    guest_check=qualify_template.sh
+    guest_timeout=900
   else
     guest_check=qualify_deb.sh
     guest_timeout=1500
@@ -123,6 +127,19 @@ remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd
 result=${PIPESTATUS[0]}
 set -e
 remote 'journalctl -b --no-pager' > "$output/journal.log" || true
+if [[ $format == template ]]; then
+  collection_status=0
+  remote "cd /root/source && timeout 360 bash control/test/template_core_diagnostic.sh collect /root/template-core-diagnostic $result" \
+    > "$output/core-collection.log" 2>&1 || collection_status=$?
+  archive_status=0
+  remote 'set -o pipefail; tar -C /root -cf - template-core-diagnostic | gzip -1' \
+    > "$output/template-core-diagnostic.tar.gz" || archive_status=$?
+  printf 'diagnostic_status=%s\ncollection_status=%s\narchive_status=%s\n' \
+    "$result" "$collection_status" "$archive_status" > "$output/diagnostic-status.txt"
+  if (( result != 0 )); then exit "$result"; fi
+  if (( collection_status != 0 )); then exit "$collection_status"; fi
+  exit "$archive_status"
+fi
 if (( result != 0 )); then exit "$result"; fi
 scp "${ssh_options[@]}" -P "$port" "root@127.0.0.1:/root/$qualification_archive" "$output/"
 export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected" LLLF_QUALIFICATION_ARCHIVE="$qualification_archive"

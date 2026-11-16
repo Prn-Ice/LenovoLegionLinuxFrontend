@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "frameworkVersion": "3.50.0",
+    "channel": "stable",
+    "repositoryUrl": "https://github.com/flutter/flutter.git",
+    "frameworkRevision": "ab2912035e160d9cad6306df307576da6128ebdb",
+    "frameworkCommitDate": "2026-11-09 08:50:21 -0800",
+    "engineRevision": "371f77202a73e8dff57a8b3bff75bca55c090aee",
+    "engineCommitDate": "2026-11-09 15:57:36.000Z",
+    "engineContentHash": "bf601093ad255aaf5c6d0fc5c4f9acfa60943b2a",
+    "engineBuildDate": "2026-11-09 08:33:19.494",
+    "dartSdkVersion": "3.14.0",
+    "devToolsVersion": "2.61.0",
+    "flutterVersion": "3.50.0",
+    "flutterRoot": "/opt/flutter"
+  },
+  "sdk_archive_sha256": "6ea2d806fd57269ae783e6788e2a81fc26eaad782f1e0d0ff38623bb765ff9f5",
+  "command": "flutter create --platforms=linux --project-name=shutdown_template /home/builder/shutdown_template; flutter build linux --release",
+  "template_modified": false,
+  "release_qualification": false,
+  "bundle": {
+    "data/flutter_assets/AssetManifest.bin": "a169e3f438e896ae0885f3167498292ad8df742857cb88147cf806cf185f5c5d",
+    "data/flutter_assets/FontManifest.json": "cd7e03645bc44b2dd47b7cb626f51c4ecbf55a197ab77241628b47ac165fbe21",
+    "data/flutter_assets/NOTICES.Z": "68bbaa593617806260bf37d956a51886ac3a09c396e45107b876410b72bcd167",
+    "data/flutter_assets/NativeAssetsManifest.json": "9548a31e4a048135c1d94f919328bfb62ae2c7bb3cab96557c7941daa97776cb",
+    "data/flutter_assets/fonts/MaterialIcons-Regular.otf": "c88cfae5af12001e7a04486def27e2268cb55ca15ec5fa18a58e64c20d1c880d",
+    "data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf": "9d8d1c5ec8089b5396386bd145d98f128749144ed62bccd1d111464bdda59fd0",
+    "data/flutter_assets/packages/material_ui/shaders/ink_sparkle.frag": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274",
+    "data/flutter_assets/shaders/ink_sparkle.frag": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274",
+    "data/flutter_assets/shaders/stretch_effect.frag": "bc7599dbbbaab310efe41520574138d21fb18a88c8fe4495ed79315309336f6f",
+    "data/flutter_assets/version.json": "981f3bc8a4b1b0a9f755fb8e93dcf5c9069b790f22d5d1da830ba9fed5b44e04",
+    "data/icudtl.dat": "325a86063d26334c2eabe1743cea073b612540fbf3d8fc2ef0b5708e3763a8c7",
+    "lib/libapp.so": "1863dde6b53b1023b814bd466c4e272ae13a035aee176fbeaf6363f3c34b2b72",
+    "lib/libflutter_linux_gtk.so": "cb40d5867033badfa1a38072fab83f1c60ec1520c303a4810f49979f0ba5df04",
+    "shutdown_template": "6d3303e41456ffe4ec714449ffe715524abe88fee527368cbf5f7541292c9567"
+  }
+}

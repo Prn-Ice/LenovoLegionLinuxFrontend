@@ -1,0 +1,79 @@
+name: Official Flutter template close diagnostic
+
+on:
+  pull_request:
+    branches: [fix/stable-deployment]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: official-template-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  ubuntu:
+    name: Untouched Flutter 3.50 template — Ubuntu 22.04 closes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify the retained official template build
+        run: |
+          mkdir -p build/template-diagnostic
+          (cd diagnostic-assets/template && sha256sum --check SHA256SUMS)
+          cp diagnostic-assets/template/{template-manifest.json,template-source.sha256,SHA256SUMS} build/template-diagnostic/
+      - name: Install the existing disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Require KVM and record the actual hosted CPU
+        run: |
+          {
+            echo 'DIAGNOSTIC ONLY — NOT RELEASE QUALIFICATION'
+            echo "diagnostic_commit=$(git rev-parse HEAD)"
+            uname -a
+            lscpu
+            qemu-system-x86_64 --version
+          } > build/template-diagnostic/host-environment.txt
+          test -e /dev/kvm
+          sudo setfacl -m u:"$(id -un)":rw /dev/kvm
+          test -r /dev/kvm -a -w /dev/kvm
+      - name: Download a verified Ubuntu 22.04 guest
+        run: |
+          curl --fail --silent --show-error --location --retry 1 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/template-jammy.img
+          curl --fail --silent --show-error --location --retry 1 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/template-jammy.SHA256SUMS
+      - name: Prove core capture then require 20 normal closes, stopping on failure
+        id: diagnostic
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/template-jammy.SHA256SUMS)"
+          echo "ubuntu_image_sha256=$checksum" >> build/template-diagnostic/host-environment.txt
+          set +e
+          timeout -k 30s 1500s env LLLF_VM_ACCELERATOR=kvm \
+            bash tool/test_portable_distro.sh /tmp/template-jammy.img "$checksum" \
+              build/template-diagnostic/vm --template diagnostic-assets/template
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "diagnostic_status=$status" >> build/template-diagnostic/host-environment.txt
+      - name: Retain diagnostic evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: official-template-${{ github.run_id }}
+          path: build/template-diagnostic
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+      - name: Preserve the diagnostic result
+        if: always() && steps.diagnostic.outcome != 'skipped'
+        env:
+          DIAGNOSTIC_STATUS: ${{ steps.diagnostic.outputs.status }}
+        run: |
+          [[ $DIAGNOSTIC_STATUS =~ ^[0-9]+$ ]] || exit 1
+          exit "$DIAGNOSTIC_STATUS"
