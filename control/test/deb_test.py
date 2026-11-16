@@ -33,7 +33,7 @@ def main():
         == manifest["files"][package.name]
     )
     assert manifest["portable_control"] is True
-    assert manifest["default_control_mode"] == "installedService"
+    assert manifest["default_control_mode"] == "temporaryHelper"
     assert not Path("/usr/lib/jvm").exists()
     before = persistent_files()
     machine.fail("systemctl cat legion-control.service")
@@ -69,12 +69,12 @@ def main():
         )
 
     verify_bundle()
-    print(
-        machine.succeed(
-            "runuser -u approved -- xvfb-run -a dbus-run-session -- python3 /opt/legion-vm-tests/deb_test.py --gui",
-            timeout=150,
-        ),
-        flush=True,
+    gui(
+        machine,
+        "/usr/bin/legion_frontend",
+        "deb-gui.log",
+        "Debian package",
+        expected_executable="/usr/lib/legion_frontend/legion_frontend",
     )
     helper = "/usr/lib/legion_frontend/libexec/legion-portable-control"
     app = session.PortableSession("approved", helper, copy_launcher=False)
@@ -146,6 +146,8 @@ def main():
         for name in [
             "installation",
             "desktop",
+            "first_launch_helper",
+            "window_close_cleanup",
             "helper",
             "denied",
             "missing_agent",
@@ -161,12 +163,4 @@ def main():
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--gui"]:
-        gui(
-            "/usr/bin/legion_frontend",
-            "deb-gui.log",
-            "Debian package",
-            expected_executable="/usr/lib/legion_frontend/legion_frontend",
-        )
-    else:
-        main()
+    main()

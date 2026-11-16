@@ -110,24 +110,15 @@ pkgs.testers.runNixOSTest {
             screenshot("missing-ui-label")
             raise
 
-    with subtest("the actual app saves temporary mode through Settings"):
+    with subtest("the app opens with no saved preferences"):
+        machine.succeed("test ! -e /home/approved/preferences.hive")
         pid = start_gui()
         wait_text("Dashboard", "380x32+288+7")
-        # The fixed viewport makes these UI actions reproducible. Wait for the
-        # visible labels, then verify the saved mode and backend readback.
-        machine.succeed(click(90, 427))
-        wait_text("Temporary helper", "145x24+977+294")
-        machine.succeed(click(1040, 305))
-        wait_text("Use a temporary helper", "300x32+500+232")
-        machine.succeed(click(770, 455))
-        machine.wait_until_succeeds("grep -aq temporaryHelper /home/approved/preferences.hive", timeout=timedelta(seconds=10))
+        machine.wait_until_succeeds("test -f /home/approved/preferences.hive", timeout=timedelta(seconds=10))
         icon = machine.succeed(desktop("xprop -id $(head -n1 /home/approved/window.id) _NET_WM_ICON"))
         assert "not found" not in icon and "no such atom" not in icon, icon
-        close_gui()
-        machine.wait_until_succeeds("test ! -e /proc/" + str(pid), timeout=timedelta(seconds=10))
 
-    with subtest("official appimage-run opens the temporary-control app"):
-        pid = start_gui()
+    with subtest("official appimage-run uses its bundled runtime on first launch"):
         assert machine.succeed("readlink /proc/" + str(pid) + "/ns/user") != machine.succeed("readlink /proc/1/ns/user")
         executable = machine.succeed("readlink /proc/" + str(pid) + "/exe").strip()
         assert "/.cache/appimage-run/" in executable, executable
@@ -136,7 +127,7 @@ pkgs.testers.runNixOSTest {
         for library in ["libgtk-3.so.0", "libglib-2.0.so.0", "libpango-1.0.so.0"]:
             assert any("/usr/lib/legion_frontend/lib/" + library in line for line in maps.splitlines()), (library, maps)
 
-    with subtest("the GUI changes and restores a synthetic hardware setting"):
+    with subtest("the fresh GUI retries denied helper approval, writes, and restores without relaunch"):
         machine.succeed(click(90, 228))
         scroll = desktop("xdotool mousemove --window $(head -n1 /home/approved/window.id) 1100 600 click --repeat 18 --delay 50 5")
         machine.succeed(scroll)
@@ -168,12 +159,20 @@ pkgs.testers.runNixOSTest {
             assert ".so" not in machine.succeed("cat /proc/" + str(helper_pid) + "/maps")
             machine.succeed("echo 1 >" + conservation)
             machine.wait_until_succeeds(click(1142, 23) + "; " + click(734, 667) + "; " + readback + " | grep -x disabled", timeout=timedelta(seconds=20))
+            machine.succeed("echo 0 >" + conservation)
             screenshot("temporary-control-restored")
         except Exception:
             screenshot("temporary-control-failure")
             print(machine.execute("cat /home/approved/gui.log; journalctl -b --no-pager -u 'legion-portable-control-*'")[1])
             raise
+        machine.succeed(click(90, 427))
+        wait_text("Hardware control", "1280x720+0+0", 11)
+        settings = machine.succeed(desktop("tesseract /home/approved/label.png stdout --psm 11 2>/dev/null"))
+        settings = " ".join(settings.lower().split())
+        for obsolete in ["installed service", "use on next launch", "in use now:"]:
+            assert obsolete not in settings, settings
         close_gui()
+        machine.wait_until_succeeds("test ! -e /proc/" + str(pid), timeout=timedelta(seconds=10))
         machine.wait_until_succeeds("test ! -e /proc/" + str(helper_pid), timeout=timedelta(seconds=10))
         cleanup = unit.removesuffix(".service") + "-cleanup.service"
         machine.wait_until_succeeds("journalctl -b --no-pager -u " + cleanup + " | grep -F 'Legion control cleanup complete.'", timeout=timedelta(seconds=10))
@@ -181,7 +180,9 @@ pkgs.testers.runNixOSTest {
         machine.fail("systemctl cat legion-control.service")
         machine.fail("systemctl cat legion-telemetry.service")
 
-    with subtest("official appimage-run closes normally on X11 repeatedly"):
+    # One functional first launch above plus ten repeat closes: eleven X11 runs.
+    # The former Settings-only launch is gone; helper use needs no relaunch.
+    with subtest("official appimage-run closes normally ten more times on X11"):
         for attempt in range(10):
             start_gui()
             wait_text("Dashboard", "380x32+288+7")

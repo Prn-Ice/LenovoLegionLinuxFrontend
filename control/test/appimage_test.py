@@ -13,15 +13,6 @@ import portable_session_test as session
 from desktop_test_support import gui, stop
 from distro_test_support import LocalMachine, persistent_files
 
-if len(sys.argv) == 4 and sys.argv[1] == "--gui":
-    gui(
-        sys.argv[2],
-        "appimage-gui-" + sys.argv[3] + ".log",
-        sys.argv[3],
-        bundled_libraries=True,
-    )
-    sys.exit(0)
-
 marker = Path("/etc/legion-control-lifecycle-test-vm")
 assert os.getuid() == 0 and marker.stat().st_uid == 0
 assert marker.read_text() == "legion-control-disposable-lifecycle-vm\n"
@@ -36,7 +27,7 @@ image = next(directory.glob("*.AppImage"))
 manifest = json.loads(next(directory.glob("legion-frontend-*.json")).read_text())
 assert (
     manifest["portable_control"]
-    and manifest["default_control_mode"] == "installedService"
+    and manifest["default_control_mode"] == "temporaryHelper"
 )
 assert manifest["host_executables"] == ["/bin/sh", "dirname", "mktemp", "rm"]
 assert manifest["native_runtime"]["helper"]["linkage"] == "static"
@@ -110,14 +101,12 @@ with (
     finally:
         stop(mount)
 
-print(
-    machine.succeed(
-        "runuser -u approved -- xvfb-run -a python3 /opt/legion-vm-tests/appimage_test.py --gui "
-        + shlex.quote(str(image))
-        + " fuse",
-        timeout=150,
-    ),
-    flush=True,
+gui(
+    machine,
+    str(image),
+    "appimage-gui-fuse.log",
+    "fuse",
+    bundled_libraries=True,
 )
 extraction = Path("/home/approved/Extracted app with spaces")
 machine.succeed(
@@ -167,20 +156,18 @@ print(
     "PASS: bundled helper from extraction with synthetic write/readback/restore",
     flush=True,
 )
-# The first X server may still be releasing its socket after xvfb-run exits.
-print(
-    machine.succeed(
-        "runuser -u approved -- xvfb-run -a --server-num=100 python3 /opt/legion-vm-tests/appimage_test.py --gui "
-        + shlex.quote(str(appdir / "AppRun"))
-        + " extracted",
-        timeout=150,
-    ),
-    flush=True,
+gui(
+    machine,
+    str(appdir / "AppRun"),
+    "appimage-gui-extracted.log",
+    "extracted",
+    bundled_libraries=True,
 )
 machine.wait_until_succeeds(
     'test -z "$(findmnt -rn -t fuse,fuse.squashfuse)"', timeout=timedelta(seconds=10)
 )
 assert persistent_files() == before, "AppImage use changed persistent integration files"
+session.assert_cleanup_succeeded()
 print(
     "PASS: AppImage FUSE/extraction qualification; persistent integration files unchanged",
     flush=True,
