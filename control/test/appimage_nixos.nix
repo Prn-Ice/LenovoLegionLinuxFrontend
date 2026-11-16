@@ -129,6 +129,7 @@ pkgs.testers.runNixOSTest {
 
     with subtest("the fresh GUI retries denied helper approval, writes, and restores without relaunch"):
         machine.succeed(click(90, 228))
+        wait_text("Collect history", "1280x720+0+0", 11)
         scroll = desktop("xdotool mousemove --window $(head -n1 /home/approved/window.id) 1100 600 click --repeat 18 --delay 50 5")
         machine.succeed(scroll)
         wait_text("mode", "260x25+359+648")
