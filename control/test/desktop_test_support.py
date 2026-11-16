@@ -47,7 +47,7 @@ def gui(
     # explicit Documents mapping isolate preferences for every artifact launch.
     home = machine.succeed(as_user("mktemp -d /home/approved/legion-gui-XXXXXX")).strip()
     machine.succeed(as_user(
-        "mkdir -p " + home + "/config && "
+        "mkdir -p " + home + "/config && install -d -m700 " + home + "/runtime && "
         "printf '%s\\n' 'XDG_DOCUMENTS_DIR=\"$HOME\"' >" + home + "/config/user-dirs.dirs"
     ))
     log = "/home/approved/" + log_name
@@ -67,7 +67,7 @@ def gui(
         "xdotool getwindowpid $(head -n1 " + home + "/window) >" + home + "/pid; "
         "wait $app; status=$?; printf '%s' \"$status\" >" + home + "/exit; exit $status"
     )
-    command = "xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- sh -c " + shlex.quote(launch)
+    command = "env XDG_RUNTIME_DIR=" + home + "/runtime xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- sh -c " + shlex.quote(launch)
     machine.succeed(as_user(
         "setsid " + command + " >" + home + "/display.log 2>&1 & "
         "echo $! >" + home + "/runner"
@@ -102,10 +102,12 @@ def gui(
         wait_text("Dashboard", "380x32+288+7")
         machine.wait_until_succeeds("test -f " + home + "/preferences.hive", timeout=timedelta(seconds=10))
         pid = int(machine.succeed("cat " + home + "/pid").strip())
-        executable = machine.succeed("readlink -f /proc/" + str(pid) + "/exe").strip()
+        # FUSE allows the mount owner, not arbitrary root traversal. Resolve and
+        # check the app's paths as the same user who launched the public command.
+        executable = machine.succeed(as_user("readlink -f /proc/" + str(pid) + "/exe")).strip()
         if expected_executable is not None:
             assert executable == expected_executable, executable
-        machine.succeed("test -x " + shlex.quote(executable.rsplit("/", 1)[0] + "/libexec/legion-portable-control"))
+        machine.succeed(as_user("test -x " + shlex.quote(executable.rsplit("/", 1)[0] + "/libexec/legion-portable-control")))
         if bundled_libraries:
             maps = machine.succeed("cat /proc/" + str(pid) + "/maps")
             for library in ("libgtk-3.so.0", "libglib-2.0.so.0", "libpango-1.0.so.0"):
@@ -116,9 +118,10 @@ def gui(
             machine.succeed("cp /proc/" + str(pid) + "/maps " + shlex.quote("/home/approved/appimage-runtime-" + label + ".txt"))
         assert machine.succeed(unit_query).strip() == "", "Read-only startup launched a helper"
 
-        # Use the existing Hardware page control without visiting Settings or
+        # Use the existing Battery page control without visiting Settings or
         # restarting. The CLI writes only its private synthetic fixture files.
         machine.succeed(click(90, 228))
+        wait_text("Collect history", "1280x720+0+0", 11)
         machine.succeed(desktop(
             "xdotool mousemove --window $(head -n1 " + home + "/window) "
             "1100 600 click --repeat 18 --delay 50 5"
@@ -169,7 +172,19 @@ def gui(
             assert diagnostic not in gui_log, gui_log
         print("PASS: close button exits normally and cleans up the helper from " + label, flush=True)
     except Exception:
-        print(machine.execute("cat " + shlex.quote(log) + " " + home + "/display.log; journalctl -b --no-pager -u 'legion-portable-control-*'")[1])
+        diagnostics = "/home/approved/desktop-diagnostics-" + label + ".txt"
+        command = (
+            "cat " + shlex.quote(log) + " " + home + "/display.log " + home + "/exit; "
+            "ps -eo pid,ppid,user,stat,args; "
+            "ls -ld /proc/$(cat " + home + "/pid) /proc/$(cat " + home + "/pid)/exe; "
+            "tesseract " + home + "/label.png stdout --psm 11 2>/dev/null; "
+            "journalctl -b --no-pager -u 'legion-portable-control-*'; "
+            "journalctl -b --no-pager -k | tail -n 100"
+        )
+        print(machine.execute(
+            "(" + command + ") >" + shlex.quote(diagnostics) + " 2>&1; cat "
+            + shlex.quote(diagnostics)
+        )[1])
         raise
     finally:
         machine.execute(as_user("kill -TERM -$(cat " + home + "/runner) 2>/dev/null || true"))

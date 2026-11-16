@@ -14,7 +14,8 @@ retain_appimage_evidence() {
   printf 'qualification=%s\nversions=%s\ncpu=%s\nmanifest=%s\n' \
     "$qualification_status" "$versions_status" "$cpu_status" "$manifest_status" \
     > "$home/appimage-evidence-status.txt"
-  for file in "$home"/appimage-*.{txt,log,json} "$home"/desktop-frame-*.png; do
+  for file in "$home"/appimage-*.{txt,log,json} "$home"/desktop-frame-*.png \
+    "$home"/desktop-diagnostics-*.txt; do
     if [[ -f $file ]]; then files+=("${file##*/}"); fi
   done
   timeout 90 tar -czf "$archive" -C "$home" "${files[@]}" || archive_status=$?

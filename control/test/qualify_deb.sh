@@ -21,6 +21,22 @@ apt-get install -y --no-install-recommends policykit-1 dbus python3 util-linux \
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
+# Preserve available GUI evidence even when a package check fails.
+finish_qualification() {
+  local qualification_status=$? archive_status=0 file
+  local files=()
+  trap - EXIT
+  for file in /home/approved/deb-*.{txt,log,json} \
+    /home/approved/deb-os-release \
+    /home/approved/desktop-frame-*.png /home/approved/desktop-diagnostics-*.txt; do
+    if [[ -f $file ]]; then files+=("${file##*/}"); fi
+  done
+  timeout 90 tar -czf /root/deb-qualification.tar.gz -C /home/approved \
+    --files-from=/dev/null "${files[@]}" || archive_status=$?
+  if (( qualification_status != 0 )); then exit "$qualification_status"; fi
+  exit "$archive_status"
+}
+trap finish_qualification EXIT
 if [[ $ID == ubuntu ]]; then
   mkdir -p /etc/polkit-1/localauthority/50-local.d
   cat > /etc/polkit-1/localauthority/50-local.d/legion-package-test.pkla <<'EOF'
@@ -85,5 +101,3 @@ python3 /opt/legion-vm-tests/deb_test.py /root/deb-release
 dpkg-query -W systemd libc6 libgtk-3-0 libglib2.0-0 libpolkit-gobject-1-0 > /home/approved/deb-versions.txt
 cp /root/deb-release/legion-frontend-*.json /home/approved/deb-release-manifest.json
 cp /etc/os-release /home/approved/deb-os-release
-tar -czf /root/deb-qualification.tar.gz -C /home/approved \
-  deb-versions.txt deb-gui.log deb-release-manifest.json deb-os-release deb-checks.json

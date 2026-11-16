@@ -28,7 +28,7 @@ class FixtureMachine:
             return self.home + "\n"
         if command == "cat " + self.home + "/pid":
             return "101\n"
-        if command.startswith("readlink -f /proc/"):
+        if "readlink -f /proc/" in command:
             return "/app/legion_frontend\n"
         if command.startswith("systemctl list-units"):
             self.unit_reads += 1
@@ -69,11 +69,17 @@ class DesktopDriverTest(unittest.TestCase):
         machine = FixtureMachine()
         self.run_gui(machine)
         commands = machine.commands
-        launches = [command for command in commands if "setsid xvfb-run" in command]
+        launches = [command for command in commands if "setsid env XDG_RUNTIME_DIR=" in command]
         self.assertEqual(len(launches), 1)
         self.assertIn("export HOME=" + machine.home, launches[0])
         self.assertIn("runuser -u approved", launches[0])
+        self.assertIn("XDG_RUNTIME_DIR=" + machine.home + "/runtime", launches[0])
         self.assertIn("test -f " + machine.home + "/preferences.hive", commands)
+        executable = next(command for command in commands if "readlink -f /proc/" in command)
+        self.assertIn("runuser -u approved", executable)
+        ready = next(i for i, command in enumerate(commands) if "Collect history" in command)
+        scroll = next(i for i, command in enumerate(commands) if "--repeat 18" in command)
+        self.assertLess(ready, scroll)
         restored = next(i for i, command in enumerate(commands) if "grep -x disabled" in command)
         settings = next(i for i, command in enumerate(commands) if "427 click 1" in command)
         self.assertLess(restored, settings)
@@ -103,9 +109,8 @@ class DesktopDriverTest(unittest.TestCase):
 
     def test_runtime_criticals_remain_failures(self):
         for diagnostic in ("Pango-CRITICAL", "GLib-CRITICAL", "GLib-GObject-CRITICAL"):
-            with self.subTest(diagnostic=diagnostic):
-                with self.assertRaisesRegex(AssertionError, diagnostic):
-                    self.run_gui(FixtureMachine(log=diagnostic))
+            with self.subTest(diagnostic=diagnostic), self.assertRaisesRegex(AssertionError, diagnostic):
+                self.run_gui(FixtureMachine(log=diagnostic))
 
     def test_missing_helper_cleanup_remains_a_failure(self):
         with self.assertRaisesRegex(AssertionError, "Helper cleanup did not finish"):
@@ -113,9 +118,8 @@ class DesktopDriverTest(unittest.TestCase):
 
     def test_obsolete_authorization_choices_remain_failures(self):
         for choice in ("Installed service", "Use on next launch", "In use now:"):
-            with self.subTest(choice=choice):
-                with self.assertRaises(AssertionError):
-                    self.run_gui(FixtureMachine(settings="Hardware control\n" + choice))
+            with self.subTest(choice=choice), self.assertRaises(AssertionError):
+                self.run_gui(FixtureMachine(settings="Hardware control\n" + choice))
 
 
 if __name__ == "__main__":

@@ -146,8 +146,6 @@ def main():
         for name in [
             "installation",
             "desktop",
-            "first_launch_helper",
-            "window_close_cleanup",
             "helper",
             "denied",
             "missing_agent",
