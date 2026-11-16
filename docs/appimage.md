@@ -52,12 +52,18 @@ choose Temporary helper in Settings and reopen the app to use it.
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
 
-Build `46b827e` passed Ubuntu 22.04 FUSE and extracted launches, normal window
-closes, and synthetic helper write/readback/restore. The same AppImage passed
+Build `46b827e`, using official Flutter 3.47.9, passed Ubuntu 22.04 FUSE and
+extracted launches, normal window closes, and synthetic helper
+write/readback/restore. The same AppImage passed
 official NixOS `appimage-run` control checks and ten normal Wayland closes.
 Neither VM reported Pango font errors. The user also confirmed the font fix on
 KDE Wayland with hybrid graphics. These checks do not establish real hardware
 control or desktop password-prompt behavior.
+
+The retained official Flutter 3.50.0 candidate and its matching source/checksums
+are listed in [the release record](releases.md#retained-official-candidate-16-november-2026).
+Its AppImage VM checks passed, but the same CI run's Debian normal-close failure
+still blocks release.
 
 Wayland startup still reports `Unable to load  from the cursor theme`.
 Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
