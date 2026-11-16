@@ -71,7 +71,7 @@ ways to help.
 ### Build and test
 
 - Flutter stable 3.50.0 ([dependency notes](docs/dependencies.md))
-- CMake, Ninja, a C/C++ compiler, and pkg-config
+- CMake 3.16 or newer, Ninja, a C/C++ compiler, and pkg-config
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native services
 - Polkit development files for the temporary helper
