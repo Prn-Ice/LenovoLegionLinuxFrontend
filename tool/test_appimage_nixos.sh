@@ -39,6 +39,8 @@ import sys
 from pathlib import Path
 root, image, output = map(Path, sys.argv[1:])
 manifest = {
+    'experimental': True,
+    'release_qualification': False,
     'commit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
     'appimage_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
     'nixos': 'official appimage-run desktop and temporary control verified',
