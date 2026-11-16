@@ -2,6 +2,7 @@ name: OSV-Scanner
 
 on:
   pull_request:
+    paths-ignore: ['**']
   merge_group:
   push:
     branches: [main]

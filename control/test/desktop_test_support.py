@@ -1,4 +1,4 @@
-"""Launch a packaged desktop and wait for its first visible Flutter frame."""
+"""Launch the packaged app, wait for Dashboard, and check a normal close."""
 
 import os
 import signal
@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+
+from appimage_diagnostic import before_close, after_close
 
 
 def stop(process):
@@ -114,28 +116,10 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                         f"{time.monotonic() - started:.1f}s",
                         flush=True,
                     )
-                    geometry = subprocess.check_output(
-                        ["xdotool", "getwindowgeometry", "--shell", window], text=True
-                    )
-                    width = int(
-                        dict(line.split("=", 1) for line in geometry.splitlines())[
-                            "WIDTH"
-                        ]
-                    )
-                    subprocess.run(
-                        [
-                            "xdotool",
-                            "mousemove",
-                            "--window",
-                            window,
-                            str(width - 22),
-                            "23",
-                            "click",
-                            "1",
-                        ],
-                        check=True,
-                    )
+                    before_close(pid, window, label)
+                    subprocess.run(["wmctrl", "-ic", hex(int(window))], check=True, timeout=10)
                     status = process.wait(timeout=15)
+                    after_close(label, status)
                     assert status == 0, (status, log_path.read_text())
                     for diagnostic in (
                         "Pango-CRITICAL",
@@ -154,4 +138,6 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                     )
                 time.sleep(0.1)
         finally:
-            stop(process)
+            # A live failure is left for VM teardown, not closed by a diagnostic signal.
+            if process.poll() is not None:
+                stop(process)

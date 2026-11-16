@@ -113,7 +113,7 @@ if [[ -n $release ]]; then
   tar -czf "$scratch/$format-release.tar.gz" -C "$release" .
   scp "${ssh_options[@]}" -P "$port" "$scratch/$format-release.tar.gz" "root@127.0.0.1:/root/$format-release.tar.gz"
   if [[ $format == appimage ]]; then
-    guest_check=qualify_appimage_ubuntu.sh
+    guest_check=qualify_appimage_diagnostic.sh
     guest_timeout=1500
   else
     guest_check=qualify_deb.sh

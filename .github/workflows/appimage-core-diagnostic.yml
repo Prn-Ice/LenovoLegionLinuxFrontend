@@ -1,0 +1,91 @@
+name: Exact official AppImage failure diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appimage-core-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  ubuntu:
+    name: Exact CI43933019937 AppImage — first ordinary close
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Restore and verify the failed official AppImage and its source pair
+        run: |
+          mkdir -p build/exact-appimage-release build/appimage-core-diagnostic
+          cp diagnostic-assets/appimage439330/*.AppImage diagnostic-assets/appimage439330/*.json \
+            diagnostic-assets/appimage439330/SHA256SUMS build/exact-appimage-release/
+          cat diagnostic-assets/appimage439330/source.tar.gz.part-* \
+            > build/exact-appimage-release/legion-frontend-1.0.0+1-x86_64-source.tar.gz
+          (cd build/exact-appimage-release && sha256sum --check SHA256SUMS)
+          printf '%s  %s\n' ff94264b210288bbb5442c010fc0f5dd50fbff60c9347e3f09b5a021224a207d \
+            build/exact-appimage-release/*.AppImage | sha256sum --check
+          printf '%s  %s\n' c3c91da79dbda08bcf05d537dad6ea592d2f17feb9d81db7c8d6e1a8fc8968d3 \
+            build/exact-appimage-release/*-source.tar.gz | sha256sum --check
+          sha256sum build/exact-appimage-release/* > build/appimage-core-diagnostic/input-hashes.txt
+          cp build/exact-appimage-release/*.json build/appimage-core-diagnostic/
+      - name: Install the existing disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Require KVM and record the allocated hosted environment
+        run: |
+          {
+            echo 'DIAGNOSTIC ONLY — NOT RELEASE QUALIFICATION'
+            echo 'source_run=43933019937 artifact=14258599556'
+            echo "diagnostic_commit=$(git rev-parse HEAD)"
+            uname -a
+            lscpu
+            cat /proc/cpuinfo
+            qemu-system-x86_64 --version
+          } > build/appimage-core-diagnostic/host-environment.txt
+          test -e /dev/kvm
+          sudo setfacl -m u:"$(id -un)":rw /dev/kvm
+          test -r /dev/kvm -a -w /dev/kvm
+      - name: Download the checksum-pinned Ubuntu 22.04 guest
+        run: |
+          curl --fail --silent --show-error --location --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img \
+            -o /tmp/appimage-diagnostic-jammy.img
+          printf '%s  %s\n' 77d19e53656f87c95f1f6c6be59c789083b3f77fa08f9d88011ee04085c61f87 \
+            /tmp/appimage-diagnostic-jammy.img | sha256sum --check
+      - name: Prove core capture and input delivery, then run the ordinary package sequence once
+        id: diagnostic
+        run: |
+          checksum=77d19e53656f87c95f1f6c6be59c789083b3f77fa08f9d88011ee04085c61f87
+          echo "ubuntu_image_sha256=$checksum" >> build/appimage-core-diagnostic/host-environment.txt
+          set +e
+          timeout -k 30s 2100s env LLLF_VM_ACCELERATOR=kvm \
+            bash tool/test_portable_distro.sh /tmp/appimage-diagnostic-jammy.img "$checksum" \
+              build/appimage-core-diagnostic/vm --appimage build/exact-appimage-release
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "diagnostic_status=$status" >> build/appimage-core-diagnostic/host-environment.txt
+      - name: Retain the evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: official-appimage-core-${{ github.run_id }}
+          path: build/appimage-core-diagnostic
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+      - name: Preserve the diagnostic result
+        if: always() && steps.diagnostic.outcome != 'skipped'
+        env:
+          DIAGNOSTIC_STATUS: ${{ steps.diagnostic.outputs.status }}
+        run: |
+          [[ $DIAGNOSTIC_STATUS =~ ^[0-9]+$ ]] || exit 1
+          exit "$DIAGNOSTIC_STATUS"

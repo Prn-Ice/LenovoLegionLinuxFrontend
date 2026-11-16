@@ -112,7 +112,10 @@ with (
 
 print(
     machine.succeed(
-        "runuser -u approved -- xvfb-run -a python3 /opt/legion-vm-tests/appimage_test.py --gui "
+        "runuser -u approved -- env -i HOME=/home/approved USER=approved LOGNAME=approved "
+        "PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/$(id -u approved) "
+        "GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory "
+        "xvfb-run -a dbus-run-session -- python3 /opt/legion-vm-tests/appimage_diagnostic.py "
         + shlex.quote(str(image))
         + " fuse",
         timeout=150,
@@ -170,7 +173,10 @@ print(
 # The first X server may still be releasing its socket after xvfb-run exits.
 print(
     machine.succeed(
-        "runuser -u approved -- xvfb-run -a --server-num=100 python3 /opt/legion-vm-tests/appimage_test.py --gui "
+        "runuser -u approved -- env -i HOME=/home/approved USER=approved LOGNAME=approved "
+        "PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 XDG_RUNTIME_DIR=/run/user/$(id -u approved) "
+        "GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory "
+        "xvfb-run -a --server-num=100 dbus-run-session -- python3 /opt/legion-vm-tests/appimage_diagnostic.py "
         + shlex.quote(str(appdir / "AppRun"))
         + " extracted",
         timeout=150,

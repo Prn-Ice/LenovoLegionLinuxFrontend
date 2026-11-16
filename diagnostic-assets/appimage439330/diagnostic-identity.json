@@ -1,0 +1,21 @@
+{
+  "diagnostic_only": true,
+  "release_qualification": false,
+  "source_run": 43933019937,
+  "source_artifact": 14258599556,
+  "source_commit": "ad9d156630d756e6530b0d6746f724ae11b29491",
+  "appimage_sha256": "ff94264b210288bbb5442c010fc0f5dd50fbff60c9347e3f09b5a021224a207d",
+  "source_companion_sha256": "c3c91da79dbda08bcf05d537dad6ea592d2f17feb9d81db7c8d6e1a8fc8968d3",
+  "flutter": "official 3.50.0, unchanged",
+  "flutter_engine_sha256": "cb40d5867033badfa1a38072fab83f1c60ec1520c303a4810f49979f0ba5df04",
+  "ubuntu_cloud_image_sha256": "77d19e53656f87c95f1f6c6be59c789083b3f77fa08f9d88011ee04085c61f87",
+  "app_sequence": "One existing FUSE/extracted sequence; stop at the first app failure; no repeated-close loop",
+  "unchanged": ["AppImage and source bytes", "SDK", "engine retention", "X11", "LIBGL_ALWAYS_SOFTWARE=1", "KVM host CPU selection", "Dashboard and status-zero assertions"],
+  "diagnostic_differences": [
+    "Standard systemd-coredump, GDB, validated controlled-abort fixture",
+    "Clean approved-user environment, UID-owned runtime directory, private D-Bus session and at-spi2-core",
+    "Openbox and wmctrl normal WM close, independently observed WM_DELETE_WINDOW; not the original pointer click",
+    "X RECORD observer, glxinfo renderer probe, pre-close library snapshots and hashes add observation time",
+    "A GTK-only preflight uses the exact AppImage's bundled GTK; host GTK remains absent"
+  ]
+}
