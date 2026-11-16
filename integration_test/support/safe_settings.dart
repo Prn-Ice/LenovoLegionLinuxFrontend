@@ -31,7 +31,6 @@ List<Override> safeSettingsOverrides() {
       cliPath: '/integration-test/legion_cli',
       cliPathExists: true,
       pythonAvailable: true,
-      controlServiceActive: false,
       systemctlAvailable: true,
       cliHealthy: true,
       cliHealthSummary: 'Synthetic CLI',

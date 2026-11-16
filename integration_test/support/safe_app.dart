@@ -22,11 +22,8 @@ import 'package:legion_frontend/features/lighting/providers/lighting_provider.da
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
 import 'package:legion_frontend/features/sensors/repository/live_sensor_repository.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 import 'package:legion_frontend/features/settings/repository/appearance_store.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:yaru/yaru.dart';
 
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
@@ -173,9 +170,7 @@ class SafeApp {
           packagePowerTelemetryClientProvider.overrideWith(
             (_) => throw StateError('System telemetry is outside this journey'),
           ),
-          // These repositories contain direct host reads (systemctl and /sys).
-          // Keep their real providers/Blocs, but supply fixed repository results.
-          settingsRepositoryProvider.overrideWithValue(_NoSystemServices()),
+          // Keep the real sensor provider/Bloc with synthetic hardware readings.
           liveSensorRepositoryProvider.overrideWithValue(_NoLiveSensors()),
           appearanceStoreProvider.overrideWithValue(
             AppearanceStore(Hive.box<dynamic>('preferences')),
@@ -315,16 +310,6 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 class _NoNvidia implements NvidiaSmiService {
   @override
   Future<NvidiaSmiSnapshot?> readSnapshot() async => null;
-}
-
-class _NoSystemServices implements SettingsRepository {
-  @override
-  Future<SettingsSnapshot> loadSnapshot() async =>
-      const SettingsSnapshot(services: []);
-
-  @override
-  Future<void> setServiceEnabled(ServiceControl service, bool enabled) =>
-      throw StateError('System service writes are outside this journey');
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

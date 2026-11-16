@@ -116,8 +116,8 @@ The test backend lives only under `integration_test/`. It redirects sysfs/proc
 reads and the real `AutomationRepository` config file to temporary fixture
 storage. The real providers, Blocs, repositories, bridge, and control client are
 used for the setting under test. A fake control transport writes only the
-fixture and rejects other operations. System service status and live sensors
-use fixed repository results because they contain direct host reads. CLI
+fixture and rejects other operations. Live sensors use fixed repository results
+because they contain direct host reads. CLI
 execution, display access, and system telemetry are blocked. HID and OpenRGB
 access are blocked by default; the keyboard journeys supply OpenRGB process
 results to the real CLI service and confine Spectrum discovery to temporary

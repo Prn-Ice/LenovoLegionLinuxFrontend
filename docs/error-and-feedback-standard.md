@@ -133,9 +133,8 @@ button to code blocks.
 - Do not open another dialog or floating notification to confirm a copy.
 - Revert the copied state if the platform clipboard call fails.
 
-The dialog content uses `SelectionArea`, while the NixOS configuration has its
-own copy button. Generic errors provide `Copy details` for the complete error
-text.
+The dialog content uses `SelectionArea`. Errors provide `Copy details` for the
+complete error text.
 
 ## Accessibility and Responsive Requirements
 
