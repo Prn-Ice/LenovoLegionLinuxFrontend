@@ -51,11 +51,13 @@ rejected status. Neither candidate replaced `build/legion-frontend.AppImage`.
 The SDK upgrade passed generation, analysis, 777 Flutter tests, 24 visual
 renders, 14 native app journeys and both restart phases, four native codec tests,
 and the Nix package/source check. Those results do not establish clean shutdown
-for every package and graphics environment. The user reported normal closing on
-their last official AppImage. The documented user-tested build `46b827e` used
-Flutter 3.47.9, not the current 3.50.0 SDK. Real-hardware KDE Wayland/hybrid
-password cancellation, approved retry, readback, and restoration remain
-unverified on the current official candidate.
+for every package and graphics environment. The earlier user-tested build
+`46b827e` used Flutter 3.47.9. On 16 November, after receiving the retained
+official 3.50.0 AppImage command (SHA256 `ae10838f…d5afbe`), the user reported
+that it works and confirmed that retry works too. This records a successful
+hardware trial; hardware readback, restoration, helper cleanup, and numeric
+process exit status were not explicitly reported. The separate Debian failure
+remains unresolved.
 
 ## Upstream work
 
@@ -111,7 +113,7 @@ The local reports are `/tmp/opencode/lllf-shutdown-results/RESULTS.md` and
 
 ## Resume qualification
 
-Use the retained official candidate for the pending hardware trial; rebuilding
+Use the retained official candidate for the remaining hardware checks; rebuilding
 unchanged inputs or rerunning failed CI does not resolve this blocker. Keep
 Flutter 3.50.0 and engine retention unchanged. Do not adopt the isolated engine
 or replace the user's convenience AppImage without approval.

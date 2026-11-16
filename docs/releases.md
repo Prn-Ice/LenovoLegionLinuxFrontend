@@ -13,7 +13,7 @@ fail. The workflow is configured, but this candidate is not qualified for releas
 ## Retained official candidate: 16 November 2026
 
 Use the existing artifacts from [CI run 43726942646](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/43726942646)
-for the pending hardware trial; no identical rebuild is needed. They identify
+for the remaining hardware checks; no identical rebuild is needed. They identify
 CI merge `e1c1d5392db90a78a46da43b9c45d9caf2672311`, whose second parent is
 PR #9 head `77a189e`. Documentation updates do not change that artifact identity.
 
@@ -48,11 +48,12 @@ standard `appimage-run`, including ten X11 and ten Wayland closes.
 The Debian package failed Ubuntu normal close; Debian 12 did not run. The exact
 package also failed the hosted core diagnostic linked in the
 [shutdown record](linux-shutdown.md). Keep PR #9 as a draft: no merge, tag, or
-release while that gate remains unresolved. Real-hardware password
-cancellation/retry, readback, and restoration remain unverified. Use the
-[desktop trial](appimage.md#desktop-trial) on the retained AppImage, with its
-matching source and checksums, and record the image hash and exit status.
-A passing hardware trial does not erase the CI failure.
+release while that gate remains unresolved. On 16 November, the user reported
+that this official AppImage works on their machine and confirmed that retry
+works too. Hardware readback, restoration, helper cleanup, and numeric process
+exit status were not explicitly reported. The [desktop trial](appimage.md#desktop-trial)
+describes those remaining checks. This positive hardware result does not
+resolve the separate Debian CI failure.
 
 The convenience link `build/legion-frontend.AppImage` still points to the
 user-tested `46b827e` build, which used official Flutter 3.47.9. Its current
