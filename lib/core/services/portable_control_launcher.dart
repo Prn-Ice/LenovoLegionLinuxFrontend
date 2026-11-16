@@ -6,14 +6,13 @@ import '../models/portable_control_endpoint.dart';
 import 'host_command_environment.dart';
 import 'legion_control_client.dart';
 
-typedef PortableProcessStarter =
-    Future<Process> Function(
-      String executable,
-      List<String> arguments, {
-      required Map<String, String> environment,
-      required String workingDirectory,
-      required bool includeParentEnvironment,
-    });
+typedef PortableProcessStarter = Future<Process> Function(
+  String executable,
+  List<String> arguments, {
+  required Map<String, String> environment,
+  required String workingDirectory,
+  required bool includeParentEnvironment,
+});
 
 /// Owns the ordinary-user launcher and its bounded readiness exchange.
 /// The native launcher obtains host approval and supervises the root helper.
@@ -101,7 +100,7 @@ class PortableControlLauncher {
       );
     } on ProcessException catch (error) {
       throw LegionControlSetupException(
-        'Could not start the portable helper. Verify the app files and host libraries. $error',
+        'Could not start the temporary helper. Reinstall a complete app build and check its host libraries. Hardware readings remain available. $error',
       );
     }
     _process = process;
@@ -279,10 +278,8 @@ class PortableControlLauncher {
     var outputComplete = false;
     if (!_ready.isCompleted) {
       try {
-        await Future.wait([
-          _stdoutDone.future,
-          _stderrDone.future,
-        ]).timeout(const Duration(seconds: 1));
+        await Future.wait([_stdoutDone.future, _stderrDone.future])
+            .timeout(const Duration(seconds: 1));
         outputComplete = true;
       } on TimeoutException {
         /* Report exit with diagnostics received so far. */

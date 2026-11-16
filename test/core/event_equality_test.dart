@@ -8,24 +8,21 @@ void main() {
     expect(const AboutStarted(), isNot(const AboutRefreshRequested()));
     expect(const DashboardStarted(), isNot(const DashboardRefreshRequested()));
     expect(const DashboardStarted(), isNot(const DashboardTicked()));
-    expect(const SettingsStarted(), isNot(const SettingsRefreshRequested()));
+    expect(
+      const AccentFollowsPowerModeChanged(true),
+      isNot(const AccentFollowsPowerModeChanged(false)),
+    );
     expect({const AboutStarted(), const AboutRefreshRequested()}, hasLength(2));
   });
 
   test('the same command and payload remain equal', () {
-    expect(const SettingsStarted(), const SettingsStarted());
     expect(
-      const SettingsServiceToggled(serviceId: 'legiond_stack', enabled: true),
-      const SettingsServiceToggled(serviceId: 'legiond_stack', enabled: true),
+      const AccentFollowsPowerModeChanged(true),
+      const AccentFollowsPowerModeChanged(true),
     );
     expect(
-      const SettingsServiceToggled(serviceId: 'legiond_stack', enabled: true),
-      isNot(
-        const SettingsServiceToggled(
-          serviceId: 'legiond_stack',
-          enabled: false,
-        ),
-      ),
+      const AccentFollowsPowerModeChanged(true),
+      isNot(const AccentFollowsPowerModeChanged(false)),
     );
   });
 }

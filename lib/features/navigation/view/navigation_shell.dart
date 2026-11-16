@@ -33,8 +33,6 @@ import '../../lighting/view/lighting_page.dart';
 import '../../power/bloc/power_event.dart';
 import '../../power/providers/power_provider.dart';
 import '../../power/view/power_page.dart';
-import '../../settings/bloc/settings_event.dart';
-import '../../settings/providers/settings_provider.dart';
 import '../../settings/view/settings_page.dart';
 import '../bloc/navigation_event.dart';
 import '../models/app_section.dart';
@@ -87,14 +85,11 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   /// Refresh actions live in the title bar rather than page content.
   List<Widget> _titleBarActions(AppSection section) {
     if (section == AppSection.settings) {
-      final settings = ref.watch(settingsBlocProvider);
       final bootLogo = ref.watch(bootLogoBlocProvider);
       final about = ref.watch(aboutBlocProvider);
       final devices = ref.watch(devicesBlocProvider);
       final display = ref.watch(displayBlocProvider);
       final refreshTargets = SettingsRefreshTargets.fromBusyStates(
-        settingsLoading: settings.isLoading,
-        settingsApplying: settings.isApplying,
         bootLogoLoading: bootLogo.isLoading,
         bootLogoApplying: bootLogo.isApplying,
         aboutLoading: about.isLoading,
@@ -110,11 +105,6 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
           tooltip: 'Refresh',
           onPressed: refreshTargets.canRefresh
               ? () {
-                  if (refreshTargets.settings) {
-                    ref
-                        .read(settingsBlocProvider.bloc)
-                        .add(const SettingsRefreshRequested());
-                  }
                   if (refreshTargets.bootLogo) {
                     ref
                         .read(bootLogoBlocProvider.bloc)
@@ -171,9 +161,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
   }
 
   /// Bold style for the window/sidebar titles, matching the design.
-  TextStyle? _titleStyle(BuildContext context) => Theme.of(
-    context,
-  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700);
+  TextStyle? _titleStyle(BuildContext context) =>
+      Theme.of(context).textTheme.titleMedium
+          ?.copyWith(fontWeight: FontWeight.w700);
 
   /// Subtle 1px underline beneath the title bars, like the design.
   BorderSide _titleBarBorder(BuildContext context) => BorderSide(
@@ -186,7 +176,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
     final keyboardError =
         ref.watch(automationBlocProvider).config.profiles.isNotEmpty
         ? ref.watch(
-            rgbLightingBlocProvider.select((state) => state.visibleErrorMessage),
+            rgbLightingBlocProvider.select(
+              (state) => state.visibleErrorMessage,
+            ),
           )
         : null;
     // Keep controllers in sync with the navigation bloc.
@@ -264,9 +256,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
 
     // Wide layout — flat sidebar with an accent-tinted active item.
     return YaruMasterDetailTheme(
-      data: YaruMasterDetailTheme.of(
-        context,
-      ).copyWith(sideBarColor: sidebarColor),
+      data: YaruMasterDetailTheme.of(context)
+          .copyWith(sideBarColor: sidebarColor),
       child: YaruMasterDetailPage(
         controller: _wideController,
         paneLayoutDelegate: const YaruResizablePaneDelegate(

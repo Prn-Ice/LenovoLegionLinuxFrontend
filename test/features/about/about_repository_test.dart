@@ -19,13 +19,9 @@ void main() {
     root = await Directory.systemTemp.createTemp('about-diagnostics-');
     commands = [];
     cliHealthy = true;
-    final fixture =
-        jsonDecode(
-              File(
-                'test/fixtures/sysfs/alternate-layout.json',
-              ).readAsStringSync(),
-            )
-            as Map<String, dynamic>;
+    final fixture = jsonDecode(
+      File('test/fixtures/sysfs/alternate-layout.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
     fixture['sys/class/dmi/id/product_serial'] = 'PRIVATE-SERIAL';
     fixture['sys/class/dmi/id/product_uuid'] = 'PRIVATE-UUID';
     fixture['sys/class/hwmon/hwmon7/fan2_input'] = 'invalid';
@@ -58,7 +54,7 @@ void main() {
         devRoot: '${root.path}/dev',
       ),
       processRunner: (executable, arguments) async {
-        expect(executable, anyOf('which', 'systemctl'));
+        expect(executable, 'which');
         return ProcessResult(0, 1, '', '');
       },
     );
@@ -157,7 +153,7 @@ void main() {
   );
 
   test(
-    'existing snapshot export includes identity, selections and separate write evidence',
+    'snapshot export separates identity, hardware readings, and write evidence',
     () async {
       final snapshot = await repository.loadSnapshot();
       final report =
@@ -174,7 +170,8 @@ void main() {
       expect(report['kernel_version'], isNull);
       expect(report['module_version'], isNull);
       expect(report['cli_version'], 'fixture-cli-1.0');
-      expect(report['control_service_active'], isFalse);
+      expect(report['schema_version'], 4);
+      expect(report, isNot(contains('control_service_active')));
       expect(
         diagnostics['battery_conservation']!['frontend_write_available'],
         isTrue,

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
-import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
 import 'package:legion_frontend/features/about/providers/about_provider.dart';
 import 'package:legion_frontend/features/boot_logo/models/boot_logo_snapshot.dart';
@@ -17,18 +16,13 @@ import 'package:legion_frontend/features/devices/repository/devices_repository.d
 import 'package:legion_frontend/features/display/models/display_snapshot.dart';
 import 'package:legion_frontend/features/display/providers/display_provider.dart';
 import 'package:legion_frontend/features/display/repository/display_repository.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:legion_frontend/features/settings/view/settings_page.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:yaru/yaru.dart';
 
 import '../boot_logo/boot_logo_page_test.dart'
     show ControlledPicker, MockPlatformFile;
-
-class SettingsRepo extends Mock implements SettingsRepository {}
 
 class BootRepo extends Mock implements BootLogoRepository {}
 
@@ -39,14 +33,6 @@ class DevicesRepo extends Mock implements DevicesRepository {}
 class DisplayRepo extends Mock implements DisplayRepository {}
 
 void main() {
-  const service = ServiceControl(
-    service: ControlService.legiondStack,
-    label: 'Test service',
-    units: ['test'],
-    supported: true,
-    active: true,
-    enabled: true,
-  );
   for (final scenario in [
     'picker',
     'boot logo',
@@ -61,10 +47,6 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
       }
-      final settings = SettingsRepo();
-      when(
-        settings.loadSnapshot,
-      ).thenAnswer((_) async => const SettingsSnapshot(services: [service]));
       final boot = BootRepo();
       final nextBoot = BootRepo();
       const logo = BootLogoSnapshot(
@@ -80,8 +62,8 @@ void main() {
       when(() => boot.enableBootLogo('/tmp/logo.png')).thenThrow(
         const BootLogoRepositoryException(
           'Could not apply boot logo',
-          kind: AppFailureKind.privilegeSetup,
-          details: 'Test service unavailable',
+          kind: AppFailureKind.portableSetup,
+          details: 'Test helper unavailable',
         ),
       );
       when(boot.restoreBootLogo).thenAnswer((_) async {});
@@ -128,7 +110,6 @@ void main() {
         ),
       );
       overrides(BootRepo logoRepo, DevicesRepo deviceRepo) => [
-        settingsRepositoryProvider.overrideWithValue(settings),
         bootLogoRepositoryProvider.overrideWithValue(logoRepo),
         aboutRepositoryProvider.overrideWithValue(about),
         devicesRepositoryProvider.overrideWithValue(deviceRepo),
@@ -208,14 +189,17 @@ void main() {
         await tester.tap(find.text('Apply').last);
         await tester.pumpAndSettle();
         verify(() => boot.enableBootLogo('/tmp/logo.png')).called(1);
-        expect(find.text('Privileged access needs setup'), findsOneWidget);
+        expect(
+          find.text('Temporary hardware access needs setup'),
+          findsOneWidget,
+        );
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.kind,
-          AppFailureKind.privilegeSetup,
+          AppFailureKind.portableSetup,
         );
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.details,
-          'Test service unavailable',
+          'Test helper unavailable',
         );
         await tester.tap(find.text('Close').last);
         await tester.pumpAndSettle();
@@ -276,30 +260,19 @@ void main() {
       await tester.pump();
     });
   }
-  for (final disposeDuringConfirmation in [false, true]) {
+  for (final compact in [false, true]) {
     testWidgets(
-      disposeDuringConfirmation
-          ? 'service confirmation after disposal does not dispatch'
-          : 'service confirmation uses replacement provider',
+      'Settings copies links and reports clipboard failure, compact: $compact',
       (tester) async {
-        tester.view.physicalSize = const Size(420, 500);
+        tester.view.physicalSize = compact
+            ? const Size(420, 500)
+            : const Size(1200, 900);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
-        final first = SettingsRepo();
-        final next = SettingsRepo();
-        for (final repo in [first, next]) {
-          when(repo.loadSnapshot).thenAnswer(
-            (_) async => const SettingsSnapshot(services: [service]),
-          );
-          when(
-            () => repo.setServiceEnabled(service, false),
-          ).thenAnswer((_) async {});
-        }
         final boot = BootRepo();
-        when(
-          boot.loadSnapshot,
-        ).thenAnswer((_) async => const BootLogoSnapshot(status: null));
+        when(boot.loadSnapshot)
+            .thenAnswer((_) async => const BootLogoSnapshot(status: null));
         final about = AboutRepo();
         when(about.loadSnapshot).thenThrow(Exception('unavailable'));
         final devices = DevicesRepo();
@@ -325,14 +298,13 @@ void main() {
             currentRefreshRate: null,
           ),
         );
-        overrides(SettingsRepo repo) => [
-          settingsRepositoryProvider.overrideWithValue(repo),
+        overrides() => [
           bootLogoRepositoryProvider.overrideWithValue(boot),
           aboutRepositoryProvider.overrideWithValue(about),
           devicesRepositoryProvider.overrideWithValue(devices),
           displayRepositoryProvider.overrideWithValue(display),
         ];
-        final container = ProviderContainer.test(overrides: overrides(first));
+        final container = ProviderContainer.test(overrides: overrides());
         final visible = ValueNotifier(true);
         addTearDown(visible.dispose);
         await tester.pumpWidget(
@@ -355,67 +327,45 @@ void main() {
           await tester.tap(find.text('Close').last);
           await tester.pumpAndSettle();
         }
-        await tester.ensureVisible(find.text('Test service'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Test service'));
-        await tester.pumpAndSettle();
-        final old = container.read(settingsBlocProvider.bloc);
-        if (disposeDuringConfirmation) {
-          visible.value = false;
-          await tester.pumpAndSettle();
-        } else {
-          container.updateOverrides(overrides(next));
-          await tester.pumpAndSettle();
-          expect(old.isClosed, isTrue);
-        }
-        await tester.tap(find.text('Apply').last);
-        await tester.pumpAndSettle();
-        verifyNever(() => first.setServiceEnabled(service, false));
-        if (disposeDuringConfirmation) {
-          verifyNever(() => next.setServiceEnabled(service, false));
-        } else {
-          verify(() => next.setServiceEnabled(service, false)).called(1);
-          String? copied;
-          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
             SystemChannels.platform,
-            (call) async {
-              if (call.method == 'Clipboard.setData') {
-                copied = (call.arguments as Map)['text'] as String;
-              }
-              return null;
-            },
-          );
-          addTearDown(
-            () => tester.binding.defaultBinaryMessenger
-                .setMockMethodCallHandler(SystemChannels.platform, null),
-          );
-          await tester.ensureVisible(find.text('Copy GitHub link'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Copy GitHub link'));
-          await tester.pumpAndSettle();
-          expect(find.text('Copied GitHub link'), findsOneWidget);
-          expect(
-            copied,
-            'https://github.com/Prn-Ice/LenovoLegionLinuxFrontend',
-          );
-          expect(find.text('Manifest version: 1.0.0+1'), findsOneWidget);
-          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-            SystemChannels.platform,
-            (call) async {
-              if (call.method == 'Clipboard.setData') {
-                throw PlatformException(code: 'clipboard-error');
-              }
-              return null;
-            },
-          );
-          await tester.ensureVisible(find.text('Copy issue link'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Copy issue link'));
-          await tester.pumpAndSettle();
-          expect(find.text('Copied GitHub link'), findsNothing);
-          expect(find.text('Copy GitHub link'), findsOneWidget);
-          expect(find.text('Action could not be completed'), findsOneWidget);
-        }
+            null,
+          ),
+        );
+        await tester.ensureVisible(find.text('Copy GitHub link'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy GitHub link'));
+        await tester.pumpAndSettle();
+        expect(find.text('Copied GitHub link'), findsOneWidget);
+        expect(copied, 'https://github.com/Prn-Ice/LenovoLegionLinuxFrontend');
+        expect(find.text('Manifest version: 1.0.0+1'), findsOneWidget);
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              throw PlatformException(code: 'clipboard-error');
+            }
+            return null;
+          },
+        );
+        await tester.ensureVisible(find.text('Copy issue link'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy issue link'));
+        await tester.pumpAndSettle();
+        expect(find.text('Copied GitHub link'), findsNothing);
+        expect(find.text('Copy GitHub link'), findsOneWidget);
+        expect(find.text('Action could not be completed'), findsOneWidget);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
         await tester.pump();
@@ -429,10 +379,6 @@ void main() {
     testWidgets(
       'Settings shows readable camera value as read-only (${cameraEnabled ? 'on' : 'off'})',
       (tester) async {
-        final settings = SettingsRepo();
-        when(
-          settings.loadSnapshot,
-        ).thenAnswer((_) async => const SettingsSnapshot(services: [service]));
         final boot = BootRepo();
         when(boot.loadSnapshot).thenAnswer(
           (_) async => const BootLogoSnapshot(
@@ -470,7 +416,6 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
-            settingsRepositoryProvider.overrideWithValue(settings),
             bootLogoRepositoryProvider.overrideWithValue(boot),
             aboutRepositoryProvider.overrideWithValue(about),
             devicesRepositoryProvider.overrideWithValue(devices),

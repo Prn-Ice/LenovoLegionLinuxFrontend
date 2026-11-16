@@ -1,47 +1,45 @@
-import 'dart:async';
-
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/core/models/control_selectors.dart';
+import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
+import 'package:legion_frontend/features/settings/repository/appearance_store.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:riverbloc/riverbloc.dart';
 
-class MockSettingsRepository extends Mock implements SettingsRepository {}
-
-const service = ServiceControl(
-  service: ControlService.powerProfilesDaemon,
-  label: 'power-profiles-daemon',
-  units: ['power-profiles-daemon'],
-  supported: true,
-  active: true,
-  enabled: true,
-);
+class MockAppearanceStore extends Mock implements AppearanceStore {}
 
 void main() {
+  setUpAll(() => registerFallbackValue(SettingsState.initial()));
+
   test(
-    'production provider loads settings and closes its Bloc when unused',
+    'production provider hydrates, publishes edits, and closes when unused',
     () async {
-      final repository = MockSettingsRepository();
-      final load = Completer<SettingsSnapshot>();
-      when(repository.loadSnapshot).thenAnswer((_) => load.future);
-      final container = ProviderContainer.test(
-        overrides: [settingsRepositoryProvider.overrideWithValue(repository)],
+      final store = MockAppearanceStore();
+      final initial = SettingsState.initial().copyWith(
+        themeMode: ThemeMode.dark,
       );
-      final subscription = container.listen(settingsBlocProvider, (_, _) {});
+      when(store.load).thenReturn(initial);
+      when(() => store.save(any())).thenAnswer((_) async {});
+      final container = ProviderContainer.test(
+        overrides: [appearanceStoreProvider.overrideWithValue(store)],
+      );
+      final states = <SettingsState>[];
+      final subscription = container.listen(
+        settingsBlocProvider,
+        (_, state) => states.add(state),
+      );
       final bloc = container.read(settingsBlocProvider.bloc);
-      final loaded = bloc.stream.firstWhere((state) => state.hasLoaded);
-
-      load.complete(const SettingsSnapshot(services: [service]));
-      await loaded;
+      expect(container.read(settingsBlocProvider), initial);
+      final changed = bloc.stream.firstWhere(
+        (state) => state.themeMode == ThemeMode.light,
+      );
+      bloc.add(const ThemeModeChanged(ThemeMode.light));
+      await changed;
       await container.pump();
-
-      expect(container.read(settingsBlocProvider).services, [service]);
-      verify(repository.loadSnapshot).called(1);
-
+      expect(states.last.themeMode, ThemeMode.light);
+      verify(store.load).called(1);
+      verify(() => store.save(any())).called(1);
       final closed = bloc.stream.drain<void>();
       subscription.close();
       await container.pump();
@@ -51,47 +49,32 @@ void main() {
   );
 
   test(
-    'replacing the repository recreates the Bloc and publishes its state',
+    'replacing the appearance store recreates the Bloc and publishes its state',
     () async {
-      final firstRepository = MockSettingsRepository();
-      final nextRepository = MockSettingsRepository();
-      final firstLoad = Completer<SettingsSnapshot>();
-      final nextLoad = Completer<SettingsSnapshot>();
-      when(firstRepository.loadSnapshot).thenAnswer((_) => firstLoad.future);
-      when(nextRepository.loadSnapshot).thenAnswer((_) => nextLoad.future);
+      final firstStore = MockAppearanceStore();
+      final nextStore = MockAppearanceStore();
+      when(firstStore.load).thenReturn(SettingsState.initial());
+      final nextState = SettingsState.initial().copyWith(
+        themeMode: ThemeMode.dark,
+      );
+      when(nextStore.load).thenReturn(nextState);
       final container = ProviderContainer.test(
-        overrides: [
-          settingsRepositoryProvider.overrideWithValue(firstRepository),
-        ],
+        overrides: [appearanceStoreProvider.overrideWithValue(firstStore)],
       );
       final states = <SettingsState>[];
       container.listen(settingsBlocProvider, (_, state) => states.add(state));
       final firstBloc = container.read(settingsBlocProvider.bloc);
-      final firstLoaded = firstBloc.stream.firstWhere(
-        (state) => state.hasLoaded,
-      );
-      firstLoad.complete(const SettingsSnapshot(services: [service]));
-      await firstLoaded;
-
       final firstClosed = firstBloc.stream.drain<void>();
       container.updateOverrides([
-        settingsRepositoryProvider.overrideWithValue(nextRepository),
+        appearanceStoreProvider.overrideWithValue(nextStore),
       ]);
       await container.pump();
-      final nextBloc = container.read(settingsBlocProvider.bloc);
-      expect(nextBloc, isNot(same(firstBloc)));
       await firstClosed;
+      expect(container.read(settingsBlocProvider.bloc), isNot(same(firstBloc)));
       expect(firstBloc.isClosed, isTrue);
-
-      final nextLoaded = nextBloc.stream.firstWhere((state) => state.hasLoaded);
-      final disabledService = service.copyWith(enabled: false);
-      nextLoad.complete(SettingsSnapshot(services: [disabledService]));
-      await nextLoaded;
-      await container.pump();
-
-      expect(container.read(settingsBlocProvider).services, [disabledService]);
-      expect(states.last.services, [disabledService]);
-      verify(nextRepository.loadSnapshot).called(1);
+      expect(container.read(settingsBlocProvider), nextState);
+      expect(states.last, nextState);
+      verify(nextStore.load).called(1);
     },
   );
 }

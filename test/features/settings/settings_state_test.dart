@@ -1,80 +1,29 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-
-ServiceControl _service() => const ServiceControl(
-  service: ControlService.powerProfilesDaemon,
-  label: 'power-profiles-daemon',
-  units: ['power-profiles-daemon'],
-  supported: true,
-  active: true,
-  enabled: true,
-);
+import 'package:material_ui/material_ui.dart';
 
 void main() {
-  group('SettingsState.initial', () {
-    test('services is empty', () {
-      expect(SettingsState.initial().services, isEmpty);
-    });
-
-    test('hasLoaded is false', () {
-      expect(SettingsState.initial().hasLoaded, isFalse);
-    });
-
-    test('errorMessage and noticeMessage are null', () {
-      final s = SettingsState.initial();
-      expect(s.errorMessage, isNull);
-      expect(s.noticeMessage, isNull);
-    });
+  test('appearance defaults follow the system', () {
+    final state = SettingsState.initial();
+    expect(state.themeMode, ThemeMode.system);
+    expect(state.yaruVariant, isNull);
+    expect(state.accentFollowsPowerMode, isFalse);
+    expect(state.appearanceErrorMessage, isNull);
   });
 
-  group('SettingsState.hasLoaded', () {
-    test('true when services list is non-empty', () {
-      final s = SettingsState.initial().copyWith(services: [_service()]);
-      expect(s.hasLoaded, isTrue);
-    });
-  });
-
-  group('SettingsState.copyWith sentinel', () {
-    test('copyWith with no args returns equal state', () {
-      expect(
-        SettingsState.initial().copyWith(),
-        equals(SettingsState.initial()),
-      );
-    });
-
-    test('copyWith(errorMessage: null) clears it', () {
-      final s = SettingsState.initial()
-          .copyWith(errorMessage: 'err')
-          .copyWith(errorMessage: null);
-      expect(s.errorMessage, isNull);
-    });
-
-    test('copyWith omitting errorMessage preserves it', () {
-      final s = SettingsState.initial()
-          .copyWith(errorMessage: 'msg')
-          .copyWith(isLoading: true);
-      expect(s.errorMessage?.message, equals('msg'));
-    });
-
-    test('copyWith(noticeMessage: null) clears it', () {
-      final s = SettingsState.initial()
-          .copyWith(noticeMessage: 'done')
-          .copyWith(noticeMessage: null);
-      expect(s.noticeMessage, isNull);
-    });
-  });
-
-  group('SettingsState props', () {
-    test('identical states are equal', () {
-      expect(SettingsState.initial(), equals(SettingsState.initial()));
-    });
-
-    test('differ when isApplying differs', () {
-      final a = SettingsState.initial();
-      final b = a.copyWith(isApplying: true);
-      expect(a, isNot(equals(b)));
-    });
+  test('copying preserves or explicitly clears the appearance failure', () {
+    final state = SettingsState.initial().copyWith(
+      appearanceErrorMessage: 'disk full',
+    );
+    expect(
+      state.copyWith(themeMode: ThemeMode.dark).appearanceErrorMessage,
+      'disk full',
+    );
+    expect(
+      state.copyWith(appearanceErrorMessage: null).appearanceErrorMessage,
+      isNull,
+    );
+    expect(state.copyWith(), state);
+    expect(state.copyWith(themeMode: ThemeMode.dark), isNot(state));
   });
 }
