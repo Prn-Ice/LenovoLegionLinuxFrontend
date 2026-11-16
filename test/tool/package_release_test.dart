@@ -28,6 +28,11 @@ void main() {
     dependency = Directory('${workspace.path}/dependency')..createSync();
     bundle = Directory('${root.path}/build/bundle');
     write('${bundle.path}/lib/libapp.so', 'binary');
+    write('${bundle.path}/libexec/legion-portable-control', 'helper');
+    await _run(root, 'chmod', [
+      '755',
+      '${bundle.path}/libexec/legion-portable-control',
+    ]);
     write('${dependency.path}/pubspec.yaml', 'name: handy_window');
     write('${dependency.path}/linux/libhandy/src/COPYING', 'license');
     write(
@@ -82,9 +87,8 @@ void main() {
       final executable = '${dependency.path}/linux/libhandy/src/tool.sh';
       write(executable, '#!/bin/sh\n');
       await _run(root, 'chmod', ['744', executable]);
-      await Link(
-        '${dependency.path}/linux/libhandy/src/COPYING.link',
-      ).create('COPYING');
+      await Link('${dependency.path}/linux/libhandy/src/COPYING.link')
+          .create('COPYING');
       Directory('${dependency.path}/empty').createSync();
       write('${dependency.path}/.git/config', 'private remote');
       write('${dependency.path}/.env', 'private environment');
@@ -150,13 +154,9 @@ void main() {
         File('$archived/linux/build/source.cc').readAsStringSync(),
         'nested build source',
       );
-      final overrides =
-          jsonDecode(
-                File(
-                  '${extracted.path}/dependency-overrides.yaml',
-                ).readAsStringSync(),
-              )
-              as Map;
+      final overrides = jsonDecode(
+        File('${extracted.path}/dependency-overrides.yaml').readAsStringSync(),
+      ) as Map;
       expect(
         overrides['dependency_overrides']['handy_window']['path'],
         '../dependencies/handy_window',
@@ -195,6 +195,35 @@ void main() {
     );
   });
 
+  test('requires an executable helper in every release build', () async {
+    final helper = File('${bundle.path}/libexec/legion-portable-control');
+    await _run(root, 'chmod', ['644', helper.path]);
+    await expectLater(recordBuild(), throwsStateError);
+    await _run(root, 'chmod', ['755', helper.path]);
+    await helper.writeAsString('');
+    await expectLater(recordBuild(), throwsStateError);
+    await helper.delete();
+    await expectLater(recordBuild(), throwsStateError);
+    await Link(helper.path).create('../lib/libapp.so');
+    await expectLater(recordBuild(), throwsStateError);
+  });
+
+  test(
+    'rejects source pairing for a build without helper configuration',
+    () async {
+      stamp['build_config'] = {'portable_control': false};
+      await expectLater(
+        packageReleaseSource(
+          root,
+          bundle,
+          File('${root.path}/build/release.tar.gz'),
+          stamp,
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
   test('requires the whole bundle fingerprint for source pairing', () async {
     stamp.remove('bundle');
     await expectLater(
@@ -208,48 +237,38 @@ void main() {
     );
   });
 
-  test(
-    'retains portable build flags and extra runtime source inputs',
-    () async {
-      final runtime = Directory('${workspace.path}/runtime-inputs')
-        ..createSync();
-      write('${runtime.path}/runtime-source.tar.gz', 'runtime source archive');
-      stamp = await recordReleaseBuild(
-        bundle,
-        await captureReleaseInputs(root),
-        portableControl: true,
-      );
-      final archive = File('${root.path}/build/release.tar.gz');
-      final manifest = await packageReleaseSource(
-        root,
-        bundle,
-        archive,
-        stamp,
-        additionalSources: runtime,
-      );
-      expect((manifest['build_config'] as Map)['portable_control'], isTrue);
-      expect(
-        (manifest['release_inputs'] as Map).keys,
-        contains('./runtime-source.tar.gz'),
-      );
-      final recipe = await _run(root, 'tar', [
-        '-xOf',
-        archive.path,
-        './REBUILD.md',
-      ]);
-      expect(recipe.stdout, contains('-DBUILD_PORTABLE_CONTROL_HELPER=ON'));
-      expect(
-        recipe.stdout,
-        contains('--dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true'),
-      );
-      final source = await _run(root, 'tar', [
-        '-xOf',
-        archive.path,
-        './release-inputs/runtime-source.tar.gz',
-      ]);
-      expect(source.stdout, 'runtime source archive');
-    },
-  );
+  test('records the default helper and extra runtime source inputs', () async {
+    final runtime = Directory('${workspace.path}/runtime-inputs')..createSync();
+    write('${runtime.path}/runtime-source.tar.gz', 'runtime source archive');
+    stamp = await recordReleaseBuild(bundle, await captureReleaseInputs(root));
+    final archive = File('${root.path}/build/release.tar.gz');
+    final manifest = await packageReleaseSource(
+      root,
+      bundle,
+      archive,
+      stamp,
+      additionalSources: runtime,
+    );
+    expect((manifest['build_config'] as Map)['portable_control'], isTrue);
+    expect(
+      (manifest['release_inputs'] as Map).keys,
+      contains('./runtime-source.tar.gz'),
+    );
+    final recipe = await _run(root, 'tar', [
+      '-xOf',
+      archive.path,
+      './REBUILD.md',
+    ]);
+    expect(recipe.stdout, contains('flutter build linux --release --no-pub\n'));
+    expect(recipe.stdout, isNot(contains('LLLF_ENABLE_PORTABLE_CONTROL')));
+    expect(recipe.stdout, isNot(contains('cmake -S')));
+    final source = await _run(root, 'tar', [
+      '-xOf',
+      archive.path,
+      './release-inputs/runtime-source.tar.gz',
+    ]);
+    expect(source.stdout, 'runtime source archive');
+  });
 
   test(
     'records SDK revisions without private paths or SDK package copies',

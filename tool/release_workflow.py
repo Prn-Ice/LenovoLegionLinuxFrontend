@@ -2,12 +2,14 @@
 
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 from enum import Enum
 from pathlib import Path
 
@@ -49,7 +51,7 @@ def prepare_debian(release, inputs, output):
         != package.removeprefix("legion-linux-frontend_").removesuffix("_amd64.deb")
         or manifest["source_commit"] != release["commit"]
         or manifest["portable_control"] is not True
-        or manifest["default_control_mode"] != "installedService"
+        or manifest["default_control_mode"] != "temporaryHelper"
         or manifest["files"] != {name: checksums[name] for name in [package, source]}
     ):
         raise ValueError("The Debian build differs from the tagged portable release.")
@@ -68,6 +70,9 @@ def prepare_debian(release, inputs, output):
     ]:
         if manifest["bundle"].get(name, {}).get("type") != "file":
             raise ValueError(f"The Debian bundle lacks {name}.")
+    verify_debian_helper(
+        directory / package, manifest["bundle"]["./libexec/legion-portable-control"]
+    )
     for label, distribution in [
         ("ubuntu", ("ID=ubuntu", 'VERSION_ID="22.04"')),
         ("debian", ("ID=debian", 'VERSION_ID="12"')),
@@ -210,6 +215,64 @@ def _archived_json(archive, name):
         return json.load(contents.extractfile(member))
 
 
+HELPER_PATH = "usr/lib/legion_frontend/libexec/legion-portable-control"
+
+
+def verify_debian_helper(package, expected):
+    payload = subprocess.run(
+        ["dpkg-deb", "--fsys-tarfile", str(package)],
+        check=True,
+        capture_output=True,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
+        matches = [
+            member
+            for member in archive
+            if member.name.removeprefix("./") == HELPER_PATH
+        ]
+        if len(matches) != 1 or not matches[0].isfile():
+            raise ValueError("The Debian payload lacks a regular temporary helper.")
+        member = matches[0]
+        digest = hashlib.sha256(archive.extractfile(member).read()).hexdigest()
+        if (
+            member.size == 0
+            or not member.mode & 0o111
+            or format(member.mode & 0o777, "o") != expected["mode"]
+            or digest != expected["sha256"]
+        ):
+            raise ValueError("The Debian helper payload differs from its inventory.")
+
+
+def verify_appimage_helper(image, runtime_size, expected):
+    if type(runtime_size) is not int or not 0 < runtime_size < image.stat().st_size:
+        raise ValueError("The AppImage runtime size is invalid.")
+    with tempfile.TemporaryDirectory(prefix="release-helper-") as temporary:
+        destination = Path(temporary) / "payload"
+        subprocess.run(
+            [
+                "unsquashfs",
+                "-no-progress",
+                "-no-xattrs",
+                "-o",
+                str(runtime_size),
+                "-d",
+                str(destination),
+                str(image),
+                HELPER_PATH,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        helper = _file(destination / HELPER_PATH)
+        mode = helper.stat().st_mode & 0o777
+        if (
+            not mode & 0o111
+            or format(mode, "o") != expected["mode"]
+            or _sha256(helper) != expected["sha256"]
+        ):
+            raise ValueError("The AppImage helper payload differs from its inventory.")
+
+
 def validate_appimage_runtime(manifest, sources, archived):
     native = manifest["native_runtime"]
     if (
@@ -267,6 +330,7 @@ def prepare(root, tag, inputs, output):
         manifest["format"] != 1
         or manifest["architecture"] != "x86_64"
         or manifest["portable_control"] is not True
+        or manifest["default_control_mode"] != "temporaryHelper"
     ):
         raise ValueError("Expected a portable Ubuntu x86-64 AppImage manifest.")
     if (
@@ -300,6 +364,11 @@ def prepare(root, tag, inputs, output):
     ]:
         if shipped.get(path, {}).get("type") != "file":
             raise ValueError(f"The shipped bundle lacks {path}.")
+    verify_appimage_helper(
+        directory / image,
+        manifest["runtime_size"],
+        shipped["./libexec/legion-portable-control"],
+    )
     if (
         sources["build_config"].get("static_portable_helper") is True
         and "native_runtime" not in manifest
@@ -344,7 +413,8 @@ def prepare(root, tag, inputs, output):
             or nixos["appimage_sha256"] != checksums[image]
             or nixos["nixos"]
             != "official appimage-run desktop and temporary control verified"
-            or nixos.get("desktop_shutdown") != "X11 close button and Wayland window close verified"
+            or nixos.get("desktop_shutdown")
+            != "X11 close button and Wayland window close verified"
         ):
             raise ValueError("NixOS acceptance did not verify this AppImage.")
     if output.exists():
@@ -372,9 +442,9 @@ The Debian package passed install, desktop launch, synthetic helper control,
 denied approval, missing-agent, upgrade, and purge checks on Ubuntu 22.04 and
 Debian 12. Existing integration files were preserved.
 
-Hardware control requires the LenovoLegionLinux driver, an administrator-owned
-legion_cli installation, systemd, and a desktop authentication agent. Choose
-Temporary helper in Settings and reopen the app to use portable control.
+Hardware control uses the bundled temporary helper and requires the
+LenovoLegionLinux driver, an administrator-owned legion_cli installation,
+systemd, and a desktop authentication agent.
 
 Each artifact has a matching source companion, build manifest, and VM evidence.
 Verify SHA256SUMS before using the files.
