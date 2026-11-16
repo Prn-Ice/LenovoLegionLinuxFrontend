@@ -121,29 +121,29 @@ cache. Host CLI reads and helper startup filter out the bundled library, font,
 module, schema, and data paths. Packaging rejects Nix store loader references and
 any dynamic interpreter, shared dependency, RPATH, or RUNPATH in the static helper.
 
-## Wayland desktop icons
+## AppImage icons
 
-Bundled icons do not register the AppImage with the host desktop. On KDE Wayland,
-KWin looks up the window's application ID in the desktop session's application
-directories. AppRun's private `XDG_DATA_DIRS` helps the app find bundled data; it
-does not change KWin's search paths. Setting the GTK window icon does not replace
-desktop registration. See
-[KDE's desktop-entry guidance](https://develop.kde.org/docs/getting-started/kirigami/introduction-getting_started/).
+Dolphin's file preview and Plasma's running-app icon use different lookups.
+The AppImage includes a PNG `.DirIcon` for file previews. KDE's installed
+AppImage thumbnail plugin successfully decoded the original official 3.50
+image and the user's Inkscape comparison image. The reported missing Dolphin
+preview is not yet reproduced by that plugin; the running-app fix below does
+not establish a fix for the file-manager display.
 
-For a registered launcher, keep the AppImage in a stable location and use your
-distribution's supported AppImage integration, or explicitly install a user
-desktop entry and icon. The desktop file must be named
-`io.github.prnice.legion_linux_frontend.desktop` in a host application directory,
-such as `${XDG_DATA_HOME:-$HOME/.local/share}/applications`. For the NixOS runner,
-set its `Exec` to `appimage-run` with the AppImage's absolute path. Its `Icon` must
-name the Legion icon installed in a host icon theme, or give an absolute path to
-a persistent copy of the bundled icon. Do not point either field at a temporary
-mount. The app does not install these files automatically.
+Use the standard launch command above. Plasma can read an AppImage's bundled
+desktop entry and icon through the running process's `APPDIR`; users should not
+need to copy desktop files or install another launcher to get the taskbar icon.
 
-The existing `_NET_WM_ICON` check proves the X11 window has an icon. The Sway
-checks prove Wayland startup and shutdown, not KDE taskbar appearance. Track the
-reported default Wayland icon and desktop-registration verification in
-`lllf-dt0.5.18`.
+The AppDir root uses `Icon=legion_frontend` with matching PNG/SVG files and
+`.DirIcon`. Plasma 6.8's AppImage fallback mistakes the last part of a dotted
+icon name for a file extension. A short root icon name avoids that lookup error.
+The desktop filename, native application ID, and installed-package icon name
+remain `io.github.prnice.legion_linux_frontend`. The Legion artwork is unchanged.
+
+The icon lookup was checked with Plasma's actual task-manager library and the
+standard NixOS runner, without host desktop registration. Sway rendering and
+X11 `_NET_WM_ICON` checks do not prove the visible KDE taskbar result. Track that
+remaining desktop check in `lllf-dt0.5.18`.
 
 ## Test the artifact
 

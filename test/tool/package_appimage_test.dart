@@ -29,9 +29,8 @@ void main() {
     for (final name in ['dirname', 'mktemp', 'rm', 'sleep']) {
       final command = await Process.run('/bin/sh', ['-c', 'command -v $name']);
       expect(command.exitCode, 0);
-      Link(
-        '${commands.path}/$name',
-      ).createSync((command.stdout as String).trim());
+      Link('${commands.path}/$name')
+          .createSync((command.stdout as String).trim());
     }
     write(
       '${bundle.path}/libexec/gdk-pixbuf-query-loaders',
@@ -67,13 +66,10 @@ void main() {
       '${bundle.path}/share/licenses/legion_frontend/LICENSE',
       'project license',
     );
-    final specification =
-        jsonDecode(
-              File(
-                '${root.path}/packaging/appimage/build-inputs.json',
-              ).readAsStringSync(),
-            )
-            as Map;
+    final specification = jsonDecode(
+      File('${root.path}/packaging/appimage/build-inputs.json')
+          .readAsStringSync(),
+    ) as Map;
     for (final item in specification['runtime_sources'] as List) {
       final source = Directory('${temporary.path}/source-${item['name']}')
         ..createSync();
@@ -92,50 +88,58 @@ void main() {
     }
   });
 
-  test(
-    'stages portable files, metadata, and notices without installed service files',
-    () async {
-      final appdir = Directory('${temporary.path}/Legion.AppDir');
-      await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
-      final base = '${appdir.path}/usr/lib/legion_frontend';
-      expect(
-        File('$base/libexec/legion-portable-control').readAsStringSync(),
-        'helper',
-      );
-      expect(
-        File('$base/libexec/legion-telemetry-service').existsSync(),
-        isFalse,
-      );
-      expect(Directory('$base/lib/systemd').existsSync(), isFalse);
-      expect(Directory('$base/share/polkit-1').existsSync(), isFalse);
-      expect(File('$base/data/flutter_assets/NOTICES.Z').existsSync(), isTrue);
-      expect(
-        File('$base/share/licenses/legion_frontend/LICENSE').existsSync(),
-        isTrue,
-      );
-      expect(
-        File(
-          '${appdir.path}/usr/share/metainfo/$appId.metainfo.xml',
-        ).existsSync(),
-        isTrue,
-      );
-      expect(
-        File('${appdir.path}/$appId.svg').readAsStringSync(),
-        File('${root.path}/assets/branding/legion_app.svg').readAsStringSync(),
-      );
-      expect(await Link('${appdir.path}/.DirIcon').target(), '$appId.png');
-      expect(
-        File('${appdir.path}/.DirIcon').readAsBytesSync(),
-        File('${root.path}/assets/branding/legion_app.png').readAsBytesSync(),
-      );
-      expect(
-        File(
-          '${appdir.path}/usr/share/licenses/appimage-runtime/libfuse.txt',
-        ).readAsStringSync(),
-        contains('libfuse license'),
-      );
-    },
-  );
+  test('stages portable files, metadata, and notices without installed service files', () async {
+    final appdir = Directory('${temporary.path}/Legion.AppDir');
+    await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
+    final base = '${appdir.path}/usr/lib/legion_frontend';
+    expect(
+      File('$base/libexec/legion-portable-control').readAsStringSync(),
+      'helper',
+    );
+    expect(
+      File('$base/libexec/legion-telemetry-service').existsSync(),
+      isFalse,
+    );
+    expect(Directory('$base/lib/systemd').existsSync(), isFalse);
+    expect(Directory('$base/share/polkit-1').existsSync(), isFalse);
+    expect(File('$base/data/flutter_assets/NOTICES.Z').existsSync(), isTrue);
+    expect(
+      File('$base/share/licenses/legion_frontend/LICENSE').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${appdir.path}/usr/share/metainfo/$appId.metainfo.xml')
+          .existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${appdir.path}/$appId.desktop').readAsStringSync(),
+      contains('Icon=$appImageIconName\n'),
+    );
+    expect(appImageIconName, isNot(contains('.')));
+    expect(
+      File('${appdir.path}/usr/share/applications/$appId.desktop')
+          .readAsStringSync(),
+      contains('Icon=$appId\n'),
+    );
+    expect(
+      File('${appdir.path}/$appImageIconName.svg').readAsStringSync(),
+      File('${root.path}/assets/branding/legion_app.svg').readAsStringSync(),
+    );
+    expect(
+      await Link('${appdir.path}/.DirIcon').target(),
+      '$appImageIconName.png',
+    );
+    expect(
+      File('${appdir.path}/.DirIcon').readAsBytesSync(),
+      File('${root.path}/assets/branding/legion_app.png').readAsBytesSync(),
+    );
+    expect(
+      File('${appdir.path}/usr/share/licenses/appimage-runtime/libfuse.txt')
+          .readAsStringSync(),
+      contains('libfuse license'),
+    );
+  });
 
   test(
     'AppRun uses its bundle directory and preserves arguments with spaces',
