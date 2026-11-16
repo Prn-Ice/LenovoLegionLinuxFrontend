@@ -121,6 +121,30 @@ cache. Host CLI reads and helper startup filter out the bundled library, font,
 module, schema, and data paths. Packaging rejects Nix store loader references and
 any dynamic interpreter, shared dependency, RPATH, or RUNPATH in the static helper.
 
+## Wayland desktop icons
+
+Bundled icons do not register the AppImage with the host desktop. On KDE Wayland,
+KWin looks up the window's application ID in the desktop session's application
+directories. AppRun's private `XDG_DATA_DIRS` helps the app find bundled data; it
+does not change KWin's search paths. Setting the GTK window icon does not replace
+desktop registration. See
+[KDE's desktop-entry guidance](https://develop.kde.org/docs/getting-started/kirigami/introduction-getting_started/).
+
+For a registered launcher, keep the AppImage in a stable location and use your
+distribution's supported AppImage integration, or explicitly install a user
+desktop entry and icon. The desktop file must be named
+`io.github.prnice.legion_linux_frontend.desktop` in a host application directory,
+such as `${XDG_DATA_HOME:-$HOME/.local/share}/applications`. For the NixOS runner,
+set its `Exec` to `appimage-run` with the AppImage's absolute path. Its `Icon` must
+name the Legion icon installed in a host icon theme, or give an absolute path to
+a persistent copy of the bundled icon. Do not point either field at a temporary
+mount. The app does not install these files automatically.
+
+The existing `_NET_WM_ICON` check proves the X11 window has an icon. The Sway
+checks prove Wayland startup and shutdown, not KDE taskbar appearance. Track the
+reported default Wayland icon and desktop-registration verification in
+`lllf-dt0.5.18`.
+
 ## Test the artifact
 
 Use the [Ubuntu VM runner](architecture/portable-distro-qualification.md) with the
