@@ -37,9 +37,8 @@ Future<void> main(List<String> args) async {
     try {
       final staging = Directory('${scratch.path}/package');
       await stageDesktopPackage(root, bundle, staging);
-      await File(
-        '${root.path}/packaging/debian/legion_frontend',
-      ).copy('${staging.path}/launcher');
+      await File('${root.path}/packaging/debian/legion_frontend')
+          .copy('${staging.path}/launcher');
       await runPackagingCommand('install', [
         '-Dm755',
         '${staging.path}/launcher',
@@ -78,8 +77,8 @@ Future<void> main(List<String> args) async {
         '-sk',
         '${staging.path}/usr',
       ])).split(RegExp(r'\s+')).first;
-      await File('${control.path}/control').writeAsString(
-        '''Package: legion-linux-frontend
+      await File('${control.path}/control')
+          .writeAsString('''Package: legion-linux-frontend
 Version: $packageVersion
 Section: utils
 Priority: optional
@@ -92,8 +91,7 @@ Description: Lenovo Legion hardware frontend
  Desktop controls for supported Lenovo Legion laptops. Temporary hardware
  access requires the separately installed driver, legion_cli, and a desktop
  authentication agent. Installed service mode remains the default.
-''',
-      );
+''');
       await output.create(recursive: true);
       final fixtureDirectory = '${root.path}/build/deb-fixtures';
       await runPackagingCommand('cmake', [
@@ -147,6 +145,12 @@ Description: Lenovo Legion hardware frontend
       final source = File('${output.path}/$prefix-source.tar.gz');
       await packageReleaseSource(root, appBundle, source, stamp);
       final manifest = <String, Object>{
+        if ((built['inputs'] as Map)['experiment']
+            case final Map experiment) ...{
+          'experimental': true,
+          'release_qualification': false,
+          'experiment': experiment,
+        },
         'format': 1,
         'version': version,
         'package_version': packageVersion,
