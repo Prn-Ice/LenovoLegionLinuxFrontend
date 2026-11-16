@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:riverbloc/riverbloc.dart';
-import 'package:legion_frontend/core/models/control_mode.dart';
 import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
@@ -35,13 +35,60 @@ class DeniedTransport extends LegionControlTransport {
 }
 
 void main() {
-  test('installed denial never creates a portable transport', () async {
-    final modes = <ControlMode>[];
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  test(
+    'default factory creates only a lazy temporary helper transport',
+    () async {
+      final container = ProviderContainer.test();
+      var resolved = false;
+      final transport = container.read(controlTransportFactoryProvider)(
+        () async {
+          resolved = true;
+          return portableTestCli;
+        },
+      );
+      expect(transport, isA<PortableLegionControlTransport>());
+      expect(resolved, isFalse);
+      await transport.close();
+    },
+  );
+
+  test(
+    'CLI discovery uses the trusted host boundary without starting a helper',
+    () async {
+      const channel = MethodChannel('io.github.prnice.legion/portable_control');
+      final calls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call.method);
+            expect(call.method, 'findHostCli');
+            return portableTestCli;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null),
+      );
+      final container = ProviderContainer.test(
+        overrides: [portableControlAvailableProvider.overrideWithValue(false)],
+      );
+      container.read(legionBridgeServiceProvider);
+      expect(calls, isEmpty);
+      expect(
+        await container.read(legionCliServiceProvider).resolvePath(),
+        portableTestCli,
+      );
+      expect(calls, ['findHostCli']);
+    },
+  );
+
+  test('denial uses one transport and never dispatches a write', () async {
+    var creations = 0;
     final transport = DeniedTransport();
     final container = ProviderContainer(
       overrides: [
-        controlTransportFactoryProvider.overrideWithValue((mode, resolvePath) {
-          modes.add(mode);
+        controlTransportFactoryProvider.overrideWithValue((resolvePath) {
+          creations++;
           return transport;
         }),
       ],
@@ -51,7 +98,7 @@ void main() {
       client.setToggle(ControlToggle.hybridMode, true),
       throwsA(isA<LegionControlPermissionDeniedException>()),
     );
-    expect(modes, [ControlMode.installedService]);
+    expect(creations, 1);
     container.dispose();
     await transport.ended.future;
     expect(transport.closes, 1);
@@ -86,16 +133,11 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          controlModeProvider.overrideWithValue(ControlMode.temporaryHelper),
           legionCliServiceProvider.overrideWith((ref) {
             ref.onDispose(cli.close);
             return cli;
           }),
-          controlTransportFactoryProvider.overrideWithValue((
-            mode,
-            resolvePath,
-          ) {
-            expect(mode, ControlMode.temporaryHelper);
+          controlTransportFactoryProvider.overrideWithValue((resolvePath) {
             return PortableLegionControlTransport(
               createLauncher: () => launcher,
               resolveCliPath: resolvePath,

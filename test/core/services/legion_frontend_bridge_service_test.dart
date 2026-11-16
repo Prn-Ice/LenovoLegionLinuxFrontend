@@ -279,7 +279,7 @@ void main() {
   });
 
   test(
-    'missing control service is unavailable and never falls back to pkexec',
+    'missing control client reports helper setup without running a command',
     () async {
       final bridge = LegionFrontendBridgeService(
         cliService: LegionCliService(cliPath: '/bin/true'),
@@ -297,7 +297,7 @@ void main() {
           isA<LegionBridgeException>().having(
             (error) => error.code,
             'code',
-            LegionBridgeErrorCode.privilegeSetup,
+            LegionBridgeErrorCode.portableSetup,
           ),
         ),
       );
@@ -327,7 +327,7 @@ void main() {
   test('maps control errors to bridge error codes', () async {
     final cases = <Object, LegionBridgeErrorCode>{
       const LegionControlSetupException('setup'):
-          LegionBridgeErrorCode.privilegeSetup,
+          LegionBridgeErrorCode.portableSetup,
       const LegionControlUnavailableException('unavailable'):
           LegionBridgeErrorCode.unavailable,
       const LegionControlNotSupportedException('unsupported'):
@@ -401,8 +401,7 @@ void main() {
         (_) async => const LegionCliResult(
           exitCode: 1,
           stdout: '',
-          stderr:
-              'amdgpu: ring gfx_0.0.0 timeout\nOSError: [Errno 22] Invalid argument',
+          stderr: 'amdgpu: ring gfx_0.0.0 timeout\nOSError: [Errno 22] Invalid argument',
         ),
       );
       final bridge = LegionFrontendBridgeService(cliService: cli);

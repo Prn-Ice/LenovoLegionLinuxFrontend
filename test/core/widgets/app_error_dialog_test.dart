@@ -29,6 +29,8 @@ void main() {
     expect(find.textContaining('reopen the app'), findsWidgets);
     expect(find.text('NixOS'), findsNothing);
     expect(find.text('Copy configuration'), findsNothing);
+    expect(find.textContaining('Installed service'), findsNothing);
+    expect(find.textContaining('services.legionControl'), findsNothing);
     expect(find.text('Technical details'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -129,7 +131,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('control setup error explains distros and copies NixOS config', (
+  testWidgets('helper setup error explains recovery and copies diagnostics', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -137,8 +139,9 @@ void main() {
         home: Scaffold(
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
-              'The legion-control service could not provide privileged access.',
-              kind: AppFailureKind.privilegeSetup,
+              'The temporary helper could not start.',
+              kind: AppFailureKind.portableSetup,
+              details: 'Missing helper executable',
             ),
             child: Text('Page content'),
           ),
@@ -147,18 +150,18 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Privileged access needs setup'), findsOneWidget);
-    expect(find.text('What this means'), findsOneWidget);
-    expect(find.text('NixOS'), findsOneWidget);
-    expect(find.text('Other Linux distributions'), findsOneWidget);
-    expect(find.textContaining('services.legionControl ='), findsOneWidget);
+    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
+    expect(find.text('Before retrying'), findsOneWidget);
+    expect(find.textContaining('Polkit authentication prompt'), findsOneWidget);
+    expect(find.text('NixOS'), findsNothing);
+    expect(find.textContaining('services.legionControl ='), findsNothing);
 
-    await tester.tap(find.text('Copy'));
+    await tester.tap(find.text('Copy details'));
     await tester.pumpAndSettle();
     expect(find.text('Copied'), findsOneWidget);
   });
 
-  testWidgets('privilege dialog remains usable in a compact window', (
+  testWidgets('helper setup dialog remains usable in a compact window', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(420, 500);
@@ -171,8 +174,8 @@ void main() {
         home: Scaffold(
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
-              'The legion-control service could not provide privileged access.',
-              kind: AppFailureKind.privilegeSetup,
+              'The temporary helper could not start.',
+              kind: AppFailureKind.portableSetup,
             ),
             child: Text('Page content'),
           ),
@@ -223,8 +226,7 @@ void main() {
       const MaterialApp(
         home: Scaffold(
           body: AppErrorDialog(
-            message:
-                'legion-control service is not configured; effective GPU topology did not settle',
+            message: 'legion-control service is not configured; effective GPU topology did not settle',
           ),
         ),
       ),

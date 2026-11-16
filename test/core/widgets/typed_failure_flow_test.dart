@@ -25,7 +25,7 @@ void main() {
     final control = _Control();
     when(() => control.authorize()).thenAnswer((_) async {});
     when(() => control.setToggle(ControlToggle.touchpad, true)).thenThrow(
-      const LegionControlSetupException('Service diagnostic wording changed'),
+      const LegionControlSetupException('Helper diagnostic wording changed'),
     );
     final bloc = DevicesBloc(
       repository: DevicesRepository(
@@ -42,10 +42,10 @@ void main() {
     );
     bloc.add(const TouchpadSetRequested(true));
     final state = await failed;
-    expect(state.errorMessage?.kind, AppFailureKind.privilegeSetup);
+    expect(state.errorMessage?.kind, AppFailureKind.portableSetup);
     expect(
       state.errorMessage?.details,
-      contains('Service diagnostic wording changed'),
+      contains('Helper diagnostic wording changed'),
     );
     expect(
       state.copyWith(isLoading: true).errorMessage,
@@ -63,7 +63,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Privileged access needs setup'), findsOneWidget);
+    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
     verify(() => control.setToggle(ControlToggle.touchpad, true)).called(1);
   });
 }

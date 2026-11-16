@@ -66,7 +66,6 @@ void main() {
         cliPath: '/private/user/legion_cli',
         cliPathExists: false,
         pythonAvailable: false,
-        controlServiceActive: false,
         systemctlAvailable: false,
         cliHealthy: false,
         cliHealthSummary: 'Unavailable',
@@ -92,8 +91,7 @@ void main() {
             frontendWriteAvailable: true,
             probe: const SysfsProbe([
               SysfsRead(
-                path:
-                    '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode',
+                path: '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode',
                 outcome: SysfsReadOutcome.malformed,
               ),
             ]),
@@ -102,12 +100,10 @@ void main() {
       );
       when(about.loadSnapshot).thenAnswer((_) async => snapshot);
       when(analytics.pruneOldRecords).thenAnswer((_) async {});
-      when(
-        () => analytics.readHistory(since: any(named: 'since')),
-      ).thenReturn([]);
-      when(
-        analytics.recordReading,
-      ).thenAnswer((_) async => SensorRecord(timestamp: DateTime(2026)));
+      when(() => analytics.readHistory(since: any(named: 'since')))
+          .thenReturn([]);
+      when(analytics.recordReading)
+          .thenAnswer((_) async => SensorRecord(timestamp: DateTime(2026)));
       String? copied;
       var clipboardFails = false;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(

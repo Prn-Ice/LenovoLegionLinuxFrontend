@@ -11,8 +11,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
+import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:yaru/yaru.dart';
 
 import 'package:legion_frontend/features/about/bloc/about_bloc.dart';
@@ -39,7 +39,9 @@ import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
 import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
+
 import 'support/keyboard_automation_fakes.dart';
+
 import 'package:legion_frontend/features/power/bloc/power_bloc.dart';
 import 'package:legion_frontend/features/power/bloc/power_event.dart';
 import 'package:legion_frontend/features/power/bloc/power_state.dart';
@@ -82,7 +84,6 @@ import 'package:legion_frontend/features/platform_surfaces/widgets/platform_osd.
 import 'package:legion_frontend/features/settings/bloc/settings_bloc.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
 import 'package:legion_frontend/features/settings/models/appearance_theme.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 
@@ -135,9 +136,9 @@ void main() {
     WidgetController.hitTestWarningShouldBeFatal = true;
     // Use Flutter's generated manifest so package-qualified family names and
     // icon fonts match the application, rather than the test runner's Ahem font.
-    final manifest =
-        jsonDecode(await rootBundle.loadString('FontManifest.json'))
-            as List<dynamic>;
+    final manifest = jsonDecode(
+      await rootBundle.loadString('FontManifest.json'),
+    ) as List<dynamic>;
     for (final entry in manifest.cast<Map<String, dynamic>>()) {
       final loader = FontLoader(entry['family'] as String);
       for (final font in entry['fonts'] as List<dynamic>) {
@@ -316,18 +317,7 @@ void main() {
           whenListen(
             settings,
             const Stream<SettingsState>.empty(),
-            initialState: SettingsState.initial().copyWith(
-              services: const [
-                ServiceControl(
-                  service: ControlService.legiondStack,
-                  label: 'Legion control service',
-                  units: ['legion-control.service'],
-                  supported: true,
-                  active: true,
-                  enabled: true,
-                ),
-              ],
-            ),
+            initialState: SettingsState.initial(),
           );
           await _render(
             tester,
@@ -335,6 +325,7 @@ void main() {
             brightness,
             ProviderScope(
               overrides: [
+                portableControlAvailableProvider.overrideWithValue(true),
                 powerBlocProvider.overrideWith((ref) => power),
                 liveSensorBlocProvider.overrideWith((ref) => sensors),
                 rgbLightingRepositoryProvider.overrideWithValue(
@@ -519,8 +510,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     final directory = await Directory(_output).create(recursive: true);
-    await File(
-      '${directory.path}/$name.png',
-    ).writeAsBytes(bytes!.buffer.asUint8List());
+    await File('${directory.path}/$name.png')
+        .writeAsBytes(bytes!.buffer.asUint8List());
   });
 }

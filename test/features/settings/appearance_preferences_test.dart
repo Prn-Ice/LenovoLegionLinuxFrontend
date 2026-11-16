@@ -10,14 +10,10 @@ import 'package:legion_frontend/features/settings/bloc/settings_bloc.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_event.dart';
 import 'package:legion_frontend/features/settings/bloc/settings_state.dart';
 import 'package:legion_frontend/features/settings/models/appearance_theme.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/repository/appearance_store.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:yaru/yaru.dart';
-
-class MockRepository extends Mock implements SettingsRepository {}
 
 class MockStore extends Mock implements AppearanceStore {}
 
@@ -48,8 +44,24 @@ void main() {
       expect(AppearanceStore(box).load(), saved);
     });
 
+    test('legacy authorization choice does not affect appearance or other preferences', () async {
+      await box.put('controlMode', 'installedService');
+      await box.put('unrelatedPreference', 'keep me');
+      final saved = SettingsState.initial().copyWith(themeMode: ThemeMode.dark);
+      await AppearanceStore(box).save(saved);
+      final container = ProviderContainer.test(
+        overrides: [
+          appearanceStoreProvider.overrideWithValue(AppearanceStore(box)),
+        ],
+      );
+      container.listen(settingsBlocProvider, (_, _) {});
+      expect(container.read(settingsBlocProvider), saved);
+      expect(box.get('controlMode'), 'installedService');
+      expect(box.get('unrelatedPreference'), 'keep me');
+    });
+
     test(
-      'production provider hydrates before service load and rehydrates after disposal',
+      'production provider hydrates preferences and rehydrates after disposal',
       () async {
         final saved = SettingsState.initial().copyWith(
           themeMode: ThemeMode.dark,
@@ -58,16 +70,9 @@ void main() {
         );
         final store = AppearanceStore(box);
         await store.save(saved);
-        final repository = MockRepository();
-        when(
-          repository.loadSnapshot,
-        ).thenAnswer((_) async => const SettingsSnapshot(services: []));
         for (var launch = 0; launch < 2; launch++) {
           final container = ProviderContainer(
-            overrides: [
-              settingsRepositoryProvider.overrideWithValue(repository),
-              appearanceStoreProvider.overrideWithValue(store),
-            ],
+            overrides: [appearanceStoreProvider.overrideWithValue(store)],
           );
           final subscription = container.listen(
             settingsBlocProvider,
@@ -75,8 +80,6 @@ void main() {
           );
           final bloc = container.read(settingsBlocProvider.bloc);
           expect(container.read(settingsBlocProvider), saved);
-          final loaded = bloc.stream.firstWhere((s) => !s.isLoading);
-          await loaded;
           expect(bloc.state.themeMode, ThemeMode.dark);
           subscription.close();
           final closed = bloc.stream.drain<void>();
@@ -125,7 +128,6 @@ void main() {
   test(
     'hydrates immediately and serializes edits across appearance fields',
     () async {
-      final repository = MockRepository();
       final store = MockStore();
       final initial = SettingsState.initial().copyWith(
         yaruVariant: YaruVariant.blue,
@@ -141,7 +143,7 @@ void main() {
           await firstSave.future;
         }
       });
-      final bloc = SettingsBloc(repository: repository, appearanceStore: store);
+      final bloc = SettingsBloc(appearanceStore: store);
       addTearDown(bloc.close);
       expect(bloc.state.yaruVariant, YaruVariant.blue);
       bloc.add(const ThemeModeChanged(ThemeMode.dark));
@@ -167,10 +169,7 @@ void main() {
       final store = MockStore();
       when(store.load).thenReturn(SettingsState.initial());
       when(() => store.save(any())).thenThrow(StateError('disk full'));
-      final bloc = SettingsBloc(
-        repository: MockRepository(),
-        appearanceStore: store,
-      );
+      final bloc = SettingsBloc(appearanceStore: store);
       addTearDown(bloc.close);
       final failure = bloc.stream.firstWhere(
         (s) => s.appearanceErrorMessage != null,
@@ -193,27 +192,24 @@ void main() {
   );
 
   test(
-    'read errors remain visible after unrelated service hydration',
+    'read errors preserve defaults and allow a later appearance save',
     () async {
-      final repository = MockRepository();
-      when(
-        repository.loadSnapshot,
-      ).thenAnswer((_) async => const SettingsSnapshot(services: []));
       final store = MockStore();
       when(store.load).thenThrow(StateError('unreadable preferences'));
-      final bloc = SettingsBloc(repository: repository, appearanceStore: store);
+      when(() => store.save(any())).thenAnswer((_) async {});
+      final bloc = SettingsBloc(appearanceStore: store);
       addTearDown(bloc.close);
       expect(
         bloc.state.appearanceErrorMessage,
         contains('Could not load appearance'),
       );
-      final loaded = bloc.stream.firstWhere((s) => !s.isLoading);
-      bloc.add(const SettingsStarted());
-      await loaded;
-      expect(
-        bloc.state.appearanceErrorMessage,
-        contains('Could not load appearance'),
+      expect(bloc.state.themeMode, ThemeMode.system);
+      final saved = bloc.stream.firstWhere(
+        (s) => s.themeMode == ThemeMode.dark,
       );
+      bloc.add(const ThemeModeChanged(ThemeMode.dark));
+      await saved;
+      expect(bloc.state.appearanceErrorMessage, isNull);
     },
   );
 

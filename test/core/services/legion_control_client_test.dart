@@ -437,7 +437,7 @@ void main() {
         'io.github.prnice.LegionControl1.Error.Unavailable',
       ): LegionControlUnavailableException,
       DBusMethodErrorResponse('org.freedesktop.DBus.Error.ServiceUnknown'):
-          LegionControlSetupException,
+          LegionControlPortableSetupException,
     };
     for (final entry in failures.entries) {
       final response = entry.key;
@@ -543,23 +543,6 @@ void main() {
 
     expect(transport.authorizationCalls, 2);
     expect(transport.calls, hasLength(1));
-  });
-
-  test('closed D-Bus transport rejects authorization and calls', () async {
-    final transport = DBusLegionControlTransport();
-    await transport.close();
-    await expectLater(
-      transport.getCapabilities(),
-      throwsA(isA<LegionControlUnavailableException>()),
-    );
-    await expectLater(
-      transport.authorize(),
-      throwsA(isA<LegionControlUnavailableException>()),
-    );
-    await expectLater(
-      transport.call('SetToggle', const ['hybrid-mode', true]),
-      throwsA(isA<LegionControlUnavailableException>()),
-    );
   });
 
   test('payload operations transfer bytes', () async {
