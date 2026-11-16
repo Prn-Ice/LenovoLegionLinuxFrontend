@@ -86,7 +86,7 @@ mkdir -p "$output"
   lscpu
   echo 'Relevant package versions:'
   dpkg-query -W systemd systemd-coredump libc6 libgtk-3-0 libglib2.0-0 \
-    libegl-mesa0 libgl1-mesa-dri libglx-mesa0 libllvm15 at-spi2-core openbox
+    libegl-mesa0 libgl1-mesa-dri libglx-mesa0 libllvm15 at-spi2-core openbox wmctrl python3-xlib
   echo 'Template input hashes:'
   if [[ -d /root/template-release ]]; then sha256sum /root/template-release/*; fi
 } > "$output/environment.txt" 2>&1
@@ -94,7 +94,7 @@ if [[ -d /root/template-release ]]; then
   cp /root/template-release/{template-manifest.json,template-source.sha256,SHA256SUMS} "$output/"
 fi
 find /home/approved -maxdepth 1 -type f \
-  \( -name 'template-*.log' -o -name 'template-*.png' -o -name 'template-*-maps.txt' \
+  \( -name 'template-*' -o -name 'gtk-*' -o -name 'close-*' \
      -o -name 'openbox.log' -o -name 'launch-environment.json' \) \
   -exec cp -t "$output/" {} +
 journalctl -b --no-pager > "$output/journal.log"

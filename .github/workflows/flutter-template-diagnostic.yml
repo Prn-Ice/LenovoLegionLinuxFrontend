@@ -48,7 +48,7 @@ jobs:
             https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/template-jammy.img
           curl --fail --silent --show-error --location --retry 1 --max-time 60 \
             https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/template-jammy.SHA256SUMS
-      - name: Prove core capture then require 20 normal closes, stopping on failure
+      - name: Prove core capture and GTK close delivery, then require 20 normal closes
         id: diagnostic
         run: |
           checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/template-jammy.SHA256SUMS)"
