@@ -20,20 +20,18 @@ Use a pinned revision or release tag for your configuration.
 
 ## Hardware access
 
-Install the Lenovo Legion driver and `legion_cli` on the host. Temporary helper
-mode requires systemd, Polkit, and a desktop authentication agent. On NixOS,
+Install the Lenovo Legion driver and `legion_cli` on the host. The helper
+requires systemd, Polkit, and a desktop authentication agent. On NixOS,
 install the CLI through `environment.systemPackages` so the helper can discover
 it through the root-controlled system profile. A user profile cannot supply the
 privileged backend.
 
-Installed service remains the default. To use the bundled helper, choose
-**Temporary helper** in Settings, close the app, and reopen it. Approval starts
-a temporary systemd unit; exiting the app ends that unit. Keep the existing
-[NixOS service module](../packaging/nixos/legion-telemetry.nix) enabled if you use
-Installed service mode.
+The app uses the bundled helper from its first launch. The first privileged
+action requests approval to start a temporary systemd unit; exiting the app ends
+that unit. Persistent service management and next-boot graphics changes are
+unavailable through the helper.
 
-For a desktop trial, launch from a regular desktop terminal, select Temporary
-helper, close the app, and launch it again with the same command. Change one
+For a desktop trial, launch from a regular desktop terminal. Change one
 reversible setting, such as Conservation mode, and approve the desktop password
 prompt. Confirm the readback, restore the original value, and close the app.
 This tests the installed driver, actual CLI, and desktop authentication together;

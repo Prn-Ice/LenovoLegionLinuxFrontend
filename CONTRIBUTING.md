@@ -10,9 +10,10 @@ services.
 - CMake, Ninja, a C/C++ compiler, and pkg-config
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native service tests
-- Polkit development files for control-service builds
+- Polkit development files for the bundled helper and control-service tests
 
-Nix qualification bundles with the portable helper also need `patchelf`.
+Linux builds include the temporary helper. Nix development builds also need
+`patchelf` to retain its runtime library paths.
 
 Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
 On Debian/Ubuntu, install the build dependencies with:
@@ -85,10 +86,9 @@ removes its temporary data on completion or failure.
 The portable-control scenario uses the real Linux method channel to check that
 an invalid endpoint is rejected before connection. It starts no helper. The native
 discovery scenario rejects caller-selected CLI paths before inspecting the host.
-The hardware-access journey saves a mode,
-reopens the app fixture, and verifies that the saved mode becomes active without
-requesting authorization. After the journeys, check native method names, argument
-types, and payload limits with:
+The hardware-access journey checks helper status and verifies that opening
+Settings requests no authorization. After the journeys, check native method
+names, argument types, and payload limits with:
 
 ```bash
 flutter build linux --debug --no-pub

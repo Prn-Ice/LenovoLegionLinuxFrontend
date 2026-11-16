@@ -8,7 +8,7 @@ Use compatible stable packages and commit `pubspec.lock`.
 - A Linux desktop compiler, CMake, Ninja, and pkg-config
 - GTK development headers and Flutter's native development libraries
 - GLib/GIO development files for native services
-- Polkit development files for control-service builds
+- Polkit development files for the bundled helper and control-service tests
 
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
