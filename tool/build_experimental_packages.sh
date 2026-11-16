@@ -10,6 +10,7 @@ format=$2
 consumer=$(realpath "$3")
 output=$(realpath -m "$4")
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+git_common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
 export_root=/tmp/opencode/flutter-shutdown-engine-experiment/export
 [[ ! -e $output ]]
 [[ -z $(git -C "$root" status --porcelain) ]]
@@ -24,7 +25,8 @@ fi
 docker image inspect --format '{{.Id}}' lllf-deb-builder:ubuntu22.04 > "$output/builder-image.txt"
 set +e
 timeout -k 30s 2700s docker run --rm --init --name "$name" --user "$(id -u):$(id -g)" \
-  -v "$root:$root" -v "$consumer:$consumer" -v "$output:$output" \
+  -v "$root:$root" -v "$git_common:$git_common:ro" \
+  -v "$consumer:$consumer" -v "$output:$output" \
   -v "$export_root:$export_root:ro" -w "$root" \
   -e HOME="$consumer/home" -e PUB_CACHE="$consumer/pub-cache" \
   -e PATH="$consumer/flutter-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
