@@ -10,6 +10,8 @@ fi
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=tool/portable_distro_readiness.sh
 source "$root/tool/portable_distro_readiness.sh"
+# shellcheck source=tool/portable_distro_evidence.sh
+source "$root/tool/portable_distro_evidence.sh"
 image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
@@ -122,9 +124,7 @@ set +e
 remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout $guest_timeout bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
 result=${PIPESTATUS[0]}
 set -e
-remote 'journalctl -b --no-pager' > "$output/journal.log" || true
-if (( result != 0 )); then exit "$result"; fi
-scp "${ssh_options[@]}" -P "$port" "root@127.0.0.1:/root/$qualification_archive" "$output/"
+retrieve_distro_evidence "$output" "$qualification_archive" "$result" "$port" "${ssh_options[@]}"
 export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected" LLLF_QUALIFICATION_ARCHIVE="$qualification_archive"
 export LLLF_QUALIFICATION_CPU="$vm_cpu"
 python3 - <<'PY'
