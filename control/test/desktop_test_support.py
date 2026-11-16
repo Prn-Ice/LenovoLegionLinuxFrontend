@@ -129,7 +129,7 @@ def gui(image, log_name, label, expected_executable=None, bundled_libraries=Fals
                         assert diagnostic not in log_path.read_text(), (
                             log_path.read_text()
                         )
-                    print("PASS: close button exits normally from " + label, flush=True)
+                    print("PASS: app exits normally after WM close from " + label, flush=True)
                     break
                 if process.poll() is not None or time.monotonic() >= deadline:
                     raise AssertionError(
