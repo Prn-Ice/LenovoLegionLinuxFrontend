@@ -40,14 +40,14 @@ pkgs.testers.runNixOSTest {
       { domain = "approved"; type = "-"; item = "core"; value = "unlimited"; }
     ];
     systemd.coredump.enable = true;
-    systemd.coredump.extraConfig = ''
-      Storage=external
-      Compress=yes
-      ProcessSizeMax=2G
-      ExternalSizeMax=2G
-      MaxUse=2500M
-      KeepFree=1G
-    '';
+    systemd.coredump.settings.Coredump = {
+      Storage = "external";
+      Compress = true;
+      ProcessSizeMax = "2G";
+      ExternalSizeMax = "2G";
+      MaxUse = "2500M";
+      KeepFree = "1G";
+    };
     environment.etc."legion-control-lifecycle-test-vm".text =
       "legion-control-disposable-lifecycle-vm\n";
     environment.systemPackages = [

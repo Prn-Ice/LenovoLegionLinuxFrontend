@@ -23,7 +23,7 @@ Path(sys.argv[1]).write_text(json.dumps({
     'image': os.environ['LLLF_APPIMAGE_NIX_IMAGE'],
 }))
 PY
-nix build --impure --print-build-logs --out-link "$output/result" --expr "
+nix build --keep-failed --impure --print-build-logs --out-link "$output/result" --expr "
   let
     config = builtins.fromJSON (builtins.readFile $scratch/inputs.json);
     flake = builtins.getFlake config.flake;
