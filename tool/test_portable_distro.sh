@@ -25,6 +25,13 @@ if [[ $# == 5 ]]; then
   release="$(realpath -- "$5")"
   qualification_archive="$format-qualification.tar.gz"
 fi
+diagnostic_attempts=${LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS:-}
+if [[ -n $diagnostic_attempts ]]; then
+  if [[ $format != deb || ! $diagnostic_attempts =~ ^([1-9]|1[0-9]|20)$ ]]; then
+    echo 'LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS requires --deb and a value from 1 to 20.' >&2
+    exit 64
+  fi
+fi
 for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3 timeout; do
   if ! command -v "$program" >/dev/null; then
     echo "Required program is missing: $program" >&2
@@ -119,11 +126,38 @@ if [[ -n $release ]]; then
   fi
 fi
 set +e
-remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && timeout $guest_timeout bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
+guest_environment=
+if [[ -n $diagnostic_attempts ]]; then
+  guest_environment="LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS=$diagnostic_attempts "
+fi
+remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd /root/source && ${guest_environment}timeout $guest_timeout bash control/test/$guest_check" 2>&1 | tee "$output/qualification.log"
 result=${PIPESTATUS[0]}
 set -e
 remote 'journalctl -b --no-pager' > "$output/journal.log" || true
+collection_status=0
+if [[ -n $diagnostic_attempts ]]; then
+  set +e
+  remote "cd /root/source && timeout 360 bash control/test/deb_core_diagnostic.sh collect /root/deb-core-diagnostic $result" \
+    2>&1 | tee "$output/core-collection.log"
+  collection_status=${PIPESTATUS[0]}
+  archive_status=0
+  if remote 'test -d /root/deb-core-diagnostic'; then
+    remote "set -o pipefail; tar -C /root -cf - deb-core-diagnostic | gzip -1" \
+      > "$output/deb-core-diagnostic.tar.gz"
+    archive_status=$?
+  else
+    archive_status=1
+  fi
+  set -e
+  printf 'qualification_status=%s\ncollection_status=%s\narchive_status=%s\n' \
+    "$result" "$collection_status" "$archive_status" \
+    > "$output/diagnostic-status.txt"
+  if (( collection_status == 0 && archive_status != 0 )); then
+    collection_status=$archive_status
+  fi
+fi
 if (( result != 0 )); then exit "$result"; fi
+if (( collection_status != 0 )); then exit "$collection_status"; fi
 scp "${ssh_options[@]}" -P "$port" "root@127.0.0.1:/root/$qualification_archive" "$output/"
 export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected" LLLF_QUALIFICATION_ARCHIVE="$qualification_archive"
 export LLLF_QUALIFICATION_CPU="$vm_cpu"
@@ -134,6 +168,7 @@ import os
 from pathlib import Path
 
 output = Path(os.environ['LLLF_QUALIFICATION_OUTPUT'])
+diagnostic_only = bool(os.environ.get('LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS'))
 manifest = {
     'commit': os.environ['LLLF_QUALIFICATION_COMMIT'],
     'source_worktree_modified': bool(os.environ['LLLF_QUALIFICATION_MODIFIED']),
@@ -141,7 +176,10 @@ manifest = {
     'cpu_model': os.environ['LLLF_QUALIFICATION_CPU'],
     'files': {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
               for name in ['native-source.tar.gz', os.environ['LLLF_QUALIFICATION_ARCHIVE']]},
-    'scope': 'Portable control with a synthetic CLI in a disposable distro VM',
+    'scope': ('Diagnostic-only Debian close and core capture in a disposable VM'
+              if diagnostic_only else
+              'Portable control with a synthetic CLI in a disposable distro VM'),
+    'release_qualification': not diagnostic_only,
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
     'appimage': ('FUSE, extraction, desktop launch, and synthetic helper control verified'

@@ -1,0 +1,101 @@
+name: Patched A hosted close diagnostic
+
+on:
+  pull_request:
+    branches: [fix/stable-deployment]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patched-a-core-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  ubuntu:
+    name: Experimental A — Ubuntu 22.04 Debian closes
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Restore and verify the existing experimental A inputs
+        run: |
+          mkdir -p build/patched-a-release build/hosted-patched-a
+          cp diagnostic-assets/patched-a/*.deb diagnostic-assets/patched-a/*.json \
+            diagnostic-assets/patched-a/SHA256SUMS \
+            diagnostic-assets/patched-a/vm-fixtures.tar.gz build/patched-a-release/
+          cat diagnostic-assets/patched-a/source.tar.gz.part-* \
+            > build/patched-a-release/legion-frontend-1.0.0+1-amd64-source.tar.gz
+          cd build/patched-a-release
+          sha256sum --check SHA256SUMS
+          printf '%s  %s\n' \
+            58cdf3943cc5b5650186cd484f7a918918f78af7781a5e2e4ba575422f5d4f43 \
+            legion-linux-frontend_1.0.0+1-1_amd64.deb | sha256sum --check
+          printf '%s  %s\n' \
+            eac236abd2fa6eaae4780a8963768218438fce6e57aed780569bbdb6fcc19c64 \
+            legion-frontend-1.0.0+1-amd64-source.tar.gz | sha256sum --check
+          sha256sum -- ./* > ../hosted-patched-a/input-hashes.txt
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(next(Path('.').glob('legion-frontend-*.json')).read_text())
+          assert m['experimental'] and not m['release_qualification']
+          assert m['experiment']['variant'] == 'A'
+          assert m['payload']['./lib/legion_frontend/lib/libflutter_linux_gtk.so']['sha256'] == '226a06ff64e17e4cc2468af63be9f2b737fddd680a8ae34e7e5c7c026bb506ad'
+          PY
+      - name: Install standard disposable VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+      - name: Require KVM and record the actual hosted environment
+        run: |
+          {
+            echo 'EXPERIMENTAL ONLY — NOT RELEASE QUALIFICATION'
+            echo "diagnostic_commit=$(git rev-parse HEAD)"
+            uname -a
+            lscpu
+            qemu-system-x86_64 --version
+          } > build/hosted-patched-a/host-environment.txt
+          test -e /dev/kvm
+          sudo setfacl -m u:"$(id -un)":rw /dev/kvm
+          test -r /dev/kvm -a -w /dev/kvm
+      - name: Download the verified Ubuntu 22.04 guest image
+        run: |
+          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img \
+            -o /tmp/patched-a-jammy.img
+          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS \
+            -o /tmp/patched-a-jammy.SHA256SUMS
+      - name: Prove core capture then require 20 normal-close passes
+        id: diagnostic
+        run: |
+          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/patched-a-jammy.SHA256SUMS)"
+          echo "ubuntu_image_sha256=$checksum" >> build/hosted-patched-a/host-environment.txt
+          set +e
+          timeout -k 30s 2100s env LLLF_VM_ACCELERATOR=kvm LLLF_DEB_CORE_DIAGNOSTIC_ATTEMPTS=20 \
+            bash tool/test_portable_distro.sh /tmp/patched-a-jammy.img "$checksum" \
+              build/hosted-patched-a/vm --deb build/patched-a-release
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "qualification_status=$status" >> build/hosted-patched-a/host-environment.txt
+      - name: Upload diagnostic evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: patched-a-core-${{ github.run_id }}
+          path: build/hosted-patched-a
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 1
+      - name: Preserve the package qualification status
+        if: always() && steps.diagnostic.outcome != 'skipped'
+        env:
+          QUALIFICATION_STATUS: ${{ steps.diagnostic.outputs.status }}
+        run: |
+          [[ $QUALIFICATION_STATUS =~ ^[0-9]+$ ]] || exit 1
+          exit "$QUALIFICATION_STATUS"

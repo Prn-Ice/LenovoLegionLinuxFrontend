@@ -1,0 +1,1254 @@
+{
+  "experimental": true,
+  "release_qualification": false,
+  "experiment": {
+    "experimental": true,
+    "release_qualification": false,
+    "variant": "A",
+    "export_manifest_sha256": "11c6edbb5866b911092fa066a75475851cde71feab81dc5a34c72314a0d95479",
+    "engine": {
+      "experimental": true,
+      "release_qualification": false,
+      "SDK": "/tmp/opencode/flutter-shutdown-engine-experiment/export/flutter-sdk",
+      "ENGINE_SRC": "/tmp/opencode/flutter-shutdown-engine-experiment/export/engine/src",
+      "LOCAL_ENGINE": "host_release",
+      "LOCAL_ENGINE_HOST": "host_release",
+      "sdk_template_pub_cache": "/tmp/opencode/flutter-shutdown-engine-experiment/export/pub-cache",
+      "framework_base": "ab2912035e160d9cad6306df307576da6128ebdb",
+      "stock_engine": "371f77202a73e8dff57a8b3bff75bca55c090aee",
+      "patched_framework_and_engine_source": "2ec26c4fc6b078d957242eb6c688ebc7526c7b9c",
+      "engine_content_hash_from_GN": "25c736718ea0e0d7b51136f928bc181adc773b70",
+      "dart_revision": "fa8c1270c374c1346931583a17c3b7f278d3822d",
+      "dart_version": "3.14.0",
+      "tool_version_caveat": "Git-derived framework version is 3.51.0-1.0.pre-30 on the private patch branch. No prerelease source or dependency roll was applied. engineRevision in flutter --version remains the stock artifact pin and does not identify this local runtime.",
+      "actual_patch_order": [
+        {
+          "pr": 194525,
+          "upstream": "cb1b233755444fd7d2e84bda6971aecff1692c1e",
+          "local": "290fc346275d40250c80dcbafb0f0481579cd866",
+          "sha256": "bc41075df0dc20b404d8049cbd152599a468496577b38ae2e6a3c826a5cbbf43"
+        },
+        {
+          "pr": 193533,
+          "upstream": "abacb7417205339cd75ad09e55b8e6063a983ec0",
+          "local": "7884188d2c81daba54393a513fc38e7659bdf811",
+          "sha256": "1803b452b74971c18861cccc078299152fa5058c208a8a94d7209dc016fea8b4"
+        },
+        {
+          "pr": 193126,
+          "upstream": "34067b1a6e2c5121dbaf5915517f989c2f48fe68",
+          "local": "2ec26c4fc6b078d957242eb6c688ebc7526c7b9c",
+          "sha256": "7732a83b557f95ce42d4ba29203adb3ae1749dc1a3dbaca04dfebde50f809e20"
+        }
+      ],
+      "patch_hash_format": "git show --format= --binary <commit>; not GitHub email-formatted PR patches",
+      "conflict_resolution": "Only testing/mock_gtk.cc: keep current_gl_context tracking, use the no-argument clear-current signature, omit absent MockGtk callback. Exact upstream-to-adapted delta is evidence/provenance/193533-upstream-to-adapted-test-shim.diff.",
+      "build": {
+        "os": "linux",
+        "target_cpu": "x64",
+        "host_cpu": "x64",
+        "runtime_mode": "release",
+        "aot": true,
+        "optimized": true,
+        "lto": false,
+        "symbol_level": 2,
+        "stripped_symbols_GN": false,
+        "cpp_NDEBUG": true,
+        "custom_lifecycle_tracing": false,
+        "enable_backtrace": true,
+        "jobs": 8,
+        "compiler": "Fuchsia Clang 24.0.0git, 07d67299a15ce03b053736e2d31a668ee0576987",
+        "sysroot": "Debian bullseye amd64",
+        "sysroot_tar_sha256": "36a164623d03f525e3dfb783a5e9b8a00e98e1ddd2b5cff4e449bd016dd27e50",
+        "gn_args": "engine/src/out/host_release/args.gn",
+        "derived_image": "sha256:f8a0b494359b98936591f76989ed92637616ac8bdf4a1ed51d835201964a23ad"
+      },
+      "runtime": {
+        "path": "engine/src/out/host_release/libflutter_linux_gtk.so",
+        "sha256": "226a06ff64e17e4cc2468af63be9f2b737fddd680a8ae34e7e5c7c026bb506ad",
+        "size": 317414960,
+        "build_id": "50fc1e9aa3a2f684cc9837bdfad045a735589fbe",
+        "symbols": "engine/src/out/host_release/libflutter_linux_gtk.so",
+        "embedded_DWARF": true
+      },
+      "gen_snapshot": {
+        "path": "engine/src/out/host_release/gen_snapshot",
+        "sha256": "adc49c0a70a565a488a5d9c6d628feb6527c68f494cfab03732df76a80a35df0",
+        "size": 5408000,
+        "build_id": "0289892a6b5b6470b2c1951e356e9948e4c42466",
+        "symbols": {
+          "path": "engine/src/out/host_release/exe.unstripped/gen_snapshot",
+          "sha256": "6d18dbc47c749b3ca762bfd6d70ee0de6c8de72fe5f2b8db67587639add13446",
+          "size": 86173464
+        }
+      },
+      "frontend_server": {
+        "path": "engine/src/out/host_release/dart-sdk/bin/snapshots/frontend_server_aot.dart.snapshot",
+        "sha256": "c18433aa944eb11ce76c1e0cce26daad268462f23caca3fd4abf24340d3a21ad",
+        "size": 17355408
+      },
+      "platform_dill": {
+        "path": "engine/src/out/host_release/flutter_patched_sdk/platform_strong.dill",
+        "sha256": "486c68548ae6924145a12207ef5bb0ce1208a04c9c6ac3e6fb1b69b9f1f1507a",
+        "size": 10325904
+      },
+      "icu": {
+        "path": "engine/src/out/host_release/icudtl.dat",
+        "sha256": "319501bd0fdf9c9cb9926c0d0fd64ed95961118af700fbb4342981f088e73e8c",
+        "size": 10822000
+      },
+      "headers": "engine/src/out/host_release/flutter_linux",
+      "dart_sdk": "engine/src/out/host_release/dart-sdk",
+      "dart_libraries_json": "engine/src/out/host_release/dart-sdk/lib/libraries.json",
+      "sky_engine": "engine/src/out/host_release/gen/dart-pkg/sky_engine",
+      "stock_derived_tools": "GN flutter_prebuilt_dart_sdk=true/full_dart_sdk=false. The official stable-DEPS prebuilt Dart SDK/frontend was copied by upstream GN into out/host_release/dart-sdk; gen/frontend_server_aot.dart.snapshot is byte-identical. SDK bootstrap Dart has the same revision. Flutter tool rebuilt normally in the private SDK, with no dependency changes. SDK cache/pkg/sky_engine is byte-identical to the generated local package. impellerc/font-subset/libtessellator/gen_snapshot/runtime are local build outputs, not stock runtime fallbacks.",
+      "elf_compatibility": {
+        "runtime_max_direct_GLIBC": "2.18",
+        "gen_snapshot_max_direct_GLIBC": "2.18",
+        "direct_GLIBCXX_requirements": [],
+        "runtime_RUNPATH": "$ORIGIN",
+        "host_tool_interpreter": "/lib64/ld-linux-x86-64.so.2",
+        "checked_environment": "Ubuntu 22.04, libc6 2.35-0ubuntu3.18",
+        "runtime_and_gen_snapshot_ldd": "All dependencies resolved; transitive distro-library compatibility is not a universal glibc-2.18 guarantee.",
+        "details": "evidence/provenance/elf-summary.json"
+      },
+      "native_tests": {
+        "tests": 84,
+        "passed": 83,
+        "failed": 1,
+        "exit": 1,
+        "failed_test": "FlViewTest.StateUpdateDoesNotHappenInInit",
+        "reason": "atk_socket_embed: plug_id != NULL assertion logged an ATK critical; the test rejects any GTK critical. Origin is not isolated to the patch or baseline.",
+        "log": "evidence/native-focused-tests-recovered.log",
+        "xml": "evidence/native-focused-tests-recovered.xml",
+        "Wayland_limit": "Xvfb/X11 test environment. RealizeWithoutWayland exercised the expected missing-Wayland path, not a native Wayland compositor."
+      },
+      "launcher_incident": {
+        "original_container": "44d3aa7f8b2c64b0bbd6845c90ffe4b3d86d6764b35a09eead718bf806513b61",
+        "cause": "bash exec-optimized xvfb-run into namespace PID 1. xvfb-run waits for Xvfb SIGUSR1 readiness; X server NotifyParentProcess sends it only when ParentProcess > 1. The test executable never started.",
+        "recovery": "Captured state/script and stopped only that container with a bounded docker stop. Standard docker run --init keeps xvfb-run out of PID 1. Bounded list-tests and focused-test commands then completed.",
+        "original_empty_log": "evidence/native-focused-tests.log",
+        "original_tool_exit": 137,
+        "oom": "No OOM conclusion: captured container OOMKilled=false; old tool exit 137 followed termination."
+      },
+      "toolchain_probe": {
+        "fresh_kernel_and_AOT": true,
+        "exit": 0,
+        "log": "evidence/toolchain-probe/compile.log",
+        "runtime_execution": false
+      },
+      "source_archive": {
+        "path": "flutter-source-2ec26c4fc6b.tar.gz",
+        "sha256": "bf62696b96e1abde486f4139c3eda68da4b712222776d25fb511b4aa32a460fe",
+        "size": 35406992
+      },
+      "source_archive_scope": "All tracked primary Flutter framework/engine sources at patched HEAD. DEPS repositories and toolchain/sysroot inputs are pinned in evidence/provenance, retained in the original builder checkout, and not duplicated in this archive.",
+      "retained_dependency_checkout": "/tmp/opencode/flutter-shutdown-engine-experiment/flutter/engine/src/flutter/third_party",
+      "unverified": [
+        "full native suite",
+        "A/B app builds and fresh app AOT",
+        "bundle launch/close",
+        "Debian and AppImage packaging",
+        "Ubuntu/NixOS VM acceptance",
+        "native Wayland",
+        "process-exit lifecycle ordering",
+        "fix for the Mesa/LLVM crash"
+      ]
+    },
+    "local_engine_arguments": [
+      "--local-engine-src-path=/tmp/opencode/flutter-shutdown-engine-experiment/export/engine/src",
+      "--local-engine=host_release",
+      "--local-engine-host=host_release"
+    ]
+  },
+  "format": 1,
+  "version": "1.0.0+1",
+  "package_version": "1.0.0+1-1",
+  "source_commit": "61367a98775765d1144f2d9bd50a1a124a1ce7df",
+  "architecture": "amd64",
+  "build_os": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy\n",
+  "portable_control": true,
+  "default_control_mode": "installedService",
+  "depends": "libatk1.0-0 (>= 2.7.91), libc6 (>= 2.34), libcairo-gobject2 (>= 1.10.0), libcairo2 (>= 1.14.0), libepoxy0 (>= 1.0), libgcc-s1 (>= 3.0), libgdk-pixbuf-2.0-0 (>= 2.22.0), libglib2.0-0 (>= 2.68.0), libgtk-3-0 (>= 3.23.1), libharfbuzz0b (>= 0.6.0), libpango-1.0-0 (>= 1.29.4), libpangocairo-1.0-0 (>= 1.14.0), libpolkit-gobject-1-0 (>= 0.94), libstdc++6 (>= 11), libwayland-client0 (>= 1.9.91), libwayland-egl1 (>= 1.15.0), libegl1, libgles2, gsettings-desktop-schemas, xdg-user-dirs, polkitd | policykit-1, systemd",
+  "vm_fixtures_sha256": "0ff482a634b23a57a7dc3d188c94ea85c0a4515a54f81e686df16c14922c18d5",
+  "elf_dependencies": {
+    "usr/lib/legion_frontend/libexec/legion-portable-control": [
+      "libpolkit-gobject-1.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libhandy_window_plugin.so": [
+      "libhandy_flutter.so",
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libgtk_plugin.so": [
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libscreen_retriever_linux_plugin.so": [
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libhandy_flutter.so": [
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libapp.so": [],
+    "usr/lib/legion_frontend/lib/libyaru_window_linux_plugin.so": [
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libwindow_manager_plugin.so": [
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ],
+    "usr/lib/legion_frontend/lib/libflutter_linux_gtk.so": [
+      "libdl.so.2",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libatk-1.0.so.0",
+      "libcairo.so.2",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libepoxy.so.0",
+      "libwayland-client.so.0",
+      "libwayland-egl.so.1",
+      "libpthread.so.0",
+      "libm.so.6",
+      "libc.so.6",
+      "ld-linux-x86-64.so.2"
+    ],
+    "usr/lib/legion_frontend/legion_frontend": [
+      "libgtk_plugin.so",
+      "libhandy_window_plugin.so",
+      "libscreen_retriever_linux_plugin.so",
+      "libwindow_manager_plugin.so",
+      "libyaru_window_linux_plugin.so",
+      "libflutter_linux_gtk.so",
+      "libgtk-3.so.0",
+      "libgdk-3.so.0",
+      "libpangocairo-1.0.so.0",
+      "libpango-1.0.so.0",
+      "libharfbuzz.so.0",
+      "libatk-1.0.so.0",
+      "libcairo-gobject.so.2",
+      "libcairo.so.2",
+      "libgdk_pixbuf-2.0.so.0",
+      "libgio-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libglib-2.0.so.0",
+      "libhandy_flutter.so",
+      "libstdc++.so.6",
+      "libm.so.6",
+      "libgcc_s.so.1",
+      "libc.so.6"
+    ]
+  },
+  "bundle": {
+    ".": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/AssetManifest.bin": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1d0040e5293ca2fd161c608738a265e7b5ef7484e25199f04b64e2c4b751d251"
+    },
+    "./data/flutter_assets/FontManifest.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6c47aa06212b274dfde8f344da77ce1091057bfc82e6ed1602682ff89f1f74c1"
+    },
+    "./data/flutter_assets/NOTICES.Z": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "10e17f58ae952295ae17efb5b24884b48b689d644e5d64558548c0e257385f5c"
+    },
+    "./data/flutter_assets/NativeAssetsManifest.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "9548a31e4a048135c1d94f919328bfb62ae2c7bb3cab96557c7941daa97776cb"
+    },
+    "./data/flutter_assets/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/assets/branding": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/assets/branding/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6e2fdfb9fd65dcc76d6b28f1413e111bfa1e9810743217ea4b37bad1a7c2a861"
+    },
+    "./data/flutter_assets/assets/branding/legion_app.png": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "97525427b9ab33727aebcf1c947128eeb1ef80048d93e045259de01a9e99335e"
+    },
+    "./data/flutter_assets/assets/branding/legion_app.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6eb38450a5d2820c6c3cbe2c0988eb9cd4fa200ba124d06c91c4430a4610e3d8"
+    },
+    "./data/flutter_assets/assets/branding/legion_mark.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1c4b00abf9d69dbc0acba5c40aaaeb34a684c5a7f654d52f56bfdc6d7d6cc103"
+    },
+    "./data/flutter_assets/assets/gpu_vendors": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/assets/gpu_vendors/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1a484f78110a2f5f0bc3d1928a86649a9fc26de0b88c96a9deaff95f2e19f6ba"
+    },
+    "./data/flutter_assets/assets/gpu_vendors/amd.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "d2d46f1f5ae2962e271ff743c347391e41207b2439555cbf30ecd59b2b9079fb"
+    },
+    "./data/flutter_assets/assets/gpu_vendors/intel.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "dc0dda9cc52f2646203183993ea0b01a67b36dc007bbd325c9159a5665d54caa"
+    },
+    "./data/flutter_assets/assets/gpu_vendors/nvidia.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "7c4ab83abd401cebb19fae113cbe7a843f03ea1ba85ee35aee975a79ac9b01d7"
+    },
+    "./data/flutter_assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/fonts/MaterialIcons-Regular.otf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "2923f1eb8e45bef79974c30e965ff89d507dba6404262e0d7cf21063604f2654"
+    },
+    "./data/flutter_assets/packages": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/cupertino_icons": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/cupertino_icons/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "9d8d1c5ec8089b5396386bd145d98f128749144ed62bccd1d111464bdda59fd0"
+    },
+    "./data/flutter_assets/packages/handy_window": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/handy_window/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/handy_window/assets/handy-window-dark.css": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "ed972f22c2d591e658bfd8d732255b895fc4207ceff0f2f85be12a705959398a"
+    },
+    "./data/flutter_assets/packages/handy_window/assets/handy-window.css": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "85168de4db816b0667f97c949c02d2f3331efdbc2205864e036a8d810283acd5"
+    },
+    "./data/flutter_assets/packages/material_ui": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/material_ui/shaders": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/material_ui/shaders/ink_sparkle.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274"
+    },
+    "./data/flutter_assets/packages/yaru": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/yaru/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-B.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f7de62896e7045aff7d5d1061a320ce172c411b437d350d5e80d9120ffe826eb"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-BI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "40bf740ef47724af39349644d028b73069b5dc66beaae3a12a5f14fc0514ef10"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-L.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f1d38342828dd095d2f9367f5d556bd028f5fd9e3a0ab6a2b44f6b970e14caee"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-LI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f26d36217918f02e193bdf84c102ad3f9ed5753df0418919b6695a5db1bd79d9"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-M.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "98253e483955d28147ad428fbf9fb410fcfc19a32c40f53a97b8b7c75af8465a"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-MI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "7c9bdd9d7e19b8c12e16a0367dc02f4ce41e768aec67ecd1d239bfa900abc3a6"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-R.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "27988e92167b4a4bd2333068f2e9f1657d3ffa5a45b70acbb24a1ee2db3d0b2d"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-RI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "424434915edc481b7a32fd455bc21a27ef9ec8db32ab676d22beefd9b2ed7a0a"
+    },
+    "./data/flutter_assets/packages/yaru/assets/fonts/UbuntuMono-Regular.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3b83b9ca3a1186b4bf8fbcbc8078b360bdb78a77a859f8eeabc9b14fb165da9a"
+    },
+    "./data/flutter_assets/packages/yaru/assets/yaru_icons.otf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "aa1ea88f3d9a5b542a29e5a36adc8fd369c1cd1a2444eba5e5bcbe55df7b16fa"
+    },
+    "./data/flutter_assets/pubspec.yaml": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3c42ea869a44850e54bf555af8e61a7fac32c48e8ba6808aa1d2221fa2c39858"
+    },
+    "./data/flutter_assets/shaders": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./data/flutter_assets/shaders/ink_sparkle.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274"
+    },
+    "./data/flutter_assets/shaders/stretch_effect.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "bc7599dbbbaab310efe41520574138d21fb18a88c8fe4495ed79315309336f6f"
+    },
+    "./data/flutter_assets/version.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "94eb7cded9f2c3cc949501693dd2f68293650ddf7ec2f88fce4306b6f424a62a"
+    },
+    "./data/icudtl.dat": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "319501bd0fdf9c9cb9926c0d0fd64ed95961118af700fbb4342981f088e73e8c"
+    },
+    "./legion_frontend": {
+      "type": "file",
+      "mode": "755",
+      "sha256": "ec5cc3b623c2c9d5b6933962c0c0ba2abf528746d0b7292fd2c55fe7ddec58c4"
+    },
+    "./lib": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/libapp.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "862b7e7fc729348ef8d26cb19c7bcd36fec2812a1ce097f4d8b0db681b8073ad"
+    },
+    "./lib/libflutter_linux_gtk.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "226a06ff64e17e4cc2468af63be9f2b737fddd680a8ae34e7e5c7c026bb506ad"
+    },
+    "./lib/libgtk_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "52e132112e3b3261a5f88f2a5952494fcaf1793a4c687c21fbe884c433661ec4"
+    },
+    "./lib/libhandy_flutter.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "14136505404443b471c842163f8d3b9d28068e70873077f6efb53f36c5fb73ac"
+    },
+    "./lib/libhandy_window_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "b5a0596e04fca6cb752431e4280f3fbe5a5997c22fe1152a8697a7609b0eae7e"
+    },
+    "./lib/libscreen_retriever_linux_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "aed759e1f83cf06855e953d315b8f8d7d4e6b2383a81eee6be7b2456316c4217"
+    },
+    "./lib/libwindow_manager_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "ec26b773c9360e49fcf959078ad2950ef2ad52e04a1ca4b7928f034384b47ea5"
+    },
+    "./lib/libyaru_window_linux_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "c65d0ac8ae2fda917f114ac017241822732085c5e2f4e48d151773ce7476ad74"
+    },
+    "./libexec": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./libexec/legion-portable-control": {
+      "type": "file",
+      "mode": "755",
+      "sha256": "b4755e001c837a47727dfbf7f164d7ee9656b37703d15939a97197040b40a27b"
+    },
+    "./share": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/LICENSE": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+    },
+    "./share/licenses/legion_frontend/THIRD_PARTY_NOTICES.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "a0d5e786ced0af91b768c041e79ad3acb78bbabe1d2ad15fe7b6e784525f63d0"
+    },
+    "./share/licenses/legion_frontend/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/assets/gpu_vendors": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/assets/gpu_vendors/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1a484f78110a2f5f0bc3d1928a86649a9fc26de0b88c96a9deaff95f2e19f6ba"
+    },
+    "./share/licenses/legion_frontend/flutter": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/flutter/MaterialIcons_LICENSE.txt": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74"
+    },
+    "./share/licenses/legion_frontend/handy_window": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/libhandy": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/libhandy/src": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/libhandy/src/AUTHORS": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "bc0843f411eeffedde2f179e9de9feac1b2dba5f33d622e9a60a7f1b55f7178f"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/libhandy/src/COPYING": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/settings": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/handy_window/linux/settings/LICENCE": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+    },
+    "./share/licenses/legion_frontend/inventory.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3589f65190e3af5069c0f67ada38957ffdd834f6e9f7a418405372ad1826b986"
+    },
+    "./share/licenses/legion_frontend/yaru": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/yaru/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/yaru/assets/LICENSE.CCBYSA": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "0556d775dd4821dc6721110754c82cab5e077214241eec15c7a8f120c78951f0"
+    },
+    "./share/licenses/legion_frontend/yaru/assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/yaru/assets/fonts/LICENCE.txt": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "0cebe8aa1ba75c4fdf57946d6109ed0a8ce12ae6bb420bad4e4f302c5c147d78"
+    }
+  },
+  "payload": {
+    ".": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./bin": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./bin/legion_frontend": {
+      "type": "file",
+      "mode": "755",
+      "sha256": "892fa3ec6d665d64a19ac775fc264058618bd9e33ac45008570d93df599f2537"
+    },
+    "./lib": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/AssetManifest.bin": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1d0040e5293ca2fd161c608738a265e7b5ef7484e25199f04b64e2c4b751d251"
+    },
+    "./lib/legion_frontend/data/flutter_assets/FontManifest.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6c47aa06212b274dfde8f344da77ce1091057bfc82e6ed1602682ff89f1f74c1"
+    },
+    "./lib/legion_frontend/data/flutter_assets/NOTICES.Z": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "10e17f58ae952295ae17efb5b24884b48b689d644e5d64558548c0e257385f5c"
+    },
+    "./lib/legion_frontend/data/flutter_assets/NativeAssetsManifest.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "9548a31e4a048135c1d94f919328bfb62ae2c7bb3cab96557c7941daa97776cb"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/branding": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/branding/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6e2fdfb9fd65dcc76d6b28f1413e111bfa1e9810743217ea4b37bad1a7c2a861"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/branding/legion_app.png": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "97525427b9ab33727aebcf1c947128eeb1ef80048d93e045259de01a9e99335e"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/branding/legion_app.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6eb38450a5d2820c6c3cbe2c0988eb9cd4fa200ba124d06c91c4430a4610e3d8"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/branding/legion_mark.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1c4b00abf9d69dbc0acba5c40aaaeb34a684c5a7f654d52f56bfdc6d7d6cc103"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/gpu_vendors": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/gpu_vendors/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1a484f78110a2f5f0bc3d1928a86649a9fc26de0b88c96a9deaff95f2e19f6ba"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/gpu_vendors/amd.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "d2d46f1f5ae2962e271ff743c347391e41207b2439555cbf30ecd59b2b9079fb"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/gpu_vendors/intel.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "dc0dda9cc52f2646203183993ea0b01a67b36dc007bbd325c9159a5665d54caa"
+    },
+    "./lib/legion_frontend/data/flutter_assets/assets/gpu_vendors/nvidia.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "7c4ab83abd401cebb19fae113cbe7a843f03ea1ba85ee35aee975a79ac9b01d7"
+    },
+    "./lib/legion_frontend/data/flutter_assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/fonts/MaterialIcons-Regular.otf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "2923f1eb8e45bef79974c30e965ff89d507dba6404262e0d7cf21063604f2654"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/cupertino_icons": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/cupertino_icons/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "9d8d1c5ec8089b5396386bd145d98f128749144ed62bccd1d111464bdda59fd0"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/handy_window": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/handy_window/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/handy_window/assets/handy-window-dark.css": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "ed972f22c2d591e658bfd8d732255b895fc4207ceff0f2f85be12a705959398a"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/handy_window/assets/handy-window.css": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "85168de4db816b0667f97c949c02d2f3331efdbc2205864e036a8d810283acd5"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/material_ui": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/material_ui/shaders": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/material_ui/shaders/ink_sparkle.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-B.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f7de62896e7045aff7d5d1061a320ce172c411b437d350d5e80d9120ffe826eb"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-BI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "40bf740ef47724af39349644d028b73069b5dc66beaae3a12a5f14fc0514ef10"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-L.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f1d38342828dd095d2f9367f5d556bd028f5fd9e3a0ab6a2b44f6b970e14caee"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-LI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "f26d36217918f02e193bdf84c102ad3f9ed5753df0418919b6695a5db1bd79d9"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-M.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "98253e483955d28147ad428fbf9fb410fcfc19a32c40f53a97b8b7c75af8465a"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-MI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "7c9bdd9d7e19b8c12e16a0367dc02f4ce41e768aec67ecd1d239bfa900abc3a6"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-R.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "27988e92167b4a4bd2333068f2e9f1657d3ffa5a45b70acbb24a1ee2db3d0b2d"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/Ubuntu-RI.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "424434915edc481b7a32fd455bc21a27ef9ec8db32ab676d22beefd9b2ed7a0a"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/fonts/UbuntuMono-Regular.ttf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3b83b9ca3a1186b4bf8fbcbc8078b360bdb78a77a859f8eeabc9b14fb165da9a"
+    },
+    "./lib/legion_frontend/data/flutter_assets/packages/yaru/assets/yaru_icons.otf": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "aa1ea88f3d9a5b542a29e5a36adc8fd369c1cd1a2444eba5e5bcbe55df7b16fa"
+    },
+    "./lib/legion_frontend/data/flutter_assets/pubspec.yaml": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3c42ea869a44850e54bf555af8e61a7fac32c48e8ba6808aa1d2221fa2c39858"
+    },
+    "./lib/legion_frontend/data/flutter_assets/shaders": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/data/flutter_assets/shaders/ink_sparkle.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "21975d71de6c4a6ef89eee193565b8d5583136ba5810565dbea3b4556fd70274"
+    },
+    "./lib/legion_frontend/data/flutter_assets/shaders/stretch_effect.frag": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "bc7599dbbbaab310efe41520574138d21fb18a88c8fe4495ed79315309336f6f"
+    },
+    "./lib/legion_frontend/data/flutter_assets/version.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "94eb7cded9f2c3cc949501693dd2f68293650ddf7ec2f88fce4306b6f424a62a"
+    },
+    "./lib/legion_frontend/data/icudtl.dat": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "319501bd0fdf9c9cb9926c0d0fd64ed95961118af700fbb4342981f088e73e8c"
+    },
+    "./lib/legion_frontend/legion_frontend": {
+      "type": "file",
+      "mode": "755",
+      "sha256": "ec5cc3b623c2c9d5b6933962c0c0ba2abf528746d0b7292fd2c55fe7ddec58c4"
+    },
+    "./lib/legion_frontend/lib": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/lib/libapp.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "862b7e7fc729348ef8d26cb19c7bcd36fec2812a1ce097f4d8b0db681b8073ad"
+    },
+    "./lib/legion_frontend/lib/libflutter_linux_gtk.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "226a06ff64e17e4cc2468af63be9f2b737fddd680a8ae34e7e5c7c026bb506ad"
+    },
+    "./lib/legion_frontend/lib/libgtk_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "52e132112e3b3261a5f88f2a5952494fcaf1793a4c687c21fbe884c433661ec4"
+    },
+    "./lib/legion_frontend/lib/libhandy_flutter.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "14136505404443b471c842163f8d3b9d28068e70873077f6efb53f36c5fb73ac"
+    },
+    "./lib/legion_frontend/lib/libhandy_window_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "b5a0596e04fca6cb752431e4280f3fbe5a5997c22fe1152a8697a7609b0eae7e"
+    },
+    "./lib/legion_frontend/lib/libscreen_retriever_linux_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "aed759e1f83cf06855e953d315b8f8d7d4e6b2383a81eee6be7b2456316c4217"
+    },
+    "./lib/legion_frontend/lib/libwindow_manager_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "ec26b773c9360e49fcf959078ad2950ef2ad52e04a1ca4b7928f034384b47ea5"
+    },
+    "./lib/legion_frontend/lib/libyaru_window_linux_plugin.so": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "c65d0ac8ae2fda917f114ac017241822732085c5e2f4e48d151773ce7476ad74"
+    },
+    "./lib/legion_frontend/libexec": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/libexec/legion-portable-control": {
+      "type": "file",
+      "mode": "755",
+      "sha256": "b4755e001c837a47727dfbf7f164d7ee9656b37703d15939a97197040b40a27b"
+    },
+    "./lib/legion_frontend/share": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/LICENSE": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/THIRD_PARTY_NOTICES.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "a0d5e786ced0af91b768c041e79ad3acb78bbabe1d2ad15fe7b6e784525f63d0"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/assets/gpu_vendors": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/assets/gpu_vendors/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "1a484f78110a2f5f0bc3d1928a86649a9fc26de0b88c96a9deaff95f2e19f6ba"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/flutter": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/flutter/MaterialIcons_LICENSE.txt": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/libhandy": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/libhandy/src": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/libhandy/src/AUTHORS": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "bc0843f411eeffedde2f179e9de9feac1b2dba5f33d622e9a60a7f1b55f7178f"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/libhandy/src/COPYING": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/settings": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/handy_window/linux/settings/LICENCE": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "89519eca6f7b9529b35bdddd623a58c3af06a88c458dbd6531ddb4675acf75a9"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/inventory.json": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "3589f65190e3af5069c0f67ada38957ffdd834f6e9f7a418405372ad1826b986"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/yaru": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/yaru/assets": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/yaru/assets/LICENSE.CCBYSA": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "0556d775dd4821dc6721110754c82cab5e077214241eec15c7a8f120c78951f0"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/yaru/assets/fonts": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./lib/legion_frontend/share/licenses/legion_frontend/yaru/assets/fonts/LICENCE.txt": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "0cebe8aa1ba75c4fdf57946d6109ed0a8ce12ae6bb420bad4e4f302c5c147d78"
+    },
+    "./share": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/applications": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/applications/io.github.prnice.legion_linux_frontend.desktop": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "51753df291c1299e104439d80e297354f68dce4712fcb3c4839ebbe3964d3f28"
+    },
+    "./share/doc": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/doc/legion-linux-frontend": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/doc/legion-linux-frontend/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "b953cb6337a3193aac7252920e49d8fb66173caefff5a45af88ff7458d4eb32f"
+    },
+    "./share/doc/legion-linux-frontend/copyright": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "edaef632cbb643e4e7a221717a6c441a4c1a7c918e6e4d56debc3d8739b233f6"
+    },
+    "./share/icons": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor/256x256": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor/256x256/apps": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor/256x256/apps/io.github.prnice.legion_linux_frontend.png": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "97525427b9ab33727aebcf1c947128eeb1ef80048d93e045259de01a9e99335e"
+    },
+    "./share/icons/hicolor/scalable": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor/scalable/apps": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/icons/hicolor/scalable/apps/io.github.prnice.legion_linux_frontend.svg": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6eb38450a5d2820c6c3cbe2c0988eb9cd4fa200ba124d06c91c4430a4610e3d8"
+    },
+    "./share/licenses": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/branding": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/licenses/legion_frontend/branding/README.md": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "6e2fdfb9fd65dcc76d6b28f1413e111bfa1e9810743217ea4b37bad1a7c2a861"
+    },
+    "./share/metainfo": {
+      "type": "directory",
+      "mode": "755"
+    },
+    "./share/metainfo/io.github.prnice.legion_linux_frontend.metainfo.xml": {
+      "type": "file",
+      "mode": "644",
+      "sha256": "8340a5f4561f5f6b93b14baf5d41828fb01ef3732ae25cf05c1d5d5c9c5203e1"
+    }
+  },
+  "files": {
+    "legion-linux-frontend_1.0.0+1-1_amd64.deb": "58cdf3943cc5b5650186cd484f7a918918f78af7781a5e2e4ba575422f5d4f43",
+    "legion-frontend-1.0.0+1-amd64-source.tar.gz": "eac236abd2fa6eaae4780a8963768218438fce6e57aed780569bbdb6fcc19c64"
+  },
+  "qualification": {
+    "hardware": "unverified",
+    "desktop_authentication": "unverified"
+  }
+}
