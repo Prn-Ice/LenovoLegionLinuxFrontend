@@ -86,9 +86,10 @@ removes its temporary data on completion or failure.
 The portable-control scenario uses the real Linux method channel to check that
 an invalid endpoint is rejected before connection. It starts no helper. The native
 discovery scenario rejects caller-selected CLI paths before inspecting the host.
-The hardware-access journey checks helper status and verifies that opening
-Settings requests no authorization. After the journeys, check native method
-names, argument types, and payload limits with:
+The hardware-access journey opens fresh Settings, checks that the authorization
+selector is gone, and verifies that opening the page requests no authorization.
+After the journeys, check native method names, argument types, and payload limits
+with:
 
 ```bash
 flutter build linux --debug --no-pub
