@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:mocktail/mocktail.dart';
-import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/features/about/models/about_snapshot.dart';
 import 'package:legion_frontend/features/about/providers/about_provider.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
@@ -82,6 +81,5 @@ List<Override> safeSettingsOverrides() {
     bootLogoRepositoryProvider.overrideWithValue(boot),
     devicesRepositoryProvider.overrideWithValue(devices),
     displayRepositoryProvider.overrideWithValue(display),
-    portableControlAvailableProvider.overrideWithValue(true),
   ];
 }
