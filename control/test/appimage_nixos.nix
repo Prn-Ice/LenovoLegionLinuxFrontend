@@ -1,6 +1,16 @@
 { pkgs, image }:
 let
   fixtures = pkgs.callPackage ./fixtures.nix { };
+  withCoreCapture = script:
+    builtins.readFile ./experimental_nixos_core.py + ''
+      try:
+          exec(${builtins.toJSON script})
+      except Exception:
+          collect_nixos_core(machine, True)
+          raise
+      else:
+          collect_nixos_core(machine, False)
+    '';
 in
 pkgs.testers.runNixOSTest {
   name = "legion-appimage-nixos";
@@ -25,10 +35,27 @@ pkgs.testers.runNixOSTest {
     users.users.denied.isNormalUser = true;
     users.users.challenge.isNormalUser = true;
     programs.appimage.enable = true;
+    services.dbus.packages = [ pkgs.at-spi2-core ];
+    security.pam.loginLimits = [
+      { domain = "approved"; type = "-"; item = "core"; value = "unlimited"; }
+    ];
+    systemd.coredump.enable = true;
+    systemd.coredump.extraConfig = ''
+      Storage=external
+      Compress=yes
+      ProcessSizeMax=2G
+      ExternalSizeMax=2G
+      MaxUse=2500M
+      KeepFree=1G
+    '';
     environment.etc."legion-control-lifecycle-test-vm".text =
       "legion-control-disposable-lifecycle-vm\n";
     environment.systemPackages = [
       fixtures
+      pkgs.at-spi2-core
+      pkgs.gdb
+      pkgs.binutils
+      pkgs.python3
       pkgs.util-linux
       pkgs.xvfb-run
       pkgs.xdotool
@@ -43,9 +70,10 @@ pkgs.testers.runNixOSTest {
     virtualisation.memorySize = 3072;
     virtualisation.cores = 2;
   };
-  testScript = builtins.readFile ./portable_session_test.py + ''
+  testScript = withCoreCapture (builtins.readFile ./portable_session_test.py + ''
     start_all()
     machine.wait_for_unit("polkit.service")
+    prepare_nixos_core(machine)
     image = "/home/approved/AppImage with spaces/Legion.AppImage"
     machine.succeed("install -d -o approved -g users '/home/approved/AppImage with spaces'")
     machine.succeed("install -o approved -g users -m755 ${image} " + shlex.quote(image))
@@ -260,5 +288,5 @@ pkgs.testers.runNixOSTest {
             code, output = machine.execute(portable_as_user(user, "timeout 15 " + binary + " --control") + " 2>&1")
             assert code not in [0, 124], (user, code, output)
             assert "CONTROL_READY" not in output, (user, output)
-  '';
+  '');
 }
