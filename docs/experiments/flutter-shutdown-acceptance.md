@@ -1,6 +1,7 @@
 # Isolated Flutter shutdown experiment
 
-Preparation for `lllf-dt0.5.16.1`; no engine build or app test has run here.
+Initial preparation contract for `lllf-dt0.5.16.1`. The completed isolated
+builds and runtime results are in [flutter-shutdown-results.md](flutter-shutdown-results.md).
 Custom-engine testing is approved, not adoption, merging, tagging, or release.
 PR 9, its `77a189e` source, and the shared SDK remain unchanged.
 
@@ -210,7 +211,7 @@ Its engine/runtime and app hashes must be separate from uninstrumented results.
 - No Shutdown/finalize trace means ordering is unknown. A Shutdown entry without
   its completion before main-loop/process exit is not proof of clean teardown.
 
-## Sources and preparation status
+## Sources and initial preparation status
 
 Context7 supplied only generic/older Flutter guidance. Verified local-engine
 flags and the runtime-mode constraint against Flutter's current
@@ -221,11 +222,11 @@ host artifacts it resolves, including `gen_snapshot`, patched platform data,
 headers, and Dart SDK. Do not apply the upstream contribution guide's general
 advice to rebase to main; this experiment is pinned to its audited sources.
 
-Prepared: app worktrees, four-line B deletion, and this contract. Checked:
+At the preparation checkpoint: app worktrees, four-line B deletion, and this contract. Checked:
 exact source diff and `git diff --check`. Not run: engine/app builds, resolver,
 unit tests, bundle probes, package construction, VM acceptance, or tracing.
-Packaging adapters and the NixOS capture overlay await the engine handoff and
-are not implemented. No claim of patched-engine compatibility is made.
+Packaging adapters and the NixOS capture overlay were not implemented at that
+checkpoint. See the results document for their later execution and limits.
 
 The archived preparation files are under
 `/tmp/opencode/lllf-shutdown-app-preparation/`: `variant-b.diff` contains only

@@ -16,6 +16,8 @@ export_root=/tmp/opencode/flutter-shutdown-engine-experiment/export
 [[ -z $(git -C "$root" status --porcelain) ]]
 mkdir -p "$output"
 name="lllf-shutdown-${variant,,}-$format"
+# ShellCheck cannot follow the EXIT trap that owns container cleanup.
+# shellcheck disable=SC2329
 cleanup() { timeout 30 docker stop -t 10 "$name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 arguments=(dart tool/package_deb.dart --output "$output/release")
