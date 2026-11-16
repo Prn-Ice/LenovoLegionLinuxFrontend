@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'bundle_notices.dart' show bundleNotices;
 import 'nix_flutter_provenance.dart' show nixFlutterProvenance;
+import 'experimental_engine.dart';
 
 Future<void> main(List<String> args) async {
   try {
@@ -53,6 +54,12 @@ Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
   await _runBuild(root, arguments);
   final bundle = Directory('${root.path}/build/linux/x64/release/bundle');
   await bundleNotices(root, bundle);
+  if (inputs['experiment'] case final Map experiment) {
+    final runtime = File('${bundle.path}/lib/libflutter_linux_gtk.so');
+    if (await _sha256(runtime) != experiment['engine']['runtime']['sha256']) {
+      throw StateError('The bundle does not contain the delivered engine.');
+    }
+  }
   return (
     bundle: bundle,
     stamp: await recordReleaseBuild(
@@ -101,6 +108,9 @@ Future<Map<String, Object>> captureReleaseInputs(Directory root) async {
     'flutter_sdk': sources.sdk == null
         ? 'not resolved'
         : await _flutterMetadata(sources.sdk!),
+    if (await experimentalEngineInputs()
+        case final Map<String, Object> experiment)
+      'experiment': experiment,
   };
 }
 
@@ -131,6 +141,7 @@ Future<Map<String, Object>> packageReleaseSource(
     final source = Directory('${staging.path}/source');
     await source.create();
     await _gitArchive(root, source, inputs['commit'] as String);
+    await archiveExperimentalEngine(Directory('${staging.path}/experiment'));
     if (additionalSources != null) {
       final copied = Directory('${staging.path}/release-inputs');
       await _copyPackage(additionalSources, copied);
@@ -157,10 +168,10 @@ Future<Map<String, Object>> packageReleaseSource(
         },
       })}\n',
     );
-    await File('${staging.path}/REBUILD.md').writeAsString(
-      '''# Rebuild this release
+    await File('${staging.path}/REBUILD.md')
+        .writeAsString('''# Rebuild this release
 
-Use the SDK-reported Flutter version and framework/engine revisions in
+${inputs.containsKey('experiment') ? 'EXPERIMENTAL ONLY: use experiment/manifest.json and its source archive for the patched runtime. SDK version output is not runtime provenance. Preserve the recorded native-test failure. Set LLLF_ENGINE_EXPORT to the verified export when rebuilding with the local-engine arguments below.\n\n' : ''}Use the SDK-reported Flutter version and framework/engine revisions in
 SOURCE-MANIFEST.json. For Nix SDKs, source_provenance identifies the upstream
 archive/ref, the source-tree NAR hash, derivation IDs, and distributor patches.
 The NAR hash describes the unpacked tree, not the downloaded tarball bytes.
@@ -173,8 +184,8 @@ From this archive directory:
 ```sh
 cp dependency-overrides.yaml source/pubspec_overrides.yaml
 cd source
-flutter pub get
-flutter build linux --release --no-pub${(stamp['build_config'] as Map?)?['portable_control'] == true ? ' --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true\ncmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON\nflutter build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true' : ''}
+flutter ${experimentalEngineArguments().join(' ')} pub get
+flutter ${experimentalEngineArguments().join(' ')} build linux --release --no-pub${(stamp['build_config'] as Map?)?['portable_control'] == true ? ' --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true\ncmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON\nflutter ${experimentalEngineArguments().join(' ')} build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true' : ''}
 ```
 
 The overrides use the archived package sources, including any local edits.
@@ -203,11 +214,14 @@ For a modified library, rebuild its source package and install the resulting
 development archive before relinking. See source/docs/appimage.md for desktop
 runtime staging and the host graphics baseline.
 ''' : ''}
-''',
-    );
+''');
     final manifest = <String, Object>{
       'format': 4,
       'inputs': inputs,
+      if (inputs.containsKey('experiment')) ...{
+        'experimental': true,
+        'release_qualification': false,
+      },
       if (stamp['build_config'] != null) 'build_config': stamp['build_config']!,
       'binary_sha256': stamp['binary_sha256']!,
       'bundle': await inventoryReleaseTree(bundle),
@@ -247,13 +261,9 @@ Future<({Map<String, _PackageSource> packages, Directory? sdk})>
 _resolveSources(Directory root) async {
   final configFile = File('${root.path}/.dart_tool/package_config.json');
   final config = jsonDecode(await configFile.readAsString()) as Map;
-  final graph =
-      jsonDecode(
-            await File(
-              '${root.path}/.dart_tool/package_graph.json',
-            ).readAsString(),
-          )
-          as Map;
+  final graph = jsonDecode(
+    await File('${root.path}/.dart_tool/package_graph.json').readAsString(),
+  ) as Map;
   final nodes = <String, Map>{
     for (final item in graph['packages'] as List)
       (item as Map)['name'] as String: item,
@@ -335,9 +345,8 @@ Future<Map<String, Map<String, String>>> inventoryReleaseTree(
     final type = FileSystemEntity.typeSync(entity.path, followLinks: false);
     if (type == FileSystemEntityType.link) {
       final target = await Link(entity.path).target();
-      final resolved = File.fromUri(
-        entity.parent.absolute.uri.resolve(target),
-      ).path;
+      final resolved = File.fromUri(entity.parent.absolute.uri.resolve(target))
+          .path;
       if (target.startsWith('/') ||
           !resolved.startsWith('${root.absolute.path}/')) {
         throw StateError('External source link: $relative');
@@ -431,7 +440,7 @@ ProcessResult _run(Directory root, String executable, List<String> args) {
 Future<void> _runBuild(Directory root, List<String> args) async {
   final process = await Process.start(
     'flutter',
-    args,
+    [...experimentalEngineArguments(), ...args],
     workingDirectory: root.path,
     mode: ProcessStartMode.inheritStdio,
   );
