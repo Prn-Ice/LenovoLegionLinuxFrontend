@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:hive_ce/hive.dart';
 import 'package:riverbloc/riverbloc.dart';
@@ -15,12 +14,6 @@ import '../services/package_power_telemetry_service.dart';
 import '../services/power_profile_service.dart';
 import '../services/xrandr_service.dart';
 import '../../features/analytics/models/sensor_record.dart';
-
-final privilegedControlHelperExistsProvider = Provider<bool>((ref) {
-  return File(
-    '${File(Platform.resolvedExecutable).parent.path}/libexec/legion-portable-control',
-  ).existsSync();
-});
 
 typedef ControlTransportFactory = LegionControlTransport Function(
   Future<String> Function() resolveCliPath,

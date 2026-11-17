@@ -26,7 +26,7 @@ Future<void> _openSettings(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('fresh Settings has no hardware authorization mode chooser', (
+  testWidgets('fresh Settings has no administrator access section', (
     tester,
   ) async {
     final app = await SafeApp.create();
@@ -38,6 +38,8 @@ void main() {
     expect(preferences.isEmpty, isTrue);
     await app.launch(additionalOverrides: safeSettingsOverrides());
     await _openSettings(tester);
+    expect(find.text('Administrator access'), findsNothing);
+    expect(find.text('Other hardware permissions'), findsNothing);
     expect(find.text('Installed service'), findsNothing);
     expect(find.textContaining('In use now:'), findsNothing);
     expect(find.text('Use on next launch'), findsNothing);

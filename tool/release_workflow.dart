@@ -1,4 +1,4 @@
-// Validate tag builds and prepare GitHub release drafts from checked artifacts.
+// Validate tag builds and publish GitHub releases from checked artifacts.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -238,6 +238,41 @@ void archiveEvidence(File output, Map<String, File> files) {
 
 String releaseGit(Directory root, List<String> arguments) =>
     packagingCommand('git', ['-C', root.path, ...arguments]).trim();
+
+String releaseNotes(Directory root, String tag) {
+  if (releaseGit(root, ['rev-parse', '--is-shallow-repository']) == 'true') {
+    throw StateError(
+      'Fetch the full Git history before generating release notes.',
+    );
+  }
+  final commit = releaseGit(root, ['rev-parse', 'refs/tags/$tag^{commit}']);
+  final versionTag = RegExp(r'^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$');
+  final previousTags = releaseGit(root, ['tag', '--merged', commit])
+      .split('\n')
+      .where((name) => name != tag && versionTag.hasMatch(name))
+      .toList();
+  final previous = previousTags.isEmpty
+      ? null
+      : releaseGit(root, [
+          'describe',
+          '--tags',
+          '--abbrev=0',
+          for (final name in previousTags) '--match=$name',
+          commit,
+        ]);
+  final summary = releaseGit(root, [
+    'log',
+    '--reverse',
+    '--topo-order',
+    '--no-merges',
+    '--format=- %s (`%h`)',
+    previous == null ? commit : '$previous..$commit',
+    '--',
+  ]);
+  return '## Changes\n\n'
+      '${previous == null ? 'Commits through `$tag`.' : 'Commits since `$previous`.'}\n\n'
+      '${summary.isEmpty ? 'No new commits.' : summary}\n';
+}
 
 Map<String, Object> checkTag(Directory root, String tag) {
   final match = RegExp(
@@ -589,37 +624,7 @@ Map<String, Object> prepareRelease(
   );
   assets.add('SHA256SUMS');
   final notes = File('${output.path}/RELEASE-NOTES.md');
-  notes.writeAsStringSync(
-    '''Ubuntu x86-64 AppImage and Debian amd64 package built from `$tag` (`${release['commit']}`).
-
-FUSE launch, extracted launch, and the bundled privileged control helper passed the Ubuntu
-VM checks with a synthetic CLI. Real laptop hardware, actual CLI dependencies,
-and desktop password prompts still need qualification.
-
-The Debian package passed install, desktop launch, synthetic helper control,
-denied approval, missing-agent, upgrade, and purge checks on Ubuntu 22.04 and
-Debian 12. Existing integration files were preserved.
-
-Hardware control uses the bundled privileged control helper and requires the
-LenovoLegionLinux driver, an administrator-owned legion_cli installation,
-systemd, and a desktop authentication agent.
-
-Known issue: earlier official Flutter 3.50 packages intermittently crashed on
-window close. Passing acceptance for this candidate does not establish a fix.
-Investigation is deferred until a concrete cause and simple supported fix are
-available; see docs/linux-shutdown.md in the tagged source.
-
-Startup can leave a black window if local storage cannot open. Close any other
-Legion instance before launching; do not delete lock files. Safe retry is deferred
-pending the Hive lock fix documented in docs/startup-storage.md.
-
-The pinned AppImage runtime has no upstream manifest of its exact Alpine
-package revisions. Those revisions remain unverified; see docs/appimage.md.
-
-Each artifact has a matching source companion, build manifest, and VM evidence.
-Verify SHA256SUMS before using the files.
-''',
-  );
+  notes.writeAsStringSync(releaseNotes(root, tag));
   final plan = <String, Object>{
     ...release,
     'assets': {
@@ -803,12 +808,47 @@ Future<void> publishRelease(
     '--clobber',
     for (final name in assets.keys) '${output.path}/$name',
   ]);
-  final uploaded = await findRelease(repository, tag, api);
+  verifyUploadedRelease(
+    await findRelease(repository, tag, api),
+    release,
+    assets,
+    output,
+    draft: true,
+  );
+  if (await remoteCommit(repository, tag, api) != release['commit']) {
+    throw StateError('The GitHub tag moved during the upload.');
+  }
+  await command([
+    'release',
+    'edit',
+    tag,
+    '--repo',
+    repository,
+    '--draft=false',
+    '--prerelease=${release['prerelease']}',
+    if (release['prerelease'] == true) '--latest=false',
+  ]);
+  verifyUploadedRelease(
+    await findRelease(repository, tag, api),
+    release,
+    assets,
+    output,
+    draft: false,
+  );
+}
+
+void verifyUploadedRelease(
+  Map? uploaded,
+  Map release,
+  Map assets,
+  Directory output, {
+  required bool draft,
+}) {
   if (uploaded == null ||
-      uploaded['draft'] != true ||
+      uploaded['draft'] != draft ||
       uploaded['prerelease'] != release['prerelease']) {
     throw StateError(
-      'GitHub did not retain the expected draft release status.',
+      'GitHub did not retain the expected release status (draft: $draft).',
     );
   }
   final uploadedAssets = (uploaded['assets'] as List).cast<Map>();

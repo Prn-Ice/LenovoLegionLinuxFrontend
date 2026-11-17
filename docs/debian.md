@@ -65,7 +65,7 @@ password dialogs need separate testing.
 
 CI runs this build and both VMs for relevant PR changes and every release tag,
 not again on merge. Tag releases include the checked package and its source,
-manifest, and acceptance evidence in the draft.
+manifest, and acceptance evidence in the release.
 
 Remove the package with:
 

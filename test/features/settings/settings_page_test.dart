@@ -150,6 +150,8 @@ void main() {
       for (final label in [
         'Appearance',
         'Hardware control',
+        'Kernel driver version',
+        'LenovoLegionLinux command-line tool',
         'Boot Logo',
         'Win Key',
         'Camera',
