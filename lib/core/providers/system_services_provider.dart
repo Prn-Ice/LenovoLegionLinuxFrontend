@@ -16,7 +16,7 @@ import '../services/power_profile_service.dart';
 import '../services/xrandr_service.dart';
 import '../../features/analytics/models/sensor_record.dart';
 
-final bundledHelperExistsProvider = Provider<bool>((ref) {
+final privilegedControlHelperExistsProvider = Provider<bool>((ref) {
   return File(
     '${File(Platform.resolvedExecutable).parent.path}/libexec/legion-portable-control',
   ).existsSync();

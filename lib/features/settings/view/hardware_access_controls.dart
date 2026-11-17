@@ -9,7 +9,7 @@ class HardwareAccessControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final helperExists = ref.watch(bundledHelperExistsProvider);
+    final helperExists = ref.watch(privilegedControlHelperExistsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

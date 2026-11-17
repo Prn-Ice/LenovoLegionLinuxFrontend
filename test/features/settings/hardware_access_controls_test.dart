@@ -17,7 +17,9 @@ void main() {
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
-                bundledHelperExistsProvider.overrideWithValue(helperExists),
+                privilegedControlHelperExistsProvider.overrideWithValue(
+                  helperExists,
+                ),
                 legionControlClientProvider.overrideWith((_) {
                   fail('Settings must not request privileged access');
                 }),

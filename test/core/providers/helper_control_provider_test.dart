@@ -70,7 +70,9 @@ void main() {
             .setMockMethodCallHandler(channel, null),
       );
       final container = ProviderContainer.test(
-        overrides: [bundledHelperExistsProvider.overrideWithValue(false)],
+        overrides: [
+          privilegedControlHelperExistsProvider.overrideWithValue(false),
+        ],
       );
       container.read(legionBridgeServiceProvider);
       expect(calls, isEmpty);
