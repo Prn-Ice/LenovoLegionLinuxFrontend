@@ -26,6 +26,7 @@ archive() {
   printf '{}\n' >"$fixture/AppImage with spaces/legion-frontend-fixture.json"
   printf 'LLVM fixture failure\n' >"$fixture/appimage-gui-fuse.log"
   printf 'fixture maps\n' >"$fixture/appimage-runtime-fuse.txt"
+  printf 'native qualification fixture\n' >"$fixture/appimage-native-qualification.tar.gz"
   run_shell 'source "$1"; retain_appimage_evidence "$2" "$2/evidence.tar.gz" "$3"' \
     "$root/control/test/appimage_evidence.sh" "$fixture" "$1"
 }
@@ -49,6 +50,7 @@ partial_gui() {
   tar -tzf "$fixture/evidence.tar.gz" >"$fixture/members"
   grep -Fx appimage-gui-fuse.log "$fixture/members"
   grep -Fx appimage-runtime-fuse.txt "$fixture/members"
+  grep -Fx appimage-native-qualification.tar.gz "$fixture/members"
   reject grep -Fx appimage-gui-extracted.log "$fixture/members"
   tar -xOzf "$fixture/evidence.tar.gz" appimage-cpu.txt | grep -F 'fixture CPU'
   tar -xOzf "$fixture/evidence.tar.gz" appimage-evidence-status.txt | grep -F versions=7

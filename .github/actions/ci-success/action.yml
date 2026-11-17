@@ -1,0 +1,24 @@
+name: Record a successful CI check
+description: Bind a passed job to its exact checkout for later workflow runs.
+inputs:
+  check:
+    description: Check name from tool/ci_reuse.dart.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Record the checked commit
+      shell: bash
+      env:
+        CHECK: ${{ inputs.check }}
+      run: |
+        test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+        mkdir -p "$RUNNER_TEMP/ci-pass-$CHECK"
+        printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/ci-pass-$CHECK/commit.txt"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: ci-pass-v1-${{ inputs.check }}-${{ github.sha }}
+        path: ${{ runner.temp }}/ci-pass-${{ inputs.check }}/commit.txt
+        retention-days: 90
+        overwrite: true
+        if-no-files-found: error

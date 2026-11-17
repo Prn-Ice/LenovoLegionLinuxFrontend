@@ -43,41 +43,81 @@ void main() {
   });
   tearDown(() => root.deleteSync(recursive: true));
 
-  test('documentation-only changes skip packaging', () {
-    for (final name in ['README.md', 'docs/nix.md', 'AGENTS.md']) {
+  const all = {'integration', 'lifecycle', 'nix', 'appimage', 'debian'};
+
+  Set<String> selected({bool withBase = true}) {
+    final result = select(withBase: withBase);
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    return (result.stdout as String)
+        .trim()
+        .split('\n')
+        .where((line) => line.endsWith('=true'))
+        .map((line) => line.split('=').first)
+        .toSet();
+  }
+
+  void change(String name) {
+    File('${root.path}/$name')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('input\n');
+    commit();
+  }
+
+  test('documentation and unit tests skip expensive checks', () {
+    for (final name in [
+      'README.md',
+      'docs/nix.md',
+      'AGENTS.md',
+      'test/tool/ci_build_changes_test.dart',
+      'analysis_options.yaml',
+    ]) {
       File('${root.path}/$name')
         ..createSync(recursive: true)
         ..writeAsStringSync('documentation\n');
     }
     commit();
-    expect(select().stdout, 'build=false\n');
+    expect(selected(), isEmpty);
   });
 
-  test('build inputs and workflows require packaging', () {
+  test('shared native inputs and workflows select every expensive check', () {
     for (final name in [
-      'lib/main.dart',
-      'linux/CMakeLists.txt',
       'control/test/fixtures.nix',
       'telemetry/package.nix',
-      'packaging/nix/frontend.nix',
-      'assets/icon.svg',
-      'tool/build_appimage.sh',
-      'test/tool/ci_build_changes_test.dart',
-      'integration_test/app_test.dart',
       'pubspec.lock',
-      'flake.nix',
-      'flake.lock',
       '.github/workflows/ci.yml',
-      'THIRD_PARTY_NOTICES.md',
+      'tool/new_build_tool.sh',
     ]) {
       base = git(['rev-parse', 'HEAD']);
-      File('${root.path}/$name')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('input\n');
-      commit();
-      expect(select().stdout, 'build=true\n', reason: name);
+      change(name);
+      expect(selected(), all, reason: name);
     }
   });
+
+  final cases = <String, Set<String>>{
+    'lib/main.dart': {'integration', 'nix', 'appimage', 'debian'},
+    'assets/icon.svg': {'integration', 'nix', 'appimage', 'debian'},
+    'linux/CMakeLists.txt': {'integration', 'nix', 'appimage', 'debian'},
+    'integration_test/app_test.dart': {'integration'},
+    'tool/test_linux_journeys.sh': {'integration'},
+    'packaging/debian/legion_frontend': {'debian'},
+    'tool/build_deb.sh': {'debian'},
+    'tool/package_deb.dart': {'debian'},
+    'tool/package_appimage.dart': {'appimage'},
+    'tool/test_appimage_nixos.sh': {'appimage'},
+    'packaging/appimage/Dockerfile': {'appimage', 'debian', 'nix'},
+    'packaging/nix/frontend.nix': {'nix', 'lifecycle', 'appimage'},
+    'flake.lock': {'nix', 'lifecycle', 'appimage'},
+    'tool/nix_flutter_provenance.dart': {'nix', 'appimage', 'debian'},
+    'tool/test_portable_distro.sh': {'nix', 'appimage', 'debian'},
+    'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
+    'tool/release_workflow.dart': {},
+  };
+  for (final entry in cases.entries) {
+    test('${entry.key} selects its consumers', () {
+      change(entry.key);
+      expect(selected(), entry.value);
+    });
+  }
 
   test('renames and deletions retain build paths', () {
     final source = File('${root.path}/lib/old.dart')
@@ -88,14 +128,14 @@ void main() {
     Directory('${root.path}/docs').createSync();
     source.renameSync('${root.path}/docs/old.md');
     commit();
-    expect(select().stdout, 'build=true\n');
+    expect(selected(), {'integration', 'nix', 'appimage', 'debian'});
     final deleted = File('${root.path}/lib/deleted.dart')
       ..writeAsStringSync('remove me\n');
     commit();
     base = git(['rev-parse', 'HEAD']);
     deleted.deleteSync();
     commit();
-    expect(select().stdout, 'build=true\n');
+    expect(selected(), {'integration', 'nix', 'appimage', 'debian'});
   });
 
   test('main and tag calls run every check and append GitHub output', () {
@@ -103,8 +143,8 @@ void main() {
       ..writeAsStringSync('previous=yes\n');
     final result = select(withBase: false, output: output.path);
     expect(result.exitCode, 0);
-    expect(result.stdout, 'build=true\n');
-    expect(output.readAsStringSync(), 'previous=yes\nbuild=true\n');
+    expect(selected(withBase: false), all);
+    expect(output.readAsStringSync(), 'previous=yes\n${result.stdout}');
   });
 
   test('invalid refs fail instead of skipping checks', () {

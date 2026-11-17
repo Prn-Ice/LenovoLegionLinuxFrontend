@@ -1,0 +1,35 @@
+name: Prepare the Ubuntu acceptance image
+description: Cache the official image by its current checksum and verify its bytes.
+outputs:
+  image:
+    description: Verified Ubuntu 22.04 image path.
+    value: ${{ runner.temp }}/jammy.img
+  checksum:
+    description: SHA256 from Ubuntu's current checksum list.
+    value: ${{ steps.checksum.outputs.sha256 }}
+runs:
+  using: composite
+  steps:
+    - name: Fetch the current official checksum
+      id: checksum
+      shell: bash
+      run: |
+        curl --fail --silent --show-error --location --retry 3 --max-time 60 \
+          https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o "$RUNNER_TEMP/jammy.SHA256SUMS"
+        digest="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' "$RUNNER_TEMP/jammy.SHA256SUMS")"
+        [[ $digest =~ ^[[:xdigit:]]{64}$ ]]
+        printf 'sha256=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/jammy.img
+        key: ubuntu-jammy-amd64-${{ steps.checksum.outputs.sha256 }}
+    - name: Verify or download the Ubuntu image
+      shell: bash
+      env:
+        DIGEST: ${{ steps.checksum.outputs.sha256 }}
+      run: |
+        if [[ ! -f "$RUNNER_TEMP/jammy.img" ]] || ! printf '%s  %s\n' "$DIGEST" "$RUNNER_TEMP/jammy.img" | sha256sum --check --status; then
+          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
+            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o "$RUNNER_TEMP/jammy.img"
+        fi
+        printf '%s  %s\n' "$DIGEST" "$RUNNER_TEMP/jammy.img" | sha256sum --check --status
