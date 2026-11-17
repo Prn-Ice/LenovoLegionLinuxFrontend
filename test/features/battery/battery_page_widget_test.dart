@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +23,41 @@ class _MockBatteryRepository extends Mock implements BatteryRepository {}
 class _MockAnalyticsRepository extends Mock implements AnalyticsRepository {}
 
 void main() {
+  for (final width in [420.0, 1100.0]) {
+    testWidgets(
+      'unavailable battery settles and stays usable at $width pixels',
+      (tester) async {
+        final repository = await _pumpPage(
+          tester,
+          width: width,
+          snapshot: _noBattery,
+          includeHistory: false,
+        );
+        expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+        expect(find.byType(LineChart), findsNothing);
+        expect(find.text('Battery status is unavailable.'), findsOneWidget);
+        expect(find.text('Not supported on this device'), findsOneWidget);
+        expect(tester.binding.hasScheduledFrame, isFalse);
+
+        final refresh = Completer<BatterySnapshot>();
+        when(repository.loadSnapshot).thenAnswer((_) => refresh.future);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(BatteryPage)),
+        );
+        container
+            .read(batteryBlocProvider.bloc)
+            .add(const BatteryRefreshRequested());
+        await tester.pump();
+        expect(find.text('Battery status is unavailable.'), findsOneWidget);
+        expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+        refresh.complete(_noBattery);
+        await tester.pumpAndSettle();
+        expect(tester.binding.hasScheduledFrame, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final dark in [false, true]) {
     testWidgets(
       'Balanced battery ring distinguishes charge from track ($dark)',
@@ -29,9 +66,8 @@ void main() {
         final ring = tester.widget<CircularProgressIndicator>(
           find.byType(CircularProgressIndicator),
         );
-        final scheme = Theme.of(
-          tester.element(find.byType(BatteryPage)),
-        ).colorScheme;
+        final scheme = Theme.of(tester.element(find.byType(BatteryPage)))
+            .colorScheme;
         final track = Color.alphaBlend(
           ring.backgroundColor!,
           scheme.surfaceContainerHighest,
@@ -54,9 +90,9 @@ void main() {
     tester,
   ) async {
     await _pumpPage(tester, width: 360);
-    final accent = Theme.of(
-      tester.element(find.byType(BatteryPage)),
-    ).colorScheme.primary;
+    final accent = Theme.of(tester.element(find.byType(BatteryPage)))
+        .colorScheme
+        .primary;
 
     expect(find.text('Battery & energy'), findsNothing);
     expect(find.text('Full'), findsWidgets);
@@ -89,9 +125,8 @@ void main() {
     final checkedItem = find.byType(YaruCheckbox).first;
     expect(checkedItem, findsOneWidget);
     expect(
-      YaruCheckboxTheme.of(
-        tester.element(checkedItem),
-      ).color?.resolve({WidgetState.selected}),
+      YaruCheckboxTheme.of(tester.element(checkedItem)).color
+          ?.resolve({WidgetState.selected}),
       accent,
     );
     expect(tester.takeException(), isNull);
@@ -131,9 +166,9 @@ void main() {
         find.textContaining('not exposed by the battery driver'),
         findsNothing,
       );
-      final accent = Theme.of(
-        tester.element(find.byType(BatteryPage)),
-      ).colorScheme.primary;
+      final accent = Theme.of(tester.element(find.byType(BatteryPage)))
+          .colorScheme
+          .primary;
       expect(find.text('Battery power'), findsOneWidget);
       final selector = tester.widget<SegmentedButton<int>>(
         find.byType(SegmentedButton<int>),
@@ -159,13 +194,14 @@ void main() {
   );
 }
 
-Future<void> _pumpPage(
+Future<_MockBatteryRepository> _pumpPage(
   WidgetTester tester, {
   required double width,
   bool dark = false,
   String? mode,
   BatterySnapshot snapshot = _snapshot,
   bool includeTemperature = true,
+  bool includeHistory = true,
 }) async {
   tester.view.physicalSize = Size(width, 1400);
   tester.view.devicePixelRatio = 1;
@@ -179,31 +215,36 @@ Future<void> _pumpPage(
     pollInterval: const Duration(days: 1),
   );
   final batteryLoaded = batteryBloc.stream.firstWhere(
-    (state) => !state.isLoading && state.hasLoaded,
+    (state) => !state.isLoading,
   );
   batteryBloc.add(const BatteryStarted());
   await batteryLoaded;
 
   final history = [
-    SensorRecord(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-      batteryPercent: 77,
-      batteryPowerDrawW: 12,
-      batteryTempC: includeTemperature ? 28 : null,
-    ),
-    SensorRecord(
-      timestamp: DateTime.now(),
-      batteryPercent: 78,
-      batteryPowerDrawW: 0,
-      batteryTempC: includeTemperature ? 28.2 : null,
-    ),
+    if (includeHistory) ...[
+      SensorRecord(
+        timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
+        batteryPercent: 77,
+        batteryPowerDrawW: 12,
+        batteryTempC: includeTemperature ? 28 : null,
+      ),
+      SensorRecord(
+        timestamp: DateTime.now(),
+        batteryPercent: 78,
+        batteryPowerDrawW: 0,
+        batteryTempC: includeTemperature ? 28.2 : null,
+      ),
+    ],
   ];
   final analyticsRepository = _MockAnalyticsRepository();
   when(analyticsRepository.pruneOldRecords).thenAnswer((_) async {});
-  when(analyticsRepository.recordReading).thenAnswer((_) async => history.last);
-  when(
-    () => analyticsRepository.readHistory(since: any(named: 'since')),
-  ).thenReturn(history);
+  when(analyticsRepository.recordReading).thenAnswer(
+    (_) async => history.isEmpty
+        ? SensorRecord(timestamp: DateTime.now())
+        : history.last,
+  );
+  when(() => analyticsRepository.readHistory(since: any(named: 'since')))
+      .thenReturn(history);
   final analyticsBloc = AnalyticsBloc(
     repository: analyticsRepository,
     pollInterval: const Duration(days: 1),
@@ -229,8 +270,28 @@ Future<void> _pumpPage(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 2),
+  );
+  return batteryRepository;
 }
+
+const _noBattery = BatterySnapshot(
+  batteryConservationEnabled: null,
+  batteryConservationSupported: false,
+  rapidChargingEnabled: null,
+  rapidChargingSupported: false,
+  batteryPercent: null,
+  batteryCharging: null,
+  batteryPowerDrawW: null,
+  cycleCounts: null,
+  fullCapacityWh: null,
+  designCapacityWh: null,
+  currentCapacityWh: null,
+  batteryTempC: null,
+);
 
 const _snapshot = BatterySnapshot(
   batteryConservationEnabled: true,

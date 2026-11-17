@@ -12,7 +12,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
-import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:yaru/yaru.dart';
 
 import 'package:legion_frontend/features/about/bloc/about_bloc.dart';
@@ -157,6 +156,7 @@ void main() {
           '${brightness.name}-${size.width.toInt()}x${size.height.toInt()}';
       for (final section in [
         AppSection.settings,
+        AppSection.battery,
         AppSection.automation,
         AppSection.power,
         AppSection.dgpu,
@@ -270,12 +270,15 @@ void main() {
           whenListen(
             battery,
             const Stream<BatteryState>.empty(),
-            initialState: BatteryState.initial().copyWith(
-              batteryPercent: 78,
-              batteryCharging: false,
-              rapidChargingSupported: true,
-              rapidChargingEnabled: true,
-            ),
+            initialState: section == AppSection.battery
+                ? BatteryState.initial().copyWith(hasLoaded: true)
+                : BatteryState.initial().copyWith(
+                    hasLoaded: true,
+                    batteryPercent: 78,
+                    batteryCharging: false,
+                    rapidChargingSupported: true,
+                    rapidChargingEnabled: true,
+                  ),
           );
           whenListen(
             boot,
@@ -325,7 +328,6 @@ void main() {
             brightness,
             ProviderScope(
               overrides: [
-                privilegedControlHelperExistsProvider.overrideWithValue(true),
                 powerBlocProvider.overrideWith((ref) => power),
                 liveSensorBlocProvider.overrideWith((ref) => sensors),
                 rgbLightingRepositoryProvider.overrideWithValue(
@@ -370,11 +372,9 @@ void main() {
             await _capture(tester, 'graphics-mode-choices-$variant');
           }
           if (section == AppSection.settings) {
-            await tester.ensureVisible(
-              find.text('Administrator access'),
-            );
+            await tester.ensureVisible(find.text('Hardware control'));
             await tester.pumpAndSettle();
-            await _capture(tester, 'hardware-permission-$variant');
+            await _capture(tester, 'hardware-control-$variant');
           }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
-import 'hardware_access_controls.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/responsive_card_grid.dart';
 import '../../../core/widgets/surface_card.dart';
@@ -58,24 +57,22 @@ class SettingsPage extends ConsumerWidget {
     );
     final backend = _SettingsSection(
       title: 'Hardware control',
-      description: 'Check access to laptop settings and the installed command-line tool.',
+      description: 'Check the kernel driver and installed command-line tool.',
       children: [
-        const HardwareAccessControls(),
-        if (about.snapshot case final snapshot?) ...[
-          const Divider(height: 32),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Kernel driver version'),
-            subtitle: Text(snapshot.moduleVersion ?? 'Unknown'),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('LenovoLegionLinux command-line tool'),
-            subtitle: SelectableText(
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Kernel driver version'),
+          subtitle: Text(about.snapshot?.moduleVersion ?? 'Unavailable'),
+        ),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('LenovoLegionLinux command-line tool'),
+          subtitle: SelectableText(switch (about.snapshot) {
+            final snapshot? =>
               '${snapshot.cliPath ?? 'Unavailable'}\n${snapshot.cliHealthSummary}',
-            ),
-          ),
-        ],
+            null => 'Unavailable',
+          }),
+        ),
       ],
     );
     final bootLogo = _SettingsSection(

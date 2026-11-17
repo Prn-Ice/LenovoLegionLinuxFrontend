@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_bloc.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_event.dart';
@@ -11,6 +12,58 @@ import '../support/safe_app.dart';
 import '../support/journey.dart';
 
 void main() {
+  testWidgets('Battery without hardware settles and allows navigation', (
+    tester,
+  ) async {
+    final app = await SafeApp.create();
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await app.dispose();
+    });
+    // The fixture has no battery. Remove its only supported battery control too.
+    await app.conservationFile.delete();
+    await app.launch();
+    final batteryNavigation = find.text('Battery').hitTestable();
+    await waitFor(
+      tester,
+      () =>
+          batteryNavigation.evaluate().isNotEmpty ||
+          find.byTooltip('Battery').evaluate().isNotEmpty,
+      description: 'Battery navigation',
+    );
+    await tester.tap(
+      batteryNavigation.evaluate().isNotEmpty
+          ? batteryNavigation.first
+          : find.byTooltip('Battery'),
+    );
+    await waitFor(
+      tester,
+      () => find.text('Battery status is unavailable.').evaluate().isNotEmpty,
+      description: 'completed battery read without hardware',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+    expect(tester.binding.transientCallbackCount, 0);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(BatteryPage)),
+    );
+    expect(container.read(batteryBlocProvider).hasLoaded, isTrue);
+    expect(container.read(batteryBlocProvider).batteryPercent, isNull);
+    expect(app.authorizations, 0);
+    final dashboardNavigation = find.text('Dashboard').hitTestable();
+    await tester.tap(
+      dashboardNavigation.evaluate().isNotEmpty
+          ? dashboardNavigation.first
+          : find.byTooltip('Dashboard'),
+    );
+    await waitFor(
+      tester,
+      () => find.byType(DashboardPage).evaluate().isNotEmpty,
+      description: 'navigation away from unavailable Battery',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('cancel then apply battery health and read it on Battery', (
     tester,
   ) async {
