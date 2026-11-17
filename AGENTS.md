@@ -7,6 +7,9 @@ This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get sta
 - **Every change to `main` must go through a PR. Never push directly to `main`.**
 - Work on a separate branch. Sign commits, verify their signatures, push the
   branch, and open or update a PR targeting `main`.
+- Use Conventional Commits for new commit subjects and PR titles. Follow the
+  allowed types in `CONTRIBUTING.md`. PRs use squash merges with a conventional
+  PR-title subject.
 - Keep the PR branch up to date with `main`. Required GitHub checks must pass
   before merging; do not bypass or disable branch protection, including as admin.
 - If a required check fails or blocks merging, fix it or report the blocker.

@@ -238,6 +238,26 @@ diagnostics and reporting tested features.
 
 ## Make a change
 
+Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for
+new commits and PR titles: `type(scope): description`. The scope is optional.
+Choose `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`,
+`style`, or `revert`. For example:
+
+```text
+fix(fans): preserve the curve after a failed write
+ci: reuse package inputs across builds
+feat(control)!: require the new helper protocol
+```
+
+Use `!` for breaking changes and explain the migration in the commit body.
+Release notes also recognize `BREAKING CHANGE:` and `BREAKING-CHANGE:` footers.
+Write subjects as release-note entries: say what changed, not just "update code".
+
+The required `Conventional Commits` check validates PR titles, including title
+edits, and every new non-merge commit subject. It excludes existing base history.
+PRs use squash merges with the PR title as the default commit subject. Keep that
+subject conventional when merging. Existing history is preserved.
+
 Start with the closest feature and the project [code patterns](.agents/skills/code-patterns/SKILL.md).
 Keep changes focused. Use the existing hardware services and add tests that run
 without a device. For UI work, follow
