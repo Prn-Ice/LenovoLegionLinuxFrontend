@@ -1,17 +1,19 @@
 # Tag releases
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It checks the version,
-checks the full CI suite on that commit, and creates a draft GitHub release
-with the checked AppImage, Debian package, and their companions. Drafts retain
-qualification notes while real hardware and desktop password-prompt checks
-remain open.
+runs the full CI suite on that commit, and publishes a GitHub release with the
+checked AppImage, Debian package, and their companions. Versions such as
+`0.1.0-alpha.2` publish as prereleases for testing. Real-hardware and desktop
+password-prompt checks remain open; see the [AppImage trial](appimage.md#desktop-trial).
 
 ## Deployment status: 17 November 2026
 
-The next planned release is `v0.1.0-alpha.2`, an early testing release marked as a
-GitHub prerelease. The app version is `0.1.0-alpha.2+1`. The earlier `1.0.0+1`
-was a placeholder, not a stability claim; no `v1.0.0` tag was pushed. Build and
-qualify the alpha-version commit before tagging it.
+[v0.1.0-alpha.2](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/releases/tag/v0.1.0-alpha.2)
+is published as a prerelease for testing. Its app version is `0.1.0-alpha.2+1`.
+[Release CI 44139378824](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/44139378824)
+passed on tagged commit `a702c7fa1b69e6507f72d96b92164889384c20ee`. All nine
+assets downloaded, and all eight entries in `SHA256SUMS` passed. The earlier
+`1.0.0+1` was a placeholder, not a stability claim; no `v1.0.0` tag was pushed.
 
 The signed `v0.1.0-alpha.1` tag and its draft remain as evidence of the first
 live workflow run. It reused passing main CI and uploaded all nine files, but
@@ -21,7 +23,7 @@ filename was missing. The draft was not published. Alpha.2 uses upload-safe
 filenames, preserves Debian's internal prerelease version, and verifies remote
 asset names, sizes, digests, and draft/prerelease flags after uploading.
 
-Nix, Debian, and AppImage packaging and automated acceptance pass on merged
+Earlier Nix, Debian, and AppImage packaging and automated acceptance passed on merged
 main `404980d9e00c4ef17271b87a7db93ca37ceca93f`:
 [CI run 44094959984](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/44094959984).
 All ten jobs passed, including Debian checks on Ubuntu 22.04 and Debian 12,
@@ -51,11 +53,8 @@ Remaining work:
 - Check restored, maximized, and fullscreen window corners and the running-app
   icon on the target desktops. The user confirmed the corrected AppImage works;
   that confirmation did not enumerate every window state.
-- Keep the known-issue notes with the release. Exact upstream Alpine package
+- Keep the known issues documented for testers. Exact upstream Alpine package
   revisions remain unverified; see the [runtime provenance limitation](appimage.md#runtime-inputs).
-- Qualify the alpha.2 commit, push its signed tag, and verify the downloaded
-  draft files with `sha256sum --check SHA256SUMS`. Review the resulting draft
-  for publication. Alpha.1 remains an unpublished draft with a filename defect.
 
 TCG/Nehalem rendering stalls, Dolphin previews, and the initial cursor warning
 remain separate follow-ups. CI requires KVM; its passes do not qualify TCG.
@@ -142,7 +141,7 @@ object. A failed verification or push leaves the local tag available for retry.
 Pushing the tag starts the release workflow below.
 
 A mismatched tag stops before the build. The workflow checks out the triggering
-commit, including when main has advanced. Before creating the draft, it verifies
+commit, including when main has advanced. Before uploading and publishing, it verifies
 that the tag still resolves to the same commit on GitHub.
 
 ## What runs
@@ -155,7 +154,7 @@ See [CI checks and caching](ci.md).
 The suite covers release-tool fixtures, Flutter analysis/tests and generated
 sources, native tests, NixOS lifecycle/bootstrap VMs, Linux app journeys, Nix
 frontend build/acceptance, AppImage acceptance (including Ubuntu helper checks),
-and Debian installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft
+and Debian installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The publish
 job starts only after the suite passes.
 
 The release helper then verifies the tag version, app/source hashes, complete
@@ -173,10 +172,12 @@ GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.d
 
 Preparation reads `appimage-release`, `appimage-qualification`, `deb-release`,
 `deb-ubuntu-qualification`, and `deb-debian-qualification` under
-`build/release-inputs`. Publishing needs authenticated `gh` access and creates
-or refreshes a draft; it never publishes that draft.
+`build/release-inputs`. Publishing needs authenticated `gh` access. It uploads
+to a draft, verifies the remote filenames, sizes, digests, and prerelease flag,
+then publishes and verifies the resulting release. Upload verification must
+pass before publication.
 
-The draft contains nine assets:
+The release contains nine assets:
 
 - Ubuntu x86-64 `.AppImage`
 - Matching source archive, including runtime source inputs and notices
@@ -185,26 +186,34 @@ The draft contains nine assets:
 - Debian amd64 `.deb`, matching source archive, build manifest, and evidence from both VMs
 - `SHA256SUMS` covering all eight files
 
-The build jobs use read access. Only the final draft job receives repository
+The build jobs use read access. Only the final publish job receives repository
 write access through the built-in `GITHUB_TOKEN`; it needs no extra secret.
-Prerelease versions receive the GitHub prerelease flag.
+Prerelease versions receive the GitHub prerelease flag and are not marked Latest.
+
+## Release notes
+
+Notes list commit subjects and short hashes since the nearest preceding version
+tag reachable from the release commit. Merge commits are omitted; the commits
+they introduced are included. The first tag lists its full history. Preparation
+requires a full checkout, and later commits on main do not enter an older tag's
+notes. Hardware requirements and known issues live in the installation guides.
 
 ## Review and reruns
 
-Wait for the workflow to finish before editing or publishing its draft. Review
-the files, checksums, and qualification notes on the repository's Releases page.
+The workflow publishes after its checks pass. Download the release files and run
+`sha256sum --check SHA256SUMS`; every listed file should report `OK`.
 AppImage desktop instructions are in [the AppImage guide](appimage.md).
 
-Rerunning the workflow refreshes the existing draft and replaces its generated
-assets. Reruns refuse a tag that already has a published release. A changed tag,
-missing evidence, or an altered artifact stops the draft update.
+After an upload failure, rerunning the workflow refreshes the draft, verifies its
+assets, and publishes it. Reruns refuse a tag that already has a published release.
+A changed tag, missing evidence, or an altered artifact stops publication.
 
 See [Debian installation](debian.md) for the `.deb` and its dependency baseline.
 The [Nix frontend](nix.md) can be built directly from the release tag's flake.
 
-The alpha.1 tag exercised GitHub's live draft/upload path and exposed the
-filename normalization described above. Alpha.2 still needs live download and
-checksum verification after its corrected workflow passes.
+The alpha.1 tag exposed the filename normalization described above. Alpha.2
+passed the live download and checksum checks and was published from its draft
+at the user's request. Automatic publication will first run on a subsequent tag.
 
 See GitHub's [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows),
 [artifact downloads](https://github.com/actions/download-artifact), and
