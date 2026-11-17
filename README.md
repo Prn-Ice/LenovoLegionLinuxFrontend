@@ -7,6 +7,22 @@ the project owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every
 feature has been verified even on that laptop. Other models and BIOS versions
 have not been tested. See [model support and recorded checks](docs/model-support.md).
 
+## Try the AppImage
+
+Download the `.AppImage` from [Releases](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/releases).
+The current build is an **alpha prerelease** for testing. Make the downloaded file
+executable, then open it:
+
+```bash
+chmod +x legion-frontend-0.1.0-alpha.2+1-x86_64.AppImage
+./legion-frontend-0.1.0-alpha.2+1-x86_64.AppImage
+```
+
+Use the filename you downloaded. The `.AppImage` is the app; the large
+`-source.tar.gz` archive is for rebuilding it. See the
+[AppImage guide](docs/appimage.md) for NixOS launch instructions, hardware
+requirements, checksum verification, and known issues.
+
 ## Help wanted
 
 Much of this app is AI-generated code. I need as much help as I can get with the
@@ -170,7 +186,7 @@ alongside the binary from `build/linux/x64/release/bundle`.
 
 ## Development
 
-Maintainers can prepare release drafts through [tag pushes](docs/releases.md).
+Maintainers can publish releases through [tag pushes](docs/releases.md).
 
 - [Contributor setup and tests](CONTRIBUTING.md)
 - [Adding model support](docs/model-support.md)

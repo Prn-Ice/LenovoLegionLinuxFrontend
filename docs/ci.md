@@ -20,7 +20,7 @@ sides of renames and deletions:
 | Nix inputs | Nix package, lifecycle VMs, AppImage's NixOS acceptance |
 | Shared package/source tools and license inputs | Nix package, AppImage, Debian |
 | Native code, shared VM fixtures, workflows, or dependency locks | Every expensive check |
-| Documentation, unit tests, or release-draft tooling alone | None |
+| Documentation, unit tests, or release tooling alone | None |
 
 Unknown build-tool changes select every expensive check. Release tags select
 every check. A newer PR run cancels an older run for the same PR. Merging a PR
@@ -68,7 +68,7 @@ The tag workflow always calls `ci.yml` for the tagged commit and runs every chec
 Release preparation downloads the qualified AppImage and Debian packages from
 that same workflow run, never from a PR or an earlier main run. It verifies the
 tag, source/binary hashes, helper inventory, and acceptance evidence before
-creating the release draft.
+uploading and publishing the release.
 
 OSV scans PRs and runs a full scan every Monday or when started manually. It does
 not repeat the scan on merge. Weekly scans check for new vulnerability reports

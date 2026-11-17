@@ -347,13 +347,13 @@ class ReleaseFixture {
     return existing == null ? [] : [existing];
   }
 
-  Map uploadedRelease() {
+  Map uploadedRelease({bool draft = true}) {
     final plan = release.readReleaseJson(
       File('${output.path}/release-plan.json'),
     );
     return {
       'tag_name': tag,
-      'draft': true,
+      'draft': draft,
       'prerelease': plan['prerelease'],
       'assets': [
         for (final entry in (plan['assets'] as Map).entries)
@@ -639,7 +639,7 @@ void main() {
     expect(release.checkTag(copied, fixture.tag)['commit'], fixture.commit);
   });
 
-  test('prepares complete assets, checksums, and qualification notes', () {
+  test('prepares complete assets, checksums, and commit summaries', () {
     final plan = fixture.prepare();
     expect((plan['assets'] as Map).length, 9);
     final checksums = release.releaseChecksums(
@@ -652,11 +652,12 @@ void main() {
     );
     final notes = File('${fixture.output.path}/RELEASE-NOTES.md')
         .readAsStringSync();
-    expect(notes, contains('synthetic CLI'));
-    expect(notes, contains('password prompts still need qualification'));
-    expect(notes, contains(fixture.commit));
-    expect(notes, contains('bundled privileged control helper'));
-    expect(notes, isNot(contains('Choose')));
+    expect(notes, contains('Commits through `${fixture.tag}`.'));
+    expect(notes, contains('- fixture (`${fixture.commit.substring(0, 7)}`)'));
+    expect(
+      plan['notes_sha256'],
+      fixture.hash(File('${fixture.output.path}/RELEASE-NOTES.md')),
+    );
     expect(
       packagingCommand('tar', [
         '-tzf',
@@ -666,7 +667,64 @@ void main() {
     );
   });
 
-  test('missing Debian acceptance stops the draft', () {
+  test(
+    'notes include new commits on merged branches and exclude merge messages',
+    () {
+      fixture.git(['tag', 'v1.2.2']);
+      fixture.git(['checkout', '-qb', 'feature']);
+      fixture.git(['commit', '--allow-empty', '-qm', 'Fix AppImage startup']);
+      fixture.git(['checkout', 'main']);
+      fixture.git([
+        'commit',
+        '--allow-empty',
+        '-qm',
+        'Update installation steps',
+      ]);
+      fixture.git(['merge', '--no-ff', 'feature', '-m', 'Merge feature']);
+      fixture.git(['tag', '-f', '-a', fixture.tag, '-m', 'release']);
+      fixture.git(['commit', '--allow-empty', '-qm', 'Future work']);
+      fixture.git(['tag', 'v99.0.0']);
+      final notes = release.releaseNotes(fixture.root, fixture.tag);
+      expect(notes, contains('Commits since `v1.2.2`.'));
+      expect(notes, contains('Fix AppImage startup'));
+      expect(notes, contains('Update installation steps'));
+      expect(notes, isNot(contains('- fixture')));
+      expect(notes, isNot(contains('Merge feature')));
+      expect(notes, isNot(contains('Future work')));
+      expect(notes, isNot(contains('v99.0.0')));
+    },
+  );
+
+  test('notes use the nearest version tag and ignore unrelated tag names', () {
+    fixture.git(['tag', 'v1.0.0']);
+    fixture.git(['commit', '--allow-empty', '-qm', 'Previous release change']);
+    fixture.git(['tag', '-a', 'v1.2.2', '-m', 'previous release']);
+    fixture.git(['commit', '--allow-empty', '-qm', 'Current release change']);
+    fixture.git(['tag', '-a', 'build-check', '-m', 'build']);
+    fixture.git(['tag', '-f', '-a', fixture.tag, '-m', 'release']);
+    final notes = release.releaseNotes(fixture.root, fixture.tag);
+    expect(notes, contains('Commits since `v1.2.2`.'));
+    expect(notes, contains('Current release change'));
+    expect(notes, isNot(contains('Previous release change')));
+  });
+
+  test('notes reject a shallow checkout instead of omitting history', () {
+    final copied = Directory('${fixture.temporary.path}/shallow');
+    fixture.git([
+      'clone',
+      '--depth',
+      '1',
+      '--no-local',
+      fixture.root.uri.toString(),
+      copied.path,
+    ]);
+    expect(
+      () => release.releaseNotes(copied, fixture.tag),
+      failsWith('Fetch the full Git history'),
+    );
+  });
+
+  test('missing Debian acceptance stops release preparation', () {
     File('${fixture.inputs.path}/deb-debian-qualification/manifest.json')
         .deleteSync();
     expect(fixture.prepare, throwsStateError);
@@ -795,7 +853,7 @@ void main() {
     expect(fixture.prepare, failsWith('wrong distribution'));
   });
 
-  test('failed Debian purge check stops the draft', () {
+  test('failed Debian purge check stops release preparation', () {
     fixture.replaceDebianEvidence(
       'deb-checks.json',
       jsonEncode({
@@ -859,7 +917,7 @@ void main() {
     expect(fixture.prepare, failsWith('symlink'));
   });
 
-  test('creates only a draft with an existing tag and all assets', () async {
+  test('publishes only after verifying all uploaded assets', () async {
     fixture.prepare();
     final writes = <List<String>>[];
     await release.publishRelease(
@@ -869,7 +927,9 @@ void main() {
       'owner/repository',
       api: (path) => fixture.api(
         path,
-        existing: writes.length == 2 ? fixture.uploadedRelease() : null,
+        existing: writes.length >= 2
+            ? fixture.uploadedRelease(draft: writes.length == 2)
+            : null,
       ),
       command: (arguments) async {
         writes.add(arguments);
@@ -885,6 +945,11 @@ void main() {
       upload.where((argument) => argument.startsWith(fixture.output.path)),
       hasLength(9),
     );
+    expect(writes, hasLength(3));
+    expect(
+      writes.last,
+      containsAll(['edit', '--draft=false', '--prerelease=false']),
+    );
   });
 
   test('rerun refreshes an existing draft', () async {
@@ -897,8 +962,8 @@ void main() {
       'owner/repository',
       api: (path) => fixture.api(
         path,
-        existing: writes.length == 2
-            ? fixture.uploadedRelease()
+        existing: writes.length >= 2
+            ? fixture.uploadedRelease(draft: writes.length == 2)
             : {'tag_name': fixture.tag, 'draft': true},
       ),
       command: (arguments) async {
@@ -907,7 +972,98 @@ void main() {
     );
     expect(writes.first.take(2), ['release', 'edit']);
     expect(writes[1], contains('--clobber'));
+    expect(writes.last, contains('--draft=false'));
   });
+
+  test(
+    'publishes alpha versions as prereleases without marking them latest',
+    () async {
+      final alpha = ReleaseFixture(version: '0.1.0-alpha.3+1');
+      addTearDown(() => alpha.temporary.deleteSync(recursive: true));
+      alpha.prepare();
+      final writes = <List<String>>[];
+      await release.publishRelease(
+        alpha.root,
+        alpha.tag,
+        alpha.output,
+        'owner/repository',
+        api: (path) => alpha.api(
+          path,
+          existing: writes.length >= 2
+              ? alpha.uploadedRelease(draft: writes.length == 2)
+              : null,
+        ),
+        command: (arguments) async {
+          writes.add(arguments);
+        },
+      );
+      expect(writes.first, contains('--prerelease=true'));
+      expect(
+        writes.last,
+        containsAll(['--draft=false', '--prerelease=true', '--latest=false']),
+      );
+    },
+  );
+
+  test('a tag moved during upload blocks publication', () async {
+    fixture.prepare();
+    var writes = 0;
+    await expectLater(
+      release.publishRelease(
+        fixture.root,
+        fixture.tag,
+        fixture.output,
+        'owner/repository',
+        api: (path) => fixture.api(
+          path,
+          existing: writes == 2 ? fixture.uploadedRelease() : null,
+          target: writes == 2 ? '0' * 40 : fixture.commit,
+        ),
+        command: (_) async {
+          writes++;
+        },
+      ),
+      failsWith('moved during the upload'),
+    );
+    expect(writes, 2);
+  });
+
+  test(
+    'a successful edit must leave a published release with matching assets',
+    () async {
+      fixture.prepare();
+      for (final alter in <void Function(Map)>[
+        (result) => result['draft'] = true,
+        (result) => result['prerelease'] = true,
+        (result) => (result['assets'] as List).removeLast(),
+      ]) {
+        var writes = 0;
+        final published = fixture.uploadedRelease(draft: false);
+        alter(published);
+        await expectLater(
+          release.publishRelease(
+            fixture.root,
+            fixture.tag,
+            fixture.output,
+            'owner/repository',
+            api: (path) => fixture.api(
+              path,
+              existing: switch (writes) {
+                2 => fixture.uploadedRelease(),
+                3 => published,
+                _ => null,
+              },
+            ),
+            command: (_) async {
+              writes++;
+            },
+          ),
+          throwsStateError,
+        );
+        expect(writes, 3);
+      }
+    },
+  );
 
   for (final (description, alter) in <(String, void Function(Map))>[
     (

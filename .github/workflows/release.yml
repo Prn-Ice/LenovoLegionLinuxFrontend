@@ -42,8 +42,8 @@ jobs:
     needs: version
     uses: ./.github/workflows/ci.yml
 
-  draft:
-    name: Prepare GitHub release draft
+  publish:
+    name: Publish GitHub release
     needs: [version, checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -81,7 +81,7 @@ jobs:
         run: >-
           dart tool/release_workflow.dart prepare "$RELEASE_TAG"
           build/release-inputs build/tag-release
-      - name: Create or refresh the draft and upload its assets
+      - name: Upload, verify, and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
