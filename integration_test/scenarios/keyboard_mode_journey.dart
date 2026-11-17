@@ -59,7 +59,7 @@ void main() {
     // Dashboard refresh observes the sysfs value that Fn+Q changes externally.
     await openDashboard(tester);
     await _setObservedMode(app, FixturePlatformProfile.performance);
-    await _refreshObservedMode(tester, 'Performance');
+    await _refreshAndWaitForReload(tester, KeyboardPowerMode.performance);
     await waitFor(
       tester,
       () => lighting.writes.length == beforePerformanceAssignment + 1,
@@ -69,7 +69,7 @@ void main() {
     expect(lighting.writes.last, ['1133FF', '1133FF', '1133FF']);
 
     final beforeUnrelatedRefresh = lighting.writes.length;
-    await _refreshAndWaitForReload(tester, 'performance');
+    await _refreshAndWaitForReload(tester, KeyboardPowerMode.performance);
     expect(lighting.writes, hasLength(beforeUnrelatedRefresh));
     _logCheckpoint('unrelated refresh preserved lighting');
 
@@ -77,12 +77,12 @@ void main() {
     await paintKeyboard(tester, lighting, '11CC44');
     final beforeSameModeRefresh = lighting.writes.length;
     await openDashboard(tester);
-    await _refreshAndWaitForReload(tester, 'performance');
+    await _refreshAndWaitForReload(tester, KeyboardPowerMode.performance);
     expect(lighting.writes, hasLength(beforeSameModeRefresh));
     _logCheckpoint('same mode refresh preserved edit');
 
     await _setObservedMode(app, FixturePlatformProfile.balanced);
-    await _refreshAndWaitForReload(tester, 'balanced');
+    await _refreshAndWaitForReload(tester, KeyboardPowerMode.balanced);
     await waitFor(
       tester,
       () => lighting.writes.length == beforeSameModeRefresh + 1,
@@ -122,27 +122,25 @@ Future<void> _setObservedMode(SafeApp app, FixturePlatformProfile mode) async {
   await pending.rename(file.path);
 }
 
-Future<void> _refreshObservedMode(WidgetTester tester, String label) async {
-  await _refreshAndWaitForReload(tester, label.toLowerCase());
-}
-
 Future<void> _refreshAndWaitForReload(
   WidgetTester tester,
-  String expectedMode,
+  KeyboardPowerMode expectedMode,
 ) async {
   final context = tester.element(find.byType(DashboardPage));
   final dashboardBloc = ProviderScope.containerOf(context)
       .read(dashboardBlocProvider.bloc);
   final previousRead = dashboardBloc.state.snapshot.status.updatedAt;
-  var sawLoading = false;
   var reloadCompleted = false;
+  // Refresh can share an in-flight poll. Require a fresh successful snapshot,
+  // rather than a separate loading emission for the button press.
   final subscription = dashboardBloc.stream.listen((state) {
-    if (state.isLoading) {
-      sawLoading = true;
-    } else if (sawLoading &&
+    if (!state.isLoading &&
         state.errorMessage == null &&
         state.snapshot.status.updatedAt != previousRead &&
-        state.snapshot.status.powerProfile == expectedMode) {
+        KeyboardPowerMode.fromPlatformProfile(
+              state.snapshot.status.powerProfile,
+            ) ==
+            expectedMode) {
       reloadCompleted = true;
     }
   });
@@ -151,12 +149,9 @@ Future<void> _refreshAndWaitForReload(
     await waitFor(
       tester,
       () => reloadCompleted,
-      description: 'Dashboard refresh completed with $expectedMode mode',
+      description: 'fresh Dashboard snapshot with ${expectedMode.label} mode',
     );
-    await _waitForDashboardMode(
-      tester,
-      expectedMode == 'performance' ? 'Performance' : 'Balanced',
-    );
+    await _waitForDashboardMode(tester, expectedMode.label);
   } finally {
     await subscription.cancel();
   }

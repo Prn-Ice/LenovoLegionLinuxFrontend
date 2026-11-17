@@ -58,7 +58,7 @@ flutter pub get --enforce-lockfile
 bash tool/test_linux_journeys.sh
 ```
 
-The `app_test.dart` entrypoint registers fourteen scenarios. The battery journey
+The `app_test.dart` entrypoint runs the native app scenarios. The battery journey
 cancels and applies the Dashboard's Battery health confirmation, then navigates
 to Battery and checks Conservation mode without refreshing. It then disables
 conservation on Battery and verifies Dashboard readback. Polling is paused for
@@ -78,6 +78,11 @@ The keyboard recovery journeys return failed OpenRGB process results on Lighting
 and Automation. They check that errors appear, failed writes preserve the last
 successful colors and saved configuration, and retry stays disabled until a
 pending command completes.
+
+The missing-profile journey deletes an assigned profile and clears its missing
+assignment without another RGB command. The Fans journey cancels a preset
+confirmation, then applies the preset and checks its curve readback through the
+real repository. Polling is paused so it cannot hide a missing write readback.
 
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
@@ -99,7 +104,7 @@ cmake --build build/linux/x64/debug --target portable_control_channel_test
 build/linux/x64/debug/runner/portable_control_channel_test
 ```
 
-To run only the fourteen scenarios in the first app process:
+To run only the journeys in the first app process:
 
 ```bash
 flutter test integration_test/app_test.dart -d linux --no-pub
