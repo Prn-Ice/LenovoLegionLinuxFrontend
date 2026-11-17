@@ -195,11 +195,12 @@ commands extend
 ## 8. Shell & platform
 
 - **handy_window** draws the native window decorations.
-  [AppWindowFrame](../lib/app/view/app_window_frame.dart) also clips Flutter's
-  content: Flutter 3.50's Wayland surface bypasses GTK's corner mask. Its 8-pixel
+  [AppWindowFrame](../lib/app/view/app_window_frame.dart) is an app-side
+  workaround: Flutter 3.50's Wayland surface bypasses GTK's corner mask. Its 8-pixel
   radius matches the bundled libhandy Adwaita window style; maximized and
   fullscreen content stays square. Keep the native Flutter view transparent so
-  clipped corners reveal the native decoration.
+  clipped corners reveal the native decoration. See the
+  [toolkit limitation and removal criteria](dependencies.md#linux-window-corners).
 
 ## 9. Tooling & process
 
