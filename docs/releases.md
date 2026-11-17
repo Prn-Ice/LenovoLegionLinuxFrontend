@@ -8,6 +8,11 @@ remain open.
 
 ## Deployment status: 17 November 2026
 
+The first planned release is `v0.1.0-alpha.1`, an early testing release marked as a
+GitHub prerelease. The app version is `0.1.0-alpha.1+1`. The earlier `1.0.0+1`
+was a placeholder, not a stability claim; no `v1.0.0` tag was pushed. Build and
+qualify the alpha-version commit before tagging it.
+
 Nix, Debian, and AppImage packaging and automated acceptance pass on merged
 main `404980d9e00c4ef17271b87a7db93ca37ceca93f`:
 [CI run 44094959984](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/44094959984).
@@ -104,15 +109,15 @@ Tag a commit containing the release workflow and the intended version in
 
 | pubspec.yaml | Tag |
 | --- | --- |
-| `1.0.0+1` | `v1.0.0` |
+| `0.1.0-alpha.1+1` | `v0.1.0-alpha.1` |
 | `1.1.0-rc.1+2` | `v1.1.0-rc.1` |
 
 For the current version, when ready:
 
 ```bash
-git tag -s v1.0.0 -m "v1.0.0"
-git verify-tag v1.0.0
-git push origin v1.0.0
+git tag -s v0.1.0-alpha.1 -m "v0.1.0-alpha.1"
+git verify-tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
 ```
 
 A mismatched tag stops before the build. The workflow checks out the triggering
@@ -141,9 +146,9 @@ Run the helper with the Flutter SDK's Dart executable; no package resolution is
 needed:
 
 ```bash
-dart tool/release_workflow.dart check-tag v1.0.0
-dart tool/release_workflow.dart prepare v1.0.0 build/release-inputs build/prepared-release
-GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v1.0.0 build/prepared-release
+dart tool/release_workflow.dart check-tag v0.1.0-alpha.1
+dart tool/release_workflow.dart prepare v0.1.0-alpha.1 build/release-inputs build/prepared-release
+GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v0.1.0-alpha.1 build/prepared-release
 ```
 
 Preparation reads `appimage-release`, `appimage-qualification`, `deb-release`,
