@@ -11,6 +11,8 @@ class LiveSensorSnapshot extends Equatable {
     this.fan1MaxRpm,
     required this.fan2Rpm,
     this.fan2MaxRpm,
+    this.fan3Rpm,
+    this.fan3MaxRpm,
     required this.gpuName,
     required this.gpuTempC,
     required this.gpuUtilPercent,
@@ -38,6 +40,8 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm: null,
     fan2Rpm: null,
     fan2MaxRpm: null,
+    fan3Rpm: null,
+    fan3MaxRpm: null,
     gpuName: null,
     gpuTempC: null,
     gpuUtilPercent: null,
@@ -63,6 +67,8 @@ class LiveSensorSnapshot extends Equatable {
   final int? fan1MaxRpm;
   final int? fan2Rpm;
   final int? fan2MaxRpm;
+  final int? fan3Rpm;
+  final int? fan3MaxRpm;
 
   // Active GPU (dGPU when active, iGPU otherwise).
   final String? gpuName;
@@ -93,6 +99,8 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm,
     fan2Rpm,
     fan2MaxRpm,
+    fan3Rpm,
+    fan3MaxRpm,
     gpuName,
     gpuTempC,
     gpuUtilPercent,

@@ -19,6 +19,8 @@ class FansState extends Equatable {
     required this.isApplying,
     required this.errorMessage,
     required this.noticeMessage,
+    this.authoritativeFanCurve,
+    this.fanCurveCapabilityStale = false,
   });
 
   factory FansState.initial() => const FansState(
@@ -54,6 +56,8 @@ class FansState extends Equatable {
   final bool isApplying;
   final AppFailure? errorMessage;
   final String? noticeMessage;
+  final FanCurve? authoritativeFanCurve;
+  final bool fanCurveCapabilityStale;
 
   bool get hasLoaded =>
       platformProfile != null ||
@@ -79,6 +83,8 @@ class FansState extends Equatable {
     bool? isApplying,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
+    Object? authoritativeFanCurve = _unset,
+    bool? fanCurveCapabilityStale,
   }) {
     return FansState(
       platformProfile: platformProfile == _unset
@@ -113,6 +119,11 @@ class FansState extends Equatable {
       noticeMessage: noticeMessage == _unset
           ? this.noticeMessage
           : noticeMessage as String?,
+      authoritativeFanCurve: authoritativeFanCurve == _unset
+          ? this.authoritativeFanCurve
+          : authoritativeFanCurve as FanCurve?,
+      fanCurveCapabilityStale:
+          fanCurveCapabilityStale ?? this.fanCurveCapabilityStale,
     );
   }
 
@@ -132,5 +143,7 @@ class FansState extends Equatable {
     isApplying,
     errorMessage,
     noticeMessage,
+    authoritativeFanCurve,
+    fanCurveCapabilityStale,
   ];
 }

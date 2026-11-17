@@ -7,6 +7,8 @@ import 'package:yaru/yaru.dart';
 
 FanCurve _curve() => FanCurve(
   name: 'widget-test',
+  fan1MaxRpm: 5000,
+  fan2MaxRpm: 5000,
   points: List.generate(10, (index) {
     final cpuUpper = 20 + index * 7;
     final gpuUpper = 25 + index * 7;
@@ -116,7 +118,7 @@ void main() {
     await tester.pump();
 
     expect(changedPoint, isNotNull);
-    expect(changedPoint!.fan1Rpm, greaterThan(_curve().points.first.fan1Rpm));
+    expect(changedPoint!.fan1Rpm, greaterThan(_curve().points.first.fan1Rpm!));
   });
 
   testWidgets('drag maps exact plot bounds to temperature and RPM', (

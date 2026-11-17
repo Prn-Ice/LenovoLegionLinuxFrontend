@@ -61,6 +61,26 @@ void main() {
       controlClient: client,
     );
     final sysfs = _Sysfs();
+    const curve = FanCurve(
+      name: 'typed-test',
+      fan1MaxRpm: 5000,
+      fan2MaxRpm: 5000,
+      points: [
+        FanCurvePoint(
+          fan1Rpm: 1000,
+          fan2Rpm: 1000,
+          cpuLowerTemp: 30,
+          cpuUpperTemp: 40,
+          gpuLowerTemp: 30,
+          gpuUpperTemp: 40,
+          icLowerTemp: 30,
+          icUpperTemp: 40,
+          accel: 4,
+          decel: 4,
+        ),
+      ],
+    );
+    when(sysfs.readFanCurve).thenAnswer((_) async => curve);
     final profiles = _Profiles();
     final battery = BatteryRepository(
       sysfsService: sysfs,
@@ -169,11 +189,12 @@ void main() {
     }
     when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
     when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+    when(() => sysfs.readLegionIntFile('cpu_longterm_powerlimit'))
+        .thenAnswer((_) async => 60);
     await power.setPowerLimit(PowerRepository.allPowerLimits.first, 60);
     expect(transport.calls.last.$1, 'SetFeature');
     expect(transport.calls.last.$2, ['CPULongtermPowerLimit', '60']);
 
-    const curve = FanCurve(name: 'test', points: []);
     await fans.writeFanCurveToHardware(curve);
     expect(transport.calls.last.$1, 'ApplyFanCurve');
     expect(transport.calls.last.$2, [utf8.encode(curve.toYaml())]);
@@ -215,6 +236,18 @@ void main() {
       throwsA(
         isA<AppFailure>().having(
           (e) => e.kind,
+          'kind',
+          AppFailureKind.unavailable,
+        ),
+      ),
+    );
+    expect(transport.calls, isEmpty);
+    when(sysfs.readFanCurve).thenAnswer((_) async => null);
+    await expectLater(
+      dashboard.applyContextFanPreset(),
+      throwsA(
+        isA<AppFailure>().having(
+          (error) => error.kind,
           'kind',
           AppFailureKind.unavailable,
         ),

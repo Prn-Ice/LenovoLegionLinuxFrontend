@@ -29,6 +29,8 @@ class LiveSensorRepository {
       _sysfs.readFan1MaxRpm(),
       _sysfs.readFan2Rpm(),
       _sysfs.readFan2MaxRpm(),
+      _sysfs.readFan3Rpm(),
+      _sysfs.readFan3MaxRpm(),
       _sysfs.readMotherboardTempC(),
       _sysfs.readBatteryPowerDrawW(),
       _sysfs.readDiskTempC(),
@@ -44,10 +46,12 @@ class LiveSensorRepository {
     final fan1Max = results[6] as int?;
     final fan2 = results[7] as int?;
     final fan2Max = results[8] as int?;
-    final moboTemp = results[9] as double?;
-    final batteryDraw = results[10] as double?;
-    final diskTemp = results[11] as double?;
-    final nvidia = results[12] as NvidiaSmiSnapshot?;
+    final fan3 = results[9] as int?;
+    final fan3Max = results[10] as int?;
+    final moboTemp = results[11] as double?;
+    final batteryDraw = results[12] as double?;
+    final diskTemp = results[13] as double?;
+    final nvidia = results[14] as NvidiaSmiSnapshot?;
 
     // Battery percent from sysfs.
     final batteryPercent = await _sysfs.readIntFile(
@@ -68,6 +72,8 @@ class LiveSensorRepository {
         fan1MaxRpm: fan1Max,
         fan2Rpm: fan2,
         fan2MaxRpm: fan2Max,
+        fan3Rpm: fan3,
+        fan3MaxRpm: fan3Max,
         gpuName: nvidia.name,
         gpuTempC: nvidia.tempC,
         gpuUtilPercent: nvidia.utilPercent,
@@ -100,6 +106,8 @@ class LiveSensorRepository {
       fan1MaxRpm: fan1Max,
       fan2Rpm: fan2,
       fan2MaxRpm: fan2Max,
+      fan3Rpm: fan3,
+      fan3MaxRpm: fan3Max,
       gpuName: null,
       gpuTempC: igpuTemp,
       gpuUtilPercent: null,

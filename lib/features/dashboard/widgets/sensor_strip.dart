@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/metric_gauge.dart';
 import '../../../core/widgets/metric_tile.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
 
@@ -42,19 +43,24 @@ class SensorStrip extends StatelessWidget {
           critical: _tempCritical,
         ),
       if (snapshot.fan1Rpm != null)
-        _GaugeCard(
+        _FanCard(
           value: snapshot.fan1Rpm!.toDouble(),
-          min: 0,
-          max: (snapshot.fan1MaxRpm ?? 6000).toDouble(),
+          max: snapshot.fan1MaxRpm,
           label: 'CPU fan (RPM)',
           accent: accent,
         ),
       if (snapshot.fan2Rpm != null)
-        _GaugeCard(
+        _FanCard(
           value: snapshot.fan2Rpm!.toDouble(),
-          min: 0,
-          max: (snapshot.fan2MaxRpm ?? 6000).toDouble(),
+          max: snapshot.fan2MaxRpm,
           label: 'GPU fan (RPM)',
+          accent: accent,
+        ),
+      if (snapshot.fan3Rpm != null)
+        _FanCard(
+          value: snapshot.fan3Rpm!.toDouble(),
+          max: snapshot.fan3MaxRpm,
+          label: 'Fan 3 (RPM)',
           accent: accent,
         ),
       if (snapshot.diskTempC != null)
@@ -124,6 +130,68 @@ class SensorStrip extends StatelessWidget {
 
 /// A single gauge card: the radial gauge centered in a bordered surface with
 /// its label below.
+class _FanCard extends StatelessWidget {
+  const _FanCard({
+    required this.value,
+    required this.max,
+    required this.label,
+    required this.accent,
+  });
+
+  final double value;
+  final int? max;
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final validMax = max != null && max! > 0 ? max!.toDouble() : null;
+    if (validMax != null) {
+      return _GaugeCard(
+        value: value,
+        min: 0,
+        max: validMax,
+        label: label,
+        accent: accent,
+      );
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      key: ValueKey('$label-numeric'),
+      label: '$label: ${value.toStringAsFixed(0)} RPM',
+      child: SizedBox(
+        width: 176,
+        child: SurfaceCard(
+          padding: const EdgeInsets.fromLTRB(16, 38, 16, 34),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: value.toStringAsFixed(0),
+                      style: monoGaugeStyle(116, scheme.onSurface),
+                    ),
+                    TextSpan(text: ' RPM', style: monoUnitStyle(scheme)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GaugeCard extends StatelessWidget {
   const _GaugeCard({
     required this.value,
@@ -168,9 +236,8 @@ class _GaugeCard extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.7),
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
             ),
           ],
         ),
@@ -208,9 +275,8 @@ class _SecondaryLine extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: Text(
           items.join('   ·   '),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       ),
     );

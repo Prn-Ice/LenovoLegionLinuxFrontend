@@ -120,7 +120,7 @@ class FanCurveUnavailablePanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'The app could not read the temperature and fan-speed settings needed to edit a curve. $sensorMessage',
+                        'A readable fan table is unavailable. $sensorMessage',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -171,19 +171,19 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
   double get _maxRpm =>
       (widget.channel == FanChannel.cpu
               ? widget.curve.fan1MaxRpm
-              : widget.curve.fan2MaxRpm)
+              : widget.curve.fan2MaxRpm)!
           .toDouble();
 
   int _temperature(FanCurvePoint point) => widget.channel == FanChannel.cpu
-      ? point.cpuUpperTemp
-      : point.gpuUpperTemp;
+      ? point.cpuUpperTemp!
+      : point.gpuUpperTemp!;
 
   int _rpm(FanCurvePoint point) =>
-      widget.channel == FanChannel.cpu ? point.fan1Rpm : point.fan2Rpm;
+      (widget.channel == FanChannel.cpu ? point.fan1Rpm : point.fan2Rpm)!;
 
   int _lowerTemperature(FanCurvePoint point) => widget.channel == FanChannel.cpu
-      ? point.cpuLowerTemp
-      : point.gpuLowerTemp;
+      ? point.cpuLowerTemp!
+      : point.gpuLowerTemp!;
 
   FanCurvePoint _updatePoint(
     FanCurvePoint point, {
@@ -191,8 +191,14 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
     int? rpm,
   }) {
     return widget.channel == FanChannel.cpu
-        ? point.copyWith(cpuUpperTemp: temperature, fan1Rpm: rpm)
-        : point.copyWith(gpuUpperTemp: temperature, fan2Rpm: rpm);
+        ? point.copyWith(
+            cpuUpperTemp: temperature ?? point.cpuUpperTemp,
+            fan1Rpm: rpm ?? point.fan1Rpm,
+          )
+        : point.copyWith(
+            gpuUpperTemp: temperature ?? point.gpuUpperTemp,
+            fan2Rpm: rpm ?? point.fan2Rpm,
+          );
   }
 
   int _boundedTemperature(int index, int value) {
@@ -302,7 +308,9 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
         children: [
           SurfaceCard(
             padding: const EdgeInsets.all(18),
-            child: widget.curve.points.isEmpty
+            child: widget.curve.schema == FanCurveSchema.speedOnly
+                ? _buildSpeedOnlyTable(context)
+                : widget.curve.points.isEmpty
                 ? const SizedBox(
                     height: 300,
                     child: Center(
@@ -311,9 +319,12 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                   )
                 : _buildChart(context),
           ),
-          const SizedBox(height: 12),
-          if (widget.curve.points.isNotEmpty) _buildSummaryCards(context),
-          if (widget.curve.points.isNotEmpty) ...[
+          if (widget.curve.schema != FanCurveSchema.speedOnly) ...[
+            const SizedBox(height: 12),
+            if (widget.curve.points.isNotEmpty) _buildSummaryCards(context),
+          ],
+          if (widget.curve.schema != FanCurveSchema.speedOnly &&
+              widget.curve.points.isNotEmpty) ...[
             const SizedBox(height: 12),
             SurfaceCard(
               padding: EdgeInsets.zero,
@@ -338,7 +349,11 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                 dirty: widget.dirty,
                 isApplying: widget.isApplying,
                 accent: widget.accent,
-                onSave: widget.dirty && !widget.isApplying
+                onSave:
+                    widget.enabled &&
+                        widget.curve.canEdit &&
+                        widget.dirty &&
+                        !widget.isApplying
                     ? widget.onSave
                     : null,
               ),
@@ -346,6 +361,75 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildSpeedOnlyTable(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final unit = widget.curve.speedUnit;
+    final valueLabel = switch (unit) {
+      FanSpeedUnit.level => 'Level',
+      FanSpeedUnit.percent => 'Speed (%)',
+      FanSpeedUnit.rpm || FanSpeedUnit.unknown => 'PWM (0–255)',
+    };
+    String speedValue(FanCurvePoint point) {
+      if (unit == FanSpeedUnit.level) return '${point.fan1Level ?? '—'}';
+      final pwm = point.fan1Pwm;
+      if (pwm == null) return '—';
+      return unit == FanSpeedUnit.percent
+          ? '${(pwm * 100 + 254) ~/ 255}'
+          : '$pwm';
+    }
+
+    final table = <DataRow>[
+      for (var i = 0; i < widget.curve.points.length; i++)
+        DataRow(
+          cells: [
+            DataCell(Text('${i + 1}')),
+            DataCell(Text(speedValue(widget.curve.points[i]))),
+            DataCell(Text(widget.curve.points[i].fan1Rpm?.toString() ?? '—')),
+            if (unit == FanSpeedUnit.level)
+              DataCell(Text(widget.curve.points[i].fan2Rpm?.toString() ?? '—')),
+          ],
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.curve.speedUnit == FanSpeedUnit.level
+              ? 'Fan speed levels'
+              : 'Fan speed values',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.curve.writeStatus == FanCurveWriteStatus.unvalidated
+              ? 'This laptop exposes a speed-only table, but writes have not been validated. Current readings remain available.'
+              : 'This firmware table is read-only in the app. It has no temperature or ramp settings. '
+                    'Table values describe firmware settings, not current fan speeds. '
+                    'RPM values come from the firmware ladder when available.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          key: const ValueKey('fan-speed-table'),
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: [
+              const DataColumn(label: Text('Point')),
+              DataColumn(label: Text(valueLabel)),
+              const DataColumn(label: Text('Fan 1 RPM')),
+              if (unit == FanSpeedUnit.level)
+                const DataColumn(label: Text('Fan 2 RPM')),
+            ],
+            rows: table,
+          ),
+        ),
+      ],
     );
   }
 
@@ -742,9 +826,8 @@ class _FanSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       value,
-                      style: monoBarStyle(
-                        accent ?? scheme.onSurface,
-                      ).copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+                      style: monoBarStyle(accent ?? scheme.onSurface)
+                          .copyWith(fontSize: 22, fontWeight: FontWeight.w700),
                     ),
                     if (unit != null)
                       Padding(
@@ -791,9 +874,8 @@ class _SaveRow extends StatelessWidget {
           dirty
               ? 'Unsaved changes · review the curve before applying.'
               : 'No unsaved curve changes.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: dirty ? accent : null),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: dirty ? accent : null),
         ),
         FilledButton.icon(
           key: const ValueKey('fan-curve-save'),

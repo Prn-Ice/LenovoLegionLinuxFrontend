@@ -78,3 +78,7 @@ final class FanCurvePointUpdated extends FansEvent {
 final class FanCurveSaveRequested extends FansEvent {
   const FanCurveSaveRequested();
 }
+
+final class FanCurveDraftDiscarded extends FansEvent {
+  const FanCurveDraftDiscarded();
+}

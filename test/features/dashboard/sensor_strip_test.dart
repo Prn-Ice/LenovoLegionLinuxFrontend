@@ -8,6 +8,8 @@ LiveSensorSnapshot _snapshot({
   double? gpuTempC,
   double? cpuUtilPercent,
   int? fan2Rpm,
+  int? fan3Rpm,
+  int? fan3MaxRpm,
   double? cpuPackagePowerW,
   double? gpuPowerDrawW,
   double? motherboardTempC,
@@ -20,6 +22,8 @@ LiveSensorSnapshot _snapshot({
   fan1Rpm: null,
   fan2Rpm: fan2Rpm,
   fan2MaxRpm: 10000,
+  fan3Rpm: fan3Rpm,
+  fan3MaxRpm: fan3MaxRpm,
   gpuName: null,
   gpuTempC: gpuTempC,
   gpuUtilPercent: null,
@@ -98,5 +102,40 @@ void main() {
     );
 
     expect(find.text('Sensor data unavailable.'), findsOneWidget);
+  });
+
+  testWidgets('shows the optional third fan only when it is readable', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SensorStrip(snapshot: _snapshot(fan3Rpm: 2300), accent: accent),
+    );
+
+    expect(find.text('Fan 3 (RPM)'), findsOneWidget);
+    expect(find.textContaining('2300'), findsWidgets);
+  });
+
+  testWidgets('shows third fan RPM without a fabricated scale', (tester) async {
+    await _pump(
+      tester,
+      SensorStrip(snapshot: _snapshot(fan3Rpm: 2300), accent: accent),
+    );
+
+    expect(find.byKey(const ValueKey('Fan 3 (RPM)-numeric')), findsOneWidget);
+  });
+
+  testWidgets('treats a nonpositive third fan maximum as unknown', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SensorStrip(
+        snapshot: _snapshot(fan3Rpm: 2300, fan3MaxRpm: 0),
+        accent: accent,
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('Fan 3 (RPM)-numeric')), findsOneWidget);
   });
 }

@@ -35,12 +35,13 @@ void main() {
     when(sysfs.readFan1MaxRpm).thenAnswer((_) async => null);
     when(sysfs.readFan2Rpm).thenAnswer((_) async => null);
     when(sysfs.readFan2MaxRpm).thenAnswer((_) async => null);
+    when(sysfs.readFan3Rpm).thenAnswer((_) async => null);
+    when(sysfs.readFan3MaxRpm).thenAnswer((_) async => null);
     when(sysfs.readMotherboardTempC).thenAnswer((_) async => null);
     when(sysfs.readBatteryPowerDrawW).thenAnswer((_) async => null);
     when(sysfs.readDiskTempC).thenAnswer((_) async => null);
-    when(
-      () => sysfs.readIntFile('/sys/class/power_supply/BAT0/capacity'),
-    ).thenAnswer((_) async => null);
+    when(() => sysfs.readIntFile('/sys/class/power_supply/BAT0/capacity'))
+        .thenAnswer((_) async => null);
     when(packagePower.readPackagePowerWatts).thenAnswer((_) async => 24.5);
   });
 
@@ -64,8 +65,24 @@ void main() {
     expect(snapshot.cpuPackagePowerW, 24.5);
     expect(snapshot.gpuIsDiscrete, isTrue);
     expect(snapshot.gpuPerformanceState, 'P2');
+    expect(snapshot.fan3Rpm, isNull);
     verify(packagePower.readPackagePowerWatts).called(1);
   });
+
+  test(
+    'propagates optional third fan telemetry without inventing a value',
+    () async {
+      when(nvidia.readSnapshot).thenAnswer((_) async => null);
+      when(sysfs.readGpuTempC).thenAnswer((_) async => null);
+      when(sysfs.readFan3Rpm).thenAnswer((_) async => 2300);
+      when(sysfs.readFan3MaxRpm).thenAnswer((_) async => 6500);
+
+      final snapshot = await repository.loadSnapshot();
+
+      expect(snapshot.fan3Rpm, 2300);
+      expect(snapshot.fan3MaxRpm, 6500);
+    },
+  );
 
   test('propagates unavailable package power into the iGPU snapshot', () async {
     when(nvidia.readSnapshot).thenAnswer((_) async => null);
