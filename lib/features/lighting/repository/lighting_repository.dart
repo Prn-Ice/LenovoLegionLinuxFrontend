@@ -10,9 +10,9 @@ class LightingRepositoryException extends AppFailure {
 
 class LightingRepository extends PrivilegedRepository {
   const LightingRepository({
-    required LegionSysfsService sysfsService,
+    required this._sysfsService,
     required super.bridgeService,
-  }) : _sysfsService = sysfsService;
+  });
 
   @override
   Exception wrapBridgeError(AppFailure failure) => LightingRepositoryException(

@@ -9,11 +9,9 @@ import 'battery_state.dart';
 
 class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
   BatteryBloc({
-    required BatteryRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(BatteryState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(BatteryState.initial()) {
     on<BatteryEvent>(
       (event, emit) async {
         if (_closing) return;

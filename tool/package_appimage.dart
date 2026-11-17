@@ -2,11 +2,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'bundle_appimage_runtime.dart' show bundleRuntime;
+
 import 'package_release.dart';
 
 import 'package_linux.dart';
 
 export 'package_linux.dart' show appId;
+
+// Plasma's AppImage fallback treats the last dot as an icon file extension.
+// Keep the root icon name simple; installed desktop metadata retains appId.
+const appImageIconName = 'legion_frontend';
 
 Future<void> main(List<String> args) async {
   try {
@@ -32,10 +38,7 @@ Future<void> main(List<String> args) async {
     }
     final inputs = Directory(inputPath).absolute;
     await verifyRuntimeInputs(root, inputs);
-    final (bundle: bundle, stamp: built) = await buildLinuxRelease(
-      root,
-      portableControl: true,
-    );
+    final (bundle: bundle, stamp: built) = await buildLinuxRelease(root);
     final version = RegExp(r'^version:\s*(\S+)', multiLine: true)
         .firstMatch(await File('${root.path}/pubspec.yaml').readAsString())!
         .group(1)!;
@@ -64,20 +67,10 @@ Future<void> main(List<String> args) async {
         );
       }
       final nativeInputs = Directory('${scratch.path}/native-inputs');
-      await runPackagingCommand('python3', [
-        '${root.path}/tool/bundle_appimage_runtime.py',
-        '--appdir',
-        appdir.path,
-        '--inputs',
-        nativeInputs.path,
-      ]);
-      final nativeManifest =
-          jsonDecode(
-                await File(
-                  '${nativeInputs.path}/native-runtime.json',
-                ).readAsString(),
-              )
-              as Map;
+      bundleRuntime(root, appdir, nativeInputs);
+      final nativeManifest = jsonDecode(
+        await File('${nativeInputs.path}/native-runtime.json').readAsString(),
+      ) as Map;
       final releaseInputs = Directory('${scratch.path}/release-inputs');
       await releaseInputs.create();
       await runPackagingCommand('cp', [
@@ -95,7 +88,6 @@ Future<void> main(List<String> args) async {
       final stamp = await recordReleaseBuild(
         appBundle,
         (built['inputs'] as Map).cast<String, Object>(),
-        portableControl: true,
         staticPortableHelper: true,
       );
       await output.create(recursive: true);
@@ -138,15 +130,16 @@ Future<void> main(List<String> args) async {
         'architecture': 'x86_64',
         'build_os': os,
         'portable_control': true,
-        'default_control_mode': 'installedService',
+        'default_control_mode': 'privilegedControlHelper',
+        // SquashFS starts immediately after the pinned AppImage runtime.
+        'runtime_size': File('${inputs.path}/runtime-x86_64').lengthSync(),
         'host_executables': ['/bin/sh', 'dirname', 'mktemp', 'rm'],
         'native_runtime': nativeManifest,
         'elf_dependencies': elf,
         'appdir': await inventoryReleaseTree(appdir),
         'runtime': jsonDecode(
-          await File(
-            '${root.path}/packaging/appimage/build-inputs.json',
-          ).readAsString(),
+          await File('${root.path}/packaging/appimage/build-inputs.json')
+              .readAsString(),
         ),
         'files': {
           image.uri.pathSegments.last: await fileSha256(image),
@@ -186,17 +179,18 @@ Future<void> stageAppDir(
   final packaging = '${root.path}/packaging/appimage';
   await File('$packaging/AppRun').copy('${appdir.path}/AppRun');
   await runPackagingCommand('chmod', ['755', '${appdir.path}/AppRun']);
-  await File('$packaging/$appId.desktop').copy('${appdir.path}/$appId.desktop');
-  await File(
-    '${root.path}/assets/branding/legion_app.svg',
-  ).copy('${appdir.path}/$appId.svg');
-  await File(
-    '${root.path}/assets/branding/legion_app.png',
-  ).copy('${appdir.path}/$appId.png');
-  await Link('${appdir.path}/.DirIcon').create('$appId.png');
-  final specification =
-      jsonDecode(await File('$packaging/build-inputs.json').readAsString())
-          as Map;
+  final desktop = await File('$packaging/$appId.desktop').readAsString();
+  await File('${appdir.path}/$appId.desktop').writeAsString(
+    desktop.replaceFirst('Icon=$appId\n', 'Icon=$appImageIconName\n'),
+  );
+  await File('${root.path}/assets/branding/legion_app.svg')
+      .copy('${appdir.path}/$appImageIconName.svg');
+  await File('${root.path}/assets/branding/legion_app.png')
+      .copy('${appdir.path}/$appImageIconName.png');
+  await Link('${appdir.path}/.DirIcon').create('$appImageIconName.png');
+  final specification = jsonDecode(
+    await File('$packaging/build-inputs.json').readAsString(),
+  ) as Map;
   for (final item in (specification['runtime_sources'] as List).cast<Map>()) {
     final license = await runPackagingCommand('tar', [
       '-xOf',
@@ -213,13 +207,10 @@ Future<void> stageAppDir(
 }
 
 Future<void> verifyRuntimeInputs(Directory root, Directory inputs) async {
-  final specification =
-      jsonDecode(
-            await File(
-              '${root.path}/packaging/appimage/build-inputs.json',
-            ).readAsString(),
-          )
-          as Map;
+  final specification = jsonDecode(
+    await File('${root.path}/packaging/appimage/build-inputs.json')
+        .readAsString(),
+  ) as Map;
   for (final item in [
     specification['runtime'],
     ...specification['runtime_sources'] as List,

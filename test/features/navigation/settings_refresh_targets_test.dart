@@ -2,10 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/features/navigation/models/settings_refresh_targets.dart';
 
 void main() {
-  test('a busy migrated feature is skipped independently', () {
+  test('a busy feature is skipped independently', () {
     final targets = SettingsRefreshTargets.fromBusyStates(
-      settingsLoading: false,
-      settingsApplying: false,
       bootLogoLoading: true,
       bootLogoApplying: false,
       aboutLoading: false,
@@ -15,7 +13,6 @@ void main() {
       displayApplying: false,
     );
 
-    expect(targets.settings, isTrue);
     expect(targets.bootLogo, isFalse);
     expect(targets.about, isTrue);
     expect(targets.devices, isFalse);
@@ -25,8 +22,6 @@ void main() {
 
   test('refresh is disabled when every feature is busy', () {
     final targets = SettingsRefreshTargets.fromBusyStates(
-      settingsLoading: true,
-      settingsApplying: false,
       bootLogoLoading: false,
       bootLogoApplying: true,
       aboutLoading: true,

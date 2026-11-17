@@ -9,11 +9,9 @@ import 'power_state.dart';
 
 class PowerBloc extends Bloc<PowerEvent, PowerState> {
   PowerBloc({
-    required PowerRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(PowerState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(PowerState.initial()) {
     on<PowerEvent>(
       (event, emit) async {
         if (_closing) return;

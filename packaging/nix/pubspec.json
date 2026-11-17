@@ -14,8 +14,9 @@
     "handy_window": "^0.4.2",
     "hive_ce": "^2.22.0",
     "hive_ce_flutter": "^2.5.0",
+    "material_ui": "^1.9.0",
     "riverbloc": "^3.0.0",
-    "yaru": "^11.0.0"
+    "yaru": "^12.0.0"
   },
   "description": "Flutter desktop frontend for LenovoLegionLinux - laptop control on Linux.",
   "dev_dependencies": {
@@ -32,8 +33,8 @@
     "mocktail": "^1.0.4"
   },
   "environment": {
-    "flutter": ">=3.47.9",
-    "sdk": "^3.11.0"
+    "flutter": ">=3.50.0",
+    "sdk": "^3.14.0"
   },
   "flutter": {
     "assets": [

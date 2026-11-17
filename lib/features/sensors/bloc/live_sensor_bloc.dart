@@ -9,11 +9,9 @@ import 'live_sensor_state.dart';
 
 class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
   LiveSensorBloc({
-    required LiveSensorRepository repository,
-    Duration pollInterval = const Duration(seconds: 2),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(LiveSensorState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 2),
+  }) : super(LiveSensorState.initial()) {
     on<LiveSensorStarted>(_onStarted);
     on<LiveSensorTicked>(_onTicked);
   }

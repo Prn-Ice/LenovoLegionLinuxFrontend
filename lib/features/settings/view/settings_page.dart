@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
-import '../../../core/models/control_mode.dart';
 import 'hardware_access_controls.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/responsive_card_grid.dart';
@@ -19,7 +18,6 @@ import '../../diagnostics/view/diagnostics_page.dart';
 import '../../boot_logo/providers/boot_logo_provider.dart';
 import '../../boot_logo/view/boot_logo_controls.dart';
 import '../bloc/settings_event.dart';
-import '../models/service_control.dart';
 import '../providers/settings_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -32,10 +30,6 @@ class SettingsPage extends ConsumerWidget {
     final about = ref.watch(aboutBlocProvider);
     final devices = ref.watch(devicesBlocProvider);
     final display = ref.watch(displayBlocProvider);
-
-    if (state.isLoading && !state.hasLoaded) {
-      return const Center(child: YaruCircularProgressIndicator());
-    }
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -56,21 +50,19 @@ class SettingsPage extends ConsumerWidget {
           'Quiet, Balanced, Performance, or Custom sets the accent '
           'throughout the app.',
           style: textTheme.bodySmall?.copyWith(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.56),
+            color: Theme.of(context).colorScheme.onSurface
+                .withValues(alpha: 0.56),
           ),
         ),
       ],
     );
     final backend = _SettingsSection(
       title: 'Hardware control',
-      description:
-          'Manage permissions and background services for laptop settings.',
+      description: 'Check access to laptop settings and the installed command-line tool.',
       children: [
         const HardwareAccessControls(),
-        const Divider(height: 32),
         if (about.snapshot case final snapshot?) ...[
+          const Divider(height: 32),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Kernel driver version'),
@@ -84,52 +76,11 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
         ],
-        const PrivilegedActionNotice(compact: true),
-        const SizedBox(height: 8),
-        if (state.services.isEmpty)
-          Text(
-            state.activeControlMode == ControlMode.temporaryHelper
-                ? 'Use Installed service to manage background services. Close and reopen the app after changing that choice.'
-                : 'No service controls available.',
-          ),
-        ...state.services.map(
-          (service) => _ServiceTile(
-            service: service,
-            isBusy: state.isApplying,
-            onChanged: (enabled) async {
-              final confirmed = await confirmPrivilegedAction(
-                context,
-                title: 'Update ${service.label}',
-                message: 'Changing services may require authentication.',
-                confirmLabel: 'Apply',
-              );
-              if (!context.mounted || !confirmed) {
-                return;
-              }
-              final current = ref.read(settingsBlocProvider);
-              if (current.isApplying ||
-                  !current.services.any(
-                    (item) => item.service == service.service && item.supported,
-                  )) {
-                return;
-              }
-              ref
-                  .read(settingsBlocProvider.bloc)
-                  .add(
-                    SettingsServiceToggled(
-                      serviceId: service.service.wireValue,
-                      enabled: enabled,
-                    ),
-                  );
-            },
-          ),
-        ),
       ],
     );
     final bootLogo = _SettingsSection(
       title: 'Boot Logo',
-      description:
-          'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
+      description: 'Set a custom logo shown during boot, or restore the stock Lenovo logo.',
       children: const [BootLogoControls()],
     );
     final deviceControls = _SettingsSection(
@@ -149,8 +100,7 @@ class SettingsPage extends ConsumerWidget {
                     final confirmed = await confirmPrivilegedAction(
                       context,
                       title: 'Change Win Key',
-                      message:
-                          'Changing the Win key uses privileged access and may require authentication.',
+                      message: 'Changing the Win key uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -194,8 +144,7 @@ class SettingsPage extends ConsumerWidget {
                     final confirmed = await confirmPrivilegedAction(
                       context,
                       title: 'Toggle overdrive',
-                      message:
-                          'Changing overdrive uses privileged access and may require authentication.',
+                      message: 'Changing overdrive uses privileged access and may require authentication.',
                       confirmLabel: 'Apply',
                     );
                     if (!context.mounted || !confirmed) return;
@@ -273,13 +222,8 @@ class SettingsPage extends ConsumerWidget {
     );
 
     return AppPageBody(
-      onErrorDismissed: (error) => ref
-          .read(settingsBlocProvider.bloc)
-          .add(ControlModeErrorDismissed(error)),
       errorMessage:
-          state.controlModeErrorMessage ??
           state.appearanceErrorMessage ??
-          state.errorMessage ??
           bootLogoState.errorMessage ??
           about.errorMessage ??
           devices.errorMessage ??
@@ -440,9 +384,8 @@ class _AboutLinksState extends State<_AboutLinks> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    manifest = DefaultAssetBundle.of(
-      context,
-    ).loadString('pubspec.yaml', cache: false);
+    manifest = DefaultAssetBundle.of(context)
+        .loadString('pubspec.yaml', cache: false);
   }
 
   Future<void> copyLink(String label, String url) async {
@@ -522,36 +465,4 @@ class _DiagnosticsTitleBar extends StatelessWidget
     centerTitle: false,
     leading: BackButton(onPressed: () => Navigator.of(context).pop()),
   );
-}
-
-class _ServiceTile extends StatelessWidget {
-  const _ServiceTile({
-    required this.service,
-    required this.isBusy,
-    required this.onChanged,
-  });
-
-  final ServiceControl service;
-  final bool isBusy;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSwitchTile(
-      value: service.targetEnabled,
-      onChanged: service.supported && !isBusy ? onChanged : null,
-      title: service.label,
-      subtitle: _subtitle(service),
-    );
-  }
-
-  String _subtitle(ServiceControl service) {
-    if (!service.supported) {
-      return 'Not available on this system';
-    }
-
-    final runtime = service.active ? 'running' : 'stopped';
-    final boot = service.enabled ? 'enabled' : 'disabled';
-    return '$runtime, $boot at boot • admin action';
-  }
 }

@@ -35,14 +35,30 @@ All nine native test targets passed as an ordinary user. The executable ownershi
 and snapshot checks also passed as root with every case enabled. The production
 helper session checks passed, and portable use preserved the persistent service,
 Polkit, D-Bus, and udev files inspected by the test. ShellCheck, actionlint, and
-Pyflakes passed for the new scripts and workflow.
+the former Python lint check passed for the scripts and workflow at that commit.
+Those results predate the Bash test port; rerun qualification for current evidence.
 
 ## Run locally
 
-Install QEMU, `cloud-localds`, OpenSSH clients, and Python 3. On Debian/Ubuntu,
+Install QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`. On Debian/Ubuntu,
 their packages are `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`,
-`openssh-client`, and `python3`. On Nix, use the pinned Nixpkgs versions of
-`qemu`, `cloud-utils`, `openssh`, and `python3`.
+`openssh-client`, `jq`, and `iproute2`. On Nix, use the pinned Nixpkgs versions of
+`qemu`, `cloud-utils`, `openssh`, `jq`, and `iproute2`.
+
+The shared session, desktop, and distro tests run in Bash inside the guest. NixOS
+tests retain only the upstream Python driver's VM-start, command, and evidence-copy
+calls; their assertions and scenarios also run in guest-side Bash. The VMs need
+neither Python for project tests nor a Dart or Flutter SDK.
+
+Run the hardware-free runner regressions before building a VM:
+
+```bash
+bash test/tool/portable_distro_evidence_test.sh
+bash test/tool/portable_distro_readiness_test.sh
+```
+
+The first command checks failure-status preservation and partial evidence archives.
+The second checks cloud-init deadlines, SSH retries, and remote failure statuses.
 
 Download the official image and its checksums, then run from the repository:
 
@@ -54,11 +70,13 @@ bash tool/test_portable_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualif
 ```
 
 The runner verifies the supplied image checksum and creates a temporary overlay.
-It starts QEMU as the current user with SSH bound to loopback. KVM is used when
-accessible; otherwise QEMU uses software emulation. The guest downloads its build
-dependencies over the network. The runner copies native source directories into
-the VM and runs the setup script there. It terminates the VM and deletes the disk
-overlay and temporary SSH key on exit. It requires an unused output directory.
+It starts QEMU as the current user with SSH bound to loopback. QEMU uses KVM when
+accessible and software emulation otherwise. CI grants the runner access to
+`/dev/kvm` when that device exists. Set `LLLF_VM_ACCELERATOR=tcg` to reproduce
+software emulation on a KVM host. The guest downloads its build dependencies
+over the network. The runner copies native source directories into the VM and runs the
+setup script there. It terminates the VM and deletes the disk overlay and
+temporary SSH key on exit. It requires an unused output directory.
 
 The output retains boot, build, test, and system logs. `manifest.json` records the
 source commit, modified source status, cloud-image checksum, source archive hash,

@@ -1,7 +1,7 @@
 # Debian package
 
-The amd64 `.deb` installs the desktop app, temporary helper, launcher, icons,
-and notices. It uses host GTK, GLib, Polkit, graphics, and C/C++ libraries.
+The amd64 `.deb` installs the desktop app, privileged control helper, launcher,
+icons, and notices. It uses host GTK, GLib, Polkit, graphics, and C/C++ libraries.
 Installing it adds no persistent Legion service or authorization policy.
 
 Install the package with apt so it resolves the runtime dependencies:
@@ -12,20 +12,21 @@ legion_frontend
 ```
 
 Hardware control requires the Lenovo Legion driver and an administrator-owned
-`legion_cli` installation. Temporary helper mode also needs systemd, Polkit,
-and a desktop authentication agent. Installed service remains the default;
-choose **Temporary helper** in Settings and reopen the app to use it.
-Existing installed services remain separately managed.
+`legion_cli` installation, systemd, Polkit, and a desktop authentication agent.
+The app uses the bundled privileged control helper from its first launch. The
+first privileged action requests approval; closing the app ends the helper session.
+Persistent service management and next-boot graphics changes are unavailable
+through the helper. Existing installed services remain separately managed.
 
 ## Build
 
-The builder needs Docker, Git, Python 3, and curl. It compiles as an ordinary
+The builder needs Docker, Git, jq, and curl. It compiles as an ordinary
 user in the pinned Ubuntu 22.04 container used for AppImage builds. Build from
 a clean committed checkout:
 
 ```bash
-curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
-bash tool/build_deb.sh /tmp/flutter-3.47.9.tar.xz build/deb-release
+curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
+bash tool/build_deb.sh /tmp/flutter-3.50.0.tar.xz build/deb-release
 ```
 
 The script verifies the SDK checksum in `packaging/appimage/build-inputs.json`.

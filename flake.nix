@@ -8,40 +8,22 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
-      # These source/artifact hashes and tool versions reproduce our working
-      # Flutter 3.47.9 SDK while the pinned Nixpkgs still ships 3.47.4.
-      base = builtins.fromJSON (
-        builtins.readFile "${nixpkgs}/pkgs/development/compilers/flutter/versions/3_47/data.json"
-      );
+      # SDK and tool dependency hashes come from the official stable release.
       flutterSdk = pkgs.flutterPackages.mkFlutter (
-        base
+        builtins.fromJSON (builtins.readFile ./packaging/nix/flutter.json)
         // {
-          version = "3.47.9";
-          engineVersion = "89c39edfdfae2949f6806e4a315c0c08522238b7";
-          dartVersion = "3.13.7";
-          flutterHash = "sha256-JBauGMdb1lmply2yAekkeonIX7+duVFixiHEREg+EG8=";
-          dartHash.x86_64-linux = "sha256-65mu0mbvvLYVxq4hwS9Sz+k1ufIIvMxf6n9kwh6Gcik=";
-          artifactHashes = {
-            universal.x86_64-linux = "sha256-W0gnbSYZCHIHEVuL+AdOoAqcl4SJnFiB6AYQgjvk3s8=";
-            linux.x86_64-linux = "sha256-Zv772L5KvosN3HVc8VSC6JF6+7b46QaKbETddtt6krg=";
-          };
-          patches = pkgs.flutter.unwrapped.patches;
-          pubspecLock = base.pubspecLock // {
-            packages = base.pubspecLock.packages // {
-              dds = base.pubspecLock.packages.dds // {
-                version = "5.4.0";
-                description = base.pubspecLock.packages.dds.description // {
-                  sha256 = "f8e875dcd7b5e5073a7bfe54095144c70487f18e2f8e47fa51c09dd67eccfb0c";
-                };
-              };
-              devtools_shared = base.pubspecLock.packages.devtools_shared // {
-                version = "13.1.0";
-                description = base.pubspecLock.packages.devtools_shared.description // {
-                  sha256 = "13df2c17d5f21dd7c92d08145386d45e1153364c04e531e994afb0ee7b67554b";
-                };
-              };
-            };
-          };
+          # Adapt Nixpkgs' SDK tool patches to Flutter 3.50's moved methods.
+          patches =
+            builtins.filter (
+              patch:
+              !(builtins.elem (builtins.baseNameOf patch) [
+                "disable-auto-update.patch"
+                "override-host-platform-base.patch"
+              ])
+            ) pkgs.flutter.unwrapped.patches
+            ++ [
+              ./packaging/nix/flutter-tools.patch
+            ];
         }
       );
       flutter = (pkgs.flutterPackages.wrapFlutter flutterSdk).override {
@@ -76,13 +58,14 @@
           pkgs.runCommand "legion-nix-metadata"
             {
               nativeBuildInputs = [
-                pkgs.yq
+                pkgs.yq-go
+                pkgs.jq
                 pkgs.diffutils
               ];
             }
             ''
-              yq -S . ${./pubspec.yaml} > pubspec.json
-              yq -S . ${./pubspec.lock} > pubspec.lock.json
+              yq -o=json '.' ${./pubspec.yaml} | jq -S . > pubspec.json
+              yq -o=json '.' ${./pubspec.lock} | jq -S . > pubspec.lock.json
               diff -u ${./packaging/nix/pubspec.json} pubspec.json
               diff -u ${./packaging/nix/pubspec.lock.json} pubspec.lock.json
               touch "$out"
@@ -102,6 +85,9 @@
           cmake
           ninja
           pkg-config
+          # Release fixtures inspect Debian and AppImage payloads.
+          dpkg
+          squashfsTools
           git
           nix.out
           gtk3
@@ -113,11 +99,14 @@
           jdk17
           dbus
           xvfb-run
-          yq
+          yq-go
+          jq
         ];
 
         # JNI build hooks compile against this JDK and load its JVM at runtime.
         JAVA_HOME = "${pkgs.jdk17}";
+        # Direct Dart commands need the Flutter root in Nix's split SDK layout.
+        FLUTTER_ROOT = "${flutter}";
         LD_LIBRARY_PATH = "${pkgs.jdk17}/lib/server";
         # handy_window's bundled libhandy includes fribidi headers directly.
         NIX_CFLAGS_COMPILE = "-I${pkgs.lib.getDev pkgs.fribidi}/include/fribidi";

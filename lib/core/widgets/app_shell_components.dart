@@ -1,14 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:yaru/yaru.dart';
 
 import '../models/app_failure.dart';
-
-const _nixosControlConfiguration = '''security.polkit.enable = true;
-services.legionControl = {
-  enable = true;
-  backendPackage = pkgs.lenovo-legion;
-};''';
 
 class AppPageBody extends StatelessWidget {
   const AppPageBody({
@@ -173,17 +167,14 @@ class AppErrorDialog extends StatefulWidget {
 }
 
 class _AppErrorDialogState extends State<AppErrorDialog> {
-  bool _configurationCopied = false;
   bool _detailsCopied = false;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final errorKind = AppFailure.from(widget.message).kind;
-    final isPrivilegeSetup = errorKind == AppFailureKind.privilegeSetup;
     final title = switch (errorKind) {
-      AppFailureKind.privilegeSetup => 'Privileged access needs setup',
-      AppFailureKind.portableSetup => 'Temporary hardware access needs setup',
+      AppFailureKind.portableSetup => 'Administrator access needs setup',
       AppFailureKind.graphicsBlocked => 'Graphics mode was not changed',
       AppFailureKind.graphicsPending => 'Graphics mode switch incomplete',
       _ => 'Action could not be completed',
@@ -210,23 +201,20 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: errorKind == AppFailureKind.portableSetup
                   ? _buildPortableSetupContent(context)
-                  : isPrivilegeSetup
-                  ? _buildPrivilegeSetupContent(context)
                   : _buildFailureContent(context),
             ),
           ),
         ),
       ),
       actions: [
-        if (!isPrivilegeSetup)
-          TextButton.icon(
-            onPressed: _copyDetails,
-            icon: Icon(
-              _detailsCopied ? Icons.check : Icons.copy_outlined,
-              size: 18,
-            ),
-            label: Text(_detailsCopied ? 'Copied' : 'Copy details'),
+        TextButton.icon(
+          onPressed: _copyDetails,
+          icon: Icon(
+            _detailsCopied ? Icons.check : Icons.copy_outlined,
+            size: 18,
           ),
+          label: Text(_detailsCopied ? 'Copied' : 'Copy details'),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
@@ -256,7 +244,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
   List<Widget> _buildPortableSetupContent(BuildContext context) => [
     const Text(
-      'Temporary hardware control could not start. The requested action did not complete. Recheck the current settings before retrying.',
+      'Administrator access could not be established. The requested action did not complete. Recheck the current settings before retrying.',
     ),
     const SizedBox(height: 16),
     Text('Before retrying', style: Theme.of(context).textTheme.titleSmall),
@@ -264,103 +252,11 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     const Text(
       'Check the installed legion_cli and app files. Your desktop must provide a Polkit authentication prompt. Then reopen the app and approve the prompt when making a hardware change.',
     ),
-    const SizedBox(height: 12),
-    const Text(
-      'You can choose Installed service in Settings for the next launch if that integration is already installed.',
-    ),
     const SizedBox(height: 16),
     Text('Technical details', style: Theme.of(context).textTheme.titleSmall),
     const SizedBox(height: 6),
     Text(AppFailure.from(widget.message).displayText),
   ];
-  List<Widget> _buildPrivilegeSetupContent(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final scheme = Theme.of(context).colorScheme;
-
-    return [
-      const Text(
-        'The action could not be completed because legion-control is unavailable or not configured.',
-      ),
-      const SizedBox(height: 16),
-      Text('What this means', style: textTheme.titleSmall),
-      const SizedBox(height: 6),
-      const Text(
-        'legion-control applies supported hardware settings after Polkit authentication. Check that the service and its policy are installed.',
-      ),
-      const SizedBox(height: 16),
-      Text('NixOS', style: textTheme.titleSmall),
-      const SizedBox(height: 6),
-      const Text(
-        'Import the frontend NixOS module, enable the control service and Polkit, rebuild NixOS, then try the action again.',
-      ),
-      const SizedBox(height: 10),
-      DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 8, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'System configuration',
-                      style: textTheme.labelMedium,
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _copyConfiguration,
-                    icon: Icon(
-                      _configurationCopied ? Icons.check : Icons.copy_outlined,
-                      size: 17,
-                    ),
-                    label: Text(_configurationCopied ? 'Copied' : 'Copy'),
-                  ),
-                ],
-              ),
-              Text(
-                _nixosControlConfiguration,
-                style: textTheme.bodyMedium?.copyWith(
-                  fontFamily: 'monospace',
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      const SizedBox(height: 16),
-      Text('Other Linux distributions', style: textTheme.titleSmall),
-      const SizedBox(height: 6),
-      const Text(
-        'Install the legion-control systemd unit, D-Bus policy, and Polkit action supplied in packaging/, then enable Polkit and start legion-control.service.',
-      ),
-      const SizedBox(height: 16),
-      Text('Technical details', style: textTheme.titleSmall),
-      const SizedBox(height: 6),
-      Text(
-        AppFailure.from(widget.message).displayText,
-        style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-      ),
-    ];
-  }
-
-  Future<void> _copyConfiguration() async {
-    if (mounted) setState(() => _configurationCopied = true);
-    try {
-      await Clipboard.setData(
-        const ClipboardData(text: _nixosControlConfiguration),
-      );
-    } catch (_) {
-      if (mounted) setState(() => _configurationCopied = false);
-      rethrow;
-    }
-  }
-
   Future<void> _copyDetails() async {
     if (mounted) setState(() => _detailsCopied = true);
     try {

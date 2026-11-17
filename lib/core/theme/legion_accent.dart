@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Mode colors approximated from photos of a Legion laptop's power button.
 /// [custom] includes the `balanced-performance` profile, shown as "Custom".

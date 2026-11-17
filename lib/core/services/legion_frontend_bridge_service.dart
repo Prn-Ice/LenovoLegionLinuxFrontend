@@ -2,14 +2,12 @@ import 'dart:async';
 import 'dart:collection';
 
 import '../models/bridge_command_record.dart';
-import '../models/control_mode.dart';
 import 'legion_cli_service.dart';
 import 'legion_control_client.dart';
 
 enum LegionBridgeErrorCode {
   startupDenied,
   permissionDenied,
-  privilegeSetup,
   portableSetup,
   unavailable,
   busy,
@@ -27,7 +25,6 @@ class LegionBridgeException implements Exception {
     this.stdout,
     this.stderr,
     this.exitCode,
-    this.controlMode = ControlMode.installedService,
   });
 
   final LegionBridgeErrorCode code;
@@ -36,32 +33,18 @@ class LegionBridgeException implements Exception {
   final String? stdout;
   final String? stderr;
   final int? exitCode;
-  final ControlMode controlMode;
 
   String get guidance {
     return switch (code) {
-      LegionBridgeErrorCode.startupDenied =>
-        'Authentication was cancelled or denied before temporary access started. Try the action again to request approval.',
-      LegionBridgeErrorCode.permissionDenied =>
-        controlMode == ControlMode.temporaryHelper
-            ? 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.'
-            : 'Permission was denied or authentication was cancelled. Ensure a Polkit authentication agent is running and approve the prompt.',
-      LegionBridgeErrorCode.portableSetup =>
-        'Temporary hardware access could not start. Check the installed CLI and app files, then reopen the app.',
-      LegionBridgeErrorCode.privilegeSetup =>
-        'The legion-control service could not provide privileged access. Verify that the service and its Polkit policy are installed and running.',
-      LegionBridgeErrorCode.unavailable =>
-        controlMode == ControlMode.temporaryHelper
-            ? 'Temporary hardware access is unavailable. Read the current settings and reopen the app before retrying.'
-            : 'The legion-control service or requested capability is unavailable. Verify that the service is installed and running.',
-      LegionBridgeErrorCode.busy =>
-        'Another privileged action is still running. Wait for it to finish, then retry.',
+      LegionBridgeErrorCode.startupDenied => 'Authentication was cancelled or denied before administrator access was granted. Try the action again to request approval.',
+      LegionBridgeErrorCode.permissionDenied => 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.',
+      LegionBridgeErrorCode.portableSetup => 'Administrator access could not be established. Check the installed CLI and app files, then reopen the app.',
+      LegionBridgeErrorCode.unavailable => 'The requested capability or administrator access is unavailable. Read the current settings and reopen the app before retrying.',
+      LegionBridgeErrorCode.busy => 'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
         'The command timed out. Read the current settings before retrying.',
-      LegionBridgeErrorCode.graphicsBlocked =>
-        'The system blocked the graphics change before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
-      LegionBridgeErrorCode.graphicsPending =>
-        'The selected graphics policy may have changed, but effective topology did not settle. Restore Hybrid from a TTY or reboot before continuing.',
+      LegionBridgeErrorCode.graphicsBlocked => 'The system blocked the graphics change before firmware changed. Close dGPU clients or use the controlled TTY workflow, then retry.',
+      LegionBridgeErrorCode.graphicsPending => 'The selected graphics policy may have changed, but effective topology did not settle. Restore Hybrid from a TTY or reboot before continuing.',
       LegionBridgeErrorCode.commandFailed => '',
     };
   }
@@ -86,17 +69,10 @@ class LegionBridgeException implements Exception {
 }
 
 class LegionFrontendBridgeService {
-  LegionFrontendBridgeService({
-    required LegionCliService cliService,
-    LegionControlClient? controlClient,
-    ControlMode controlMode = ControlMode.installedService,
-  }) : _cliService = cliService,
-       _controlClient = controlClient,
-       _controlMode = controlMode;
+  LegionFrontendBridgeService({required this._cliService, this._controlClient});
 
   final LegionCliService _cliService;
   final LegionControlClient? _controlClient;
-  final ControlMode _controlMode;
   final Set<String> _pendingActionKeys = <String>{};
   Future<void> _privilegedQueue = Future<void>.value();
   static const int _historyCapacity = 20;
@@ -128,7 +104,6 @@ class LegionFrontendBridgeService {
     final actionKey = _buildActionKey(method: method, args: args);
     if (_pendingActionKeys.contains(actionKey)) {
       throw LegionBridgeException(
-        controlMode: _controlMode,
         code: LegionBridgeErrorCode.busy,
         method: method,
         message: 'Action is already pending for $method.',
@@ -236,7 +211,6 @@ class LegionFrontendBridgeService {
         throw error;
       } on TimeoutException {
         final error = LegionBridgeException(
-          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
@@ -254,7 +228,6 @@ class LegionFrontendBridgeService {
         rethrow;
       } on Object catch (error) {
         throw LegionBridgeException(
-          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
@@ -275,8 +248,8 @@ class LegionFrontendBridgeService {
       try {
         final client = _controlClient;
         if (client == null) {
-          throw const LegionControlSetupException(
-            'The legion-control service is not configured.',
+          throw const LegionControlPortableSetupException(
+            'The privileged control helper is not configured.',
           );
         }
         await client.authorize();
@@ -284,7 +257,6 @@ class LegionFrontendBridgeService {
         return;
       } on TimeoutException {
         failure = LegionBridgeException(
-          controlMode: _controlMode,
           code: LegionBridgeErrorCode.timeout,
           method: method,
           message: 'Timed out while running $method.',
@@ -294,7 +266,6 @@ class LegionFrontendBridgeService {
         failure = _translateControlError(method, error);
       } catch (error) {
         failure = LegionBridgeException(
-          controlMode: _controlMode,
           code: LegionBridgeErrorCode.commandFailed,
           method: method,
           message: 'Failed to run $method.',
@@ -316,9 +287,7 @@ class LegionFrontendBridgeService {
     LegionControlException error,
   ) {
     final code = switch (error) {
-      LegionControlPortableSetupException() =>
-        LegionBridgeErrorCode.portableSetup,
-      LegionControlSetupException() => LegionBridgeErrorCode.privilegeSetup,
+      LegionControlSetupException() => LegionBridgeErrorCode.portableSetup,
       LegionControlStartupDeniedException() =>
         LegionBridgeErrorCode.startupDenied,
       LegionControlPermissionDeniedException() =>
@@ -334,7 +303,6 @@ class LegionFrontendBridgeService {
       _ => LegionBridgeErrorCode.commandFailed,
     };
     return LegionBridgeException(
-      controlMode: _controlMode,
       code: code,
       method: method,
       message: code == LegionBridgeErrorCode.timeout
@@ -357,13 +325,11 @@ class LegionFrontendBridgeService {
 
     final message = switch (code) {
       LegionBridgeErrorCode.startupDenied =>
-        'Temporary access was not approved for $method.',
+        'Administrator access was not approved for $method.',
       LegionBridgeErrorCode.portableSetup =>
-        'Temporary hardware access could not start for $method.',
+        'Administrator access could not be established for $method.',
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',
-      LegionBridgeErrorCode.privilegeSetup =>
-        'Privileged command support is unavailable for $method.',
       LegionBridgeErrorCode.unavailable =>
         'Capability is unavailable for $method.',
       LegionBridgeErrorCode.busy => 'System is busy while running $method.',
@@ -376,7 +342,6 @@ class LegionFrontendBridgeService {
     };
 
     return LegionBridgeException(
-      controlMode: _controlMode,
       code: code,
       method: method,
       message: message,

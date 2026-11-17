@@ -1,7 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../../core/models/control_mode.dart';
-import '../../../core/models/app_failure.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:yaru/yaru.dart';
 
 sealed class SettingsEvent extends Equatable {
@@ -9,27 +7,6 @@ sealed class SettingsEvent extends Equatable {
 
   @override
   List<Object?> get props => const [];
-}
-
-final class SettingsStarted extends SettingsEvent {
-  const SettingsStarted();
-}
-
-final class SettingsRefreshRequested extends SettingsEvent {
-  const SettingsRefreshRequested();
-}
-
-final class SettingsServiceToggled extends SettingsEvent {
-  const SettingsServiceToggled({
-    required this.serviceId,
-    required this.enabled,
-  });
-
-  final String serviceId;
-  final bool enabled;
-
-  @override
-  List<Object?> get props => [serviceId, enabled];
 }
 
 sealed class AppearanceChanged extends SettingsEvent {
@@ -55,18 +32,4 @@ final class YaruVariantChanged extends AppearanceChanged {
   final YaruVariant? variant;
   @override
   List<Object?> get props => [variant];
-}
-
-final class ControlModeChanged extends SettingsEvent {
-  const ControlModeChanged(this.mode);
-  final ControlMode mode;
-  @override
-  List<Object?> get props => [mode];
-}
-
-final class ControlModeErrorDismissed extends SettingsEvent {
-  const ControlModeErrorDismissed(this.error);
-  final AppFailure error;
-  @override
-  List<Object?> get props => [error];
 }

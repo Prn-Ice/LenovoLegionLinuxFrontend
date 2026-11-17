@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/features/automation/models/automation_config.dart';
@@ -28,10 +28,16 @@ void main() {
     await paintKeyboard(tester, lighting, 'FF3311');
     await saveKeyboardProfile(tester, 'Recovery look');
     await openAutomation(tester);
+    final writesBeforeAssignment = lighting.writes.length;
     await assignKeyboardProfile(
       tester,
       KeyboardPowerMode.balanced,
       'Recovery look',
+    );
+    await waitFor(
+      tester,
+      () => lighting.writes.length == writesBeforeAssignment + 1,
+      description: 'assigned profile applied before deleting it',
     );
 
     await openLighting(tester);
@@ -53,6 +59,7 @@ void main() {
     );
 
     final writesBeforeClear = lighting.writes.length;
+    final requestsBeforeClear = lighting.requests.length;
     await openAutomation(tester);
     const guidance =
         'This profile was deleted. Choose another profile or Leave unchanged.';
@@ -76,6 +83,7 @@ void main() {
       description: 'cleared assignment removes missing-profile guidance',
     );
     expect(lighting.writes, hasLength(writesBeforeClear));
+    expect(lighting.requests, hasLength(requestsBeforeClear));
     expect(tester.takeException(), isNull);
   });
 }

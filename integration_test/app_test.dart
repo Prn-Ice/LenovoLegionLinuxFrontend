@@ -10,7 +10,7 @@ import 'scenarios/fans_preset_journey.dart' as fans_preset;
 import 'scenarios/keyboard_recovery_journey.dart' as keyboard_recovery;
 import 'scenarios/power_mode_journey.dart' as power_mode;
 import 'scenarios/portable_channel_journey.dart' as portable_channel;
-import 'scenarios/control_mode_journey.dart' as control_mode;
+import 'scenarios/hardware_access_journey.dart' as hardware_access;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -24,5 +24,5 @@ void main() {
   fans_preset.main();
   keyboard_recovery.main();
   portable_channel.main();
-  control_mode.main();
+  hardware_access.main();
 }

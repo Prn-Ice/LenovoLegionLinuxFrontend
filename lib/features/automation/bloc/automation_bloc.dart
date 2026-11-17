@@ -5,9 +5,8 @@ import 'automation_event.dart';
 import 'automation_state.dart';
 
 class AutomationBloc extends Bloc<AutomationEvent, AutomationState> {
-  AutomationBloc({required AutomationRepository repository})
-    : _repository = repository,
-      super(AutomationState.initial()) {
+  AutomationBloc({required this._repository})
+    : super(AutomationState.initial()) {
     on<AutomationEvent>((event, emit) async {
       if (_closing) return;
       switch (event) {

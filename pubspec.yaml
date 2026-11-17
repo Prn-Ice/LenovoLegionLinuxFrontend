@@ -6,21 +6,20 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  # Keep source syntax within the Hive generator's analyzer support.
-  # The Flutter floor below supplies Dart 3.13; see docs/dependencies.md.
-  sdk: ^3.11.0
-  flutter: '>=3.47.9'
+  sdk: ^3.14.0
+  flutter: '>=3.50.0'
 
 dependencies:
   flutter:
     sdk: flutter
 
+  material_ui: ^1.9.0
   cupertino_icons: ^2.0.0
   riverbloc: ^3.0.0
   # Version 3 changes event equality; see docs/dependencies.md.
   equatable: ^2.1.0
   flutter_riverpod: ^3.4.3
-  yaru: ^11.0.0
+  yaru: ^12.0.0
   handy_window: ^0.4.2
   file_picker: ^13.3.2
   hive_ce: ^2.22.0

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Yaru has no fan glyph. This three-blade mark uses the same 24px icon grid
 /// and inherits the surrounding icon colour, including selected navigation.

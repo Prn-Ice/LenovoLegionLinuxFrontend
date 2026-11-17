@@ -51,8 +51,8 @@ legion-graphics-next-boot hybrid
 ```
 
 Supported modes: Hybrid and Hybrid iGPU-only.
-Cancel removes a pending request. To return to Hybrid after a change, request
-Hybrid and reboot.
+Cancel marks a pending request as cancelled. To return to Hybrid after a change,
+request Hybrid and reboot.
 
 ## What happens at boot
 
@@ -112,11 +112,22 @@ restore it.
 
 ## Test coverage
 
-- Python tests exercise real request-file persistence with fake hardware and
+- Shell tests exercise real request-file persistence with fake hardware and
   systemd calls: queue/cancel, same-boot/live deferral, one-shot consumption,
   clients and inspection failures, unexpected user managers, displays,
   unsupported policy, late backend refusal, cleanup/readback failures, and
-  explicit recovery after an interrupted attempt.
+  explicit recovery after an interrupted attempt. Run them with
+  `bash tool/test_graphics_boot.sh`; they require Bash, Coreutils, util-linux,
+  and jq, but no root access or hardware.
+- `bash tool/test_setup_next_boot_graphics.sh` and
+  `bash tool/test_check_graphics_tty.sh` run the setup and capture scripts against
+  fake commands. `bash tool/test_auto_battery_tty_json.sh` tests only the Auto
+  script's JSON predicates, without running its hardware checks or transitions.
+- `bash tool/test_graphics_s2h_guard.sh SYSTEMD_SLEEP_C` compiles the existing C
+  fixture against patched systemd sleep functions. It requires a C compiler and
+  checks safe entry, rejected or missing guards, fallback suspend, and manual wake
+  without sleeping or inspecting hardware. The patched sleep package runs it
+  during its Nix build.
 - Native tests exercise the real service dispatcher, subprocess handling, and
   desktop client against a fake executable on a private D-Bus, including use of
   the same authorized connection for the request. Authorization is simulated;

@@ -1,7 +1,7 @@
 # Nix frontend
 
-Use this package for NixOS. It links the desktop app and temporary helper to
-their Nix store libraries and needs no FUSE mount or AppImage extraction.
+Use this package for NixOS. It links the desktop app and privileged control helper
+to their Nix store libraries and needs no FUSE mount or AppImage extraction.
 From the project directory, build or launch it on x86_64 Linux:
 
 ```bash
@@ -9,10 +9,10 @@ nix build .#frontend
 nix run .#frontend
 ```
 
-The flake pins Flutter 3.47.9, Dart 3.13.7, Nixpkgs, and the pub.dev dependency
+The flake pins Flutter 3.50.0, Dart 3.14.0, Nixpkgs, and the pub.dev dependency
 hashes. Nix downloads these inputs first, then builds the app in its offline
-sandbox. The package contains the desktop launcher, icons, notices, and temporary
-helper. Installing it enables no persistent Legion service.
+sandbox. The package contains the desktop launcher, icons, notices, and privileged
+control helper. Installing it enables no persistent Legion service.
 
 On NixOS, add `inputs.legion.packages.x86_64-linux.frontend` to
 `environment.systemPackages`, where `inputs.legion` is this repository's flake.
@@ -20,20 +20,18 @@ Use a pinned revision or release tag for your configuration.
 
 ## Hardware access
 
-Install the Lenovo Legion driver and `legion_cli` on the host. Temporary helper
-mode requires systemd, Polkit, and a desktop authentication agent. On NixOS,
+Install the Lenovo Legion driver and `legion_cli` on the host. The helper
+requires systemd, Polkit, and a desktop authentication agent. On NixOS,
 install the CLI through `environment.systemPackages` so the helper can discover
 it through the root-controlled system profile. A user profile cannot supply the
 privileged backend.
 
-Installed service remains the default. To use the bundled helper, choose
-**Temporary helper** in Settings, close the app, and reopen it. Approval starts
-a temporary systemd unit; exiting the app ends that unit. Keep the existing
-[NixOS service module](../packaging/nixos/legion-telemetry.nix) enabled if you use
-Installed service mode.
+The app uses the bundled helper from its first launch. The first privileged
+action requests approval to start a temporary systemd unit; exiting the app ends
+that unit. Persistent service management and next-boot graphics changes are
+unavailable through the helper.
 
-For a desktop trial, launch from a regular desktop terminal, select Temporary
-helper, close the app, and launch it again with the same command. Change one
+For a desktop trial, launch from a regular desktop terminal. Change one
 reversible setting, such as Conservation mode, and approve the desktop password
 prompt. Confirm the readback, restore the original value, and close the app.
 This tests the installed driver, actual CLI, and desktop authentication together;
@@ -52,7 +50,8 @@ project's flake lock pins the native libraries and SDK obtained during rebuildin
 The archive's README explains rebuilding and the dependency copies.
 
 After changing `pubspec.yaml` or `pubspec.lock`, refresh the JSON files used by
-Nix's pure evaluator:
+Nix's pure evaluator. The development shell supplies Mike Farah's `yq`
+(`yq-go` in Nixpkgs) and jq to convert YAML to sorted JSON:
 
 ```bash
 nix develop -c bash tool/update_nix_metadata.sh

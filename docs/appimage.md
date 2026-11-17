@@ -26,8 +26,8 @@ and the socket's PID before authentication. Namespace-visible `nobody` ownership
 is never accepted as root evidence. This uses no project launcher or patched
 executables. The [native Nix package](nix.md) is also available.
 
-Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
-contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
+Build the desktop app and privileged control helper together on Ubuntu 22.04.
+The AppImage contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
 settings schemas, icons, and DejaVu fonts. It bundles `xdg-user-dir` to find the
 Documents directory used by the app's existing Hive storage.
 
@@ -37,45 +37,54 @@ driver interfaces; bundling older copies can prevent newer GPU drivers from
 loading. The native-runtime manifest lists the exact host library names found
 during packaging. GTK and its remaining dependencies are private to the app.
 
-The temporary helper is a static ELF executable. It embeds a separate cleanup
-ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
+The privileged control helper is a static ELF executable. It embeds a separate
+cleanup ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
 as retained standard-input data. Both images use validated sealed snapshots.
 Startup, authorized root control, and cleanup need no ELF interpreter or shared
 libraries. The authorization request carries both sealed images. Root execution
 loads no libraries from the AppDir.
 Systemd and the host Polkit service still authorize startup.
 
-Temporary hardware access requires the installed driver and `legion_cli`, systemd,
-and a desktop authentication agent. Installed service remains the default mode;
-choose Temporary helper in Settings and reopen the app to use it.
+Hardware access requires the installed driver and administrator-controlled
+`legion_cli`, systemd, Polkit, and a desktop authentication agent. The app uses
+the bundled privileged control helper from its first launch. The first privileged
+action requests approval; closing the app ends the helper session. Persistent service
+management and next-boot graphics changes are unavailable through the helper.
 
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
 
-Build `46b827e` passed Ubuntu 22.04 FUSE and extracted launches, normal window
-closes, and synthetic helper write/readback/restore. The same AppImage passed
+Build `46b827e`, using official Flutter 3.47.9, passed Ubuntu 22.04 FUSE and
+extracted launches, normal window closes, and synthetic helper
+write/readback/restore. The same AppImage passed
 official NixOS `appimage-run` control checks and ten normal Wayland closes.
 Neither VM reported Pango font errors. The user also confirmed the font fix on
 KDE Wayland with hybrid graphics. These checks do not establish real hardware
 control or desktop password-prompt behavior.
 
+The retained official Flutter 3.50.0 candidate and its matching source/checksums
+are listed in [the release record](releases.md#retained-official-candidate-16-november-2026).
+Its AppImage VM checks passed, but the same CI run's Debian normal-close failure
+still blocks release. The user subsequently reported that the official 3.50.0
+AppImage works on their machine, including retry. Hardware readback,
+restoration, helper cleanup, and numeric exit status were not explicitly reported.
+
 Wayland startup still reports `Unable to load  from the cursor theme`.
-Flutter initializes its cursor name to an empty string before GTK realizes the
-view. The pinned engine and stable Flutter 3.50.0 both contain this behavior;
-an SDK upgrade alone does not resolve it. Track the upstream fix in
+Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
+the view. Track the upstream fix in
 `lllf-dt0.5.10.1`. Keep the standard launch command; no cursor shim or log filter
 is included.
 
 ## Build
 
-The builder needs Docker, Git, Python 3, and curl. It runs the compiler as an
+The builder needs Docker, Git, jq, and curl. It runs the compiler as an
 ordinary user in an Ubuntu container. It mounts no host devices or system bus.
 Source packaging requires a clean committed checkout.
 
 ```bash
-curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz -o /tmp/flutter-3.47.9.tar.xz
-python3 tool/fetch_appimage_runtime.py build/appimage-inputs
-bash tool/build_appimage.sh /tmp/flutter-3.47.9.tar.xz build/appimage-inputs build/appimage-release
+curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
+bash tool/fetch_appimage_runtime.sh build/appimage-inputs
+bash tool/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
 ```
 
 If a cached builder's exact source package returns HTTP 404, refresh the Ubuntu
@@ -114,6 +123,30 @@ cache. Host CLI reads and helper startup filter out the bundled library, font,
 module, schema, and data paths. Packaging rejects Nix store loader references and
 any dynamic interpreter, shared dependency, RPATH, or RUNPATH in the static helper.
 
+## AppImage icons
+
+Dolphin's file preview and Plasma's running-app icon use different lookups.
+The AppImage includes a PNG `.DirIcon` for file previews. KDE's installed
+AppImage thumbnail plugin successfully decoded the original official 3.50
+image and the user's Inkscape comparison image. The reported missing Dolphin
+preview is not yet reproduced by that plugin; the running-app fix below does
+not establish a fix for the file-manager display.
+
+Use the standard launch command above. Plasma can read an AppImage's bundled
+desktop entry and icon through the running process's `APPDIR`; users should not
+need to copy desktop files or install another launcher to get the taskbar icon.
+
+The AppDir root uses `Icon=legion_frontend` with matching PNG/SVG files and
+`.DirIcon`. Plasma 6.8's AppImage fallback mistakes the last part of a dotted
+icon name for a file extension. A short root icon name avoids that lookup error.
+The desktop filename, native application ID, and installed-package icon name
+remain `io.github.prnice.legion_linux_frontend`. The Legion artwork is unchanged.
+
+The icon lookup was checked with Plasma's actual task-manager library and the
+standard NixOS runner, without host desktop registration. Sway rendering and
+X11 `_NET_WM_ICON` checks do not prove the visible KDE taskbar result. Track that
+remaining desktop check in `lllf-dt0.5.18`.
+
 ## Test the artifact
 
 Use the [Ubuntu VM runner](architecture/portable-distro-qualification.md) with the
@@ -147,8 +180,8 @@ bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimag
 ```
 
 This separate NixOS VM launches the actual app through official `appimage-run`.
-It saves Temporary helper through Settings, reopens the app, and uses the Battery
-page to change and restore a synthetic setting. It checks private GTK libraries,
+It uses the helper on first launch and changes and restores a synthetic setting
+on the Battery page. It checks private GTK libraries,
 the runner's user namespace, static helper execution, cleanup, denied approval,
 and a missing authentication agent. Fixed-location CLI discovery is also tested
 inside the runner. The synthetic CLI and kernel files exist only in the VM;
@@ -156,10 +189,17 @@ real hardware is not involved. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
+## Known shutdown issue
+
+Flutter 3.50.0 can crash when closing the app in the NixOS VM. The SDK upgrade
+and a native cleanup experiment did not resolve it. The experiment was reverted;
+package acceptance remains incomplete. See the
+[shutdown evidence and follow-up](linux-shutdown.md) before treating a trial
+artifact as release-ready.
+
 ## Desktop trial
 
-After opening the app, choose **Temporary helper** in Settings, close it, and
-reopen it with the same command. Record the current Conservation mode value.
+Open the app and record the current Conservation mode value.
 Change it and, if a password prompt appears, cancel first: the setting must stay
 unchanged. Retry, approve, and confirm the new value in the app. Restore the
 original value, confirm it, and close the app normally. Record any error and the

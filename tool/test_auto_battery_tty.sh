@@ -81,30 +81,16 @@ json_matches() {
   local effective=$3
   local reconciliation=$4
 
-  python3 -c '
-import json
-import sys
-
-status = json.load(sys.stdin)
-matches = (
-    status["selected_mode"] == sys.argv[1]
-    and status["expected_dgpu_state"] == sys.argv[2]
-    and status["effective_dgpu_state"] == sys.argv[3]
-    and status["reconciliation"] == sys.argv[4]
-)
-raise SystemExit(0 if matches else 1)
-' "$selected" "$expected" "$effective" "$reconciliation"
+  jq -es --arg selected "$selected" --arg expected "$expected" \
+    --arg effective "$effective" --arg reconciliation "$reconciliation" '
+      length == 1 and (.[0] |
+        .selected_mode == $selected and .expected_dgpu_state == $expected and
+        .effective_dgpu_state == $effective and .reconciliation == $reconciliation)
+    ' > /dev/null
 }
 
 clients_clear() {
-  python3 -c '
-import json
-import sys
-
-status = json.load(sys.stdin)
-clear = status["client_inspection_complete"] and not status["active_clients"]
-raise SystemExit(0 if clear else 1)
-'
+  jq -es 'length == 1 and (.[0] | .client_inspection_complete == true and .active_clients == [])' > /dev/null
 }
 
 tty_path=$(tty 2>/dev/null || true)

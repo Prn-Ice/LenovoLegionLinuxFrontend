@@ -1,7 +1,7 @@
 # Error and Feedback Standard
 
 Use these rules for errors, recovery instructions, copy buttons, and success
-feedback. The privilege-setup dialog in
+feedback. The helper-setup dialog in
 [`app_shell_components.dart`](../lib/core/widgets/app_shell_components.dart) is
 the reference implementation.
 
@@ -78,44 +78,35 @@ different recovery steps.
 
 ## Recovery for known errors
 
-Use the privilege-setup error as the example for known failures:
-`LegionBridgeErrorCode.privilegeSetup`, returned when the
-`legion-control` D-Bus service or its authorization policy is not configured.
+### Administrator access recovery
 
-### Temporary helper recovery
-
-`AppFailureKind.portableSetup` identifies temporary-helper setup failures. Use
-the shared dialog to explain the incomplete action, checking the installed CLI
-and app files, the desktop authentication prompt, and reopening the app. Keep
-installed-service setup instructions in the installed-service failure flow.
-Hardware-access preference failures are acknowledged when their dialog closes,
-so retry can show the same failure again without clearing a newer failure.
+`AppFailureKind.portableSetup` identifies setup failures in the privileged control
+helper. Use the shared dialog to explain the incomplete action and how to check the installed
+CLI, bundled helper, and desktop authentication agent. A denied startup can be
+retried explicitly in the same app after cleanup. Timeouts, uncertain cleanup,
+and failures after startup acknowledgement require reopening the app.
 
 ### Setup recovery
 
 - A setup failure before dispatch means that command did not run. Do not claim
   that nothing changed if earlier steps in a multi-step action may have run.
-- NixOS users must import the supplied module and enable both Polkit and
-  `services.legionControl`.
-- Other distributions must install the supplied systemd unit, D-Bus policy, and
-  Polkit action.
+- Check that the app contains `libexec/legion-portable-control` and that systemd,
+  Polkit, and a desktop authentication agent are available.
+- Install `legion_cli` in an administrator-controlled host location. On NixOS,
+  use the system profile; a user profile cannot supply the privileged backend.
 
 Use this configuration for NixOS recovery:
 
 ```nix
 security.polkit.enable = true;
-services.legionControl = {
-  enable = true;
-  backendPackage = pkgs.lenovo-legion;
-};
+environment.systemPackages = [ pkgs.lenovo-legion ];
 ```
 
 ### Developer notes
 
-- `legion-control` is a narrowly scoped root service, not a generic command
-  runner.
-- Polkit authorizes the frontend's unique D-Bus sender before writes are
-  accepted.
+- The bundled helper accepts only typed hardware-control commands.
+- Polkit approves helper startup. The app and helper verify each other's
+  identity before the private connection accepts writes.
 
 When adding another known failure:
 
@@ -142,9 +133,8 @@ button to code blocks.
 - Do not open another dialog or floating notification to confirm a copy.
 - Revert the copied state if the platform clipboard call fails.
 
-The dialog content uses `SelectionArea`, while the NixOS configuration has its
-own copy button. Generic errors provide `Copy details` for the complete error
-text.
+The dialog content uses `SelectionArea`. Errors provide `Copy details` for the
+complete error text.
 
 ## Accessibility and Responsive Requirements
 

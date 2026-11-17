@@ -11,18 +11,19 @@ The VM experiment connects approved administrator startup to the real typed
 control API with a synthetic CLI. The desktop checks protocol compatibility
 before API authorization. Backend process containment, shared write locking,
 Dart launcher supervision, and trusted executable validation are implemented.
-The opt-in production helper discovers the installed CLI and checks
-its command syntax before accepting a connection. Settings supports selection
-for the next launch in qualification builds. Host CLI package qualification and
-release packages remain open. See the
+The bundled helper discovers the installed CLI and checks its command syntax
+before accepting a connection. Host CLI package qualification and release
+publication remain open. See the
 [public backlog](../../BACKLOG.md).
 
-The intended default for all formats is a temporary authorized helper.
-Persistent features can use optional system integration. Deprecating the
-installed interactive service requires desktop and distribution qualification,
-feature coverage, and a migration path. The app defaults to that
-installed service. Qualification builds can select temporary control in Settings
-for their next launch.
+The privileged control helper is a bundled process that performs approved
+hardware operations as root. The interface calls this **administrator access**.
+It is the app's only hardware-control connection and ends when the app closes
+or the session expires.
+Existing saved authorization choices are ignored. The standalone installed
+service remains a separate backend product; the frontend no longer connects to
+it. Persistent service management and next-boot graphics changes are unavailable
+through the helper.
 
 ## Installation experience
 
@@ -30,15 +31,15 @@ The intended release experience is:
 
 | Format | Desktop app | Hardware control |
 | --- | --- | --- |
-| NixOS | Nix package | Bundled session helper; optional module for persistent features |
-| Debian | Desktop package | Bundled session helper; optional integration for persistent features |
+| NixOS | Nix package | Bundled session helper |
+| Debian | Desktop package | Bundled session helper |
 | AppImage | Download and run | Bundled helper runs for the authorized app session |
 
 Nix on another distribution can supply the desktop package. Driver setup and
-installed-service or portable-helper integration need testing on that host.
+helper integration need testing on that host.
 
 The AppImage runs the UI as the current user. Readable sysfs data stays
-unprivileged. When a write needs authorization, the intended flow is:
+unprivileged. When a write needs authorization, the flow is:
 
 1. Explain that administrator access lasts for this app session.
 2. Ask the host's Polkit agent to authorize the fixed control helper.
@@ -46,13 +47,12 @@ unprivileged. When a write needs authorization, the intended flow is:
 4. Send the existing typed `LegionControl1` operations.
 5. End the helper and its backend processes when the connection ends.
 
-During migration the installed service remains available. Select the connection
-mode before writes. A denied request, incompatible service, or failed backend
-command must not trigger a second privilege mechanism automatically.
+A denied request, incompatible helper, or failed backend command must not
+trigger a second privilege mechanism automatically.
 
 Boot-time graphics reconciliation requires persistent system integration.
 Optional power telemetry and direct keyboard HID access also need explicit
-support decisions; the control prototype does not supply those permissions.
+host setup; the privileged control helper does not supply those permissions.
 
 ## Shared control implementation
 
@@ -62,9 +62,9 @@ service. The C++ command validation and dispatch remain shared through
 `control/control_service_runtime.{h,cc}`. The installed daemon and private session
 link this runtime directly.
 
-Installed mode keeps its system-bus policy and per-connection Polkit approval.
-Portable mode needs a separately reviewed bootstrap that establishes approval
-before exporting operations to its one peer. It must never expose a method for
+The standalone installed service keeps its system-bus policy and per-connection
+Polkit approval. The privileged control helper establishes approval before
+exporting operations to its one peer. It must never expose a method for
 running arbitrary commands or accepting an arbitrary backend executable.
 Polkit authorizes launching the helper; the helper and its supervisor enforce
 the session lifetime.
@@ -83,18 +83,12 @@ An older service, malformed reply, incompatible protocol, or missing interactive
 controls produces setup guidance before API authorization or writes.
 
 `GetCapabilities` now returns protocol version 1 and supported operations.
-Installed mode advertises `interactive-control`, `persistent-services`, and
-`next-boot-graphics` when configured. Portable mode advertises interactive
-controls and rejects service changes and next-boot requests. Metadata can be
+The standalone service advertises `interactive-control`, `persistent-services`,
+and `next-boot-graphics` when configured. The privileged control helper advertises
+interactive controls and rejects service changes and next-boot requests. Metadata can be
 read before `Authorize`. An older service without this method needs an
 incompatible-service message; it must not trigger portable elevation. The Dart
 client rejects service changes when `persistent-services` is absent.
-
-The installed transport uses the fixed host system-bus socket. It resolves the
-service's unique D-Bus owner and sends metadata, authorization, and writes to
-that owner. Each request checks that the public service name still belongs to
-it. A replacement service cannot inherit cached compatibility or authorization;
-the user must restart the app to establish a new connection.
 
 Compatibility checks and service lookup have five-second deadlines. Transport
 preparation and API authorization have separate deadlines; the backend command
@@ -124,11 +118,7 @@ The check establishes advertised command syntax and successful CLI startup in th
 backend environment. CLI package versions, scripts, imports, configuration files,
 and hardware behavior still need distribution qualification.
 
-Installed mode searches `PATH` for reads, the generic service unit uses
-`/usr/bin/legion_cli`, and the NixOS module receives a package path. Reconciling
-legacy installed-mode reads with its service configuration remains separate work.
-
-Portable reads use native `findHostCli` before any authorization. This accepts no
+App reads use native `findHostCli` before any authorization. This accepts no
 caller-selected path and resolves fixed locations on a GLib worker. Discovery
 for unprivileged reads establishes no root trust: an AppImage compatibility
 namespace may hide host file ownership. The root helper independently applies
@@ -173,7 +163,7 @@ applied. A timed-out or interrupted write needs a fresh read before retrying.
 
 ### Administrator startup experiment
 
-The VM-only `portable_bootstrap_probe` and opt-in production helper share
+The VM-only `portable_bootstrap_probe` and bundled production helper share
 `control/portable_bootstrap.cc`. The VM tests systemd's existing
 `org.freedesktop.systemd1.manage-units` Polkit action. Its launcher requests one
 fixed helper through `StartTransientUnit`, with interactive authorization enabled.
@@ -289,14 +279,14 @@ disposal is stopped. Shutdown escalates from SIGTERM to SIGKILL, and launcher
 exit closes the peer. Unit tests cover these races and a real unprivileged child
 that ignores SIGTERM.
 
-The provider selects one immutable `ControlMode` for the app process. The launcher
-accepts production `legion-portable-control-UUID.service` sessions and the guarded
+The provider creates the app's connection to the privileged control helper.
+The launcher accepts production `legion-portable-control-UUID.service` sessions and the guarded
 VM probe names. CLI setup failures stop startup before peer creation and reach
 Dart as typed setup errors. The production helper has a 15-minute idle limit and
 a 12-hour session limit. The launcher observes the running helper after approval;
 its initial authorization deadline no longer ends an active session.
 
-Build the opt-in helper for qualification with:
+Build the helper separately for native qualification with:
 
 ```bash
 cmake -S telemetry -B build/portable-helper -G Ninja \
@@ -304,17 +294,13 @@ cmake -S telemetry -B build/portable-helper -G Ninja \
 cmake --build build/portable-helper --target legion_portable_control
 ```
 
-The target produces `legion-portable-control`. Release packaging must stage it at
-the desktop launcher's expected `libexec/legion-portable-control` path. The target
-is disabled by default. A Linux qualification build can bundle it with:
+The target produces `legion-portable-control`. Standard Linux builds bundle it at
+the desktop launcher's expected `libexec/legion-portable-control` path:
 
 ```bash
-flutter build linux --release --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
-cmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON
-flutter build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
+flutter build linux --release
 ```
 
-The Linux bundle install rule includes the helper when that CMake option is on.
 The helper uses host libraries rather than the app bundle's `$ORIGIN` search
 path. Nix builds set canonical store library directories and use `patchelf` after
 installation to remove compiler-injected development paths. Other builds use the
@@ -322,19 +308,17 @@ host loader cache. This target requires CMake 3.16; Nix qualification bundles al
 require `patchelf`. The Nix development build retains store dependencies and
 still needs a separate portable distribution build.
 
-Settings offers Installed service and Temporary helper. Temporary control is
-available only when the qualification flag and bundled executable are present.
-The choice is saved in Hive for the next launch. The active provider and any
-approved helper keep their mode until the app closes. Selecting a mode requests
-no administrator approval; the first privileged operation starts the helper.
-A denied installed request never creates a portable transport. A failed temporary
-startup requires reopening the app. Settings disables persistent-service control
-in temporary mode; keyboard permissions and optional power telemetry remain host
-integration choices.
+Settings shows helper availability without an authorization selector. Opening
+the app or Settings requests no administrator approval; the first privileged
+operation starts the helper. A missing helper produces setup guidance. A denied
+startup can be retried explicitly after cleanup in the same app; uncertain
+cleanup requires reopening it. Keyboard permissions and optional power telemetry
+remain host integration choices.
 
-Portable setup failures have their own typed recovery guidance. Host CLI package
-and dependency checks, live authentication-dialog cancellation, Debian
-qualification, AppImage FUSE/extraction, and hardware readback remain open.
+Helper setup failures have typed recovery guidance. Distribution checks and
+desktop trials are recorded in the [AppImage](../appimage.md),
+[Debian](../debian.md), and [Nix](../nix.md) instructions. Synthetic VM checks
+do not establish real hardware behavior.
 
 ### Backend process containment
 

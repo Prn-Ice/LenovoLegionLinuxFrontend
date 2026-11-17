@@ -9,11 +9,9 @@ import 'display_state.dart';
 
 class DisplayBloc extends Bloc<DisplayEvent, DisplayState> {
   DisplayBloc({
-    required DisplayRepository repository,
-    Duration pollInterval = const Duration(seconds: 5),
-  }) : _repository = repository,
-       _pollInterval = pollInterval,
-       super(DisplayState.initial()) {
+    required this._repository,
+    this._pollInterval = const Duration(seconds: 5),
+  }) : super(DisplayState.initial()) {
     on<DisplayEvent>(
       (event, emit) async {
         if (_closing) return;

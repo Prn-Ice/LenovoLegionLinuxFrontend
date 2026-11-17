@@ -7,6 +7,43 @@ the project owner's **Legion Slim 7 16APH8 (82Y4, BIOS M1CN48WW)**. Not every
 feature has been verified even on that laptop. Other models and BIOS versions
 have not been tested. See [model support and recorded checks](docs/model-support.md).
 
+## Help wanted
+
+Much of this app is AI-generated code. I need as much help as I can get with the
+backend and system interactions.
+
+If you see something wrong, or the model making code more complicated than it
+needs to be (it does that a lot), please
+[open an issue](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/issues/new/choose).
+If something is broken on your Legion, please open an issue too.
+
+## Screenshots
+
+Captured with Spectacle on my Legion Slim 7 16APH8.
+
+![Dashboard showing power modes, temperatures, fan speeds, and quick controls](docs/screenshots/dashboard.png)
+
+<details>
+<summary>Power, fans, lighting, and GPU screenshots</summary>
+
+### Power
+
+![Power page showing CPU policy details and power limits](docs/screenshots/power.png)
+
+### Fans
+
+![Fans page showing current fan speed, temperature, and unavailable fan curve editing](docs/screenshots/fans.png)
+
+### Lighting
+
+![Lighting page showing per-key keyboard colors, effects, and brightness](docs/screenshots/lighting.png)
+
+### Discrete GPU
+
+![Discrete GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
+
+</details>
+
 ## Features and readiness
 
 Summary reviewed on **2026-11-11** against code and recorded evidence; no new
@@ -33,38 +70,38 @@ ways to help.
 
 ### Build and test
 
-- Flutter stable 3.47.9 or newer
-- CMake, Ninja, a C/C++ compiler, and pkg-config
+- Flutter stable 3.50.0 ([dependency notes](docs/dependencies.md))
+- CMake 3.16 or newer, Ninja, a C/C++ compiler, and pkg-config
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native services
-- Polkit development files for the control service
+- Polkit development files for the privileged control helper
 
 See [Contributing](CONTRIBUTING.md) for installation commands.
 
 ### Hardware features
 
 - Supported `legion_linux` kernel module
-- `legion_cli` backend; temporary-helper builds require an administrator-controlled installation
-- Installed service mode: `legion-control` with its D-Bus policy and Polkit action
-- Temporary helper mode: systemd and the bundled helper in the [Nix frontend](docs/nix.md) or [AppImage qualification build](docs/appimage.md)
-- Desktop Polkit authentication agent
+- Administrator-controlled `legion_cli` installation
+- Systemd and the privileged control helper bundled with the app
+- Polkit and a desktop authentication agent
 - NVIDIA drivers for NVIDIA dGPU features
 
-On NixOS, import `packaging/nixos/legion-telemetry.nix` and enable the control service:
+The app requests administrator approval for privileged hardware changes.
+Its privileged control helper performs those changes; closing the app ends
+administrator access.
+On NixOS, enable Polkit and install the CLI in the system profile:
 
 ```nix
 security.polkit.enable = true;
-services.legionControl = {
-  enable = true;
-  backendPackage = pkgs.lenovo-legion;
-};
+environment.systemPackages = [ pkgs.lenovo-legion ];
 ```
 
 ## Running
 
-Hardware controls require `legion_cli`. Installed mode finds it in `PATH` for
-reads; temporary mode selects fixed host locations. The temporary helper checks
-root ownership before executing privileged commands.
+Hardware controls discover `legion_cli` in fixed host locations. The privileged
+control helper checks root ownership before executing privileged commands.
+Persistent service management and next-boot graphics changes are unavailable through the
+helper. Optional power telemetry and keyboard access need their own host setup.
 On NixOS, use the [native Nix package](docs/nix.md):
 
 ```bash

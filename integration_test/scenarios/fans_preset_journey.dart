@@ -1,8 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
+import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
+import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
+import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
 import 'package:legion_frontend/features/fans/view/fans_page.dart';
 
 import '../support/journey.dart';
@@ -17,7 +20,17 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await app.dispose();
     });
-    await app.launch();
+    await app.launch(
+      additionalOverrides: [
+        // Require the write's readback; polling must not repair stale state.
+        fansBlocProvider.overrideWith(
+          (ref) => FansBloc(
+            repository: ref.watch(fansRepositoryProvider),
+            pollInterval: const Duration(days: 1),
+          )..add(const FansStarted()),
+        ),
+      ],
+    );
 
     await _navigateToFans(tester);
     final performancePreset = find

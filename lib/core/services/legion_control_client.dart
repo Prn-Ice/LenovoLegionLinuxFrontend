@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 
 import '../models/control_capabilities.dart';
-import '../models/control_mode.dart';
 import '../models/control_selectors.dart';
 import '../../features/dgpu/models/graphics_mode.dart';
 
@@ -68,148 +67,15 @@ class LegionControlGraphicsPendingException extends LegionControlException {
   const LegionControlGraphicsPendingException(super.message);
 }
 
-/// The production transport for the privileged legion-control system service.
-class DBusLegionControlTransport extends LegionControlTransport {
-  DBusLegionControlTransport({DBusClient? client})
-    : _client =
-          client ??
-          DBusClient(DBusAddress('unix:path=/run/dbus/system_bus_socket'));
-
-  static const _busName = 'io.github.prnice.LegionControl1';
-  static const _setupTimeout = Duration(seconds: 5);
-  final DBusClient _client;
-  String? _owner;
-  bool _closed = false;
-  Future<void>? _closing;
-
-  void _ensureOpen() {
-    if (_closed) {
-      throw const LegionControlUnavailableException(
-        'Control service connection is closed. Restart the app to reconnect.',
-      );
-    }
-  }
-
-  Future<String?> _resolveOwner() async {
-    try {
-      return await _client.getNameOwner(_busName);
-    } finally {
-      // DBusClient may finish opening its socket after close() was called.
-      if (_closed) await _client.close();
-    }
-  }
-
-  Future<String> _destination() async {
-    _ensureOpen();
-    String? owner;
-    try {
-      owner = await _resolveOwner().timeout(_setupTimeout);
-    } on TimeoutException {
-      await close();
-      throw const LegionControlTimeoutException(
-        'Control service lookup timed out. Restart the app to reconnect.',
-      );
-    }
-    _ensureOpen();
-    if (_owner != null && owner != _owner) {
-      await close();
-      throw const LegionControlUnavailableException(
-        'Control service restarted. Restart the app to check compatibility and reconnect.',
-      );
-    }
-    if (owner == null) {
-      throw const LegionControlSetupException(
-        'The installed control service is unavailable. Start the legion-control service and retry.',
-      );
-    }
-    _owner = owner;
-    return owner;
-  }
-
-  Future<DBusMethodSuccessResponse> _invoke(
-    String method, {
-    Iterable<DBusValue> values = const [],
-    DBusSignature? replySignature,
-    bool allowInteractiveAuthorization = false,
-  }) async {
-    final destination = await _destination();
-    _ensureOpen();
-    final reply = await _client.callMethod(
-      destination: destination,
-      path: DBusObjectPath('/io/github/prnice/LegionControl1'),
-      interface: _busName,
-      name: method,
-      values: values,
-      noAutoStart: true,
-      allowInteractiveAuthorization: allowInteractiveAuthorization,
-      replySignature: replySignature ?? DBusSignature.empty,
-    );
-    _ensureOpen();
-    return reply;
-  }
-
-  @override
-  Future<ControlCapabilities> getCapabilities() async {
-    final reply = await _invoke(
-      'GetCapabilities',
-      replySignature: DBusSignature('uas'),
-    );
-    final advertised = reply.returnValues[1].asStringArray().toSet();
-    return ControlCapabilities(
-      protocolVersion: reply.returnValues[0].asUint32(),
-      supported: {
-        if (advertised.contains('interactive-control'))
-          ControlCapability.interactiveControl,
-        if (advertised.contains('persistent-services'))
-          ControlCapability.persistentServices,
-        if (advertised.contains('next-boot-graphics'))
-          ControlCapability.nextBootGraphics,
-      },
-    );
-  }
-
-  @override
-  Future<void> authorize() async {
-    await _invoke('Authorize', allowInteractiveAuthorization: true);
-  }
-
-  @override
-  Future<void> call(String method, List<Object> arguments) async {
-    _ensureOpen();
-    final values = arguments.map((argument) {
-      if (argument is String) return DBusString(argument);
-      if (argument is bool) return DBusBoolean(argument);
-      if (argument is int) return DBusUint32(argument);
-      if (argument is List<int>) return DBusArray.byte(argument);
-      throw ArgumentError.value(
-        argument,
-        'argument',
-        'Unsupported D-Bus value',
-      );
-    });
-    await _invoke(method, values: values);
-  }
-
-  @override
-  Future<void> close() {
-    _closed = true;
-    return _closing ??= _client.close();
-  }
-}
-
 /// Validates typed control operations against the D-Bus contract.
 class LegionControlClient {
   LegionControlClient({
-    required LegionControlTransport transport,
-    this.controlMode = ControlMode.installedService,
-    Duration authorizationTimeout = const Duration(minutes: 2),
-    Duration metadataTimeout = const Duration(seconds: 5),
-  }) : _transport = transport,
-       _authorizationTimeout = authorizationTimeout,
-       _metadataTimeout = metadataTimeout;
+    required this._transport,
+    this._authorizationTimeout = const Duration(minutes: 2),
+    this._metadataTimeout = const Duration(seconds: 5),
+  });
 
   final LegionControlTransport _transport;
-  final ControlMode controlMode;
   final Duration _authorizationTimeout;
   final Duration _metadataTimeout;
   Future<void>? _preparing;
@@ -250,7 +116,7 @@ class LegionControlClient {
     }
   }
 
-  /// Checks the selected helper's protocol before API authorization.
+  /// Checks the helper's protocol before API authorization.
   Future<ControlCapabilities> getCapabilities() async {
     _ensureOpen();
     final preparing = _preparing ??= _prepareConnection();
@@ -272,7 +138,7 @@ class LegionControlClient {
         await close();
         throw error is LegionControlPortableSetupException
             ? error
-            : _setupError(error.message);
+            : LegionControlPortableSetupException(error.message);
       }
       rethrow;
     }
@@ -280,9 +146,8 @@ class LegionControlClient {
 
   Future<void> _prepareConnection() async {
     try {
-      await _whileOpen(
-        _transport.prepare(),
-      ).timeout(const Duration(seconds: 125));
+      await _whileOpen(_transport.prepare())
+          .timeout(const Duration(seconds: 125));
     } on TimeoutException {
       const error = LegionControlTimeoutException(
         'Control startup timed out. Start a new app session to retry.',
@@ -296,16 +161,11 @@ class LegionControlClient {
       if (error is LegionControlSetupException) {
         throw error is LegionControlPortableSetupException
             ? error
-            : _setupError(error.message);
+            : LegionControlPortableSetupException(error.message);
       }
       rethrow;
     }
   }
-
-  LegionControlSetupException _setupError(String message) =>
-      controlMode == ControlMode.temporaryHelper
-      ? LegionControlPortableSetupException(message)
-      : LegionControlSetupException(message);
 
   /// Obtains approval before the backend command's timeout starts.
   Future<void> authorize() async {
@@ -337,9 +197,8 @@ class LegionControlClient {
   Future<ControlCapabilities> _loadCapabilities() async {
     ControlCapabilities capabilities;
     try {
-      capabilities = await _whileOpen(
-        _transport.getCapabilities(),
-      ).timeout(_metadataTimeout);
+      capabilities = await _whileOpen(_transport.getCapabilities())
+          .timeout(_metadataTimeout);
     } on DBusReplySignatureException {
       throw const LegionControlSetupException(
         'The control helper returned invalid compatibility information. Update the app and control helper together.',
@@ -370,7 +229,7 @@ class LegionControlClient {
       ControlCapability.interactiveControl,
     )) {
       throw const LegionControlSetupException(
-        'The selected control helper does not support interactive controls. Update the app and control helper together.',
+        'The control helper does not support interactive controls. Update the app and control helper together.',
       );
     }
     return capabilities;
@@ -385,7 +244,7 @@ class LegionControlClient {
     final capabilities = await getCapabilities();
     if (!capabilities.supported.contains(capability)) {
       throw const LegionControlNotSupportedException(
-        'Changing system services requires installed system integration.',
+        'The app cannot manage background services or graphics changes scheduled for the next boot.',
       );
     }
     await _authorizeOnce();
@@ -533,10 +392,10 @@ class LegionControlClient {
         name.endsWith('UnknownObject') ||
         name.endsWith('UnknownInterface') ||
         name.endsWith('UnknownMethod')) {
-      return _setupError(message);
+      return LegionControlPortableSetupException(message);
     }
     if (name.endsWith('Error.Authorization')) {
-      return _setupError(message);
+      return LegionControlPortableSetupException(message);
     }
     if (name.endsWith('InvalidArgs') || name.endsWith('NotSupported')) {
       return LegionControlNotSupportedException(message);

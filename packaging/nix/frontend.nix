@@ -86,12 +86,7 @@ in
   '';
   buildPhase = ''
     runHook preBuild
-    flutter build linux --release --no-pub --config-only --split-debug-info="$debug" \
-      --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
-    cmake -S linux -B build/linux/x64/release \
-      -DBUILD_LEGION_CONTROL_SERVICE=OFF -DBUILD_PORTABLE_CONTROL_HELPER=ON
-    flutter build linux --release --no-pub --split-debug-info="$debug" \
-      --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true
+    flutter build linux --release --no-pub --split-debug-info="$debug"
     runHook postBuild
   '';
   postInstall = ''
@@ -114,7 +109,7 @@ in
     addAutoPatchelfSearchPath "${jdk17}/lib/server"
   '';
   meta = {
-    description = "Lenovo Legion hardware frontend with temporary administrator access";
+    description = "Lenovo Legion hardware frontend with administrator approval for hardware changes";
     homepage = "https://github.com/Prn-Ice/LenovoLegionLinuxFrontend";
     license = lib.licenses.gpl2Plus;
     platforms = [ "x86_64-linux" ];

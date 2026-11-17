@@ -18,8 +18,8 @@ String colorToOpenRgbHex(Color color) {
 /// Maps app [Color]s to the CLI's hex/flag vocabulary.
 class RgbLightingRepository {
   const RgbLightingRepository({
-    OpenRgbCliService service = const OpenRgbCliService(),
-  }) : _service = service;
+    this._service = const OpenRgbCliService(),
+  });
 
   final OpenRgbCliService _service;
 

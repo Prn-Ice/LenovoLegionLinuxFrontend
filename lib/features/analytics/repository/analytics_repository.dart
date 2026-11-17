@@ -6,14 +6,11 @@ import '../models/sensor_record.dart';
 
 class AnalyticsRepository {
   const AnalyticsRepository({
-    required LegionSysfsService sysfsService,
-    required NvidiaSmiService nvidiaSmiService,
-    required Box<SensorRecord> box,
-    Duration retention = const Duration(days: 30),
-  }) : _sysfsService = sysfsService,
-       _nvidiaSmiService = nvidiaSmiService,
-       _box = box,
-       _retention = retention;
+    required this._sysfsService,
+    required this._nvidiaSmiService,
+    required this._box,
+    this._retention = const Duration(days: 30),
+  });
 
   final LegionSysfsService _sysfsService;
   final NvidiaSmiService _nvidiaSmiService;
