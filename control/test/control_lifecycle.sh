@@ -53,6 +53,14 @@ for mode in graphics-blocked graphics-pending; do
   grep -F "$error" /tmp/control-client.err
   collected
 done
+echo 'Checking generic CLI exit classifications'
+for mode in generic-unavailable generic-feature-not-found; do
+  prepare "$mode"
+  reject legion-control-test-client toggle >/tmp/control-client.out 2>/tmp/control-client.err
+  if [[ $mode == generic-unavailable ]]; then error=Error.Unavailable; else error=Error.NotSupported; fi
+  grep -F "$error" /tmp/control-client.err
+  collected
+done
 echo 'Checking normal parent exit cleans detached stdout holders'
 prepare orphan-stdout
 legion-control-test-client toggle

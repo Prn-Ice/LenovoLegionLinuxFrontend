@@ -199,7 +199,12 @@ class LegionFrontendBridgeService {
           return result;
         }
 
-        final error = _buildCommandFailure(method, result, unavailable);
+        final error = _buildCommandFailure(
+          method,
+          result,
+          unavailable,
+          graphicsOperation: args.isNotEmpty && args.first == 'graphics-mode',
+        );
         final shouldRetry =
             attempt <= retries &&
             (error.code == LegionBridgeErrorCode.busy ||
@@ -315,13 +320,18 @@ class LegionFrontendBridgeService {
   LegionBridgeException _buildCommandFailure(
     String method,
     LegionCliResult result,
-    bool forcedUnavailable,
-  ) {
+    bool forcedUnavailable, {
+    required bool graphicsOperation,
+  }) {
     final outputLower = '${result.stdout}\n${result.stderr}'.toLowerCase();
 
     final code = forcedUnavailable
         ? LegionBridgeErrorCode.unavailable
-        : _classifyFailureCode(outputLower, result.exitCode);
+        : _classifyFailureCode(
+            outputLower,
+            result,
+            graphicsOperation: graphicsOperation,
+          );
 
     final message = switch (code) {
       LegionBridgeErrorCode.startupDenied =>
@@ -351,8 +361,12 @@ class LegionFrontendBridgeService {
     );
   }
 
-  LegionBridgeErrorCode _classifyFailureCode(String outputLower, int exitCode) {
-    if (exitCode == 126 ||
+  LegionBridgeErrorCode _classifyFailureCode(
+    String outputLower,
+    LegionCliResult result, {
+    required bool graphicsOperation,
+  }) {
+    if (result.exitCode == 126 ||
         outputLower.contains('not authorized') ||
         outputLower.contains('authorization failed') ||
         outputLower.contains('authentication failed') ||
@@ -364,7 +378,18 @@ class LegionFrontendBridgeService {
       return LegionBridgeErrorCode.permissionDenied;
     }
 
-    if (exitCode == 127 ||
+    if (graphicsOperation &&
+        result.classification == LegionCliExit.unavailable) {
+      return LegionBridgeErrorCode.graphicsBlocked;
+    }
+    if (graphicsOperation &&
+        result.classification == LegionCliExit.featureNotFound) {
+      return LegionBridgeErrorCode.graphicsPending;
+    }
+
+    if (result.classification == LegionCliExit.unavailable ||
+        result.classification == LegionCliExit.featureNotFound ||
+        result.exitCode == 127 ||
         outputLower.contains('command not found') ||
         outputLower.contains('command not available') ||
         outputLower.contains('not supported') ||

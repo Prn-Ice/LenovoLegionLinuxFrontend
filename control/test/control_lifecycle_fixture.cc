@@ -199,6 +199,10 @@ int main(int argc, char **argv) {
     return 2;
   if (mode == "graphics-pending")
     return 3;
+  if (mode == "generic-unavailable")
+    return 2;
+  if (mode == "generic-feature-not-found")
+    return 3;
   if (mode != "tree" && mode != "orphan-stdout" && mode != "flood")
     return 64;
   if (!StartDetachedTree(mode != "orphan-stdout"))

@@ -12,6 +12,7 @@ struct Command {
 };
 
 enum class GraphicsExit { kSuccess, kBlocked, kPending, kFailed };
+enum class CliExit { kSuccess, kFailed, kUnavailable, kFeatureNotFound };
 
 bool ValidateFeature(const std::string &, const std::string &, std::string *);
 bool ValidateToggle(const std::string &, bool, std::string *);
@@ -32,6 +33,7 @@ Command ServiceCommand(const std::string &, bool);
 bool ValidateGraphicsMode(const std::string &, std::string *);
 Command GraphicsModeCommand(const std::string &);
 GraphicsExit ClassifyGraphicsExit(int);
+CliExit ClassifyCliExit(int);
 bool ValidateBootGraphicsMode(const std::string &, std::string *);
 Command BootGraphicsRequestCommand(const std::string &);
 } // namespace legion_control

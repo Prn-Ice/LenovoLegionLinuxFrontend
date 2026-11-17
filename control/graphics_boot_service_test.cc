@@ -299,6 +299,76 @@ void test_boot_dispatch() {
     g_clear_error(&pending_reply.error);
     g_main_loop_unref(pending_reply.loop);
   }
+  Reply failed_graphics_reply{g_main_loop_new(nullptr, FALSE)};
+  begin_graphics(&failed_graphics_reply);
+  controlled->Finish(legion_control::ManagedCommandStatus::commandFailed, 1);
+  g_main_loop_run(failed_graphics_reply.loop);
+  g_assert_null(failed_graphics_reply.value);
+  g_assert_nonnull(failed_graphics_reply.error);
+  g_assert_nonnull(strstr(failed_graphics_reply.error->message,
+                          "CommandFailed"));
+  g_clear_error(&failed_graphics_reply.error);
+  g_main_loop_unref(failed_graphics_reply.loop);
+
+  auto begin_backend_call = [&](const char *method, GVariant *parameters,
+                                Reply *pending) {
+    g_dbus_connection_call(
+        client, g_dbus_connection_get_unique_name(server), path, iface, method,
+        parameters, nullptr, G_DBUS_CALL_FLAGS_NONE, 5000, nullptr,
+        [](GObject *source, GAsyncResult *result, gpointer data) {
+          auto *reply = static_cast<Reply *>(data);
+          reply->value = g_dbus_connection_call_finish(
+              G_DBUS_CONNECTION(source), result, &reply->error);
+          g_main_loop_quit(reply->loop);
+        },
+        pending);
+    bool expired = false;
+    const guint timeout = g_timeout_add(
+        5000,
+        [](gpointer data) -> gboolean {
+          *static_cast<bool *>(data) = true;
+          return G_SOURCE_REMOVE;
+        },
+        &expired);
+    while (!context.active && !expired)
+      g_main_context_iteration(nullptr, TRUE);
+    if (!expired)
+      g_source_remove(timeout);
+    g_assert_false(expired);
+  };
+
+  context.systemctl = helper;
+  for (int status : {2, 3}) {
+    Reply service_reply{g_main_loop_new(nullptr, FALSE)};
+    begin_backend_call("SetServiceEnabled",
+                       g_variant_new("(sb)", "legiond_stack", TRUE),
+                       &service_reply);
+    controlled->Finish(legion_control::ManagedCommandStatus::commandFailed,
+                       status);
+    g_main_loop_run(service_reply.loop);
+    g_assert_null(service_reply.value);
+    g_assert_nonnull(service_reply.error);
+    g_assert_nonnull(strstr(service_reply.error->message, "CommandFailed"));
+    g_clear_error(&service_reply.error);
+    g_main_loop_unref(service_reply.loop);
+  }
+
+  context.graphics_boot = helper;
+  for (int status : {2, 3}) {
+    Reply boot_reply{g_main_loop_new(nullptr, FALSE)};
+    begin_backend_call("RequestGraphicsModeAtBoot",
+                       g_variant_new("(s)", "hybrid-igpu-only"),
+                       &boot_reply);
+    controlled->Finish(legion_control::ManagedCommandStatus::commandFailed,
+                       status);
+    g_main_loop_run(boot_reply.loop);
+    g_assert_null(boot_reply.value);
+    g_assert_nonnull(boot_reply.error);
+    g_assert_nonnull(strstr(boot_reply.error->message, "CommandFailed"));
+    g_clear_error(&boot_reply.error);
+    g_main_loop_unref(boot_reply.loop);
+  }
+
   Reply pending_reply{g_main_loop_new(nullptr, FALSE)};
   begin_graphics(&pending_reply);
   context.active->command->Cancel();
@@ -323,7 +393,7 @@ void test_boot_dispatch() {
   g_assert_nonnull(error);
   g_assert_nonnull(strstr(error->message, "Unavailable"));
   g_clear_error(&error);
-  g_assert_cmpuint(controlled->starts, ==, 3);
+  g_assert_cmpuint(controlled->starts, ==, 8);
 
   unlink(log.c_str());
   unlink(helper.c_str());

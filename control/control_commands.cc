@@ -172,6 +172,15 @@ GraphicsExit ClassifyGraphicsExit(int exit_status) {
     return GraphicsExit::kPending;
   return GraphicsExit::kFailed;
 }
+CliExit ClassifyCliExit(int exit_status) {
+  if (exit_status == 0)
+    return CliExit::kSuccess;
+  if (exit_status == 2)
+    return CliExit::kUnavailable;
+  if (exit_status == 3)
+    return CliExit::kFeatureNotFound;
+  return CliExit::kFailed;
+}
 bool ValidateBootGraphicsMode(const std::string &mode, std::string *error) {
   if (mode == "hybrid" || mode == "hybrid-igpu-only")
     return true;
