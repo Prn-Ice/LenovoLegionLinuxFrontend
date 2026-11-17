@@ -192,11 +192,39 @@ Prerelease versions receive the GitHub prerelease flag and are not marked Latest
 
 ## Release notes
 
-Notes list commit subjects and short hashes since the nearest preceding version
-tag reachable from the release commit. Merge commits are omitted; the commits
-they introduced are included. The first tag lists its full history. Preparation
-requires a full checkout, and later commits on main do not enter an older tag's
-notes. Hardware requirements and known issues live in the installation guides.
+Notes group commits under Breaking changes, Features, Fixes, Improvements,
+Documentation, and Maintenance. Empty sections are omitted. Each entry contains
+the description, optional scope, and a commit link; the notes end with a full
+changelog link. Conventional prefixes such as `fix:` become section headings.
+Older subjects without a prefix appear under Maintenance.
+
+The range starts after the nearest preceding version tag reachable from the
+release commit. Merge messages are omitted; the commits they introduced are
+included. The first tag lists its full history. Preparation requires a full
+checkout, and later commits on main do not enter an older tag's notes.
+Hardware requirements and known issues live in the installation guides.
+
+For example:
+
+```markdown
+## What changed
+
+### Features
+
+- fans: add a quiet preset (commit link)
+
+### Fixes
+
+- preserve the curve after a failed write (commit link)
+
+Full changelog
+```
+
+Keep entries short and describe the effect on the app or its maintenance.
+The [commit conventions](../CONTRIBUTING.md#make-a-change) keep future notes
+consistent. Repository settings require the `Conventional Commits` check, use
+squash-only merges, and select `PR_TITLE` for the default squash subject.
+Configure these server settings when creating a new repository from this source.
 
 ## Review and reruns
 

@@ -35,7 +35,8 @@ The public repository uses GitHub Free's branch protection for `main`:
 - Apply these requirements to administrators too; block force pushes and deletion.
 
 Require all ten jobs in `ci.yml`, including the selector, package builds, and
-acceptance jobs, plus OSV's `pull-request / osv-scan`. Accept check results only
+acceptance jobs, `Conventional Commits`, and OSV's `pull-request / osv-scan`.
+Accept check results only
 from the GitHub Actions app. GitHub accepts jobs skipped by changed-path selection;
 a failed selector or selected job blocks merging. Keep the required-check names
 in branch protection in sync when adding or renaming jobs.
@@ -43,6 +44,14 @@ in branch protection in sync when adding or renaming jobs.
 If another PR merges first, update the remaining PR branch and let its checks
 run again before merging. This tests the new combination of changes, rather than
 repeating checks after a merge. Direct pushes to `main` are blocked.
+
+`conventional-commits.yml` checks PR titles on opening, reopening, edits, and
+pushes. It also checks new non-merge commit subjects against the allowed types
+in [Contributing](../CONTRIBUTING.md#make-a-change). It uses read-only permissions.
+Squash-only merges use the PR title as their default subject; the maintainer
+must preserve that format if editing the final message. GitHub rejected a native
+`commit_message_pattern` ruleset for this repository, so enforcement uses a
+required Actions check rather than a server-side commit-message rule.
 
 ## Retry failed jobs
 
