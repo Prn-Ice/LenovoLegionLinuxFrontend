@@ -57,6 +57,7 @@ jobs:
       - name: Test VM readiness and evidence handling
         run: |
           bash control/test/acceptance_support_test.sh
+          bash test/tool/appimage_nixos_wrapper_test.sh
           bash test/tool/portable_distro_evidence_test.sh
           bash test/tool/portable_distro_readiness_test.sh
 
@@ -256,6 +257,7 @@ jobs:
           path: |
             build/appimage-release
             build/appimage-qualification
+            build/appimage-nixos-qualification
           if-no-files-found: ignore
 
   linux-integration:
