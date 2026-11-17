@@ -18,6 +18,7 @@ Uint8List sensorRecordsCsv(List<SensorRecord> records) {
       'cpu_temp_c',
       'fan1_rpm',
       'fan2_rpm',
+      'dgpu_temp_c',
     ],
     for (final record in records)
       [
@@ -31,6 +32,7 @@ Uint8List sensorRecordsCsv(List<SensorRecord> records) {
         cell(record.cpuTempC),
         cell(record.fan1Rpm),
         cell(record.fan2Rpm),
+        cell(record.dgpuTempC),
       ],
   ];
 

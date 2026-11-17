@@ -25,15 +25,6 @@ void main() {
       cpuPackagePowerW: 24.5,
       fan1Rpm: 1800,
       fan2Rpm: 1500,
-      gpuName: null,
-      gpuTempC: null,
-      gpuUtilPercent: null,
-      gpuClockGhz: null,
-      gpuVramUsedGb: null,
-      gpuVramTotalGb: null,
-      gpuFanPercent: null,
-      gpuPowerDrawW: null,
-      gpuIsDiscrete: false,
       motherboardTempC: null,
       batteryPercent: 78,
       batteryCharging: true,
@@ -67,9 +58,8 @@ void main() {
     blocTest<LiveSensorBloc, LiveSensorState>(
       'emits error state when loadSnapshot throws',
       build: () {
-        when(
-          () => repository.loadSnapshot(),
-        ).thenThrow(Exception('sysfs error'));
+        when(() => repository.loadSnapshot())
+            .thenThrow(Exception('sysfs error'));
         return LiveSensorBloc(
           repository: repository,
           pollInterval: const Duration(seconds: 60),

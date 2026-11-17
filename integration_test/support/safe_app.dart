@@ -14,6 +14,7 @@ import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
@@ -393,7 +394,7 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 
 class _NoNvidia implements NvidiaSmiService {
   @override
-  Future<NvidiaSmiSnapshot?> readSnapshot() async => null;
+  Future<GpuReading?> readSnapshot() async => null;
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

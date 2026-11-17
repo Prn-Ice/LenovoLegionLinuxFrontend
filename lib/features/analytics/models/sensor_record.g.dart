@@ -27,13 +27,14 @@ class SensorRecordAdapter extends TypeAdapter<SensorRecord> {
       batteryTempC: (fields[7] as num?)?.toDouble(),
       gpuUtilPercent: (fields[8] as num?)?.toDouble(),
       gpuPowerDrawW: (fields[9] as num?)?.toDouble(),
+      dgpuTempC: (fields[10] as num?)?.toDouble(),
     );
   }
 
   @override
   void write(BinaryWriter writer, SensorRecord obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.timestamp)
       ..writeByte(1)
@@ -53,7 +54,9 @@ class SensorRecordAdapter extends TypeAdapter<SensorRecord> {
       ..writeByte(8)
       ..write(obj.gpuUtilPercent)
       ..writeByte(9)
-      ..write(obj.gpuPowerDrawW);
+      ..write(obj.gpuPowerDrawW)
+      ..writeByte(10)
+      ..write(obj.dgpuTempC);
   }
 
   @override

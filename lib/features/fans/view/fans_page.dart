@@ -44,7 +44,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         state.lockFanControllerEnabled != null;
     final currentTemperature = _channel == FanChannel.cpu
         ? sensors.cpuTempC
-        : sensors.gpuTempC;
+        : sensors.dgpu?.tempC;
     final currentRpm = _channel == FanChannel.cpu
         ? sensors.fan1Rpm
         : sensors.fan2Rpm;
@@ -132,8 +132,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: enabled ? 'Enable maximum fan speed' : 'Disable maximum fan speed',
-      message:
-          'Maximum fan speed overrides normal curve control and may increase noise and power use. This change requires privileged access.',
+      message: 'Maximum fan speed overrides normal curve control and may increase noise and power use. This change requires privileged access.',
       confirmLabel: enabled ? 'Enable' : 'Disable',
     );
     if (!context.mounted || !confirmed) return;
@@ -159,8 +158,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Set mini fan curve',
-      message:
-          'This changes the embedded controller fan behavior and requires privileged access.',
+      message: 'This changes the embedded controller fan behavior and requires privileged access.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
@@ -175,8 +173,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Change fan controller lock',
-      message:
-          'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
+      message: 'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
@@ -314,9 +311,8 @@ class _PresetChip extends StatelessWidget {
       side: selected ? BorderSide(color: accent.withValues(alpha: 0.55)) : null,
       checkmarkColor: accent,
       labelStyle: selected
-          ? Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: scheme.onSurface)
+          ? Theme.of(context).textTheme.labelLarge
+                ?.copyWith(color: scheme.onSurface)
           : null,
       onSelected: enabled ? (_) => onSelected(preset) : null,
       avatar: recommended

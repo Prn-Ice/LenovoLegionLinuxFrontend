@@ -1,7 +1,7 @@
-// test/features/analytics/analytics_repository_test.dart
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
@@ -58,8 +58,23 @@ void main() {
     expect(box.values.first.fan2Rpm, 2200);
     expect(box.values.first.cpuTempC, 55.0);
     expect(box.values.first.gpuTempC, 48.0);
+    expect(box.values.first.dgpuTempC, isNull);
     expect(box.values.first.batteryPercent, 74);
     expect(box.values.first.batteryPowerDrawW, 12.4);
+  });
+
+  test('persists attributed dGPU temperature without relabelling legacy GPU records', () async {
+    await box.add(SensorRecord(timestamp: DateTime.now(), gpuTempC: 48));
+    when(nvidia.readSnapshot)
+        .thenAnswer((_) async => const GpuReading(tempC: 67, usagePercent: 31));
+    final record = await repo.recordReading();
+    expect(record.dgpuTempC, 67);
+    expect(record.gpuUtilPercent, 31);
+    await box.close();
+    box = await Hive.openBox<SensorRecord>('sensor_records_test');
+    expect(box.values.first.gpuTempC, 48);
+    expect(box.values.first.dgpuTempC, isNull);
+    expect(box.values.last.dgpuTempC, 67);
   });
 
   test('readHistory returns all records within the window', () async {

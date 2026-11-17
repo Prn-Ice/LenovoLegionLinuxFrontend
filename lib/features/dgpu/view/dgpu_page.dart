@@ -267,10 +267,8 @@ class _GpuOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final telemetryAvailable = sensor.gpuIsDiscrete;
-    final name = telemetryAvailable && sensor.gpuName != null
-        ? sensor.gpuName!
-        : state.name ?? 'NVIDIA discrete GPU';
+    final gpu = sensor.dgpu;
+    final name = gpu?.name ?? state.name ?? 'NVIDIA discrete GPU';
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
@@ -297,16 +295,14 @@ class _GpuOverview extends StatelessWidget {
                       name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
                       'Discrete GPU · '
                       '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -320,41 +316,38 @@ class _GpuOverview extends StatelessWidget {
             spacing: 26,
             runSpacing: 14,
             children: [
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? sensor.gpuPerformanceState ?? '—'
-                    : '—',
-                label: 'Power state',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _measurement(sensor.gpuTempC, '°', 0)
-                    : '—',
-                label: 'Temperature',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _measurement(sensor.gpuPowerDrawW, 'W', 1)
-                    : '—',
-                label: 'Power draw',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _vramLabel(sensor.gpuVramUsedGb, sensor.gpuVramTotalGb)
-                    : '—',
-                label: 'VRAM',
-              ),
+              if (gpu?.usagePercent != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.usagePercent, '%', 0),
+                  label: 'Usage',
+                ),
+              if (gpu?.performanceState != null)
+                _GpuMetric(value: gpu!.performanceState!, label: 'Power state'),
+              if (gpu?.tempC != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.tempC, '°', 0),
+                  label: 'Temperature',
+                ),
+              if (gpu?.powerDrawW != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.powerDrawW, 'W', 1),
+                  label: 'Power draw',
+                ),
+              if (gpu?.vramUsedGb != null && gpu?.vramTotalGb != null)
+                _GpuMetric(
+                  value: _vramLabel(gpu!.vramUsedGb, gpu.vramTotalGb),
+                  label: 'VRAM',
+                ),
             ],
           ),
-          if (!telemetryAvailable) ...[
+          if (gpu == null) ...[
             const SizedBox(height: 14),
             Text(
               state.isActive == false
                   ? 'Live NVIDIA telemetry is unavailable while the GPU is suspended.'
                   : 'Live NVIDIA telemetry is unavailable. Check the NVIDIA driver and nvidia-smi.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
         ],
@@ -459,9 +452,8 @@ class _GpuMetric extends StatelessWidget {
         ),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: scheme.onSurfaceVariant),
         ),
       ],
     );
@@ -488,15 +480,13 @@ class _ProcessesCard extends StatelessWidget {
             children: [
               Text(
                 'Processes on the dGPU',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
                 '${processes.length} running',
-                style: monoFactStyle(
-                  scheme,
-                ).copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
+                style: monoFactStyle(scheme)
+                    .copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
             ],
           ),
@@ -529,9 +519,8 @@ class _ProcessesCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       'PID ${process.pid}',
-                      style: monoFactStyle(
-                        scheme,
-                      ).copyWith(color: scheme.onSurfaceVariant),
+                      style: monoFactStyle(scheme)
+                          .copyWith(color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(width: 14),
                     Text(
@@ -545,9 +534,8 @@ class _ProcessesCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Display server processes may not appear in this list.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -577,9 +565,8 @@ class _GraphicsModeCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Graphics mode',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               _ReconciliationBadge(status: status),
@@ -588,17 +575,15 @@ class _GraphicsModeCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Choose which graphics hardware the laptop can use.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
           if (status == null)
             Text(
               'Graphics status is unavailable. Use Refresh to reload it before changing modes.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             )
           else ...[
             LayoutBuilder(
@@ -648,17 +633,14 @@ class _GraphicsModeCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 switch (status.reconciliation) {
-                  GraphicsReconciliation.needed =>
-                    'Save your work and restart the laptop before changing graphics modes again.',
+                  GraphicsReconciliation.needed => 'Save your work and restart the laptop before changing graphics modes again.',
                   GraphicsReconciliation.blocked =>
                     'Close applications using NVIDIA graphics and disconnect external displays, then try again. '
                         'If the desktop is using NVIDIA graphics, log out and switch modes from a text console.',
-                  _ =>
-                    'Use Refresh to reload graphics status before changing modes.',
+                  _ => 'Use Refresh to reload graphics status before changing modes.',
                 },
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.warning),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.warning),
               ),
             ],
             const SizedBox(height: 16),
@@ -666,9 +648,8 @@ class _GraphicsModeCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Change graphics mode',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             ResponsiveCardGrid(
@@ -771,9 +752,8 @@ class _GraphicsFact extends StatelessWidget {
         children: [
           Text(
             label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
           Text(value, style: Theme.of(context).textTheme.titleSmall),
@@ -811,10 +791,8 @@ class _ReconciliationBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -846,9 +824,8 @@ class _GpuPerformanceCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'GPU performance',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -942,17 +919,15 @@ class _DeactivateCard extends StatelessWidget {
         children: [
           Text(
             'Reset discrete GPU',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(
             'Close GPU workloads, then restart the PCI device to recover from '
             'a stuck active state.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
           Row(
@@ -966,9 +941,8 @@ class _DeactivateCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   'Privileged dGPU deactivation is not available in this build.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -1013,9 +987,8 @@ class _DeactivateCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Restart becomes available after the process list is clear.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
         ],
@@ -1025,7 +998,7 @@ class _DeactivateCard extends StatelessWidget {
 }
 
 double? _gpuUtilisation(SensorRecord record) => record.gpuUtilPercent;
-double? _gpuTemperature(SensorRecord record) => record.gpuTempC;
+double? _gpuTemperature(SensorRecord record) => record.dgpuTempC;
 double? _gpuPower(SensorRecord record) => record.gpuPowerDrawW;
 
 String _measurement(double? value, String unit, int precision) =>
