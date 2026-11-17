@@ -209,27 +209,11 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
-  // Use a header bar under GNOME and Wayland. Use a traditional title bar on
-  // X11 when not using GNOME to support tiling window managers.
-  gboolean use_header_bar = TRUE;
-#ifdef GDK_WINDOWING_X11
-  GdkScreen* screen = gtk_window_get_screen(window);
-  if (GDK_IS_X11_SCREEN(screen)) {
-    const gchar* wm_name = gdk_x11_screen_get_window_manager_name(screen);
-    if (g_strcmp0(wm_name, "GNOME Shell") != 0) {
-      use_header_bar = FALSE;
-    }
-  }
-#endif
-  if (use_header_bar) {
-    GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
-    gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "legion_frontend");
-    gtk_header_bar_set_show_close_button(header_bar, TRUE);
-    gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  } else {
-    gtk_window_set_title(window, "legion_frontend");
-  }
+  // Yaru draws the title bar and window buttons inside Flutter. An empty native
+  // titlebar prevents GTK or the window manager from adding another header.
+  GtkWidget* titlebar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  gtk_widget_set_no_show_all(titlebar, TRUE);
+  gtk_window_set_titlebar(window, titlebar);
 
   gtk_window_set_default_size(window, 1280, 720);
   gtk_window_set_icon_name(window, APPLICATION_ID);
@@ -250,6 +234,9 @@ static void my_application_activate(GApplication* application) {
   // handy_window: register plugins before showing the view so the Handy
   // rounded-corner window is applied.
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  // Set the desktop title after registration: handy_window would otherwise
+  // create a native header from it, even with the empty titlebar above.
+  gtk_window_set_title(window, "legion_frontend");
   osd_register(window, view);
   RegisterPortableControlChannel(view);
   gtk_widget_show(GTK_WIDGET(view));
