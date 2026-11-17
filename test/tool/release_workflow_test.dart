@@ -652,8 +652,9 @@ void main() {
     );
     final notes = File('${fixture.output.path}/RELEASE-NOTES.md')
         .readAsStringSync();
-    expect(notes, contains('Commits through `${fixture.tag}`.'));
-    expect(notes, contains('- fixture (`${fixture.commit.substring(0, 7)}`)'));
+    expect(notes, contains('/commits/${fixture.tag}'));
+    expect(notes, contains('### Maintenance\n\n- fixture (['));
+    expect(notes, contains('/commit/${fixture.commit.substring(0, 7)}'));
     expect(
       plan['notes_sha256'],
       fixture.hash(File('${fixture.output.path}/RELEASE-NOTES.md')),
@@ -685,7 +686,7 @@ void main() {
       fixture.git(['commit', '--allow-empty', '-qm', 'Future work']);
       fixture.git(['tag', 'v99.0.0']);
       final notes = release.releaseNotes(fixture.root, fixture.tag);
-      expect(notes, contains('Commits since `v1.2.2`.'));
+      expect(notes, contains('/compare/v1.2.2...${fixture.tag}'));
       expect(notes, contains('Fix AppImage startup'));
       expect(notes, contains('Update installation steps'));
       expect(notes, isNot(contains('- fixture')));
@@ -703,7 +704,7 @@ void main() {
     fixture.git(['tag', '-a', 'build-check', '-m', 'build']);
     fixture.git(['tag', '-f', '-a', fixture.tag, '-m', 'release']);
     final notes = release.releaseNotes(fixture.root, fixture.tag);
-    expect(notes, contains('Commits since `v1.2.2`.'));
+    expect(notes, contains('/compare/v1.2.2...${fixture.tag}'));
     expect(notes, contains('Current release change'));
     expect(notes, isNot(contains('Previous release change')));
   });
@@ -722,6 +723,51 @@ void main() {
       () => release.releaseNotes(copied, fixture.tag),
       failsWith('Fetch the full Git history'),
     );
+  });
+
+  test('notes group changes and keep breaking maintenance visible', () {
+    fixture.git(['tag', 'v1.2.2']);
+    for (final message in [
+      'feat(fans): add a quiet preset',
+      'fix: retain the last saved curve',
+      'perf: reduce sensor polling',
+      'docs: explain battery limits',
+      'ci: reuse downloaded packages',
+      'chore(control)!: require the new protocol',
+      'refactor: replace the configuration format\n\n'
+          'BREAKING CHANGE: Convert saved profiles before upgrading.',
+      'build: require the new compiler\n\n'
+          'BREAKING-CHANGE: Install the supported toolchain.',
+      'Legacy commit subject',
+    ]) {
+      fixture.git(['commit', '--allow-empty', '-qm', message]);
+    }
+    fixture.git(['tag', '-f', '-a', fixture.tag, '-m', 'release']);
+    final notes = release.releaseNotes(fixture.root, fixture.tag);
+    expect(notes, contains('### Features\n\n- fans: add a quiet preset'));
+    expect(notes, contains('### Fixes\n\n- retain the last saved curve'));
+    expect(notes, contains('### Improvements\n\n- reduce sensor polling'));
+    expect(notes, contains('### Documentation\n\n- explain battery limits'));
+    expect(notes, contains('### Maintenance\n\n- reuse downloaded packages'));
+    expect(notes, contains('- Legacy commit subject'));
+    final breaking = notes
+        .split('### Breaking changes\n')
+        .last
+        .split('### Features')
+        .first;
+    expect(breaking, contains('control: require the new protocol'));
+    expect(breaking, contains('replace the configuration format'));
+    expect(breaking, contains('require the new compiler'));
+    expect(notes, isNot(contains('feat(')));
+    expect(notes, isNot(contains('chore(')));
+  });
+
+  test('notes omit empty sections for a tag without new commits', () {
+    fixture.git(['tag', 'v1.2.2']);
+    final notes = release.releaseNotes(fixture.root, fixture.tag);
+    expect(notes, contains('No new commits.'));
+    expect(notes, isNot(contains('### ')));
+    expect(notes, contains('/compare/v1.2.2...${fixture.tag}'));
   });
 
   test('missing Debian acceptance stops release preparation', () {

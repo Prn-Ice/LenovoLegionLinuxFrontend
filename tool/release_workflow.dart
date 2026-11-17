@@ -8,6 +8,18 @@ import 'packaging_versions.dart';
 
 enum ReleaseCommand { checkTag, prepare, publish }
 
+enum ReleaseSection {
+  breaking('Breaking changes'),
+  features('Features'),
+  fixes('Fixes'),
+  improvements('Improvements'),
+  documentation('Documentation'),
+  maintenance('Maintenance');
+
+  const ReleaseSection(this.heading);
+  final String heading;
+}
+
 const qualifiedAppImage =
     'FUSE, extraction, desktop launch, and synthetic helper control verified';
 const qualifiedDeb = 'install, desktop, helper, upgrade, and purge verified';
@@ -260,18 +272,62 @@ String releaseNotes(Directory root, String tag) {
           for (final name in previousTags) '--match=$name',
           commit,
         ]);
-  final summary = releaseGit(root, [
+  final history = releaseGit(root, [
     'log',
     '--reverse',
     '--topo-order',
     '--no-merges',
-    '--format=- %s (`%h`)',
+    '-z',
+    '--format=%h%n%B',
     previous == null ? commit : '$previous..$commit',
     '--',
   ]);
-  return '## Changes\n\n'
-      '${previous == null ? 'Commits through `$tag`.' : 'Commits since `$previous`.'}\n\n'
-      '${summary.isEmpty ? 'No new commits.' : summary}\n';
+  final sections = <ReleaseSection, List<String>>{};
+  final conventional = RegExp(r'^([a-z]+)(?:\(([^()]+)\))?(!)?: (.+)$');
+  const repository = 'https://github.com/Prn-Ice/LenovoLegionLinuxFrontend';
+  for (final entry
+      in history.split('\x00').where((entry) => entry.isNotEmpty)) {
+    final lines = const LineSplitter().convert(entry.trim());
+    final hash = lines.first;
+    final subject = lines[1];
+    final match = conventional.firstMatch(subject);
+    final breaking =
+        match?[3] != null ||
+        lines
+            .skip(2)
+            .any((line) => RegExp(r'^BREAKING[ -]CHANGE: \S').hasMatch(line));
+    final section = breaking
+        ? ReleaseSection.breaking
+        : switch (match?[1]) {
+            'feat' => ReleaseSection.features,
+            'fix' || 'revert' => ReleaseSection.fixes,
+            'perf' || 'refactor' => ReleaseSection.improvements,
+            'docs' => ReleaseSection.documentation,
+            _ => ReleaseSection.maintenance,
+          };
+    final description = match?[4] ?? subject;
+    final scope = match?[2];
+    sections
+        .putIfAbsent(section, () => [])
+        .add(
+          '- ${scope == null ? '' : '$scope: '}$description '
+          '([$hash]($repository/commit/$hash))',
+        );
+  }
+  final notes = StringBuffer('## What changed\n');
+  if (sections.isEmpty) notes.writeln('\nNo new commits.');
+  for (final section in ReleaseSection.values) {
+    final entries = sections[section];
+    if (entries == null) continue;
+    notes
+      ..writeln('\n### ${section.heading}\n')
+      ..writeln(entries.join('\n'));
+  }
+  final changelog = previous == null
+      ? '$repository/commits/$tag'
+      : '$repository/compare/$previous...$tag';
+  notes.writeln('\n[Full changelog]($changelog)');
+  return notes.toString();
 }
 
 Map<String, Object> checkTag(Directory root, String tag) {
