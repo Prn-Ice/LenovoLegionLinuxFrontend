@@ -1,0 +1,31 @@
+name: Prepare package build inputs
+description: Cache downloads and verify them against the pinned build inputs.
+inputs:
+  appimage-runtime:
+    description: Include the AppImage runtime and its source archives.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v5
+      with:
+        path: ${{ runner.temp }}/flutter.tar.xz
+        key: flutter-archive-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('packaging/appimage/build-inputs.json') }}
+    - name: Verify or download the pinned SDK
+      shell: bash
+      run: |
+        digest="$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json)"
+        if [[ ! -f "$RUNNER_TEMP/flutter.tar.xz" ]] || ! printf '%s  %s\n' "$digest" "$RUNNER_TEMP/flutter.tar.xz" | sha256sum --check --status; then
+          url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"
+          curl --fail --silent --show-error --location --retry 3 --max-time 900 "$url" -o "$RUNNER_TEMP/flutter.tar.xz"
+        fi
+        printf '%s  %s\n' "$digest" "$RUNNER_TEMP/flutter.tar.xz" | sha256sum --check --status
+    - uses: actions/cache@v5
+      if: inputs.appimage-runtime == 'true'
+      with:
+        path: build/appimage-inputs
+        key: appimage-inputs-${{ hashFiles('packaging/appimage/build-inputs.json') }}
+    - name: Verify or download runtime inputs
+      if: inputs.appimage-runtime == 'true'
+      shell: bash
+      run: bash tool/fetch_appimage_runtime.sh build/appimage-inputs

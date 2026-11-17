@@ -1,7 +1,7 @@
 # Tag releases
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`. It checks the version,
-runs the full CI workflow on that commit, and creates a draft GitHub release
+checks the full CI suite on that commit, and creates a draft GitHub release
 with the checked AppImage, Debian package, and their companions. Drafts retain
 qualification notes while real hardware and desktop password-prompt checks
 remain open.
@@ -83,12 +83,17 @@ that the tag still resolves to the same commit on GitHub.
 
 ## What runs
 
-The tag workflow calls the same CI workflow used for main and pull requests:
-release-tool fixtures, Flutter analysis/tests and generated-source checks,
-native tests, NixOS lifecycle/bootstrap VMs, Ubuntu helper checks, Linux app
-journeys, Nix frontend build/acceptance, AppImage acceptance, and Debian package
-installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft job starts
-after every check succeeds.
+The tag workflow calls the same CI workflow used for main and pull requests.
+It first looks for a completed, successful main CI run with both package artifacts
+for the exact tagged commit. If found, it downloads those artifacts and skips its
+CI call. Otherwise it runs the full suite. PR results cannot supply a release.
+See [CI result reuse and caching](ci.md) for the trust checks and retention limits.
+
+The suite covers release-tool fixtures, Flutter analysis/tests and generated
+sources, native tests, NixOS lifecycle/bootstrap VMs, Linux app journeys, Nix
+frontend build/acceptance, AppImage acceptance (including Ubuntu helper checks),
+and Debian installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft
+job starts after the suite passes or a qualifying main run is found.
 
 The release helper then verifies the tag version, app/source hashes, complete
 helper inventory, and the VM evidence. The evidence must describe a clean

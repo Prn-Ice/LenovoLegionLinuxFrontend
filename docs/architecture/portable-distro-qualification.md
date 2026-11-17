@@ -81,8 +81,9 @@ temporary SSH key on exit. It requires an unused output directory.
 The output retains boot, build, test, and system logs. `manifest.json` records the
 source commit, modified source status, cloud-image checksum, source archive hash,
 and qualification archive hash. The qualification archive contains the helper,
-ELF headers, and exact distro package versions. CI retains these files in the
-`portable-ubuntu-22.04-qualification` artifact.
+ELF headers, and exact distro package versions. CI runs this check inside AppImage
+acceptance and includes `appimage-native-qualification.tar.gz` in that job's
+AppImage evidence archive, rather than repeating it in another VM.
 
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)

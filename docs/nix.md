@@ -70,7 +70,7 @@ discovery, approval, write/readback/restore, cleanup, and the absence of install
 Legion services. The guest has no Legion driver. Hardware readback and desktop
 password dialogs need separate testing.
 
-CI runs analysis, unit tests, and native tests on every PR. Packaging, desktop
-integration, and VM checks run when app, native, dependency, packaging, test,
-tool, or workflow inputs change. Every push to main and release tag runs them.
-Documentation-only PRs skip those heavier checks.
+CI selects analysis, unit tests, and native tests on every PR. Each packaging,
+desktop integration, and VM job has its own changed-path selection. Main pushes
+select all checks. Release tags can reuse a successful main CI run for the exact
+commit. See [CI selection and caching](ci.md).

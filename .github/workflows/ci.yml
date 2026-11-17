@@ -10,12 +10,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Select build and VM checks
     runs-on: ubuntu-latest
     outputs:
-      build: ${{ steps.changes.outputs.build }}
+      integration: ${{ steps.changes.outputs.integration }}
+      lifecycle: ${{ steps.changes.outputs.lifecycle }}
+      nix: ${{ steps.changes.outputs.nix }}
+      appimage: ${{ steps.changes.outputs.appimage }}
+      debian: ${{ steps.changes.outputs.debian }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,33 +42,6 @@ jobs:
             bash tool/ci_build_changes.sh
           fi
 
-  release-tools:
-    name: Release workflow tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.50.0'
-      - name: Resolve test dependencies
-        run: flutter pub get --enforce-lockfile
-      - name: Install package inspection tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
-      - name: Test tag validation and draft release handling
-        run: flutter test test/tool --reporter=compact
-      - name: Test VM readiness and evidence handling
-        run: |
-          bash control/test/acceptance_support_test.sh
-          bash test/tool/appimage_nixos_wrapper_test.sh
-          bash test/tool/portable_distro_evidence_test.sh
-          bash test/tool/portable_distro_readiness_test.sh
-
   test:
     name: Flutter Test & Analyze
     runs-on: ubuntu-latest
@@ -76,6 +57,7 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.50.0'
+          cache: true
 
       - name: Install dependencies
         run: |
@@ -94,6 +76,13 @@ jobs:
 
       - name: Run tests
         run: flutter test --reporter=compact
+
+      - name: Test VM readiness and evidence handling
+        run: |
+          bash control/test/acceptance_support_test.sh
+          bash test/tool/appimage_nixos_wrapper_test.sh
+          bash test/tool/portable_distro_evidence_test.sh
+          bash test/tool/portable_distro_readiness_test.sh
 
   native:
     name: Native services and tests
@@ -122,6 +111,7 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.50.0'
+          cache: true
 
       - name: Resolve probe dependencies
         run: flutter pub get --enforce-lockfile
@@ -151,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.build == 'true'
+    if: needs.changes.outputs.lifecycle == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -165,49 +155,28 @@ jobs:
           nix build .#checks.x86_64-linux.control-lifecycle
           .#checks.x86_64-linux.portable-bootstrap --print-build-logs
 
-  portable-ubuntu:
-    name: Portable helper on Ubuntu 22.04
+  appimage-build:
+    name: AppImage build and source companion
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      LLLF_VM_ACCELERATOR: kvm
+    timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.build == 'true'
+    if: needs.changes.outputs.appimage == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Install disposable VM tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
-      - name: Enable KVM for acceptance VMs
-        run: |
-          # Use the persistent KVM rule from cachix/install-nix-action.
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          sudo udevadm settle
-          test -r /dev/kvm
-          test -w /dev/kvm
-      - name: Download official Ubuntu cloud image and checksum
-        run: |
-          curl --fail --location --retry 3 --max-time 600 \
-            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/jammy.img
-          curl --fail --location --retry 3 --max-time 60 \
-            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/jammy.SHA256SUMS
-      - name: Build and qualify against distro libraries in the VM
-        run: |
-          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/jammy.SHA256SUMS)"
-          bash tool/test_portable_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualification
-      - name: Upload qualification results
-        if: always()
-        uses: actions/upload-artifact@v7
+      - uses: ./.github/actions/package-inputs
+      - name: Build the AppImage and source companion
+        run: bash tool/build_appimage.sh "$RUNNER_TEMP/flutter.tar.xz" build/appimage-inputs build/appimage-release
+      - uses: actions/upload-artifact@v7
         with:
-          name: portable-ubuntu-22.04-qualification
-          path: build/ubuntu-qualification
-          if-no-files-found: ignore
+          name: appimage-build
+          path: build/appimage-release
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
 
   appimage:
     name: AppImage build and Ubuntu/NixOS acceptance
@@ -215,13 +184,18 @@ jobs:
     timeout-minutes: 45
     env:
       LLLF_VM_ACCELERATOR: kvm
-    needs: changes
-    if: needs.changes.outputs.build == 'true'
+    needs: appimage-build
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: appimage-build
+          path: build/appimage-release
+      - name: Restore the AppImage executable bit after artifact download
+        run: chmod +x build/appimage-release/*.AppImage
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
@@ -229,23 +203,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
-      - name: Download pinned build inputs
-        run: |
-          sdk_url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"
-          curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
-          bash tool/fetch_appimage_runtime.sh build/appimage-inputs
-      - name: Build the AppImage and source companion
-        run: bash tool/build_appimage.sh /tmp/flutter.tar.xz build/appimage-inputs build/appimage-release
-      - name: Download official acceptance VM
-        run: |
-          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
-            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/appimage-jammy.img
-          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
-            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/appimage-jammy.SHA256SUMS
+      - uses: ./.github/actions/ubuntu-image
+        id: ubuntu
       - name: Test FUSE, extraction, desktop launch, and the bundled helper
+        env:
+          IMAGE: ${{ steps.ubuntu.outputs.image }}
+          CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/appimage-jammy.SHA256SUMS)"
-          bash tool/test_portable_distro.sh /tmp/appimage-jammy.img "$checksum" \
+          bash tool/test_portable_distro.sh "$IMAGE" "$CHECKSUM" \
             build/appimage-qualification --appimage build/appimage-release
       - name: Test privileged controls through official NixOS appimage-run
         run: |
@@ -262,6 +227,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: appimage-ubuntu-22.04
+          overwrite: true
+          compression-level: 0
           path: |
             build/appimage-release
             build/appimage-qualification
@@ -273,7 +240,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.build == 'true'
+    if: needs.changes.outputs.integration == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -291,6 +258,7 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.50.0'
+          cache: true
 
       - name: Enable Linux desktop
         run: flutter config --enable-linux-desktop
@@ -327,7 +295,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.build == 'true'
+    if: needs.changes.outputs.nix == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -343,19 +311,47 @@ jobs:
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs
 
+  debian-build:
+    name: Debian build and source companion
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: changes
+    if: needs.changes.outputs.debian == 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/package-inputs
+        with:
+          appimage-runtime: 'false'
+      - name: Build the Debian package and source companion
+        run: bash tool/build_deb.sh "$RUNNER_TEMP/flutter.tar.xz" build/deb-release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: debian-build
+          path: build/deb-release
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
   debian:
     name: Debian package build and acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       LLLF_VM_ACCELERATOR: kvm
-    needs: changes
-    if: needs.changes.outputs.build == 'true'
+    needs: debian-build
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: debian-build
+          path: build/deb-release
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
@@ -369,23 +365,16 @@ jobs:
           sudo udevadm settle
           test -r /dev/kvm
           test -w /dev/kvm
-      - name: Download the pinned SDK
-        run: |
-          sdk_url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"
-          curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
-      - name: Build the Debian package and source companion
-        run: bash tool/build_deb.sh /tmp/flutter.tar.xz build/deb-release
-      - name: Download verified Ubuntu and Debian acceptance images
-        run: |
-          curl --fail --silent --show-error --location --retry 3 --max-time 600 \
-            https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/deb-jammy.img
-          curl --fail --silent --show-error --location --retry 3 --max-time 60 \
-            https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/deb-jammy.SHA256SUMS
-          bash tool/fetch_debian_test_image.sh /tmp/deb-bookworm.img
+      - uses: ./.github/actions/ubuntu-image
+        id: ubuntu
+      - name: Download the verified Debian acceptance image
+        run: bash tool/fetch_debian_test_image.sh /tmp/deb-bookworm.img
       - name: Test install, launch, helper, upgrade, and purge on Ubuntu 22.04
+        env:
+          IMAGE: ${{ steps.ubuntu.outputs.image }}
+          CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/deb-jammy.SHA256SUMS)"
-          bash tool/test_portable_distro.sh /tmp/deb-jammy.img "$checksum" \
+          bash tool/test_portable_distro.sh "$IMAGE" "$CHECKSUM" \
             build/deb-ubuntu-qualification --deb build/deb-release
       - name: Test install, launch, helper, upgrade, and purge on Debian 12
         run: |
@@ -397,6 +386,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: debian-amd64
+          overwrite: true
+          compression-level: 0
           path: |
             build/deb-release
             build/deb-ubuntu-qualification
