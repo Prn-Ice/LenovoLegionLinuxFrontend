@@ -7,7 +7,7 @@ Installing it adds no persistent Legion service or authorization policy.
 Install the package with apt so it resolves the runtime dependencies:
 
 ```bash
-sudo apt install ./legion-linux-frontend_1.0.0+1-1_amd64.deb
+sudo apt install ./legion-linux-frontend_0.1.0~alpha.1+1-1_amd64.deb
 legion_frontend
 ```
 
