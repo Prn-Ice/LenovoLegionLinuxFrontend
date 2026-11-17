@@ -17,6 +17,7 @@
 
 - [Change graphics mode at the next boot](architecture/next-boot-graphics.md)
 - [Legion Slim 7 16APH8 findings](architecture/m1cn-hardware-evidence.md)
+- [Backend upgrade compatibility and follow-ups](backend-upgrade-compatibility.md)
 - [Power defaults investigation](power-defaults-evidence.md)
 - [Poweroff diagnostics after dGPU detach](architecture/poweroff-stall-investigation.md)
 - [PipeWire logout crash](architecture/pipewire-logout-crash.md)
