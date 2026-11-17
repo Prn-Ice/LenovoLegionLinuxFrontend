@@ -35,6 +35,16 @@
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
+      tag = pkgs.writeShellApplication {
+        name = "legion-tag";
+        runtimeInputs = with pkgs; [
+          git
+          yq-go
+          openssh
+          gnupg
+        ];
+        text = builtins.readFile ./tool/tag.sh;
+      };
     in
     {
       packages.${system} = {
@@ -51,8 +61,24 @@
           type = "app";
           program = pkgs.lib.getExe frontend;
         };
+        tag = {
+          type = "app";
+          program = pkgs.lib.getExe tag;
+        };
       };
       checks.${system} = {
+        release-tag =
+          pkgs.runCommand "legion-tag-test"
+            {
+              nativeBuildInputs = with pkgs; [
+                git
+                openssh
+              ];
+            }
+            ''
+              bash ${./test/tool/tag_test.sh} ${pkgs.lib.getExe tag}
+              touch "$out"
+            '';
         frontend-package = import ./control/test/frontend_package.nix { inherit pkgs frontend; };
         nix-metadata =
           pkgs.runCommand "legion-nix-metadata"

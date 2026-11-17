@@ -302,10 +302,11 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
-      - name: Build the frontend, source archive, and metadata check
+      - name: Build the frontend and sources; check metadata and release tagging
         run: >-
           nix build .#frontend .#frontend-source
-          .#checks.x86_64-linux.nix-metadata --print-build-logs
+          .#checks.x86_64-linux.nix-metadata
+          .#checks.x86_64-linux.release-tag --print-build-logs
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs
 

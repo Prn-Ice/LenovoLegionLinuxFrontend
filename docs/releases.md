@@ -120,13 +120,26 @@ Tag a commit containing the release workflow and the intended version in
 | `0.1.0-alpha.2+1` | `v0.1.0-alpha.2` |
 | `1.1.0-rc.1+2` | `v1.1.0-rc.1` |
 
-For the current version, when ready:
+From a clean checkout of the release commit, create and verify its signed tag:
 
 ```bash
-git tag -s v0.1.0-alpha.2 -m "v0.1.0-alpha.2"
-git verify-tag v0.1.0-alpha.2
-git push origin v0.1.0-alpha.2
+nix run .#tag
 ```
+
+The app reads the committed `pubspec.yaml` and uses your Git signing settings.
+Configure signing and verification as you would for `git tag -s` and
+`git verify-tag` (SSH signing needs `gpg.ssh.allowedSignersFile`).
+
+To create, verify, and push the tag to `origin`, run:
+
+```bash
+nix run .#tag -- --push
+```
+
+You can also use `--push` after creating the tag locally. An existing tag must
+point to HEAD and pass signature verification; the app preserves its signed
+object. A failed verification or push leaves the local tag available for retry.
+Pushing the tag starts the release workflow below.
 
 A mismatched tag stops before the build. The workflow checks out the triggering
 commit, including when main has advanced. Before creating the draft, it verifies
