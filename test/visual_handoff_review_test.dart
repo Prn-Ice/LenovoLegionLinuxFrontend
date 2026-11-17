@@ -325,7 +325,7 @@ void main() {
             brightness,
             ProviderScope(
               overrides: [
-                portableControlAvailableProvider.overrideWithValue(true),
+                bundledHelperExistsProvider.overrideWithValue(true),
                 powerBlocProvider.overrideWith((ref) => power),
                 liveSensorBlocProvider.overrideWith((ref) => sensors),
                 rgbLightingRepositoryProvider.overrideWithValue(

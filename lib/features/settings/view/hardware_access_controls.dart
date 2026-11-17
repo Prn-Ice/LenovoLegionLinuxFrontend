@@ -9,7 +9,7 @@ class HardwareAccessControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final available = ref.watch(portableControlAvailableProvider);
+    final helperExists = ref.watch(bundledHelperExistsProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -19,7 +19,7 @@ class HardwareAccessControls extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          available
+          helperExists
               ? 'A temporary helper requests administrator approval when you first change a hardware setting. Reading settings does not need approval.'
               : 'The temporary helper is missing from the app files. Hardware readings remain available. Reinstall a complete app build to change hardware settings.',
         ),

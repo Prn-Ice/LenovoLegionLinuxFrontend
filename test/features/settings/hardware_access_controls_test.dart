@@ -5,10 +5,10 @@ import 'package:legion_frontend/features/settings/view/hardware_access_controls.
 import 'package:material_ui/material_ui.dart';
 
 void main() {
-  for (final available in [true, false]) {
+  for (final helperExists in [true, false]) {
     for (final width in [420.0, 900.0]) {
       testWidgets(
-        'helper status and limits at $width pixels, available: $available',
+        'helper status and limits at $width pixels, file exists: $helperExists',
         (tester) async {
           tester.view.physicalSize = Size(width, 600);
           tester.view.devicePixelRatio = 1;
@@ -17,7 +17,7 @@ void main() {
           await tester.pumpWidget(
             ProviderScope(
               overrides: [
-                portableControlAvailableProvider.overrideWithValue(available),
+                bundledHelperExistsProvider.overrideWithValue(helperExists),
                 legionControlClientProvider.overrideWith((_) {
                   fail('Settings must not request privileged access');
                 }),
@@ -40,7 +40,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(
             find.textContaining(
-              available
+              helperExists
                   ? 'first change a hardware setting'
                   : 'Reinstall a complete app build',
             ),
