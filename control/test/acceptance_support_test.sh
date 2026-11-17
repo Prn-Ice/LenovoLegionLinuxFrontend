@@ -101,6 +101,28 @@ expect_status 23 bash -c '
 ' bash "$support/desktop_test_support.sh" "$home"
 echo 'PASS: missing helper cleanup fails and diagnostic errors preserve the first failure'
 
+(
+  gui_home=$home
+  gui_log=$temporary/app.log
+  gui_diagnostics=$temporary/diagnostics.txt
+  touch "$home/display.log" "$home/exit"
+  ps() { :; }
+  journalctl() { :; }
+  desktop_ocr() { :; }
+  gui_desktop() {
+    case "$*" in
+      'xdotool getwindowfocus') echo 123 ;;
+      'xdotool getmouselocation --shell') printf 'X=90\nY=228\nWINDOW=0\n' ;;
+      *) return 1 ;;
+    esac
+  }
+  desktop_collect_diagnostics >/dev/null 2>&1
+  grep -Fxq 123 "$gui_diagnostics"
+  grep -Fxq X=90 "$gui_diagnostics"
+  grep -Fxq WINDOW=0 "$gui_diagnostics"
+)
+echo 'PASS: failure diagnostics retain the focus ID separately from pointer coordinates'
+
 partial=$temporary/partial
 complete=$temporary/complete
 mkdir "$partial" "$complete"

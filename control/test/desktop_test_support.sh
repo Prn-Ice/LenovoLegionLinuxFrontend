@@ -85,7 +85,8 @@ desktop_collect_diagnostics() {
       pid=$(cat "$gui_home/pid")
       ls -ld "/proc/$pid" "/proc/$pid/exe" || true
     fi
-    gui_desktop xdotool getwindowfocus getmouselocation --shell || true
+    gui_desktop xdotool getwindowfocus || true
+    gui_desktop xdotool getmouselocation --shell || true
     desktop_ocr "$gui_home/label.png" 11 || true
     journalctl -b --no-pager -u 'legion-portable-control-*' || true
     journalctl -b --no-pager -k | tail -n100 || true

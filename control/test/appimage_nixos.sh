@@ -88,8 +88,9 @@ start_gui() {
   gui_home=$(as_user approved mktemp -d /home/approved/legion-gui-XXXXXXXX)
   as_user approved bash -c 'source "$1"; desktop_prepare_home "$2"' bash "$support/desktop_test_support.sh" "$gui_home"
   test ! -e "$gui_home/preferences.hive"
+  # Keep app settings fresh without extracting the same image for every close.
   as_user approved env "HOME=$gui_home" "XDG_CONFIG_HOME=$gui_home/config" \
-    "XDG_DATA_HOME=$gui_home/data" "XDG_RUNTIME_DIR=$gui_home/runtime" \
+    "XDG_DATA_HOME=$gui_home/data" XDG_CACHE_HOME=/home/approved/.cache "XDG_RUNTIME_DIR=$gui_home/runtime" \
     bash "$support/appimage_nixos.sh" --x11 "$image" >>/home/approved/display.log 2>&1 &
   wait_until 90 test -s /home/approved/app.pid
   pid=$(cat /home/approved/app.pid)
@@ -99,11 +100,11 @@ close_gui() {
   # Xvfb may disconnect xdotool as it finishes the click. Check the app's status.
   click 1258 23 || true
   wait_until 15 test -s /home/approved/app.exit
-  [[ $(cat /home/approved/app.exit) == 0 ]] || fail "Desktop close failed: $(cat /home/approved/gui.log)"
+  [[ $(cat /home/approved/app.exit) == 0 ]] || fail "Desktop exited with status $(cat /home/approved/app.exit) after close: $(cat /home/approved/gui.log)"
 }
 ocr() {
   desktop magick import -window root /home/approved/current.png &&
-    desktop magick /home/approved/current.png -crop "$2" -resize 300% /home/approved/label.png &&
+    desktop magick /home/approved/current.png -crop "$2" -resize "$(desktop_scale "${3:-7}")" /home/approved/label.png &&
     desktop timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract /home/approved/label.png stdout --psm "${3:-7}" 2>/dev/null | grep -Fi -- "$1"
 }
 wait_text() { wait_until 30 ocr "$@"; }
@@ -135,12 +136,12 @@ wait_text 'Action could not be completed' 1280x720+0+0 11
 [[ $(cat "$conservation") == 0 && -z $(unit_query) ]]
 screenshot privileged-control-denied
 echo allow >/run/legion-gui-approval
-# OCR coordinates refer to the enlarged label image; map them back to pixels.
+# The full-frame OCR image uses native pixels, so Close needs no scaling.
 desktop timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract /home/approved/label.png stdout --psm 11 tsv 2>/dev/null >/tmp/close-words.tsv
 awk -F '\t' 'tolower($NF) == "close" {print $7, $8, $9, $10}' /tmp/close-words.tsv >/tmp/close-coordinates
 [[ $(wc -l </tmp/close-coordinates) == 1 ]] || fail "Expected one Close label: $(cat /tmp/close-words.tsv)"
 read -r left top width height </tmp/close-coordinates
-click "$(((left + width / 2) / 3))" "$(((top + height / 2) / 3))"
+click "$((left + width / 2))" "$((top + height / 2))"
 wait_text mode 260x25+359+648
 click 734 667
 has_unit() { [[ -n $(unit_query) ]]; }
@@ -210,7 +211,8 @@ for ((attempt=1; attempt<=10; attempt++)); do
   rm -f /home/approved/wayland.exit
   wayland_home=$(as_user approved mktemp -d /home/approved/legion-wayland-XXXXXXXX)
   as_user approved bash -c 'source "$1"; desktop_prepare_home "$2"' bash "$support/desktop_test_support.sh" "$wayland_home"
-  wayland env "HOME=$wayland_home" "XDG_CONFIG_HOME=$wayland_home/config" "XDG_DATA_HOME=$wayland_home/data" dbus-run-session -- bash -c '
+  wayland env "HOME=$wayland_home" "XDG_CONFIG_HOME=$wayland_home/config" \
+    "XDG_DATA_HOME=$wayland_home/data" XDG_CACHE_HOME=/home/approved/.cache dbus-run-session -- bash -c '
     appimage-run "$1" >>/home/approved/wayland.log 2>&1 &
     app=$!; printf "%s" "$app" >"$2-launcher.pid"
     status=0; wait "$app" || status=$?
