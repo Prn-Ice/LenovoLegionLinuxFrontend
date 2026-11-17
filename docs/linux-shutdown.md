@@ -5,9 +5,21 @@ retention fix from `a3c9262`. On 16 November 2026, the user rejected custom-engi
 adoption and chose to continue with the official SDK. The isolated patches and
 packages described below are not deployment inputs.
 
-Release qualification remains blocked by the reproduced shutdown failure,
-tracked in `lllf-dt0.5.16`. That decision preserves the SDK choice; it does not
-resolve the crash or waive the release checks.
+## Current decision: investigation deferred
+
+On 17 November 2026, the user chose to proceed with deployment and document
+this issue for later unless a concrete cause and simple supported fix are
+available. The retained traces identify a lifecycle failure class, but the
+investigation found no supported minimal app fix. Track it as deferred in
+`lllf-dt0.5.16`; do not repeat the rejected experiments or rebuild unchanged
+artifacts to search for a green run.
+
+Newer official-SDK packages passed all ten jobs in merged-main
+[CI run 44094959984](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/44094959984)
+at `404980d`. This is successful acceptance of that candidate, not proof that
+the historical crash is fixed. The issue no longer blocks deployment work by
+itself. Existing launch, close, authorization, and cleanup checks still apply
+to every release candidate; a failed check still stops release preparation.
 
 ## What fails
 
@@ -32,7 +44,7 @@ removed; they are not release fixes.
 | Flutter 3.50.0 / Yaru 12, PR #9 head `77a189e`, CI merge `e1c1d53` | [Final combined CI](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/43726942646) passed every job except Debian package acceptance. Ubuntu 22.04 rendered Dashboard, then normal close exited `-11` with a raster-thread fault in `libLLVM-15.so.1`. Debian 12 did not run. The AppImage matrix passed, including ten X11 and ten Wayland closes. |
 | Same exact Debian package, hosted diagnostic | [Run 43735297027](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/43735297027) reproduced the first-close `-11` on AMD EPYC 9V45 after proving core capture. The core shows main-thread libc `exit` overlapping Flutter raster work in LLVM JIT/Mesa. This is the same lifecycle class as the NixOS evidence, not the identical Mesa readback stack. |
 
-The final CI package SHA256 is
+The historical failed CI package SHA256 is
 `3b169c4d1fe8cb684c958363ded0a43b399b1dfed226e390ef023af06a85bae2`;
 its source companion SHA256 is
 `321ec05b544d4977d0634fbcd088873d7a5669f07d5561fe6c3ed60686145162`.
@@ -111,20 +123,20 @@ The local reports are `/tmp/opencode/lllf-shutdown-results/RESULTS.md` and
 `14235153844` retains the A comparison. Optional collector follow-up
 `lllf-dt0.5.16.1.2` does not block assessment of the official candidate.
 
-## Resume qualification
+## When to reopen the investigation
 
-Use the retained official candidate for the remaining hardware checks; rebuilding
-unchanged inputs or rerunning failed CI does not resolve this blocker. Keep
-Flutter 3.50.0 and engine retention unchanged. Do not adopt the isolated engine
-or replace the user's convenience AppImage without approval.
+Resume only when new evidence identifies a concrete cause and a small supported
+fix, or an official stable SDK includes a relevant upstream fix. Record that
+evidence and the proposed change before testing it. If a bounded check does not
+establish the fix, retain its result and defer again; do not expand into another
+custom-engine or speculative cleanup experiment.
 
-Release needs a supported official-SDK fix or a separately verified safe
-app-level mitigation. Test changed final artifacts with the standard launch
-commands. Require repeated X11 and Wayland window closes, exit status zero, and
-no GLib/GObject critical errors. Then test
-password cancellation, an explicit approved retry in the same process, hardware
-readback, restoration, and helper cleanup.
+Keep official Flutter 3.50.0 and the approved engine retention for current
+deployment. The isolated engine remains rejected. Test a future supported fix
+with the standard launch commands and existing X11/Wayland close matrix,
+requiring exit status zero and no GLib/GObject critical errors. Authorization,
+readback, restoration, and helper cleanup must still pass.
 
-The tag workflow continues to require successful package acceptance. A failed
-close check stops release preparation. No release tag or GitHub release was
-created during this investigation.
+See [deployment status](releases.md#deployment-status-17-november-2026) for the
+current candidate and remaining release work. No release tag or GitHub release
+was created during this investigation.

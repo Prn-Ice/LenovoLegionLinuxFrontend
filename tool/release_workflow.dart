@@ -609,6 +609,14 @@ Hardware control uses the bundled privileged control helper and requires the
 LenovoLegionLinux driver, an administrator-owned legion_cli installation,
 systemd, and a desktop authentication agent.
 
+Known issue: earlier official Flutter 3.50 packages intermittently crashed on
+window close. Passing acceptance for this candidate does not establish a fix.
+Investigation is deferred until a concrete cause and simple supported fix are
+available; see docs/linux-shutdown.md in the tagged source.
+
+The pinned AppImage runtime has no upstream manifest of its exact Alpine
+package revisions. Those revisions remain unverified; see docs/appimage.md.
+
 Each artifact has a matching source companion, build manifest, and VM evidence.
 Verify SHA256SUMS before using the files.
 ''',

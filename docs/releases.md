@@ -6,14 +6,49 @@ with the checked AppImage, Debian package, and their companions. Drafts retain
 qualification notes while real hardware and desktop password-prompt checks
 remain open.
 
-The Flutter 3.50 upgrade has an unresolved [Linux shutdown failure](linux-shutdown.md).
-Its package acceptance is incomplete; a tag build will stop if its close checks
-fail. The workflow is configured, but this candidate is not qualified for release.
+## Deployment status: 17 November 2026
 
-## Retained official candidate: 16 November 2026
+Nix, Debian, and AppImage packaging and automated acceptance pass on merged
+main `404980d9e00c4ef17271b87a7db93ca37ceca93f`:
+[CI run 44094959984](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/44094959984).
+All ten jobs passed, including Debian checks on Ubuntu 22.04 and Debian 12,
+Ubuntu AppImage FUSE/extraction, and standard NixOS `appimage-run` acceptance.
+The security scan also passed. PRs #9, #15, #4, and #17 are merged.
 
-Use the existing artifacts from [CI run 43726942646](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/43726942646)
-for the remaining hardware checks; no identical rebuild is needed. They identify
+That run retains `appimage-ubuntu-22.04` (artifact `14335355363`) and
+`debian-amd64` (artifact `14334586239`), with matching sources and VM evidence.
+Use the manifests and `SHA256SUMS` inside those bundles to identify the files;
+the historical hashes below describe an older candidate. A later code change
+needs acceptance evidence for its own commit.
+
+On 17 November, the user chose to continue deployment and defer crash research
+unless a concrete cause and simple supported fix are available. The historical
+[shutdown failure](linux-shutdown.md) remains a known issue, not a demonstrated
+fix. It no longer blocks deployment work by itself. Standard package close
+checks remain required; a failing candidate cannot supply release evidence.
+
+Remaining work:
+
+- Add visible recovery when startup storage is locked or cannot open (`lllf-wzb`).
+- Record the [desktop trial](appimage.md#desktop-trial) against the final candidate:
+  password cancellation and retry, physical readback and restoration, helper
+  cleanup, and numeric exit status. Record desktop/session and package hash.
+- Check restored, maximized, and fullscreen window corners and the running-app
+  icon on the target desktops. The user confirmed the corrected AppImage works;
+  that confirmation did not enumerate every window state.
+- Retain the [runtime provenance limitation](appimage.md#runtime-inputs) in the
+  release notes; exact upstream Alpine package revisions remain unverified.
+- Select the release version and commit, push a signed tag, verify the draft's
+  uploaded files and checksums, then review it for publication. The live tag and
+  upload path has not yet been exercised; no GitHub release exists.
+
+TCG/Nehalem rendering stalls, Dolphin previews, and the initial cursor warning
+remain separate follow-ups. CI requires KVM; its passes do not qualify TCG.
+
+## Historical official candidate: 16 November 2026
+
+The artifacts from [CI run 43726942646](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/actions/runs/43726942646)
+retain the earlier failure evidence. They identify
 CI merge `e1c1d5392db90a78a46da43b9c45d9caf2672311`, whose second parent is
 PR #9 head `77a189e`. Documentation updates do not change that artifact identity.
 
@@ -47,18 +82,18 @@ standard `appimage-run`, including ten X11 and ten Wayland closes.
 
 The Debian package failed Ubuntu normal close; Debian 12 did not run. The exact
 package also failed the hosted core diagnostic linked in the
-[shutdown record](linux-shutdown.md). Keep PR #9 as a draft: no merge, tag, or
-release while that gate remains unresolved. On 16 November, the user reported
+[shutdown record](linux-shutdown.md). This candidate was not qualified; newer
+passing candidates do not erase its failure. On 16 November, the user reported
 that this official AppImage works on their machine and confirmed that retry
 works too. Hardware readback, restoration, helper cleanup, and numeric process
 exit status were not explicitly reported. The [desktop trial](appimage.md#desktop-trial)
-describes those remaining checks. This positive hardware result does not
-resolve the separate Debian CI failure.
+describes those remaining checks. This positive hardware result did not
+resolve that candidate's Debian failure.
 
-The convenience link `build/legion-frontend.AppImage` still points to the
-user-tested `46b827e` build, which used official Flutter 3.47.9. Its current
-target hashes to `018ea3f01a17a2b629ca4e8bb7589b17bf176bc144320959c11cd37121911929`.
-Do not replace that link without approval.
+At the time of that trial, `build/legion-frontend.AppImage` pointed to the
+user-tested `46b827e` build, which used official Flutter 3.47.9 and hashed to
+`018ea3f01a17a2b629ca4e8bb7589b17bf176bc144320959c11cd37121911929`.
+Check the actual target and checksum before using a local convenience link.
 
 ## Push a tag
 
@@ -73,7 +108,8 @@ Tag a commit containing the release workflow and the intended version in
 For the current version, when ready:
 
 ```bash
-git tag -a v1.0.0 -m "v1.0.0"
+git tag -s v1.0.0 -m "v1.0.0"
+git verify-tag v1.0.0
 git push origin v1.0.0
 ```
 
