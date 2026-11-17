@@ -3,7 +3,7 @@ description: "Flutter desktop frontend for LenovoLegionLinux - laptop control on
 # This desktop app is not published to pub.dev.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 0.1.0-alpha.1+1
 
 environment:
   sdk: ^3.14.0
