@@ -29,15 +29,17 @@ checks remain required; a failing candidate cannot supply release evidence.
 
 Remaining work:
 
-- Add visible recovery when startup storage is locked or cannot open (`lllf-wzb`).
+- Startup recovery is deferred: the corrected two-process test found that Hive
+  removes another process's lock file after a failed open. See the
+  [reproduction and resume condition](startup-storage.md) (`lllf-wzb`).
 - Record the [desktop trial](appimage.md#desktop-trial) against the final candidate:
   password cancellation and retry, physical readback and restoration, helper
   cleanup, and numeric exit status. Record desktop/session and package hash.
 - Check restored, maximized, and fullscreen window corners and the running-app
   icon on the target desktops. The user confirmed the corrected AppImage works;
   that confirmation did not enumerate every window state.
-- Retain the [runtime provenance limitation](appimage.md#runtime-inputs) in the
-  release notes; exact upstream Alpine package revisions remain unverified.
+- Keep the known-issue notes with the release. Exact upstream Alpine package
+  revisions remain unverified; see the [runtime provenance limitation](appimage.md#runtime-inputs).
 - Select the release version and commit, push a signed tag, verify the draft's
   uploaded files and checksums, then review it for publication. The live tag and
   upload path has not yet been exercised; no GitHub release exists.

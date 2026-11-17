@@ -614,6 +614,10 @@ window close. Passing acceptance for this candidate does not establish a fix.
 Investigation is deferred until a concrete cause and simple supported fix are
 available; see docs/linux-shutdown.md in the tagged source.
 
+Startup can leave a black window if local storage cannot open. Close any other
+Legion instance before launching; do not delete lock files. Safe retry is deferred
+pending the Hive lock fix documented in docs/startup-storage.md.
+
 The pinned AppImage runtime has no upstream manifest of its exact Alpine
 package revisions. Those revisions remain unverified; see docs/appimage.md.
 
