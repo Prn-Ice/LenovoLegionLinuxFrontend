@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'bundle_notices.dart' show bundleNotices;
 import 'nix_flutter_provenance.dart' show nixFlutterProvenance;
+import 'package_linux.dart' show requirePrivilegedControlHelper;
 
 Future<void> main(List<String> args) async {
   try {
@@ -25,42 +26,17 @@ Future<void> main(List<String> args) async {
   }
 }
 
-/// Build the desktop and optional helper from the recorded source inputs.
+/// Build the desktop and its privileged control helper from the recorded source inputs.
 Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
-  Directory root, {
-  bool portableControl = false,
-}) async {
+  Directory root,
+) async {
   _requireCleanTree(root);
   await _runBuild(root, ['pub', 'get', '--enforce-lockfile']);
   final inputs = await captureReleaseInputs(root);
-  final arguments = [
-    'build',
-    'linux',
-    '--release',
-    '--no-pub',
-    if (portableControl) '--dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true',
-  ];
-  await _runBuild(root, arguments);
-  // Configure explicitly so a prior portable build cannot leave the helper
-  // enabled in the next ordinary release's CMake cache.
-  _run(root, 'cmake', [
-    '-S',
-    'linux',
-    '-B',
-    'build/linux/x64/release',
-    '-DBUILD_PORTABLE_CONTROL_HELPER=${portableControl ? 'ON' : 'OFF'}',
-  ]);
-  await _runBuild(root, arguments);
+  await _runBuild(root, ['build', 'linux', '--release', '--no-pub']);
   final bundle = Directory('${root.path}/build/linux/x64/release/bundle');
   await bundleNotices(root, bundle);
-  return (
-    bundle: bundle,
-    stamp: await recordReleaseBuild(
-      bundle,
-      inputs,
-      portableControl: portableControl,
-    ),
-  );
+  return (bundle: bundle, stamp: await recordReleaseBuild(bundle, inputs));
 }
 
 /// Include every shipped file so a changed helper or native library invalidates
@@ -68,17 +44,19 @@ Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
 Future<Map<String, Object>> recordReleaseBuild(
   Directory bundle,
   Map<String, Object> inputs, {
-  bool portableControl = false,
   bool staticPortableHelper = false,
-}) async => {
-  'inputs': inputs,
-  'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
-  'bundle': await inventoryReleaseTree(bundle),
-  'build_config': {
-    'portable_control': portableControl,
-    if (staticPortableHelper) 'static_portable_helper': true,
-  },
-};
+}) async {
+  requirePrivilegedControlHelper(bundle);
+  return {
+    'inputs': inputs,
+    'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
+    'bundle': await inventoryReleaseTree(bundle),
+    'build_config': {
+      'portable_control': true,
+      if (staticPortableHelper) 'static_portable_helper': true,
+    },
+  };
+}
 
 /// Record source contents before building, so later edits cannot silently become
 /// the source archive for an earlier binary.
@@ -113,6 +91,11 @@ Future<Map<String, Object>> packageReleaseSource(
   Map<String, Object> stamp, {
   Directory? additionalSources,
 }) async {
+  if ((stamp['build_config'] as Map?)?['portable_control'] != true) {
+    throw StateError(
+      'The build record must include the privileged control helper.',
+    );
+  }
   final inputs = stamp['inputs'] as Map;
   if (jsonEncode(await captureReleaseInputs(root)) != jsonEncode(inputs)) {
     throw StateError('Sources changed during the build; build again.');
@@ -157,8 +140,8 @@ Future<Map<String, Object>> packageReleaseSource(
         },
       })}\n',
     );
-    await File('${staging.path}/REBUILD.md').writeAsString(
-      '''# Rebuild this release
+    await File('${staging.path}/REBUILD.md')
+        .writeAsString('''# Rebuild this release
 
 Use the SDK-reported Flutter version and framework/engine revisions in
 SOURCE-MANIFEST.json. For Nix SDKs, source_provenance identifies the upstream
@@ -174,7 +157,7 @@ From this archive directory:
 cp dependency-overrides.yaml source/pubspec_overrides.yaml
 cd source
 flutter pub get
-flutter build linux --release --no-pub${(stamp['build_config'] as Map?)?['portable_control'] == true ? ' --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true\ncmake -S linux -B build/linux/x64/release -DBUILD_PORTABLE_CONTROL_HELPER=ON\nflutter build linux --release --no-pub --dart-define=LLLF_ENABLE_PORTABLE_CONTROL=true' : ''}
+flutter build linux --release --no-pub
 ```
 
 The overrides use the archived package sources, including any local edits.
@@ -203,8 +186,7 @@ For a modified library, rebuild its source package and install the resulting
 development archive before relinking. See source/docs/appimage.md for desktop
 runtime staging and the host graphics baseline.
 ''' : ''}
-''',
-    );
+''');
     final manifest = <String, Object>{
       'format': 4,
       'inputs': inputs,
@@ -247,13 +229,9 @@ Future<({Map<String, _PackageSource> packages, Directory? sdk})>
 _resolveSources(Directory root) async {
   final configFile = File('${root.path}/.dart_tool/package_config.json');
   final config = jsonDecode(await configFile.readAsString()) as Map;
-  final graph =
-      jsonDecode(
-            await File(
-              '${root.path}/.dart_tool/package_graph.json',
-            ).readAsString(),
-          )
-          as Map;
+  final graph = jsonDecode(
+    await File('${root.path}/.dart_tool/package_graph.json').readAsString(),
+  ) as Map;
   final nodes = <String, Map>{
     for (final item in graph['packages'] as List)
       (item as Map)['name'] as String: item,
@@ -335,9 +313,8 @@ Future<Map<String, Map<String, String>>> inventoryReleaseTree(
     final type = FileSystemEntity.typeSync(entity.path, followLinks: false);
     if (type == FileSystemEntityType.link) {
       final target = await Link(entity.path).target();
-      final resolved = File.fromUri(
-        entity.parent.absolute.uri.resolve(target),
-      ).path;
+      final resolved = File.fromUri(entity.parent.absolute.uri.resolve(target))
+          .path;
       if (target.startsWith('/') ||
           !resolved.startsWith('${root.absolute.path}/')) {
         throw StateError('External source link: $relative');

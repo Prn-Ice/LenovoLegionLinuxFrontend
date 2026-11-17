@@ -4,12 +4,15 @@
 # shellcheck disable=SC2016
 set -euo pipefail
 support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$support/portable_session_test.sh"
+# shellcheck source=control/test/desktop_test_support.sh
+source "$support/desktop_test_support.sh"
 if [[ ${1:-} == --x11 ]]; then
+  assert_vm_marker
+  [[ $(id -u) != 0 ]] || fail 'The app must run as the unprivileged fixture user.'
   exec xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- bash -c '
-    export LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory
+    export LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory GDK_BACKEND=x11
     printf "%s" "$DISPLAY" >/home/approved/display
+    printf "%s" "$XAUTHORITY" >/home/approved/authority
     appimage-run "$1" >>/home/approved/gui.log 2>&1 &
     app=$!
     trap '\''kill "$app" 2>/dev/null || true'\'' EXIT
@@ -21,8 +24,6 @@ if [[ ${1:-} == --x11 ]]; then
     exit "$status"
   ' bash "$2"
 fi
-# shellcheck source=control/test/distro_test_support.sh
-source "$support/distro_test_support.sh"
 assert_disposable_vm
 source_image=$1 fixtures=$2
 # Failure diagnostics must not inherit an individual command's redirection.
@@ -35,9 +36,10 @@ for log in gui.log wayland.log wayland-launcher.log sway.log; do
   install -o approved -g users -m644 /dev/null "/home/approved/$log"
 done
 desktop() {
-  as_user approved bash -c 'export DISPLAY=$(cat /home/approved/display); exec "$@"' bash "$@"
+  as_user approved env "DISPLAY=$(cat /home/approved/display)" \
+    "XAUTHORITY=$(cat /home/approved/authority)" "$@"
 }
-click() { desktop xdotool mousemove --window "$(head -n1 /home/approved/window.id)" "$1" "$2" click 1; }
+click() { desktop xdotool mousemove --sync --window "$(head -n1 /home/approved/window.id)" "$1" "$2" click 1; }
 screenshot() { desktop magick import -window root "/home/approved/gui-evidence/$1.png"; }
 wayland() {
   as_user approved env XDG_RUNTIME_DIR=/run/user/1000 SWAYSOCK=/run/user/1000/sway.sock \
@@ -48,7 +50,7 @@ finish() {
   trap - EXIT
   if ((status != 0)); then
     printf 'AppImage GUI test failed with status %s.\n' "$status" >&2
-    screenshot temporary-control-failure || true
+    screenshot privileged-control-failure || true
     screenshot missing-ui-label || true
     cat /home/approved/{gui,display,wayland,wayland-launcher,sway}.log >&2 || true
     for file in /home/approved/wayland-diagnostics/*-window.txt; do
@@ -83,7 +85,13 @@ echo success >/run/legion-gui-fixture-mode
 echo allow >/run/legion-gui-approval
 start_gui() {
   rm -f /home/approved/{app.pid,window.id,app.exit}
-  as_user approved bash "$support/appimage_nixos.sh" --x11 "$image" >>/home/approved/display.log 2>&1 &
+  gui_home=$(as_user approved mktemp -d /home/approved/legion-gui-XXXXXXXX)
+  as_user approved bash -c 'source "$1"; desktop_prepare_home "$2"' bash "$support/desktop_test_support.sh" "$gui_home"
+  test ! -e "$gui_home/preferences.hive"
+  # Keep app settings fresh without extracting the same image for every close.
+  as_user approved env "HOME=$gui_home" "XDG_CONFIG_HOME=$gui_home/config" \
+    "XDG_DATA_HOME=$gui_home/data" XDG_CACHE_HOME=/home/approved/.cache "XDG_RUNTIME_DIR=$gui_home/runtime" \
+    bash "$support/appimage_nixos.sh" --x11 "$image" >>/home/approved/display.log 2>&1 &
   wait_until 90 test -s /home/approved/app.pid
   pid=$(cat /home/approved/app.pid)
   [[ $pid =~ ^[0-9]+$ ]]
@@ -92,32 +100,25 @@ close_gui() {
   # Xvfb may disconnect xdotool as it finishes the click. Check the app's status.
   click 1258 23 || true
   wait_until 15 test -s /home/approved/app.exit
-  [[ $(cat /home/approved/app.exit) == 0 ]] || fail "Desktop close failed: $(cat /home/approved/gui.log)"
+  [[ $(cat /home/approved/app.exit) == 0 ]] || fail "Desktop exited with status $(cat /home/approved/app.exit) after close: $(cat /home/approved/gui.log)"
 }
 ocr() {
   desktop magick import -window root /home/approved/current.png &&
-    desktop magick /home/approved/current.png -crop "$2" -resize 300% /home/approved/label.png &&
-    desktop tesseract /home/approved/label.png stdout --psm "${3:-7}" 2>/dev/null | grep -Fi -- "$1"
+    desktop magick /home/approved/current.png -crop "$2" -resize "$(desktop_scale "${3:-7}")" /home/approved/label.png &&
+    desktop timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract /home/approved/label.png stdout --psm "${3:-7}" 2>/dev/null | grep -Fi -- "$1"
 }
 wait_text() { wait_until 30 ocr "$@"; }
-echo 'Checking the actual app saves temporary mode through Settings'
+echo 'Checking fresh first-launch administrator access without a mode choice'
 start_gui
 wait_text Dashboard 380x32+288+7
-# Wait for visible labels at the fixed viewport before each action.
-click 90 427
-wait_text 'Temporary helper' 145x24+977+294
-click 1040 305
-wait_text 'Use a temporary helper' 300x32+500+232
-click 770 455
-wait_until 10 grep -aq temporaryHelper /home/approved/preferences.hive
+desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
+wait_text 'Battery health' 1280x720+0+0 11
+wait_until 10 test -f "$gui_home/preferences.hive"
 icon=$(desktop xprop -id "$(head -n1 /home/approved/window.id)" _NET_WM_ICON)
 [[ $icon != *'not found'* && $icon != *'no such atom'* ]]
-close_gui
-assert_gone "$pid" 10
-echo 'Checking official appimage-run opens the temporary-control app'
-start_gui
+echo 'Checking official appimage-run uses its bundled runtime on first launch'
 [[ $(readlink "/proc/$pid/ns/user") != "$(readlink /proc/1/ns/user)" ]]
-executable=$(readlink "/proc/$pid/exe")
+executable=$(as_user approved readlink "/proc/$pid/exe")
 [[ $executable == */.cache/appimage-run/* ]]
 helper=${executable%/*}/libexec/legion-portable-control
 for library in libgtk-3.so.0 libglib-2.0.so.0 libpango-1.0.so.0; do
@@ -125,6 +126,7 @@ for library in libgtk-3.so.0 libglib-2.0.so.0 libpango-1.0.so.0; do
 done
 echo 'Checking GUI denial, fresh approval on retry, and synthetic write/restore'
 click 90 228
+wait_text 'Collect history' 1280x720+0+0 11
 desktop xdotool mousemove --window "$(head -n1 /home/approved/window.id)" 1100 600 click --repeat 18 --delay 50 5
 wait_text mode 260x25+359+648
 unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'; }
@@ -132,14 +134,14 @@ echo deny >/run/legion-gui-approval
 click 734 667
 wait_text 'Action could not be completed' 1280x720+0+0 11
 [[ $(cat "$conservation") == 0 && -z $(unit_query) ]]
-screenshot temporary-control-denied
+screenshot privileged-control-denied
 echo allow >/run/legion-gui-approval
-# OCR coordinates refer to the enlarged label image; map them back to pixels.
-desktop tesseract /home/approved/label.png stdout --psm 11 tsv 2>/dev/null >/tmp/close-words.tsv
+# The full-frame OCR image uses native pixels, so Close needs no scaling.
+desktop timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract /home/approved/label.png stdout --psm 11 tsv 2>/dev/null >/tmp/close-words.tsv
 awk -F '\t' 'tolower($NF) == "close" {print $7, $8, $9, $10}' /tmp/close-words.tsv >/tmp/close-coordinates
 [[ $(wc -l </tmp/close-coordinates) == 1 ]] || fail "Expected one Close label: $(cat /tmp/close-words.tsv)"
 read -r left top width height </tmp/close-coordinates
-click "$(((left + width / 2) / 3))" "$(((top + height / 2) / 3))"
+click "$((left + width / 2))" "$((top + height / 2))"
 wait_text mode 260x25+359+648
 click 734 667
 has_unit() { [[ -n $(unit_query) ]]; }
@@ -154,17 +156,27 @@ reject grep -F .so "/proc/$helper_pid/maps"
 echo 1 >"$conservation"
 restore() { click 1142 23; click 734 667; readback | grep -x disabled; }
 wait_until 20 restore
-screenshot temporary-control-restored
+echo 0 >"$conservation"
+[[ $(desktop xdotool getwindowpid "$(head -n1 /home/approved/window.id)") == "$pid" ]]
+screenshot privileged-control-restored
+click 90 427
+wait_text 'Hardware control' 1280x720+0+0 11
+desktop timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract /home/approved/label.png stdout --psm 11 2>/dev/null |
+  tr '\n' ' ' | tr '[:upper:]' '[:lower:]' >/tmp/settings-labels
+reject grep -E 'installed service|use on next launch|in use now:' /tmp/settings-labels
 close_gui
+assert_gone "$pid" 10
 assert_gone "$helper_pid" 10
 wait_until 10 bash -c 'journalctl -b --no-pager -u "$1" | grep -F "Legion control cleanup complete."' bash "${unit%.service}-cleanup.service"
 assert_cleanup_succeeded
 reject systemctl cat legion-control.service
 reject systemctl cat legion-telemetry.service
-echo 'Checking ten normal X11 closes through official appimage-run'
+# One functional first launch above plus ten repeats: eleven X11 closes total.
+echo 'Checking ten more normal X11 closes through official appimage-run'
 for ((attempt=1; attempt<=10; attempt++)); do
   start_gui
   wait_text Dashboard 380x32+288+7
+  desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
   close_gui
 done
 reject grep -E 'Pango-CRITICAL|GLib-CRITICAL|GLib-GObject-CRITICAL' /home/approved/gui.log
@@ -190,14 +202,17 @@ wayland_frame() {
     printf "attempt=%s launcher_pid=%s app_pid=%s geometry=%s visible=%s\n" "$number" "$(cat "$prefix-launcher.pid")" "$(jq -r .pid <<<"$node")" "$geometry" "$(jq -r .visible <<<"$node")" >"$prefix-window.txt"
     grim -g "$geometry" "$prefix-frame.png"
     magick "$prefix-frame.png" -crop 380x32+288+7 +repage -resize 300% "$prefix-header.png"
-    tesseract "$prefix-header.png" "$prefix-ocr" --psm 7 2>/dev/null
+    timeout --kill-after=2 15 env OMP_THREAD_LIMIT=1 tesseract "$prefix-header.png" "$prefix-ocr" --psm 7 2>/dev/null
     grep -Fxi -- Dashboard "$prefix-ocr.txt"
   ' bash "$prefix" "$attempt" "$app_id" "$visible_window"
 }
 for ((attempt=1; attempt<=10; attempt++)); do
   prefix=/home/approved/wayland-diagnostics/attempt-$attempt
   rm -f /home/approved/wayland.exit
-  wayland dbus-run-session -- bash -c '
+  wayland_home=$(as_user approved mktemp -d /home/approved/legion-wayland-XXXXXXXX)
+  as_user approved bash -c 'source "$1"; desktop_prepare_home "$2"' bash "$support/desktop_test_support.sh" "$wayland_home"
+  wayland env "HOME=$wayland_home" "XDG_CONFIG_HOME=$wayland_home/config" \
+    "XDG_DATA_HOME=$wayland_home/data" XDG_CACHE_HOME=/home/approved/.cache dbus-run-session -- bash -c '
     appimage-run "$1" >>/home/approved/wayland.log 2>&1 &
     app=$!; printf "%s" "$app" >"$2-launcher.pid"
     status=0; wait "$app" || status=$?

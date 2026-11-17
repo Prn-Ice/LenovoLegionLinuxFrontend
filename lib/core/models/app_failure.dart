@@ -6,7 +6,6 @@ import '../services/legion_frontend_bridge_service.dart';
 enum AppFailureKind {
   generic,
   permissionDenied,
-  privilegeSetup,
   portableSetup,
   unavailable,
   busy,
@@ -51,7 +50,6 @@ class AppFailure extends Equatable implements Exception {
         LegionBridgeErrorCode.permissionDenied =>
           AppFailureKind.permissionDenied,
         LegionBridgeErrorCode.portableSetup => AppFailureKind.portableSetup,
-        LegionBridgeErrorCode.privilegeSetup => AppFailureKind.privilegeSetup,
         LegionBridgeErrorCode.unavailable => AppFailureKind.unavailable,
         LegionBridgeErrorCode.busy => AppFailureKind.busy,
         LegionBridgeErrorCode.timeout => AppFailureKind.timeout,
@@ -59,8 +57,7 @@ class AppFailure extends Equatable implements Exception {
         LegionBridgeErrorCode.graphicsPending => AppFailureKind.graphicsPending,
         LegionBridgeErrorCode.commandFailed => AppFailureKind.commandFailed,
       },
-      LegionControlPortableSetupException() => AppFailureKind.portableSetup,
-      LegionControlSetupException() => AppFailureKind.privilegeSetup,
+      LegionControlSetupException() => AppFailureKind.portableSetup,
       LegionControlPermissionDeniedException() =>
         AppFailureKind.permissionDenied,
       LegionControlBusyException() => AppFailureKind.busy,

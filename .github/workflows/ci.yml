@@ -48,10 +48,16 @@ jobs:
           flutter-version: '3.50.0'
       - name: Resolve test dependencies
         run: flutter pub get --enforce-lockfile
+      - name: Install package inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
       - name: Test tag validation and draft release handling
         run: flutter test test/tool --reporter=compact
       - name: Test VM readiness and evidence handling
         run: |
+          bash control/test/acceptance_support_test.sh
+          bash test/tool/appimage_nixos_wrapper_test.sh
           bash test/tool/portable_distro_evidence_test.sh
           bash test/tool/portable_distro_readiness_test.sh
 
@@ -72,7 +78,10 @@ jobs:
           flutter-version: '3.50.0'
 
       - name: Install dependencies
-        run: flutter pub get --enforce-lockfile
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
+          flutter pub get --enforce-lockfile
 
       - name: Generate Hive adapters
         run: dart run build_runner build
@@ -160,6 +169,8 @@ jobs:
     name: Portable helper on Ubuntu 22.04
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      LLLF_VM_ACCELERATOR: kvm
     needs: changes
     if: needs.changes.outputs.build == 'true'
     steps:
@@ -170,12 +181,16 @@ jobs:
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
-      - name: Enable KVM when available
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
+      - name: Enable KVM for acceptance VMs
         run: |
-          if [[ -e /dev/kvm ]]; then
-            sudo setfacl -m u:"$(id -un)":rw /dev/kvm
-          fi
+          # Use the persistent KVM rule from cachix/install-nix-action.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -r /dev/kvm
+          test -w /dev/kvm
       - name: Download official Ubuntu cloud image and checksum
         run: |
           curl --fail --location --retry 3 --max-time 600 \
@@ -198,6 +213,8 @@ jobs:
     name: AppImage build and Ubuntu/NixOS acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      LLLF_VM_ACCELERATOR: kvm
     needs: changes
     if: needs.changes.outputs.build == 'true'
     steps:
@@ -230,7 +247,7 @@ jobs:
           checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/appimage-jammy.SHA256SUMS)"
           bash tool/test_portable_distro.sh /tmp/appimage-jammy.img "$checksum" \
             build/appimage-qualification --appimage build/appimage-release
-      - name: Test temporary controls through official NixOS appimage-run
+      - name: Test privileged controls through official NixOS appimage-run
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
@@ -248,6 +265,7 @@ jobs:
           path: |
             build/appimage-release
             build/appimage-qualification
+            build/appimage-nixos-qualification
           if-no-files-found: ignore
 
   linux-integration:
@@ -329,6 +347,8 @@ jobs:
     name: Debian package build and acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      LLLF_VM_ACCELERATOR: kvm
     needs: changes
     if: needs.changes.outputs.build == 'true'
     steps:
@@ -339,12 +359,16 @@ jobs:
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
-      - name: Enable KVM when available
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
+      - name: Enable KVM for acceptance VMs
         run: |
-          if [[ -e /dev/kvm ]]; then
-            sudo setfacl -m u:"$(id -un)":rw /dev/kvm
-          fi
+          # Use the persistent KVM rule from cachix/install-nix-action.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo udevadm settle
+          test -r /dev/kvm
+          test -w /dev/kvm
       - name: Download the pinned SDK
         run: |
           sdk_url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"

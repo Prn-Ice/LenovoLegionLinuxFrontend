@@ -57,18 +57,17 @@ void main() {
       ),
       processRunner: (executable, arguments) async {
         runtimeCommands.add([executable, ...arguments]);
-        expect(executable, anyOf('which', 'systemctl'));
+        expect(executable, 'which');
         return ProcessResult(0, 1, '', '');
       },
     );
   });
   tearDown(() => root.delete(recursive: true));
 
-  test('runtime checks omit Python and preserve CLI health probes', () async {
+  test('runtime checks omit Python and installed services while preserving CLI health probes', () async {
     final snapshot = await repository.loadSnapshot();
 
     expect(runtimeCommands, [
-      ['systemctl', 'is-active', '--quiet', 'legion-control.service'],
       ['which', 'systemctl'],
     ]);
     expect(commands, [
@@ -170,59 +169,64 @@ void main() {
     },
   );
 
-  test('existing snapshot export includes identity, selections and separate write evidence', () async {
-    final snapshot = await repository.loadSnapshot();
-    final report =
-        jsonDecode(jsonEncode(snapshot.toJson())) as Map<String, dynamic>;
-    final diagnostics = {
-      for (final item in report['diagnostics'] as List)
-        (item as Map<String, dynamic>)['id']: item,
-    };
-    expect(
-      report['hardware_model'],
-      'Synthetic Legion family (SYNTHETIC-MODEL)',
-    );
-    expect(report['bios_version'], 'FIXTURE-BIOS');
-    expect(report['kernel_version'], isNull);
-    expect(report['module_version'], isNull);
-    expect(report['cli_version'], 'fixture-cli-1.0');
-    expect(report['control_service_active'], isFalse);
-    expect(
-      diagnostics['battery_conservation']!['frontend_write_available'],
-      isTrue,
-    );
-    expect(diagnostics['fan1_rpm']!['frontend_write_available'], isFalse);
-    expect(
-      diagnostics['battery_conservation']!['hardware_write_verification'],
-      'unverified',
-    );
-    expect(
-      diagnostics['fan1_rpm']!['read']['selected_path'],
-      '/sys/class/hwmon/hwmon7/fan1_input',
-    );
-    expect(diagnostics['fan1_provider']!['value'], 'yogafan');
-    expect(diagnostics['fan2_rpm']!['read']['outcome'], 'malformed');
-    expect(diagnostics['fan2_rpm']!['read']['selected_path'], isNull);
-    expect(diagnostics['bios_version']!['read']['outcome'], 'readable');
-    expect(
-      snapshot.diagnostics
-          .singleWhere((item) => item.id == 'fn_lock')
-          .readProbe
-          ?.outcome,
-      SysfsReadOutcome.missing,
-    );
-    expect(jsonEncode(report), isNot(contains('PRIVATE-')));
-    expect(jsonEncode(report), isNot(contains(root.path)));
-    expect(commands, [
-      ['--donotexpecthwmon', '--help'],
-      ['--donotexpecthwmon', '--version'],
-    ]);
-    expect(report['command_history'], hasLength(2));
-    expect(
-      snapshot.commandHistory.every((record) => !record.isPrivileged),
-      isTrue,
-    );
-  });
+  test(
+    'snapshot export separates identity, hardware readings, and write evidence',
+    () async {
+      final snapshot = await repository.loadSnapshot();
+      final report =
+          jsonDecode(jsonEncode(snapshot.toJson())) as Map<String, dynamic>;
+      final diagnostics = {
+        for (final item in report['diagnostics'] as List)
+          (item as Map<String, dynamic>)['id']: item,
+      };
+      expect(
+        report['hardware_model'],
+        'Synthetic Legion family (SYNTHETIC-MODEL)',
+      );
+      expect(report['bios_version'], 'FIXTURE-BIOS');
+      expect(report['kernel_version'], isNull);
+      expect(report['module_version'], isNull);
+      expect(report['cli_version'], 'fixture-cli-1.0');
+      expect(report['schema_version'], 5);
+      expect(report, isNot(contains('python_available')));
+      expect(report, isNot(contains('control_service_active')));
+      expect(
+        diagnostics['battery_conservation']!['frontend_write_available'],
+        isTrue,
+      );
+      expect(diagnostics['fan1_rpm']!['frontend_write_available'], isFalse);
+      expect(
+        diagnostics['battery_conservation']!['hardware_write_verification'],
+        'unverified',
+      );
+      expect(
+        diagnostics['fan1_rpm']!['read']['selected_path'],
+        '/sys/class/hwmon/hwmon7/fan1_input',
+      );
+      expect(diagnostics['fan1_provider']!['value'], 'yogafan');
+      expect(diagnostics['fan2_rpm']!['read']['outcome'], 'malformed');
+      expect(diagnostics['fan2_rpm']!['read']['selected_path'], isNull);
+      expect(diagnostics['bios_version']!['read']['outcome'], 'readable');
+      expect(
+        snapshot.diagnostics
+            .singleWhere((item) => item.id == 'fn_lock')
+            .readProbe
+            ?.outcome,
+        SysfsReadOutcome.missing,
+      );
+      expect(jsonEncode(report), isNot(contains('PRIVATE-')));
+      expect(jsonEncode(report), isNot(contains(root.path)));
+      expect(commands, [
+        ['--donotexpecthwmon', '--help'],
+        ['--donotexpecthwmon', '--version'],
+      ]);
+      expect(report['command_history'], hasLength(2));
+      expect(
+        snapshot.commandHistory.every((record) => !record.isPrivileged),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'CLI failure text stays local; hardware discovery still exports',

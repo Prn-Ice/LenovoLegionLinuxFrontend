@@ -10,6 +10,8 @@ enum ReleaseCommand { checkTag, prepare, publish }
 const qualifiedAppImage =
     'FUSE, extraction, desktop launch, and synthetic helper control verified';
 const qualifiedDeb = 'install, desktop, helper, upgrade, and purge verified';
+const releaseHelperPath =
+    'usr/lib/legion_frontend/libexec/legion-portable-control';
 const debianChecks = {
   'installation',
   'desktop',
@@ -103,6 +105,118 @@ String archivedText(File archive, String name) {
 
 Map archivedJson(File archive, String name) =>
     jsonDecode(archivedText(archive, name)) as Map;
+
+void verifyHelperFile(File helper, Map expected, String packageName) {
+  releaseFile(helper);
+  final mode = helper.statSync().mode & 0x1ff;
+  if ((mode & 0x49) == 0 ||
+      mode.toRadixString(8) != expected['mode'] ||
+      releaseSha256(helper) != expected['sha256']) {
+    throw StateError('$packageName helper payload differs from its inventory.');
+  }
+}
+
+void verifyDebianHelper(File package, Map expected) {
+  final staging = Directory.systemTemp.createTempSync('release-debian-helper-');
+  try {
+    final archive = File('${staging.path}/payload.tar')
+      ..writeAsBytesSync(
+        packagingCommandBytes('dpkg-deb', [
+          '--fsys-tarfile',
+          package.absolute.path,
+        ]),
+      );
+    final members = const LineSplitter()
+        .convert(packagingCommand('tar', ['--list', '--file', archive.path]))
+        .where(
+          (name) => name.replaceFirst(RegExp(r'^\./'), '') == releaseHelperPath,
+        )
+        .toList();
+    if (members.length != 1) {
+      throw StateError(
+        'The Debian payload lacks a regular privileged control helper.',
+      );
+    }
+    final listing = const LineSplitter().convert(
+      packagingCommand('tar', [
+        '--list',
+        '--verbose',
+        '--quoting-style=literal',
+        '--file',
+        archive.path,
+        '--',
+        members.single,
+      ]),
+    );
+    final mode = int.tryParse(expected['mode'].toString(), radix: 8);
+    if (listing.length != 1 ||
+        !listing.single.startsWith('-') ||
+        mode == null ||
+        mode < 0 ||
+        mode > 0x1ff ||
+        (mode & 0x49) == 0) {
+      throw StateError(
+        'The Debian payload lacks a regular executable privileged control helper.',
+      );
+    }
+    const permissionLetters = 'rwxrwxrwx';
+    final permissions = StringBuffer('-');
+    for (var index = 0; index < permissionLetters.length; index++) {
+      final bit = 1 << (8 - index);
+      permissions.write((mode & bit) == 0 ? '-' : permissionLetters[index]);
+    }
+    if (!listing.single.startsWith('$permissions ')) {
+      throw StateError('The Debian helper payload differs from its inventory.');
+    }
+    // Read only the selected member; never extract package paths or links.
+    final helper = File('${staging.path}/helper')
+      ..writeAsBytesSync(
+        packagingCommandBytes('tar', [
+          '-xOf',
+          archive.path,
+          '--',
+          members.single,
+        ]),
+      );
+    releaseFile(helper);
+    if (releaseSha256(helper) != expected['sha256']) {
+      throw StateError('The Debian helper payload differs from its inventory.');
+    }
+  } finally {
+    staging.deleteSync(recursive: true);
+  }
+}
+
+void verifyAppImageHelper(File image, Object? runtimeSize, Map expected) {
+  if (runtimeSize is! int ||
+      runtimeSize <= 0 ||
+      runtimeSize >= image.lengthSync()) {
+    throw StateError('The AppImage runtime size is invalid.');
+  }
+  final staging = Directory.systemTemp.createTempSync(
+    'release-appimage-helper-',
+  );
+  try {
+    final destination = Directory('${staging.path}/payload');
+    packagingCommand('unsquashfs', [
+      '-no-progress',
+      '-no-xattrs',
+      '-o',
+      '$runtimeSize',
+      '-d',
+      destination.path,
+      image.absolute.path,
+      releaseHelperPath,
+    ]);
+    verifyHelperFile(
+      File('${destination.path}/$releaseHelperPath'),
+      expected,
+      'The AppImage',
+    );
+  } finally {
+    staging.deleteSync(recursive: true);
+  }
+}
 
 void archiveEvidence(File output, Map<String, File> files) {
   final staging = Directory.systemTemp.createTempSync('release-evidence-');
@@ -232,7 +346,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
               .replaceFirst('_amd64.deb', '') ||
       manifest['source_commit'] != release['commit'] ||
       manifest['portable_control'] != true ||
-      manifest['default_control_mode'] != 'installedService' ||
+      manifest['default_control_mode'] != 'privilegedControlHelper' ||
       !sameJson(manifest['files'], {
         for (final name in [package, source]) name: checksums[name],
       })) {
@@ -261,6 +375,10 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
       throw StateError('The Debian bundle lacks $name.');
     }
   }
+  verifyDebianHelper(
+    File('${directory.path}/$package'),
+    manifest['bundle']['./libexec/legion-portable-control'] as Map,
+  );
   for (final distribution in {
     'ubuntu': ['ID=ubuntu', 'VERSION_ID="22.04"'],
     'debian': ['ID=debian', 'VERSION_ID="12"'],
@@ -336,7 +454,8 @@ Map<String, Object> prepareRelease(
   final manifest = readReleaseJson(File('${directory.path}/$metadata'));
   if (manifest['format'] != 1 ||
       manifest['architecture'] != 'x86_64' ||
-      manifest['portable_control'] != true) {
+      manifest['portable_control'] != true ||
+      manifest['default_control_mode'] != 'privilegedControlHelper') {
     throw StateError('Expected a portable Ubuntu x86-64 AppImage manifest.');
   }
   if (manifest['version'] != release['version'] ||
@@ -383,6 +502,11 @@ Map<String, Object> prepareRelease(
       throw StateError('The shipped bundle lacks $path.');
     }
   }
+  verifyAppImageHelper(
+    File('${directory.path}/$image'),
+    manifest['runtime_size'],
+    shipped['./libexec/legion-portable-control'] as Map,
+  );
   if (sources['build_config']['static_portable_helper'] == true &&
       !manifest.containsKey('native_runtime')) {
     throw StateError(
@@ -440,7 +564,7 @@ Map<String, Object> prepareRelease(
     if (nixos['commit'] != release['commit'] ||
         nixos['appimage_sha256'] != checksums[image] ||
         nixos['nixos'] !=
-            'official appimage-run desktop and temporary control verified' ||
+            'official appimage-run desktop and privileged control verified' ||
         nixos['desktop_shutdown'] !=
             'X11 close button and Wayland window close verified') {
       throw StateError('NixOS acceptance did not verify this AppImage.');
@@ -473,7 +597,7 @@ Map<String, Object> prepareRelease(
   notes.writeAsStringSync(
     '''Ubuntu x86-64 AppImage and Debian amd64 package built from `$tag` (`${release['commit']}`).
 
-FUSE launch, extracted launch, and the bundled temporary helper passed the Ubuntu
+FUSE launch, extracted launch, and the bundled privileged control helper passed the Ubuntu
 VM checks with a synthetic CLI. Real laptop hardware, actual CLI dependencies,
 and desktop password prompts still need qualification.
 
@@ -481,9 +605,9 @@ The Debian package passed install, desktop launch, synthetic helper control,
 denied approval, missing-agent, upgrade, and purge checks on Ubuntu 22.04 and
 Debian 12. Existing integration files were preserved.
 
-Hardware control requires the LenovoLegionLinux driver, an administrator-owned
-legion_cli installation, systemd, and a desktop authentication agent. Choose
-Temporary helper in Settings and reopen the app to use portable control.
+Hardware control uses the bundled privileged control helper and requires the
+LenovoLegionLinux driver, an administrator-owned legion_cli installation,
+systemd, and a desktop authentication agent.
 
 Each artifact has a matching source companion, build manifest, and VM evidence.
 Verify SHA256SUMS before using the files.

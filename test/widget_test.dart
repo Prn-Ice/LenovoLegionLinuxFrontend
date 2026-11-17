@@ -39,10 +39,6 @@ import 'package:legion_frontend/features/lighting/models/rgb_lighting_device.dar
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
 import 'package:legion_frontend/features/automation/repository/automation_repository.dart';
 import 'package:legion_frontend/features/automation/view/automation_page.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:legion_frontend/features/settings/view/settings_page.dart';
 import 'package:legion_frontend/features/diagnostics/view/diagnostics_page.dart';
 import 'package:yaru/yaru.dart';
@@ -92,7 +88,6 @@ class _FakeAboutRepository implements AboutRepository {
       updatedAt: DateTime.utc(2026),
       cliPath: '/usr/bin/legion',
       cliPathExists: true,
-      controlServiceActive: false,
       systemctlAvailable: true,
       cliHealthy: true,
       cliHealthSummary: 'Healthy',
@@ -116,19 +111,6 @@ class _FakeAnalyticsRepository implements AnalyticsRepository {
 
   @override
   Future<void> pruneOldRecords() async {}
-}
-
-class _FakeSettingsRepository implements SettingsRepository {
-  int loadCount = 0;
-
-  @override
-  Future<SettingsSnapshot> loadSnapshot() async {
-    loadCount++;
-    return const SettingsSnapshot(services: []);
-  }
-
-  @override
-  Future<void> setServiceEnabled(ServiceControl service, bool enabled) async {}
 }
 
 class _FakeBootLogoRepository implements BootLogoRepository {
@@ -229,7 +211,6 @@ class _NoNative extends SpectrumRgbRepository {
 
 final _aboutRepository = _FakeAboutRepository();
 final _analyticsRepository = _FakeAnalyticsRepository();
-final _settingsRepository = _FakeSettingsRepository();
 final _bootLogoRepository = _FakeBootLogoRepository();
 final _devicesRepository = _FakeDevicesRepository();
 final _displayRepository = _FakeDisplayRepository();
@@ -254,7 +235,6 @@ Widget _testApp() => ProviderScope(
     liveSensorRepositoryProvider.overrideWithValue(_FakeLiveSensorRepository()),
     aboutRepositoryProvider.overrideWithValue(_aboutRepository),
     analyticsRepositoryProvider.overrideWithValue(_analyticsRepository),
-    settingsRepositoryProvider.overrideWithValue(_settingsRepository),
     bootLogoRepositoryProvider.overrideWithValue(_bootLogoRepository),
     devicesRepositoryProvider.overrideWithValue(_devicesRepository),
     displayRepositoryProvider.overrideWithValue(_displayRepository),
@@ -339,7 +319,7 @@ void main() {
     expect(find.text('Copied'), findsOneWidget);
   });
 
-  testWidgets('Settings title bar refreshes all available migrated features', (
+  testWidgets('Settings title bar refreshes all available hardware readings', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 1200);
@@ -353,7 +333,6 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     final before = [
-      _settingsRepository.loadCount,
       _bootLogoRepository.loadCount,
       _aboutRepository.loadCount,
       _devicesRepository.loadCount,
@@ -363,11 +342,10 @@ void main() {
     await tester.tap(find.byTooltip('Refresh'));
     await tester.pump();
 
-    expect(_settingsRepository.loadCount, before[0] + 1);
-    expect(_bootLogoRepository.loadCount, before[1] + 1);
-    expect(_aboutRepository.loadCount, before[2] + 1);
-    expect(_devicesRepository.loadCount, before[3] + 1);
-    expect(_displayRepository.loadCount, before[4] + 1);
+    expect(_bootLogoRepository.loadCount, before[0] + 1);
+    expect(_aboutRepository.loadCount, before[1] + 1);
+    expect(_devicesRepository.loadCount, before[2] + 1);
+    expect(_displayRepository.loadCount, before[3] + 1);
   });
 
   testWidgets('real shell selection survives compact and wide layout changes', (

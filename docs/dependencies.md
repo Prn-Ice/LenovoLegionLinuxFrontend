@@ -5,11 +5,12 @@ Use compatible stable packages and commit `pubspec.lock`.
 ## Flutter and build tools
 
 - Flutter stable **3.50.0** or newer; CI pins 3.50.0 with Dart 3.14.0
-- A Linux desktop compiler, CMake, Ninja, and pkg-config
+- A Linux desktop compiler, CMake 3.16 or newer, Ninja, and pkg-config
 - GTK development headers and Flutter's native development libraries
 - GLib/GIO development files for native services
-- Polkit development files for control-service builds
+- Polkit development files for the bundled helper and control-service tests
 - Bash, GNU coreutils, and jq for shell tools and their tests
+- `dpkg-deb` and SquashFS tools for package-payload tests
 
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.

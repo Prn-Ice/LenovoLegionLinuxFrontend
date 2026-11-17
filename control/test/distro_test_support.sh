@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Persistent-file snapshots and VM guards for distro qualification.
 
-assert_disposable_vm() {
-  [[ $(id -u) == 0 ]] || fail 'This test requires root inside the disposable VM.'
+assert_vm_marker() {
   local marker=/etc/legion-control-lifecycle-test-vm
   [[ $(stat -c %u "$marker") == 0 ]] || fail 'The VM marker must be owned by root.'
   printf 'legion-control-disposable-lifecycle-vm\n' | cmp - "$marker"
   [[ $(systemd-detect-virt --vm) =~ ^(qemu|kvm)$ ]] || fail 'This test requires a QEMU VM.'
+}
+
+assert_disposable_vm() {
+  [[ $(id -u) == 0 ]] || fail 'This test requires root inside the disposable VM.'
+  assert_vm_marker
 }
 
 persistent_files() {

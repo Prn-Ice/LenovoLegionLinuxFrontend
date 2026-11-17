@@ -2,11 +2,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-String packagingCommand(
+ProcessResult _packagingProcess(
   String executable,
   List<String> arguments, {
   String? workingDirectory,
   Map<String, String>? environment,
+  Encoding? stdoutEncoding = systemEncoding,
 }) {
   final result = Process.runSync(
     executable,
@@ -14,6 +15,7 @@ String packagingCommand(
     workingDirectory: workingDirectory,
     environment: environment,
     includeParentEnvironment: environment == null,
+    stdoutEncoding: stdoutEncoding,
   );
   if (result.exitCode != 0) {
     throw ProcessException(
@@ -23,8 +25,26 @@ String packagingCommand(
       result.exitCode,
     );
   }
-  return result.stdout as String;
+  return result;
 }
+
+String packagingCommand(
+  String executable,
+  List<String> arguments, {
+  String? workingDirectory,
+  Map<String, String>? environment,
+}) =>
+    _packagingProcess(
+          executable,
+          arguments,
+          workingDirectory: workingDirectory,
+          environment: environment,
+        ).stdout
+        as String;
+
+List<int> packagingCommandBytes(String executable, List<String> arguments) =>
+    _packagingProcess(executable, arguments, stdoutEncoding: null).stdout
+        as List<int>;
 
 String packagingSha256(File file) => packagingCommand('sha256sum', [
   '--',

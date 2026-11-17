@@ -16,7 +16,6 @@ AboutSnapshot minimal() => AboutSnapshot(
   updatedAt: ts,
   cliPath: '/usr/bin/legion_cli',
   cliPathExists: true,
-  controlServiceActive: true,
   systemctlAvailable: true,
   cliHealthy: true,
   cliHealthSummary: 'Healthy',
@@ -62,7 +61,6 @@ void main() {
         updatedAt: ts,
         cliPath: '/usr/bin/legion_cli',
         cliPathExists: true,
-        controlServiceActive: true,
         systemctlAvailable: true,
         cliHealthy: true,
         cliHealthSummary: 'Healthy',
@@ -90,7 +88,6 @@ void main() {
         updatedAt: ts,
         cliPath: '/usr/bin/legion_cli',
         cliPathExists: true,
-        controlServiceActive: true,
         systemctlAvailable: true,
         cliHealthy: true,
         cliHealthSummary: 'Healthy',
@@ -105,20 +102,17 @@ void main() {
     });
   });
 
-  test(
-    'schema 4 omits Python availability and retains runtime diagnostics',
-    () {
-      final json = minimal().toJson();
+  test('schema 5 omits Python and installed-service status while retaining runtime diagnostics', () {
+    final json = minimal().toJson();
 
-      expect(json['schema_version'], 4);
-      expect(json, isNot(contains('python_available')));
-      expect(json['cli_path_exists'], isTrue);
-      expect(json['cli_healthy'], isTrue);
-      expect(json['cli_health_summary'], 'Healthy');
-      expect(json['control_service_active'], isTrue);
-      expect(json['systemctl_available'], isTrue);
-    },
-  );
+    expect(json['schema_version'], 5);
+    expect(json, isNot(contains('python_available')));
+    expect(json['cli_path_exists'], isTrue);
+    expect(json['cli_healthy'], isTrue);
+    expect(json['cli_health_summary'], 'Healthy');
+    expect(json, isNot(contains('control_service_active')));
+    expect(json['systemctl_available'], isTrue);
+  });
 
   test('HID report redacts selected and configured paths', () {
     final json = minimal()
@@ -144,7 +138,6 @@ extension on AboutSnapshot {
         updatedAt: updatedAt,
         cliPath: cliPath,
         cliPathExists: cliPathExists,
-        controlServiceActive: controlServiceActive,
         systemctlAvailable: systemctlAvailable,
         cliHealthy: cliHealthy,
         cliHealthSummary: cliHealthSummary,

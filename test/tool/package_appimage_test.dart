@@ -46,6 +46,10 @@ void main() {
     );
     await Process.run('chmod', ['755', '${bundle.path}/legion_frontend']);
     write('${bundle.path}/libexec/legion-portable-control', 'helper');
+    await Process.run('chmod', [
+      '755',
+      '${bundle.path}/libexec/legion-portable-control',
+    ]);
     write(
       '${bundle.path}/libexec/legion-telemetry-service',
       'installed telemetry',
@@ -204,6 +208,22 @@ void main() {
 
   test('rejects a bundle without the portable helper', () async {
     File('${bundle.path}/libexec/legion-portable-control').deleteSync();
+    await expectLater(
+      stageAppDir(
+        root,
+        bundle,
+        Directory('${temporary.path}/Legion.AppDir'),
+        runtimeInputs: inputs,
+      ),
+      throwsStateError,
+    );
+  });
+
+  test('rejects a non-executable helper', () async {
+    await Process.run('chmod', [
+      '644',
+      '${bundle.path}/libexec/legion-portable-control',
+    ]);
     await expectLater(
       stageAppDir(
         root,

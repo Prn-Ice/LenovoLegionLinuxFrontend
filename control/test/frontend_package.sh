@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Check the installed Nix package and its portable helper inside the VM.
+# Check the installed Nix package and its privileged control helper in the VM.
 # shellcheck disable=SC2016
 set -euo pipefail
+support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=control/test/portable_session_test.sh
-source "$(dirname -- "${BASH_SOURCE[0]}")/portable_session_test.sh"
+source "$support/portable_session_test.sh"
+# shellcheck source=control/test/distro_test_support.sh
+source "$support/distro_test_support.sh"
+assert_disposable_vm
 declare -A app=()
 frontend=$1 bundle=$1/app/legion-linux-frontend
 wait_until 30 systemctl is-active polkit.service
@@ -17,22 +21,8 @@ test ! -d "$bundle/share/polkit-1"
 test ! -d "$bundle/share/dbus-1"
 reject systemctl cat legion-control.service
 reject systemctl cat legion-telemetry.service
-echo 'Checking the public launcher renders a Flutter window'
-as_user approved xvfb-run -a -s '-screen 0 1280x800x24' bash -c '
-  export LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=memory
-  dbus-run-session -- legion_frontend >/home/approved/gui.log 2>&1 &
-  app=$!
-  trap '\''kill "$app" 2>/dev/null || true'\'' EXIT
-  xdotool search --sync --onlyvisible --class io.github.prnice.legion_linux_frontend >/home/approved/window.id
-  xdotool getwindowpid "$(head -n1 /home/approved/window.id)" >/home/approved/app.pid
-  wait "$app"
-' >/home/approved/display.log 2>&1 &
-wait_until 60 test -s /home/approved/app.pid
-pid=$(cat /home/approved/app.pid)
-executable=$(readlink -f "/proc/$pid/exe")
-[[ $executable == "$bundle/"* ]]
-test -x "${executable%/*}/libexec/legion-portable-control"
-kill "$pid"
+echo 'Checking first-launch administrator access and normal window close'
+bash "$support/desktop_test_support.sh" legion_frontend gui.log 'Nix frontend' "$bundle/legion_frontend"
 echo 'Checking synthetic helper write, readback, restore, and cleanup'
 session_new app approved "$bundle/libexec/legion-portable-control" false
 [[ ${app[cli]} == "$(readlink -f /run/current-system/sw/bin/legion_cli)" ]]
@@ -45,3 +35,4 @@ session_send app disable
 printf 'disabled\n' | diff - <(session_value app battery-conservation)
 session_close app
 wait_collected 'legion-portable-control-*' 8
+assert_cleanup_succeeded

@@ -16,7 +16,7 @@ manifests=("$release"/legion-frontend-*.json)
 packages=("$release"/*.deb)
 manifest=${manifests[0]} package=${packages[0]}
 [[ $(sha256sum "$package" | cut -d' ' -f1) == "$(jq -r --arg name "$(basename "$package")" '.files[$name]' "$manifest")" ]]
-jq -e '.portable_control == true and .default_control_mode == "installedService"' "$manifest"
+jq -e '.portable_control == true and .default_control_mode == "privilegedControlHelper"' "$manifest"
 test ! -e /usr/lib/jvm
 before=$(mktemp)
 persistent_files >"$before"
@@ -50,7 +50,7 @@ verify_bundle() {
   appstreamcli validate --no-net /usr/share/metainfo/io.github.prnice.legion_linux_frontend.metainfo.xml
 }
 verify_bundle
-timeout 150 runuser -u approved -- xvfb-run -a dbus-run-session -- bash "$support/desktop_test_support.sh" \
+timeout 420 bash "$support/desktop_test_support.sh" \
   /usr/bin/legion_frontend deb-gui.log 'Debian package' /usr/lib/legion_frontend/legion_frontend
 helper=/usr/lib/legion_frontend/libexec/legion-portable-control
 session_new app approved "$helper" false

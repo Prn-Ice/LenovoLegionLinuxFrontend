@@ -14,7 +14,7 @@ resolve the crash or waive the release checks.
 Closing the app can crash the process. In the NixOS AppImage VM, the main thread
 reaches process exit while Flutter's raster thread still calls Mesa's
 `glReadPixels`. Mesa can then free resources that the raster thread still uses.
-This is separate from temporary-helper authentication cancellation.
+This is separate from cancelling authentication for the privileged control helper.
 
 Explicitly destroying the retained window after the application loop stops also
 failed. GTK destroys Flutter's renderer while its frame mutex can still be in

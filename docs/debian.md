@@ -1,7 +1,7 @@
 # Debian package
 
-The amd64 `.deb` installs the desktop app, temporary helper, launcher, icons,
-and notices. It uses host GTK, GLib, Polkit, graphics, and C/C++ libraries.
+The amd64 `.deb` installs the desktop app, privileged control helper, launcher,
+icons, and notices. It uses host GTK, GLib, Polkit, graphics, and C/C++ libraries.
 Installing it adds no persistent Legion service or authorization policy.
 
 Install the package with apt so it resolves the runtime dependencies:
@@ -12,10 +12,11 @@ legion_frontend
 ```
 
 Hardware control requires the Lenovo Legion driver and an administrator-owned
-`legion_cli` installation. Temporary helper mode also needs systemd, Polkit,
-and a desktop authentication agent. Installed service remains the default;
-choose **Temporary helper** in Settings and reopen the app to use it.
-Existing installed services remain separately managed.
+`legion_cli` installation, systemd, Polkit, and a desktop authentication agent.
+The app uses the bundled privileged control helper from its first launch. The
+first privileged action requests approval; closing the app ends the helper session.
+Persistent service management and next-boot graphics changes are unavailable
+through the helper. Existing installed services remain separately managed.
 
 ## Build
 

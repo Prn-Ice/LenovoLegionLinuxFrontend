@@ -223,11 +223,6 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                     : null,
               ),
               _StatusLine(
-                label: 'legion-control',
-                value: _boolLabel(snapshot?.controlServiceActive),
-                status: _boolStatus(snapshot?.controlServiceActive),
-              ),
-              _StatusLine(
                 label: 'systemctl',
                 value: _boolLabel(snapshot?.systemctlAvailable),
                 status: _boolStatus(snapshot?.systemctlAvailable),

@@ -60,7 +60,16 @@ class ReleaseFixture {
     git(['tag', '-a', tag, '-m', 'fixture release']);
     binary.createSync(recursive: true);
     qa.createSync();
-    File('${binary.path}/$image').writeAsStringSync('AppImage fixture');
+    final helper = File('${payload.path}/${release.releaseHelperPath}')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync([
+        0x7f,
+        ...utf8.encode('ELFsynthetic native helper'),
+        0,
+        0xff,
+      ]);
+    packagingCommand('chmod', ['755', helper.path]);
+    packageAppImageFixture();
     final bundle = {
       '.': {'type': 'directory', 'mode': '755'},
       './legion_frontend': {'type': 'file', 'mode': '755', 'sha256': 'b' * 64},
@@ -68,7 +77,7 @@ class ReleaseFixture {
       './libexec/legion-portable-control': {
         'type': 'file',
         'mode': '755',
-        'sha256': 'a' * 64,
+        'sha256': hash(helper),
       },
     };
     sources = {
@@ -88,6 +97,8 @@ class ReleaseFixture {
       'source_commit': commit,
       'architecture': 'x86_64',
       'portable_control': true,
+      'default_control_mode': 'privilegedControlHelper',
+      'runtime_size': runtimeSize,
       'appdir': {
         for (final entry in bundle.entries)
           './usr/lib/legion_frontend${entry.key.substring(1)}': entry.value,
@@ -104,6 +115,8 @@ class ReleaseFixture {
   late final qa = Directory('${inputs.path}/appimage-qualification');
   late final output = Directory('${temporary.path}/prepared');
   late final deb = Directory('${inputs.path}/deb-release');
+  late final payload = Directory('${temporary.path}/payload');
+  late int runtimeSize;
   late final String commit;
   final tag = 'v1.2.3';
   final prefix = 'legion-frontend-1.2.3+7-x86_64';
@@ -156,10 +169,38 @@ class ReleaseFixture {
     writePackagingJson(File('${qa.path}/manifest.json'), evidence);
   }
 
-  void refreshDebian() {
+  void packageAppImageFixture() {
+    final squashfs = File('${temporary.path}/payload.squashfs');
+    if (squashfs.existsSync()) squashfs.deleteSync();
+    packagingCommand('mksquashfs', [
+      payload.path,
+      squashfs.path,
+      '-noappend',
+      '-processors',
+      '1',
+      '-no-progress',
+    ]);
+    final runtime = utf8.encode('AppImage runtime fixture');
+    runtimeSize = runtime.length;
+    File('${binary.path}/$image')
+        .writeAsBytesSync([...runtime, ...squashfs.readAsBytesSync()]);
+  }
+
+  void refreshDebian({Map<String, Object> changes = const {}}) {
     deb.createSync(recursive: true);
     final names = release.debianNames({'version': '1.2.3+7'});
-    File('${deb.path}/${names[0]}').writeAsStringSync('Debian package fixture');
+    File('${payload.path}/DEBIAN/control')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        'Package: fixture\nVersion: 1.2.3+7-1\nArchitecture: amd64\n'
+        'Maintainer: Test <test@example.invalid>\nDescription: Package fixture\n',
+      );
+    packagingCommand('dpkg-deb', [
+      '--root-owner-group',
+      '--build',
+      payload.path,
+      '${deb.path}/${names[0]}',
+    ]);
     archiveJson(
       File('${deb.path}/${names[1]}'),
       './SOURCE-MANIFEST.json',
@@ -172,11 +213,12 @@ class ReleaseFixture {
       'architecture': 'amd64',
       'source_commit': commit,
       'portable_control': true,
-      'default_control_mode': 'installedService',
+      'default_control_mode': 'privilegedControlHelper',
       'bundle': sources['bundle'],
       'files': {
         for (final name in names.take(2)) name: hash(File('${deb.path}/$name')),
       },
+      ...changes,
     };
     writePackagingJson(File('${deb.path}/${names[2]}'), debManifest);
     checksums(deb, names.take(3).toList());
@@ -263,7 +305,7 @@ class ReleaseFixture {
       'appimage_sha256': imageSha256 ?? hash(File('${binary.path}/$image')),
       'nixos':
           status ??
-          'official appimage-run desktop and temporary control verified',
+          'official appimage-run desktop and privileged control verified',
       if (shutdown)
         'desktop_shutdown':
             'X11 close button and Wayland window close verified',
@@ -361,6 +403,14 @@ void main() {
     fixture.addNixosEvidence(
       status:
           'direct FUSE launch with nix-ld and static helper control verified',
+    );
+    expect(fixture.prepare, failsWith('NixOS acceptance'));
+  });
+
+  test('obsolete control evidence cannot qualify the official runner', () {
+    fixture.enableNativeRuntime();
+    fixture.addNixosEvidence(
+      status: 'official appimage-run desktop and temporary control verified',
     );
     expect(fixture.prepare, failsWith('NixOS acceptance'));
   });
@@ -543,6 +593,8 @@ void main() {
     expect(notes, contains('synthetic CLI'));
     expect(notes, contains('password prompts still need qualification'));
     expect(notes, contains(fixture.commit));
+    expect(notes, contains('bundled privileged control helper'));
+    expect(notes, isNot(contains('Choose')));
     expect(
       packagingCommand('tar', [
         '-tzf',
@@ -556,6 +608,109 @@ void main() {
     File('${fixture.inputs.path}/deb-debian-qualification/manifest.json')
         .deleteSync();
     expect(fixture.prepare, throwsStateError);
+  });
+
+  for (final obsolete in ['installedService', 'temporaryHelper']) {
+    test('rejects obsolete AppImage default $obsolete', () {
+      fixture.manifest['default_control_mode'] = obsolete;
+      fixture.refresh();
+      expect(fixture.prepare, failsWith('AppImage manifest'));
+    });
+
+    test('rejects obsolete Debian default $obsolete', () {
+      fixture.refreshDebian(changes: {'default_control_mode': obsolete});
+      expect(fixture.prepare, failsWith('Debian build differs'));
+    });
+  }
+
+  test('Debian helper payload must match its source inventory', () {
+    File('${fixture.payload.path}/${release.releaseHelperPath}')
+        .writeAsStringSync('replacement helper');
+    fixture.refreshDebian();
+    expect(fixture.prepare, failsWith('Debian helper payload differs'));
+  });
+
+  test('Debian helper must be executable', () {
+    packagingCommand('chmod', [
+      '644',
+      '${fixture.payload.path}/${release.releaseHelperPath}',
+    ]);
+    fixture.refreshDebian();
+    expect(fixture.prepare, failsWith('Debian helper payload differs'));
+  });
+
+  test('Debian helper cannot be absent', () {
+    final helper = File('${fixture.payload.path}/${release.releaseHelperPath}');
+    helper.deleteSync();
+    fixture.refreshDebian();
+    expect(fixture.prepare, failsWith('regular privileged control helper'));
+  });
+
+  test('Debian helper cannot be a symbolic link', () {
+    final helper = File('${fixture.payload.path}/${release.releaseHelperPath}');
+    helper.deleteSync();
+    Link(helper.path).createSync('missing');
+    fixture.refreshDebian();
+    expect(
+      fixture.prepare,
+      failsWith('regular executable privileged control helper'),
+    );
+  });
+
+  test('AppImage helper payload must match its source inventory', () {
+    fixture.sources['bundle']['./libexec/legion-portable-control']['sha256'] =
+        '0' * 64;
+    archiveJson(
+      File('${fixture.binary.path}/${fixture.source}'),
+      './SOURCE-MANIFEST.json',
+      fixture.sources,
+    );
+    fixture.refresh();
+    expect(fixture.prepare, failsWith('AppImage helper payload differs'));
+  });
+
+  test('AppImage helper must be executable', () {
+    packagingCommand('chmod', [
+      '644',
+      '${fixture.payload.path}/${release.releaseHelperPath}',
+    ]);
+    fixture.packageAppImageFixture();
+    fixture.refresh();
+    expect(fixture.prepare, failsWith('AppImage helper payload differs'));
+  });
+
+  test('AppImage helper cannot be absent or a symbolic link', () {
+    final helper = File('${fixture.payload.path}/${release.releaseHelperPath}');
+    helper.deleteSync();
+    fixture.packageAppImageFixture();
+    fixture.refresh();
+    expect(
+      fixture.prepare,
+      throwsA(anyOf(isA<StateError>(), isA<ProcessException>())),
+    );
+    Link(helper.path).createSync('missing');
+    fixture.packageAppImageFixture();
+    fixture.refresh();
+    expect(fixture.prepare, failsWith('symlink'));
+  });
+
+  test('invalid AppImage payload offsets are rejected', () {
+    for (final offset in [null, true, -1, 0, 1.5, '12', 1 << 30]) {
+      fixture.manifest['runtime_size'] = offset;
+      fixture.refresh();
+      expect(fixture.prepare, failsWith('runtime size'));
+    }
+  });
+
+  test('source companion must require the helper', () {
+    fixture.sources['build_config']['portable_control'] = false;
+    archiveJson(
+      File('${fixture.binary.path}/${fixture.source}'),
+      './SOURCE-MANIFEST.json',
+      fixture.sources,
+    );
+    fixture.refresh();
+    expect(fixture.prepare, failsWith('describe this portable build'));
   });
 
   test('modified Debian package is rejected', () {

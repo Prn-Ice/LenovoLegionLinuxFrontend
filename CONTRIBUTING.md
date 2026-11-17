@@ -7,19 +7,21 @@ services.
 ## Set up
 
 - Flutter stable 3.50.0 or newer ([dependency notes](docs/dependencies.md))
-- CMake, Ninja, a C/C++ compiler, and pkg-config
+- CMake 3.16 or newer, Ninja, a C/C++ compiler, and pkg-config
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native service tests
-- Polkit development files for control-service builds
+- Polkit development files for the bundled helper and control-service tests
 - Bash, GNU coreutils, and jq for tooling tests and packaging scripts
+- `dpkg-deb` and SquashFS tools for package-payload tests
 
-Nix qualification bundles with the portable helper also need `patchelf`.
+Linux builds include the privileged control helper. Nix development builds also
+need `patchelf` to retain its runtime library paths.
 
 Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools
 ```
 
 Package names vary by distribution. You do not need the Android SDK.
@@ -86,10 +88,10 @@ removes its temporary data on completion or failure.
 The portable-control scenario uses the real Linux method channel to check that
 an invalid endpoint is rejected before connection. It starts no helper. The native
 discovery scenario rejects caller-selected CLI paths before inspecting the host.
-The hardware-access journey saves a mode,
-reopens the app fixture, and verifies that the saved mode becomes active without
-requesting authorization. After the journeys, check native method names, argument
-types, and payload limits with:
+The hardware-access journey opens fresh Settings, checks that the authorization
+selector is gone, and verifies that opening the page requests no authorization.
+After the journeys, check native method names, argument types, and payload limits
+with:
 
 ```bash
 flutter build linux --debug --no-pub
@@ -116,8 +118,8 @@ The test backend lives only under `integration_test/`. It redirects sysfs/proc
 reads and the real `AutomationRepository` config file to temporary fixture
 storage. The real providers, Blocs, repositories, bridge, and control client are
 used for the setting under test. A fake control transport writes only the
-fixture and rejects other operations. System service status and live sensors
-use fixed repository results because they contain direct host reads. CLI
+fixture and rejects other operations. Live sensors use fixed repository results
+because they contain direct host reads. CLI
 execution, display access, and system telemetry are blocked. HID and OpenRGB
 access are blocked by default; the keyboard journeys supply OpenRGB process
 results to the real CLI service and confine Spectrum discovery to temporary

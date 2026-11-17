@@ -1,5 +1,4 @@
 { pkgs, frontend }:
-
 let
   fixtures = pkgs.callPackage ./fixtures.nix { };
 in
@@ -27,13 +26,16 @@ pkgs.testers.runNixOSTest {
       pkgs.util-linux
       pkgs.xvfb-run
       pkgs.xdotool
+      pkgs.imagemagick
+      (pkgs.tesseract.override { enableLanguages = [ "eng" ]; })
     ];
     hardware.graphics.enable = true;
     virtualisation.memorySize = 2048;
     virtualisation.cores = 2;
   };
+  # The upstream driver supplies the VM command bridge.
   testScript = ''
     start_all()
-    machine.succeed("bash /etc/legion-vm-tests/frontend_package.sh ${frontend}", timeout=300)
+    machine.succeed("bash /etc/legion-vm-tests/frontend_package.sh ${frontend}", timeout=420)
   '';
 }

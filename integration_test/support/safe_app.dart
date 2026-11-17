@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/app.dart';
 import 'package:legion_frontend/core/models/control_selectors.dart';
-import 'package:legion_frontend/features/settings/repository/control_mode_store.dart';
 import 'package:legion_frontend/core/models/power_profiles_daemon_snapshot.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
@@ -23,11 +22,8 @@ import 'package:legion_frontend/features/lighting/providers/lighting_provider.da
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
 import 'package:legion_frontend/features/sensors/repository/live_sensor_repository.dart';
-import 'package:legion_frontend/features/settings/models/service_control.dart';
-import 'package:legion_frontend/features/settings/models/settings_snapshot.dart';
 import 'package:legion_frontend/features/settings/providers/settings_provider.dart';
 import 'package:legion_frontend/features/settings/repository/appearance_store.dart';
-import 'package:legion_frontend/features/settings/repository/settings_repository.dart';
 import 'package:yaru/yaru.dart';
 
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
@@ -133,18 +129,13 @@ class SafeApp {
       sysRoot: '${directory.path}/sys',
       procRoot: '${directory.path}/proc',
     );
-    final controlStore = ControlModeStore(Hive.box<dynamic>('preferences'));
-    final mode = controlStore.load();
     runApp(
       ProviderScope(
         overrides: _mergeOverrides([
-          controlModeProvider.overrideWithValue(mode),
-          controlModeStoreProvider.overrideWithValue(controlStore),
           legionSysfsServiceProvider.overrideWithValue(sysfs),
           legionControlClientProvider.overrideWith((ref) {
             final client = LegionControlClient(
               transport: _FixtureControl(this),
-              controlMode: mode,
             );
             _controlCreated = true;
             ref.onDispose(() => unawaited(client.close()));
@@ -179,9 +170,7 @@ class SafeApp {
           packagePowerTelemetryClientProvider.overrideWith(
             (_) => throw StateError('System telemetry is outside this journey'),
           ),
-          // These repositories contain direct host reads (systemctl and /sys).
-          // Keep their real providers/Blocs, but supply fixed repository results.
-          settingsRepositoryProvider.overrideWithValue(_NoSystemServices()),
+          // Keep the real sensor provider/Bloc with synthetic hardware readings.
           liveSensorRepositoryProvider.overrideWithValue(_NoLiveSensors()),
           appearanceStoreProvider.overrideWithValue(
             AppearanceStore(Hive.box<dynamic>('preferences')),
@@ -227,7 +216,7 @@ class _FixtureControl extends LegionControlTransport {
   @override
   Future<ControlCapabilities> getCapabilities() async => ControlCapabilities(
     protocolVersion: ControlCapabilities.currentProtocolVersion,
-    supported: ControlCapability.values,
+    supported: const [ControlCapability.interactiveControl],
   );
 
   @override
@@ -321,16 +310,6 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 class _NoNvidia implements NvidiaSmiService {
   @override
   Future<NvidiaSmiSnapshot?> readSnapshot() async => null;
-}
-
-class _NoSystemServices implements SettingsRepository {
-  @override
-  Future<SettingsSnapshot> loadSnapshot() async =>
-      const SettingsSnapshot(services: []);
-
-  @override
-  Future<void> setServiceEnabled(ServiceControl service, bool enabled) =>
-      throw StateError('System service writes are outside this journey');
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

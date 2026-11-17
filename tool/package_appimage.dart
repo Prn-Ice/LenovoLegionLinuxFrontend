@@ -38,10 +38,7 @@ Future<void> main(List<String> args) async {
     }
     final inputs = Directory(inputPath).absolute;
     await verifyRuntimeInputs(root, inputs);
-    final (bundle: bundle, stamp: built) = await buildLinuxRelease(
-      root,
-      portableControl: true,
-    );
+    final (bundle: bundle, stamp: built) = await buildLinuxRelease(root);
     final version = RegExp(r'^version:\s*(\S+)', multiLine: true)
         .firstMatch(await File('${root.path}/pubspec.yaml').readAsString())!
         .group(1)!;
@@ -91,7 +88,6 @@ Future<void> main(List<String> args) async {
       final stamp = await recordReleaseBuild(
         appBundle,
         (built['inputs'] as Map).cast<String, Object>(),
-        portableControl: true,
         staticPortableHelper: true,
       );
       await output.create(recursive: true);
@@ -134,7 +130,9 @@ Future<void> main(List<String> args) async {
         'architecture': 'x86_64',
         'build_os': os,
         'portable_control': true,
-        'default_control_mode': 'installedService',
+        'default_control_mode': 'privilegedControlHelper',
+        // SquashFS starts immediately after the pinned AppImage runtime.
+        'runtime_size': File('${inputs.path}/runtime-x86_64').lengthSync(),
         'host_executables': ['/bin/sh', 'dirname', 'mktemp', 'rm'],
         'native_runtime': nativeManifest,
         'elf_dependencies': elf,

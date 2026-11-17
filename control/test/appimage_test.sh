@@ -14,7 +14,7 @@ directory=$1
 images=("$directory"/*.AppImage)
 manifests=("$directory"/legion-frontend-*.json)
 image=${images[0]} manifest=${manifests[0]}
-jq -e '.portable_control and .default_control_mode == "installedService" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
+jq -e '.portable_control and .default_control_mode == "privilegedControlHelper" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
 ldconfig -p >/tmp/legion-ldconfig
 reject grep -F libgtk-3.so.0 /tmp/legion-ldconfig
 echo "ARTIFACT_SHA256 $(jq -r --arg name "$(basename "$image")" '.files[$name]' "$manifest") $(basename "$image")"
@@ -66,7 +66,7 @@ mountpoint=$(head -n1 /home/approved/appimage-mount.out)
 check_helper "$mountpoint"
 echo 'PASS: bundled helper from FUSE with synthetic write/readback/restore'
 cleanup
-timeout 150 runuser -u approved -- xvfb-run -a bash "$support/desktop_test_support.sh" "$image" appimage-gui-fuse.log fuse '' true
+timeout 420 bash "$support/desktop_test_support.sh" "$image" appimage-gui-fuse.log fuse '' true
 extraction='/home/approved/Extracted app with spaces'
 as_user approved mkdir -p "$extraction"
 as_user approved bash -c 'cd "$1"; "$2" --appimage-extract >/dev/null' bash "$extraction" "$image"
@@ -91,9 +91,9 @@ test ! -s /tmp/legion-unsealed.out
 rm /tmp/legion-unsealed-cleanup
 check_helper "$appdir"
 echo 'PASS: bundled helper from extraction with synthetic write/readback/restore'
-# The first X server may still be releasing its socket after xvfb-run exits.
-timeout 150 runuser -u approved -- xvfb-run -a --server-num=100 bash "$support/desktop_test_support.sh" "$appdir/AppRun" appimage-gui-extracted.log extracted '' true
+timeout 420 bash "$support/desktop_test_support.sh" "$appdir/AppRun" appimage-gui-extracted.log extracted '' true
 wait_until 10 bash -c 'test -z "$(findmnt -rn -t fuse,fuse.squashfuse)"'
 diff "$before" <(persistent_files)
 rm "$before"
+assert_cleanup_succeeded
 echo 'PASS: AppImage FUSE/extraction qualification; persistent integration files unchanged'

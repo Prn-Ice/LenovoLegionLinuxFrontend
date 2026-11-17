@@ -194,9 +194,12 @@ commands extend
 
 ## 8. Shell & platform
 
-- Window is a rounded GNOME/Handy window via **handy_window**
-  ([linux/runner/my_application.cc](../linux/runner/my_application.cc) registers
-  plugins before showing the view).
+- **handy_window** draws the native window decorations.
+  [AppWindowFrame](../lib/app/view/app_window_frame.dart) also clips Flutter's
+  content: Flutter 3.50's Wayland surface bypasses GTK's corner mask. Its 8-pixel
+  radius matches the bundled libhandy Adwaita window style; maximized and
+  fullscreen content stays square. Keep the native Flutter view transparent so
+  clipped corners reveal the native decoration.
 
 ## 9. Tooling & process
 

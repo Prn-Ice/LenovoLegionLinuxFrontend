@@ -50,7 +50,6 @@ class AboutRepository {
         ? family
         : '$family ($name)';
 
-    final controlServiceActive = await _isControlServiceActive();
     final systemctlAvailable = await _isCommandAvailable('systemctl');
     final cliProbe = await _probeCliHealth();
     final cliPath = _cli.cliPath;
@@ -61,7 +60,6 @@ class AboutRepository {
       updatedAt: DateTime.now(),
       cliPath: cliPath,
       cliPathExists: cliPathExists,
-      controlServiceActive: controlServiceActive,
       systemctlAvailable: systemctlAvailable,
       cliHealthy: cliProbe.$1,
       cliHealthSummary: cliProbe.$2,
@@ -126,19 +124,6 @@ class AboutRepository {
       final result = await _processRunner('which', [command]);
       return result.exitCode == 0;
     } on ProcessException {
-      return false;
-    }
-  }
-
-  Future<bool> _isControlServiceActive() async {
-    try {
-      final result = await _processRunner('systemctl', [
-        'is-active',
-        '--quiet',
-        'legion-control.service',
-      ]).timeout(const Duration(seconds: 2));
-      return result.exitCode == 0;
-    } on Object {
       return false;
     }
   }

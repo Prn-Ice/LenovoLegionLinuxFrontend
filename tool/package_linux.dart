@@ -3,6 +3,19 @@ import 'dart:io';
 
 const appId = 'io.github.prnice.legion_linux_frontend';
 
+void requirePrivilegedControlHelper(Directory bundle) {
+  const executePermissionBits = 0x49; // Owner, group, and other execute bits.
+  final helper = File('${bundle.path}/libexec/legion-portable-control');
+  if (FileSystemEntity.typeSync(helper.path, followLinks: false) !=
+          FileSystemEntityType.file ||
+      helper.lengthSync() == 0 ||
+      (helper.statSync().mode & executePermissionBits) == 0) {
+    throw StateError(
+      'The desktop bundle has no executable privileged control helper.',
+    );
+  }
+}
+
 Future<void> stageDesktopPackage(
   Directory root,
   Directory bundle,
@@ -27,9 +40,7 @@ Future<void> stageDesktopPackage(
     final file = File('${appBundle.path}/libexec/$name');
     if (file.existsSync()) await file.delete();
   }
-  if (!File('${appBundle.path}/libexec/legion-portable-control').existsSync()) {
-    throw StateError('The desktop bundle has no portable helper.');
-  }
+  requirePrivilegedControlHelper(appBundle);
   final packaging = '${root.path}/packaging/appimage';
   for (final entry in {
     'applications/$appId.desktop': '$packaging/$appId.desktop',

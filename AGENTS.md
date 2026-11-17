@@ -107,6 +107,7 @@ bd sync               # Sync with git
 7. **Hand off** - Provide context for next session
 
 **CRITICAL RULES:**
+- Sign every new commit and verify its signature before pushing.
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push

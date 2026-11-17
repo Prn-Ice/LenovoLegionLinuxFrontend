@@ -21,6 +21,16 @@ apt-get install -y --no-install-recommends policykit-1 dbus jq util-linux \
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
+# Preserve available GUI evidence even when a package check fails.
+# shellcheck source=control/test/deb_evidence.sh
+source control/test/deb_evidence.sh
+finish_qualification() {
+  local qualification_status=$? evidence_status=0
+  trap - EXIT
+  retain_deb_evidence /home/approved /root/deb-qualification.tar.gz "$qualification_status" || evidence_status=$?
+  exit "$evidence_status"
+}
+trap finish_qualification EXIT
 if [[ $ID == ubuntu ]]; then
   mkdir -p /etc/polkit-1/localauthority/50-local.d
   cat > /etc/polkit-1/localauthority/50-local.d/legion-package-test.pkla <<'EOF'
@@ -77,5 +87,3 @@ bash /opt/legion-vm-tests/deb_test.sh /root/deb-release
 dpkg-query -W systemd libc6 libgtk-3-0 libglib2.0-0 libpolkit-gobject-1-0 > /home/approved/deb-versions.txt
 cp /root/deb-release/legion-frontend-*.json /home/approved/deb-release-manifest.json
 cp /etc/os-release /home/approved/deb-os-release
-tar -czf /root/deb-qualification.tar.gz -C /home/approved \
-  deb-versions.txt deb-gui.log deb-release-manifest.json deb-os-release deb-checks.json

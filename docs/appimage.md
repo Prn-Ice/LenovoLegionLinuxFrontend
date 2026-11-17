@@ -26,8 +26,8 @@ and the socket's PID before authentication. Namespace-visible `nobody` ownership
 is never accepted as root evidence. This uses no project launcher or patched
 executables. The [native Nix package](nix.md) is also available.
 
-Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
-contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
+Build the desktop app and privileged control helper together on Ubuntu 22.04.
+The AppImage contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
 settings schemas, icons, and DejaVu fonts. It bundles `xdg-user-dir` to find the
 Documents directory used by the app's existing Hive storage.
 
@@ -37,17 +37,19 @@ driver interfaces; bundling older copies can prevent newer GPU drivers from
 loading. The native-runtime manifest lists the exact host library names found
 during packaging. GTK and its remaining dependencies are private to the app.
 
-The temporary helper is a static ELF executable. It embeds a separate cleanup
-ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
+The privileged control helper is a static ELF executable. It embeds a separate
+cleanup ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
 as retained standard-input data. Both images use validated sealed snapshots.
 Startup, authorized root control, and cleanup need no ELF interpreter or shared
 libraries. The authorization request carries both sealed images. Root execution
 loads no libraries from the AppDir.
 Systemd and the host Polkit service still authorize startup.
 
-Temporary hardware access requires the installed driver and `legion_cli`, systemd,
-and a desktop authentication agent. Installed service remains the default mode;
-choose Temporary helper in Settings and reopen the app to use it.
+Hardware access requires the installed driver and administrator-controlled
+`legion_cli`, systemd, Polkit, and a desktop authentication agent. The app uses
+the bundled privileged control helper from its first launch. The first privileged
+action requests approval; closing the app ends the helper session. Persistent service
+management and next-boot graphics changes are unavailable through the helper.
 
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
@@ -178,8 +180,8 @@ bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimag
 ```
 
 This separate NixOS VM launches the actual app through official `appimage-run`.
-It saves Temporary helper through Settings, reopens the app, and uses the Battery
-page to change and restore a synthetic setting. It checks private GTK libraries,
+It uses the helper on first launch and changes and restores a synthetic setting
+on the Battery page. It checks private GTK libraries,
 the runner's user namespace, static helper execution, cleanup, denied approval,
 and a missing authentication agent. Fixed-location CLI discovery is also tested
 inside the runner. The synthetic CLI and kernel files exist only in the VM;
@@ -197,8 +199,7 @@ artifact as release-ready.
 
 ## Desktop trial
 
-After opening the app, choose **Temporary helper** in Settings, close it, and
-reopen it with the same command. Record the current Conservation mode value.
+Open the app and record the current Conservation mode value.
 Change it and, if a password prompt appears, cancel first: the setting must stay
 unchanged. Retry, approve, and confirm the new value in the app. Restore the
 original value, confirm it, and close the app normally. Record any error and the

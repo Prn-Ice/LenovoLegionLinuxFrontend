@@ -54,14 +54,13 @@ void main() {
     connections = 0;
     launcher = PortableControlLauncher(
       executable: '/bundle/helper',
-      startProcess:
-          (
-            _,
-            _, {
-            required environment,
-            required workingDirectory,
-            required includeParentEnvironment,
-          }) async => process,
+      startProcess: (
+        _,
+        _, {
+        required environment,
+        required workingDirectory,
+        required includeParentEnvironment,
+      }) async => process,
     );
     client = LegionControlClient(
       transport: PortableLegionControlTransport(
@@ -76,6 +75,46 @@ void main() {
     );
   });
   tearDown(() => client.close());
+
+  test('missing bundled helper reports setup failure without connecting or writing', () async {
+    var starts = 0;
+    client = LegionControlClient(
+      transport: PortableLegionControlTransport(
+        resolveCliPath: () async => portableTestCli,
+        createLauncher: () => PortableControlLauncher(
+          executable: '/bundle/libexec/legion-portable-control',
+          startProcess:
+              (
+                executable,
+                arguments, {
+                required environment,
+                required workingDirectory,
+                required includeParentEnvironment,
+              }) async {
+                starts++;
+                throw ProcessException(executable, arguments, 'No such file');
+              },
+        ),
+        connect: (_) {
+          connections++;
+          return peer;
+        },
+      ),
+    );
+    await expectLater(
+      client.setToggle(ControlToggle.batteryConservation, true),
+      throwsA(
+        isA<LegionControlPortableSetupException>().having(
+          (error) => error.message,
+          'recovery',
+          contains('Reinstall a complete app build'),
+        ),
+      ),
+    );
+    expect(starts, 1);
+    expect(connections, 0);
+    expect(peer.calls, isEmpty);
+  });
 
   for (final closeDuringRetry in [false, true]) {
     test(
@@ -97,14 +136,13 @@ void main() {
             },
             createLauncher: () => PortableControlLauncher(
               executable: '/bundle/helper',
-              startProcess:
-                  (
-                    _,
-                    _, {
-                    required environment,
-                    required workingDirectory,
-                    required includeParentEnvironment,
-                  }) async => ++starts == 1 ? process : retry,
+              startProcess: (
+                _,
+                _, {
+                required environment,
+                required workingDirectory,
+                required includeParentEnvironment,
+              }) async => ++starts == 1 ? process : retry,
             ),
             connect: (_) {
               connections++;
