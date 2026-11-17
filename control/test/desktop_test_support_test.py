@@ -97,8 +97,8 @@ class DesktopDriverTest(unittest.TestCase):
         content = next(i for i, command in enumerate(commands) if "Battery health" in command)
         focus = next(i for i, command in enumerate(commands) if "windowfocus --sync" in command)
         click = next(i for i, command in enumerate(commands) if "90 228" in command)
-        self.assertLess(content, focus)
-        self.assertLess(focus, click)
+        self.assertLess(focus, content)
+        self.assertLess(content, click)
         self.assertIn("mousemove --sync", commands[click])
         self.assertIn("getmouselocation --shell", commands[click])
 

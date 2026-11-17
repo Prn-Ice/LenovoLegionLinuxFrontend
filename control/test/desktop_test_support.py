@@ -115,10 +115,10 @@ def gui(
     try:
         machine.wait_until_succeeds("test -s " + home + "/pid", timeout=timedelta(seconds=120))
         wait_text("Dashboard", "380x32+288+7")
-        wait_text("Battery health", "1280x720+0+0", 11)
         machine.succeed(desktop(
             "xdotool windowfocus --sync $(head -n1 " + home + "/window)"
         ))
+        wait_text("Battery health", "1280x720+0+0", 11)
         machine.wait_until_succeeds("test -f " + home + "/preferences.hive", timeout=timedelta(seconds=10))
         pid = int(machine.succeed("cat " + home + "/pid").strip())
         # FUSE allows the mount owner, not arbitrary root traversal. Resolve and
