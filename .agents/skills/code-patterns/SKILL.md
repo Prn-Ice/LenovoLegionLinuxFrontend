@@ -30,6 +30,32 @@ They deliberately exclude its estate model, Supabase/RLS, Jaspr,
 AutoRoute, monorepo, design system, and Git policy. This project's architecture,
 UI standards, and completion rules remain authoritative.
 
+## Choose the smallest complete solution
+
+These rules adapt [Ponytail's reuse-first guidance](https://github.com/DietrichGebert/ponytail/blob/main/skills/ponytail/SKILL.md)
+to reduce unnecessary code, not required behavior. This project's readability,
+architecture, language, security, accessibility, testing, and writing rules take
+precedence; this does not install Ponytail or add its modes and commands.
+
+- Before editing, trace the affected flow and find its callers, tests, fixtures,
+  configuration, and exports. Check for data loss, exposed data, and broken
+  callers. Fix the root cause and update every affected part the task requires.
+- Check whether new code is needed. Prefer an existing project component or
+  pattern, then a standard-library or supported platform feature, then an
+  installed dependency, before writing new code. Project conventions come first;
+  do not add a dependency for behavior the existing tools can express clearly.
+- Leave out unrequested features, speculative options, and future-proofing.
+  Clarify ambiguity that affects safety or correctness; otherwise choose the
+  smallest solution that meets the stated need. Do not omit required behavior
+  or replace useful abstractions just to shrink the diff.
+- Prefer readable code to one-liners. Preserve validation, error handling,
+  authorization, accessibility, and hardware calibration when moving or merging
+  code. A smaller diff is not evidence of a safer or more complete fix.
+- Test new or changed nontrivial logic and relevant failure cases under the
+  testing rules below; one small test is not a ceiling. Report deliberate
+  omissions, known limits, and unchecked behavior. Track deferred work in Beads,
+  rather than leaving it only in comments.
+
 ## Keep the behavior visible
 
 - Read construction, callers, failure handling, and cleanup together. State the
