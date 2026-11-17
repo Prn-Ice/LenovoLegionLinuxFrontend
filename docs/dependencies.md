@@ -59,6 +59,29 @@ development dependency. It follows the installed Flutter version. These tests
 need no external desktop automation tool or production test-mode flag. See
 [the integration journey command](../CONTRIBUTING.md#linux-app-integration-journey).
 
+### Linux window corners
+
+Window rounding belongs to `handy_window` and the native toolkit. The app's
+`AppWindowFrame` is a compatibility workaround for Flutter 3.50 on Wayland.
+Flutter selects a separate Wayland surface for OpenGL content; GTK paints the
+background behind it, so libhandy's GTK corner mask does not clip that content.
+See the SDK's [renderer selection](https://github.com/flutter/flutter/blob/3.50.0/engine/src/flutter/shell/platform/linux/fl_view.cc)
+and [subsurface draw handler](https://github.com/flutter/flutter/blob/3.50.0/engine/src/flutter/shell/platform/linux/fl_view_renderer_subsurface.cc).
+
+On 2026-11-17, a fresh Flutter 3.50 Linux app with `handy_window` 0.4.2 and only
+its [documented plugin-registration change](https://github.com/ubuntu/handy_window.dart#usage)
+reproduced square bottom content corners on KDE Wayland. The same app rounded
+those corners under XWayland. This comparison used no Legion app code or Yaru
+widgets and isolates a native rendering difference. XWayland was a diagnostic
+comparison, not a change to the supported launch workflow.
+
+Version 0.4.2 was the latest published `handy_window` release at that check.
+[Upstream PR 61](https://github.com/ubuntu/handy_window.dart/pull/61) proposes
+package-owned Flutter rounding, but remains unmerged and has not been verified
+against this startup issue. Track a released toolkit fix in `lllf-omo`; remove
+`AppWindowFrame` only after native Wayland startup, maximize, fullscreen and
+restore checks pass without it. The reported startup flash remains unresolved.
+
 ## Why some packages are held back
 
 ### AppImage runtime
