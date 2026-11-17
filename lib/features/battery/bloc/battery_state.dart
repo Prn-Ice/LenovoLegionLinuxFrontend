@@ -34,6 +34,7 @@ class BatteryState extends Equatable {
     required this.modelName,
     required this.serialNumber,
     required this.isLoading,
+    required this.hasLoaded,
     required this.isApplying,
     required this.errorMessage,
     required this.noticeMessage,
@@ -60,6 +61,7 @@ class BatteryState extends Equatable {
     modelName: null,
     serialNumber: null,
     isLoading: false,
+    hasLoaded: false,
     isApplying: false,
     errorMessage: null,
     noticeMessage: null,
@@ -87,14 +89,10 @@ class BatteryState extends Equatable {
   final String? modelName;
   final String? serialNumber;
   final bool isLoading;
+  final bool hasLoaded;
   final bool isApplying;
   final AppFailure? errorMessage;
   final String? noticeMessage;
-
-  bool get hasLoaded =>
-      batteryConservationEnabled != null ||
-      rapidChargingEnabled != null ||
-      batteryPercent != null;
 
   String get chargeStateLabel => switch (batteryStatus?.toLowerCase()) {
     'charging' => 'Charging',
@@ -147,6 +145,7 @@ class BatteryState extends Equatable {
     Object? modelName = _unset,
     Object? serialNumber = _unset,
     bool? isLoading,
+    bool? hasLoaded,
     bool? isApplying,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
@@ -202,6 +201,7 @@ class BatteryState extends Equatable {
           ? this.serialNumber
           : serialNumber as String?,
       isLoading: isLoading ?? this.isLoading,
+      hasLoaded: hasLoaded ?? this.hasLoaded,
       isApplying: isApplying ?? this.isApplying,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
@@ -234,6 +234,7 @@ class BatteryState extends Equatable {
     modelName,
     serialNumber,
     isLoading,
+    hasLoaded,
     isApplying,
     errorMessage,
     noticeMessage,

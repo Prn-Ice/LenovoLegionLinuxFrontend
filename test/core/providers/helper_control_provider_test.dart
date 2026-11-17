@@ -69,11 +69,7 @@ void main() {
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(channel, null),
       );
-      final container = ProviderContainer.test(
-        overrides: [
-          privilegedControlHelperExistsProvider.overrideWithValue(false),
-        ],
-      );
+      final container = ProviderContainer.test();
       container.read(legionBridgeServiceProvider);
       expect(calls, isEmpty);
       expect(

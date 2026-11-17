@@ -196,6 +196,7 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
           modelName: snapshot.modelName,
           serialNumber: snapshot.serialNumber,
           isLoading: false,
+          hasLoaded: true,
           errorMessage: null,
         ),
       );
@@ -205,6 +206,7 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
       emit(
         state.copyWith(
           isLoading: false,
+          hasLoaded: true,
           errorMessage: AppFailure.from(
             error,
             message: 'Failed to load battery settings: $error',

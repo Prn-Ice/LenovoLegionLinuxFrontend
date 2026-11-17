@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -6,12 +8,43 @@ import 'package:legion_frontend/features/battery/bloc/battery_event.dart';
 import 'package:legion_frontend/features/battery/bloc/battery_state.dart';
 import 'package:legion_frontend/features/battery/models/battery_snapshot.dart';
 import 'package:legion_frontend/features/battery/repository/battery_repository.dart';
+import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
+import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 
 class MockBatteryRepository extends Mock implements BatteryRepository {}
+
+class MockBridgeService extends Mock implements LegionFrontendBridgeService {}
 
 void main() {
   late MockBatteryRepository repo;
   setUp(() => repo = MockBatteryRepository());
+
+  test(
+    'empty sysfs completes the first read without inventing battery data',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'battery-unavailable-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final bridge = MockBridgeService();
+      final bloc = BatteryBloc(
+        repository: BatteryRepository(
+          sysfsService: LegionSysfsService(sysRoot: directory.path),
+          bridgeService: bridge,
+        ),
+      );
+      addTearDown(bloc.close);
+      final completed = bloc.stream.firstWhere((state) => !state.isLoading);
+      bloc.add(const BatteryStarted());
+      final state = await completed;
+      expect(state.hasLoaded, isTrue);
+      expect(state.batteryPercent, isNull);
+      expect(state.batteryStatus, isNull);
+      expect(state.batteryConservationSupported, isFalse);
+      expect(state.errorMessage, isNull);
+      verifyZeroInteractions(bridge);
+    },
+  );
 
   const snapshot = BatterySnapshot(
     batteryConservationEnabled: false,
