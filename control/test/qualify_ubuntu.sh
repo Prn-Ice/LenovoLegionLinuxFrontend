@@ -15,7 +15,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends cmake ninja-build g++ pkg-config \
-  libglib2.0-dev libpolkit-gobject-1-dev policykit-1 dbus python3 util-linux binutils
+  libglib2.0-dev libpolkit-gobject-1-dev policykit-1 dbus jq util-linux binutils
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
@@ -71,7 +71,7 @@ for user in approved denied challenge; do
   chown "$user:$user" "/home/$user/legion-portable-control"
 done
 systemctl restart polkit.service
-python3 control/test/portable_distro_test.py
+bash control/test/portable_distro_test.sh
 mkdir -p /root/qualification
 cp /tmp/native/legion-portable-control /root/qualification/
 cp LICENSE THIRD_PARTY_NOTICES.md /root/qualification/

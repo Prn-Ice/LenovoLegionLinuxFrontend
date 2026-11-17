@@ -11,6 +11,12 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
 
 - Prefer plain names, direct control flow, focused functions, and a visible happy
   path. Optimize for the next reader, not the fewest lines.
+- Use Dart for application code and structured tools, Nix for packaging and
+  environments, and shell for command orchestration. Do not add Python code.
+  Do not introduce another language unless the existing languages cannot meet
+  a concrete requirement. Explain the need, alternatives, and maintenance cost,
+  and obtain approval before adding one. Keep existing platform-required code
+  and upstream tool internals; this rule does not require rewriting dependencies.
 - Always prefer enums to strings for named choices such as commands, settings,
   modes, and states. Convert to protocol strings at the service boundary.
 - Add an abstraction only when it clarifies a responsibility, isolates an external

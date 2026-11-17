@@ -9,7 +9,6 @@ class AboutSnapshot extends Equatable {
     required this.updatedAt,
     required this.cliPath,
     required this.cliPathExists,
-    required this.pythonAvailable,
     required this.controlServiceActive,
     required this.systemctlAvailable,
     required this.cliHealthy,
@@ -27,7 +26,6 @@ class AboutSnapshot extends Equatable {
   final DateTime updatedAt;
   final String? cliPath;
   final bool cliPathExists;
-  final bool pythonAvailable;
   final bool controlServiceActive;
   final bool systemctlAvailable;
   final bool cliHealthy;
@@ -44,11 +42,10 @@ class AboutSnapshot extends Equatable {
   /// Builds the JSON copied from Diagnostics. Local CLI paths and error output
   /// stay in the UI because they can contain personal directory names.
   Map<String, Object?> toJson() => {
-    'schema_version': 3,
+    'schema_version': 4,
     'updated_at': updatedAt.toIso8601String(),
     'cli_path': '<configured-cli>',
     'cli_path_exists': cliPathExists,
-    'python_available': pythonAvailable,
     'control_service_active': controlServiceActive,
     'systemctl_available': systemctlAvailable,
     'cli_healthy': cliHealthy,
@@ -80,7 +77,6 @@ class AboutSnapshot extends Equatable {
     updatedAt,
     cliPath,
     cliPathExists,
-    pythonAvailable,
     controlServiceActive,
     systemctlAvailable,
     cliHealthy,

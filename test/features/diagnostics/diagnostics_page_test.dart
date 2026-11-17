@@ -65,7 +65,6 @@ void main() {
         updatedAt: DateTime(2026),
         cliPath: '/private/user/legion_cli',
         cliPathExists: false,
-        pythonAvailable: false,
         controlServiceActive: false,
         systemctlAvailable: false,
         cliHealthy: false,
@@ -92,8 +91,7 @@ void main() {
             frontendWriteAvailable: true,
             probe: const SysfsProbe([
               SysfsRead(
-                path:
-                    '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode',
+                path: '/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode',
                 outcome: SysfsReadOutcome.malformed,
               ),
             ]),
@@ -102,12 +100,10 @@ void main() {
       );
       when(about.loadSnapshot).thenAnswer((_) async => snapshot);
       when(analytics.pruneOldRecords).thenAnswer((_) async {});
-      when(
-        () => analytics.readHistory(since: any(named: 'since')),
-      ).thenReturn([]);
-      when(
-        analytics.recordReading,
-      ).thenAnswer((_) async => SensorRecord(timestamp: DateTime(2026)));
+      when(() => analytics.readHistory(since: any(named: 'since')))
+          .thenReturn([]);
+      when(analytics.recordReading)
+          .thenAnswer((_) async => SensorRecord(timestamp: DateTime(2026)));
       String? copied;
       var clipboardFails = false;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -148,6 +144,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('python3'), findsNothing);
+      expect(find.text('CLI health'), findsOneWidget);
+      expect(find.text('legion-control'), findsOneWidget);
+      expect(find.text('systemctl'), findsOneWidget);
+      expect(find.text('CLI was not found at this location.'), findsOneWidget);
       final copy = find.text('Copy report JSON');
       await tester.ensureVisible(copy);
       await tester.tap(copy);

@@ -2,6 +2,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'bundle_appimage_runtime.dart' show bundleRuntime;
+
 import 'package_release.dart';
 
 import 'package_linux.dart';
@@ -68,13 +70,7 @@ Future<void> main(List<String> args) async {
         );
       }
       final nativeInputs = Directory('${scratch.path}/native-inputs');
-      await runPackagingCommand('python3', [
-        '${root.path}/tool/bundle_appimage_runtime.py',
-        '--appdir',
-        appdir.path,
-        '--inputs',
-        nativeInputs.path,
-      ]);
+      bundleRuntime(root, appdir, nativeInputs);
       final nativeManifest = jsonDecode(
         await File('${nativeInputs.path}/native-runtime.json').readAsString(),
       ) as Map;

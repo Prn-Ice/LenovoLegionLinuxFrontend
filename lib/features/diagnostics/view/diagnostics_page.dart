@@ -219,13 +219,8 @@ class _DiagnosticsPageState extends ConsumerState<DiagnosticsPage> {
                     ? AboutDiagnosticStatus.ok
                     : AboutDiagnosticStatus.error,
                 details: snapshot != null && !snapshot.cliPathExists
-                    ? 'CLI script was not found at this location.'
+                    ? 'CLI was not found at this location.'
                     : null,
-              ),
-              _StatusLine(
-                label: 'python3',
-                value: _boolLabel(snapshot?.pythonAvailable),
-                status: _boolStatus(snapshot?.pythonAvailable),
               ),
               _StatusLine(
                 label: 'legion-control',

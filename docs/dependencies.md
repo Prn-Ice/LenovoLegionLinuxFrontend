@@ -9,9 +9,18 @@ Use compatible stable packages and commit `pubspec.lock`.
 - GTK development headers and Flutter's native development libraries
 - GLib/GIO development files for native services
 - Polkit development files for control-service builds
+- Bash, GNU coreutils, and jq for shell tools and their tests
 
 See [contributor setup](../CONTRIBUTING.md) for installation commands and optional
 Nix/direnv configuration.
+
+Project-owned tools use Dart, Nix, or shell, not Python. The NixOS VM test
+driver and some upstream build tools still use Python internally. Their required
+driver calls stay in Nix test definitions; test scenarios run shell scripts in
+the guest. The administrator-installed LenovoLegionLinux CLI is an external
+backend and may also use Python. Keep its environment-isolation checks intact.
+Historical audits name upstream Python classes and files as evidence, not as
+project runtime requirements. The language rule in `AGENTS.md` governs new code.
 
 Flutter 3.50 uses the standalone `material_ui` package. Yaru 12 supplies matching
 themes, so the app and tests use those imports together. Dart's supported

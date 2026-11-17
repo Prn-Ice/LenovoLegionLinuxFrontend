@@ -50,7 +50,6 @@ class AboutRepository {
         ? family
         : '$family ($name)';
 
-    final pythonAvailable = await _isCommandAvailable('python3');
     final controlServiceActive = await _isControlServiceActive();
     final systemctlAvailable = await _isCommandAvailable('systemctl');
     final cliProbe = await _probeCliHealth();
@@ -62,7 +61,6 @@ class AboutRepository {
       updatedAt: DateTime.now(),
       cliPath: cliPath,
       cliPathExists: cliPathExists,
-      pythonAvailable: pythonAvailable,
       controlServiceActive: controlServiceActive,
       systemctlAvailable: systemctlAvailable,
       cliHealthy: cliProbe.$1,

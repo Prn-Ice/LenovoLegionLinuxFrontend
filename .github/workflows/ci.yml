@@ -29,9 +29,9 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           if [[ "$EVENT_NAME" == pull_request ]]; then
-            python3 tool/ci_build_changes.py --base "$PR_BASE"
+            bash tool/ci_build_changes.sh --base "$PR_BASE"
           else
-            python3 tool/ci_build_changes.py
+            bash tool/ci_build_changes.sh
           fi
 
   release-tools:
@@ -42,8 +42,18 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
+      - name: Resolve test dependencies
+        run: flutter pub get --enforce-lockfile
       - name: Test tag validation and draft release handling
-        run: python3 -m unittest discover -s test/tool -p '*_test.py' -v
+        run: flutter test test/tool --reporter=compact
+      - name: Test VM readiness and evidence handling
+        run: |
+          bash test/tool/portable_distro_evidence_test.sh
+          bash test/tool/portable_distro_readiness_test.sh
 
   test:
     name: Flutter Test & Analyze
@@ -89,7 +99,14 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev libpolkit-gobject-1-dev dbus
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev libpolkit-gobject-1-dev dbus jq
+
+      - name: Test graphics guards without hardware
+        run: |
+          bash tool/test_graphics_boot.sh
+          bash tool/test_setup_next_boot_graphics.sh
+          bash tool/test_check_graphics_tty.sh
+          bash tool/test_auto_battery_tty_json.sh
 
       - name: Set up Flutter for the portable control probe
         uses: subosito/flutter-action@v2
@@ -153,7 +170,7 @@ jobs:
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
       - name: Enable KVM when available
         run: |
           if [[ -e /dev/kvm ]]; then
@@ -194,12 +211,12 @@ jobs:
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+          sudo apt-get install -y qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
       - name: Download pinned build inputs
         run: |
-          sdk_url="$(python3 -c 'import json; print(json.load(open("packaging/appimage/build-inputs.json"))["flutter"]["url"])')"
+          sdk_url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"
           curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
-          python3 tool/fetch_appimage_runtime.py build/appimage-inputs
+          bash tool/fetch_appimage_runtime.sh build/appimage-inputs
       - name: Build the AppImage and source companion
         run: bash tool/build_appimage.sh /tmp/flutter.tar.xz build/appimage-inputs build/appimage-release
       - name: Download official acceptance VM
@@ -217,15 +234,12 @@ jobs:
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
-          python3 - <<'PY'
-          import hashlib, json
-          from pathlib import Path
-          directory = Path('build/appimage-qualification')
-          manifest = json.loads((directory / 'manifest.json').read_text())
-          name = 'appimage-nixos-qualification.tar.gz'
-          manifest['files'][name] = hashlib.sha256((directory / name).read_bytes()).hexdigest()
-          (directory / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-          PY
+          directory=build/appimage-qualification
+          name=appimage-nixos-qualification.tar.gz
+          digest="$(sha256sum "$directory/$name" | cut -d ' ' -f1)"
+          jq --arg name "$name" --arg digest "$digest" '.files[$name] = $digest' \
+            "$directory/manifest.json" >"$directory/manifest.json.tmp"
+          mv "$directory/manifest.json.tmp" "$directory/manifest.json"
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -325,7 +339,7 @@ jobs:
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client python3
+          sudo apt-get install -y acl qemu-system-x86 qemu-utils cloud-image-utils openssh-client jq iproute2
       - name: Enable KVM when available
         run: |
           if [[ -e /dev/kvm ]]; then
@@ -333,7 +347,7 @@ jobs:
           fi
       - name: Download the pinned SDK
         run: |
-          sdk_url="$(python3 -c 'import json; print(json.load(open("packaging/appimage/build-inputs.json"))["flutter"]["url"])')"
+          sdk_url="$(jq -er '.flutter.url' packaging/appimage/build-inputs.json)"
           curl --fail --silent --show-error --location --retry 3 --max-time 900 "$sdk_url" -o /tmp/flutter.tar.xz
       - name: Build the Debian package and source companion
         run: bash tool/build_deb.sh /tmp/flutter.tar.xz build/deb-release

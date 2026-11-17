@@ -25,11 +25,15 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
       - name: Match the tag to pubspec.yaml and the checked-out commit
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: python3 tool/release_workflow.py check-tag "$RELEASE_TAG"
+        run: dart tool/release_workflow.dart check-tag "$RELEASE_TAG"
 
   checks:
     name: Release checks and artifacts
@@ -49,6 +53,10 @@ jobs:
           ref: ${{ needs.version.outputs.commit }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.0'
       - name: Download the checked AppImage and acceptance evidence
         uses: actions/download-artifact@v8
         with:
@@ -63,10 +71,10 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: >-
-          python3 tool/release_workflow.py prepare "$RELEASE_TAG"
+          dart tool/release_workflow.dart prepare "$RELEASE_TAG"
           build/release-inputs build/tag-release
       - name: Create or refresh the draft and upload its assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
-        run: python3 tool/release_workflow.py publish "$RELEASE_TAG" build/tag-release
+        run: dart tool/release_workflow.dart publish "$RELEASE_TAG" build/tag-release

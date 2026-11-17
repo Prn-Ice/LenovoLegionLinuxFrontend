@@ -75,13 +75,13 @@ is included.
 
 ## Build
 
-The builder needs Docker, Git, Python 3, and curl. It runs the compiler as an
+The builder needs Docker, Git, jq, and curl. It runs the compiler as an
 ordinary user in an Ubuntu container. It mounts no host devices or system bus.
 Source packaging requires a clean committed checkout.
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
-python3 tool/fetch_appimage_runtime.py build/appimage-inputs
+bash tool/fetch_appimage_runtime.sh build/appimage-inputs
 bash tool/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
 ```
 

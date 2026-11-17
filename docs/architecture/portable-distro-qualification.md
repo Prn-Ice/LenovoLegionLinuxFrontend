@@ -35,14 +35,30 @@ All nine native test targets passed as an ordinary user. The executable ownershi
 and snapshot checks also passed as root with every case enabled. The production
 helper session checks passed, and portable use preserved the persistent service,
 Polkit, D-Bus, and udev files inspected by the test. ShellCheck, actionlint, and
-Pyflakes passed for the new scripts and workflow.
+the former Python lint check passed for the scripts and workflow at that commit.
+Those results predate the Bash test port; rerun qualification for current evidence.
 
 ## Run locally
 
-Install QEMU, `cloud-localds`, OpenSSH clients, and Python 3. On Debian/Ubuntu,
+Install QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`. On Debian/Ubuntu,
 their packages are `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`,
-`openssh-client`, and `python3`. On Nix, use the pinned Nixpkgs versions of
-`qemu`, `cloud-utils`, `openssh`, and `python3`.
+`openssh-client`, `jq`, and `iproute2`. On Nix, use the pinned Nixpkgs versions of
+`qemu`, `cloud-utils`, `openssh`, `jq`, and `iproute2`.
+
+The shared session, desktop, and distro tests run in Bash inside the guest. NixOS
+tests retain only the upstream Python driver's VM-start, command, and evidence-copy
+calls; their assertions and scenarios also run in guest-side Bash. The VMs need
+neither Python for project tests nor a Dart or Flutter SDK.
+
+Run the hardware-free runner regressions before building a VM:
+
+```bash
+bash test/tool/portable_distro_evidence_test.sh
+bash test/tool/portable_distro_readiness_test.sh
+```
+
+The first command checks failure-status preservation and partial evidence archives.
+The second checks cloud-init deadlines, SSH retries, and remote failure statuses.
 
 Download the official image and its checksums, then run from the repository:
 

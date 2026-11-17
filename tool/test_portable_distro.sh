@@ -27,7 +27,7 @@ if [[ $# == 5 ]]; then
   release="$(realpath -- "$5")"
   qualification_archive="$format-qualification.tar.gz"
 fi
-for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen python3 timeout; do
+for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen jq ss timeout; do
   if ! command -v "$program" >/dev/null; then
     echo "Required program is missing: $program" >&2
     exit 1
@@ -68,7 +68,15 @@ cloud-localds "$scratch/seed.img" "$scratch/user-data" "$scratch/meta-data"
 qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 # Bind SSH to loopback. The cloud image and host filesystem are never mounted
 # into the guest; only the native source archive is copied over SSH.
-port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+# Check a random high port before QEMU binds it. QEMU still fails closed if
+# another process binds the port between this check and startup.
+port=
+for ((attempt=0; attempt<100; attempt++)); do
+  candidate=$(shuf -i 49152-65535 -n 1)
+  listeners=$(ss -H -ltn "sport = :$candidate")
+  if [[ -z $listeners ]]; then port=$candidate; break; fi
+done
+[[ -n $port ]] || { echo 'No unused SSH forwarding port found.' >&2; exit 1; }
 accelerator=${LLLF_VM_ACCELERATOR:-}
 if [[ -z $accelerator ]]; then
   accelerator=tcg
@@ -102,7 +110,6 @@ until ssh -o StrictHostKeyChecking=accept-new "${ssh_options[@]}" -p "$port" roo
 done
 remote() { ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1 "$@"; }
 wait_for_cloud_init 180 ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1
-export LLLF_QUALIFICATION_COMMIT LLLF_QUALIFICATION_MODIFIED
 LLLF_QUALIFICATION_COMMIT="$(git -C "$root" rev-parse HEAD)"
 LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control telemetry packaging tool LICENSE THIRD_PARTY_NOTICES.md)"
 tar -czf "$output/native-source.tar.gz" -C "$root" control telemetry packaging LICENSE THIRD_PARTY_NOTICES.md
@@ -125,32 +132,16 @@ remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd
 result=${PIPESTATUS[0]}
 set -e
 retrieve_distro_evidence "$output" "$qualification_archive" "$result" "$port" "${ssh_options[@]}"
-export LLLF_QUALIFICATION_OUTPUT="$output" LLLF_QUALIFICATION_IMAGE_SHA256="$expected" LLLF_QUALIFICATION_ARCHIVE="$qualification_archive"
-export LLLF_QUALIFICATION_CPU="$vm_cpu"
-python3 - <<'PY'
-import hashlib
-import json
-import os
-from pathlib import Path
-
-output = Path(os.environ['LLLF_QUALIFICATION_OUTPUT'])
-manifest = {
-    'commit': os.environ['LLLF_QUALIFICATION_COMMIT'],
-    'source_worktree_modified': bool(os.environ['LLLF_QUALIFICATION_MODIFIED']),
-    'cloud_image_sha256': os.environ['LLLF_QUALIFICATION_IMAGE_SHA256'],
-    'cpu_model': os.environ['LLLF_QUALIFICATION_CPU'],
-    'files': {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
-              for name in ['native-source.tar.gz', os.environ['LLLF_QUALIFICATION_ARCHIVE']]},
-    'scope': 'Portable control with a synthetic CLI in a disposable distro VM',
-    'hardware': 'unverified',
-    'desktop_authentication': 'unverified',
-    'appimage': ('FUSE, extraction, desktop launch, and synthetic helper control verified'
-                 if os.environ['LLLF_QUALIFICATION_ARCHIVE'] == 'appimage-qualification.tar.gz'
-                 else 'unverified'),
-    'deb': ('install, desktop, helper, upgrade, and purge verified'
-            if os.environ['LLLF_QUALIFICATION_ARCHIVE'] == 'deb-qualification.tar.gz'
-            else 'unverified'),
-}
-(output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-PY
+jq -n --arg commit "$LLLF_QUALIFICATION_COMMIT" --arg modified "$LLLF_QUALIFICATION_MODIFIED" \
+  --arg image "$expected" --arg cpu "$vm_cpu" --arg archive "$qualification_archive" \
+  --arg source_hash "$(sha256sum "$output/native-source.tar.gz" | cut -d' ' -f1)" \
+  --arg archive_hash "$(sha256sum "$output/$qualification_archive" | cut -d' ' -f1)" \
+  '{commit:$commit, source_worktree_modified:($modified != ""), cloud_image_sha256:$image,
+    cpu_model:$cpu, files:{"native-source.tar.gz":$source_hash, ($archive):$archive_hash},
+    scope:"Portable control with a synthetic CLI in a disposable distro VM",
+    hardware:"unverified", desktop_authentication:"unverified",
+    appimage:(if $archive == "appimage-qualification.tar.gz" then
+      "FUSE, extraction, desktop launch, and synthetic helper control verified" else "unverified" end),
+    deb:(if $archive == "deb-qualification.tar.gz" then
+      "install, desktop, helper, upgrade, and purge verified" else "unverified" end)}' >"$output/manifest.json"
 echo "Distro qualification passed: $output"

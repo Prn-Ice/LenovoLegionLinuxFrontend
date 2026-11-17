@@ -16,7 +16,6 @@ AboutSnapshot minimal() => AboutSnapshot(
   updatedAt: ts,
   cliPath: '/usr/bin/legion_cli',
   cliPathExists: true,
-  pythonAvailable: true,
   controlServiceActive: true,
   systemctlAvailable: true,
   cliHealthy: true,
@@ -30,24 +29,24 @@ AboutSnapshot minimal() => AboutSnapshot(
 );
 
 void main() {
-  group('AboutSnapshot new fields default to null / empty', () {
-    test('kernelVersion is null when not provided', () {
+  group('AboutSnapshot nullable and empty fixture values', () {
+    test('kernelVersion preserves an explicit null', () {
       expect(minimal().kernelVersion, isNull);
     });
 
-    test('hardwareModel is null when not provided', () {
+    test('hardwareModel preserves an explicit null', () {
       expect(minimal().hardwareModel, isNull);
     });
 
-    test('moduleVersion is null when not provided', () {
+    test('moduleVersion preserves an explicit null', () {
       expect(minimal().moduleVersion, isNull);
     });
 
-    test('cliVersion is null when not provided', () {
+    test('cliVersion preserves an explicit null', () {
       expect(minimal().cliVersion, isNull);
     });
 
-    test('commandHistory is empty by default', () {
+    test('commandHistory preserves an empty list', () {
       expect(minimal().commandHistory, isEmpty);
     });
   });
@@ -63,7 +62,6 @@ void main() {
         updatedAt: ts,
         cliPath: '/usr/bin/legion_cli',
         cliPathExists: true,
-        pythonAvailable: true,
         controlServiceActive: true,
         systemctlAvailable: true,
         cliHealthy: true,
@@ -92,7 +90,6 @@ void main() {
         updatedAt: ts,
         cliPath: '/usr/bin/legion_cli',
         cliPathExists: true,
-        pythonAvailable: true,
         controlServiceActive: true,
         systemctlAvailable: true,
         cliHealthy: true,
@@ -107,6 +104,21 @@ void main() {
       expect(a, isNot(equals(b)));
     });
   });
+
+  test(
+    'schema 4 omits Python availability and retains runtime diagnostics',
+    () {
+      final json = minimal().toJson();
+
+      expect(json['schema_version'], 4);
+      expect(json, isNot(contains('python_available')));
+      expect(json['cli_path_exists'], isTrue);
+      expect(json['cli_healthy'], isTrue);
+      expect(json['cli_health_summary'], 'Healthy');
+      expect(json['control_service_active'], isTrue);
+      expect(json['systemctl_available'], isTrue);
+    },
+  );
 
   test('HID report redacts selected and configured paths', () {
     final json = minimal()
@@ -132,7 +144,6 @@ extension on AboutSnapshot {
         updatedAt: updatedAt,
         cliPath: cliPath,
         cliPathExists: cliPathExists,
-        pythonAvailable: pythonAvailable,
         controlServiceActive: controlServiceActive,
         systemctlAvailable: systemctlAvailable,
         cliHealthy: cliHealthy,

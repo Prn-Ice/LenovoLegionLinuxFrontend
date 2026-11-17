@@ -31,7 +31,6 @@ List<Override> safeSettingsOverrides() {
       updatedAt: DateTime.now(),
       cliPath: '/integration-test/legion_cli',
       cliPathExists: true,
-      pythonAvailable: true,
       controlServiceActive: false,
       systemctlAvailable: true,
       cliHealthy: true,

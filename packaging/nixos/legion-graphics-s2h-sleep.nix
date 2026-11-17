@@ -1,7 +1,6 @@
 {
   systemd,
   preflight,
-  python3,
   buildPackages,
   lib,
   bash,
@@ -18,8 +17,8 @@ let
     name = "legion-graphics-s2h-preflight.patch";
   };
   test = builtins.path {
-    path = ../../tool/test_graphics_s2h_guard.py;
-    name = "test_graphics_s2h_guard.py";
+    path = ../../tool/test_graphics_s2h_guard.sh;
+    name = "test_graphics_s2h_guard.sh";
   };
 in
 systemd.overrideAttrs (previous: {
@@ -30,7 +29,7 @@ systemd.overrideAttrs (previous: {
     substituteInPlace src/sleep/sleep.c \
       --replace-fail '@legionHibernatePreflight@' '${preflight}'
     CC=${buildPackages.stdenv.cc}/bin/cc \
-      ${python3}/bin/python3 ${test} src/sleep/sleep.c
+      ${buildPackages.bash}/bin/bash ${test} src/sleep/sleep.c
   '';
   buildPhase = ''
     runHook preBuild
