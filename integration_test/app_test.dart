@@ -9,6 +9,7 @@ import 'scenarios/keyboard_missing_profile_journey.dart' as keyboard_missing;
 import 'scenarios/fans_preset_journey.dart' as fans_preset;
 import 'scenarios/keyboard_recovery_journey.dart' as keyboard_recovery;
 import 'scenarios/power_mode_journey.dart' as power_mode;
+import 'scenarios/power_limits_journey.dart' as power_limits;
 import 'scenarios/portable_channel_journey.dart' as portable_channel;
 import 'scenarios/hardware_access_journey.dart' as hardware_access;
 
@@ -18,6 +19,7 @@ void main() {
   battery_health.main();
   control_recovery.main();
   power_mode.main();
+  power_limits.main();
   keyboard_profile.main();
   keyboard_mode.main();
   keyboard_missing.main();
