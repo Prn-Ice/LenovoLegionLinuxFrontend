@@ -126,17 +126,16 @@ that the tag still resolves to the same commit on GitHub.
 
 ## What runs
 
-The tag workflow calls the same CI workflow used for main and pull requests.
-It first looks for a completed, successful main CI run with both package artifacts
-for the exact tagged commit. If found, it downloads those artifacts and skips its
-CI call. Otherwise it runs the full suite. PR results cannot supply a release.
-See [CI result reuse and caching](ci.md) for the trust checks and retention limits.
+The tag workflow calls the same CI workflow used for pull requests, but always
+runs the full suite for the exact tagged commit. It downloads package artifacts
+from that same release run; PR results cannot supply a release.
+See [CI checks and caching](ci.md).
 
 The suite covers release-tool fixtures, Flutter analysis/tests and generated
 sources, native tests, NixOS lifecycle/bootstrap VMs, Linux app journeys, Nix
 frontend build/acceptance, AppImage acceptance (including Ubuntu helper checks),
 and Debian installation/upgrade/removal on Ubuntu 22.04 and Debian 12. The draft
-job starts after the suite passes or a qualifying main run is found.
+job starts only after the suite passes.
 
 The release helper then verifies the tag version, app/source hashes, complete
 helper inventory, and the VM evidence. The evidence must describe a clean

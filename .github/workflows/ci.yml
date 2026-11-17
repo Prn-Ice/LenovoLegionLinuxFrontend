@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_call:
@@ -30,7 +28,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Check PR paths or select every check for main and tags
+      - name: Check PR paths or select every check for releases
         id: changes
         env:
           EVENT_NAME: ${{ github.event_name }}
