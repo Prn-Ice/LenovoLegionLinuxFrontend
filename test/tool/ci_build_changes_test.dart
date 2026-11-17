@@ -111,7 +111,6 @@ void main() {
     'tool/test_portable_distro.sh': {'nix', 'appimage', 'debian'},
     'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
     'tool/release_workflow.dart': {},
-    'tool/find_release_ci.dart': {},
   };
   for (final entry in cases.entries) {
     test('${entry.key} selects its consumers', () {
@@ -139,7 +138,7 @@ void main() {
     expect(selected(), {'integration', 'nix', 'appimage', 'debian'});
   });
 
-  test('main and tag calls run every check and append GitHub output', () {
+  test('release calls run every check and append GitHub output', () {
     final output = File('${root.path}/output')
       ..writeAsStringSync('previous=yes\n');
     final result = select(withBase: false, output: output.path);

@@ -1,4 +1,4 @@
-# CI selection, caching, and result reuse
+# CI checks and caching
 
 CI keeps analysis, generated-source checks, unit tests, and native tests on PRs.
 The unit suite includes release-tool tests. The four VM-support shell suites run
@@ -22,8 +22,27 @@ sides of renames and deletions:
 | Native code, shared VM fixtures, workflows, or dependency locks | Every expensive check |
 | Documentation, unit tests, or release-draft tooling alone | None |
 
-Unknown build-tool changes select every expensive check. Main pushes and tag
-CI select every check. A newer PR run cancels an older run for the same PR.
+Unknown build-tool changes select every expensive check. Release tags select
+every check. A newer PR run cancels an older run for the same PR. Merging a PR
+does not start another CI run.
+
+## Merge requirements
+
+The public repository uses GitHub Free's branch protection for `main`:
+
+- Require a PR before merging, without requiring another person's approval.
+- Require the PR branch to be up to date with `main` and its checks to pass.
+- Apply these requirements to administrators too; block force pushes and deletion.
+
+Require all ten jobs in `ci.yml`, including the selector, package builds, and
+acceptance jobs, plus OSV's `pull-request / osv-scan`. Accept check results only
+from the GitHub Actions app. GitHub accepts jobs skipped by changed-path selection;
+a failed selector or selected job blocks merging. Keep the required-check names
+in branch protection in sync when adding or renaming jobs.
+
+If another PR merges first, update the remaining PR branch and let its checks
+run again before merging. This tests the new combination of changes, rather than
+repeating checks after a merge. Direct pushes to `main` are blocked.
 
 ## Retry failed jobs
 
@@ -43,24 +62,17 @@ Acceptance jobs retain the package and evidence together for releases. Artifact
 downloads do not preserve execute permissions; AppImage acceptance restores its
 executable bit before running it.
 
-## Reuse main CI for a release
+## Full release validation
 
-The tag workflow uses `tool/find_release_ci.dart` to look for a completed,
-successful `ci.yml` push run on this repository's main branch at the exact tagged
-SHA. Both package artifacts must still be nonempty and unexpired. The lookup
-checks up to 20 matching runs and the first 100 artifacts per run; this workflow
-produces fewer than 100 artifacts. A missed result costs a fresh CI run.
+The tag workflow always calls `ci.yml` for the tagged commit and runs every check.
+Release preparation downloads the qualified AppImage and Debian packages from
+that same workflow run, never from a PR or an earlier main run. It verifies the
+tag, source/binary hashes, helper inventory, and acceptance evidence before
+creating the release draft.
 
-When a match exists, the release skips its CI call and downloads both qualified
-packages from that run. Otherwise, including on API failure, it runs full CI.
-Create the tag after main CI completes to get this reuse; an unfinished main run
-does not qualify. Release preparation still verifies the tag, source/binary hashes,
-helper inventory, and acceptance evidence. PR runs never supply releases.
-
-This is the only cross-workflow result lookup. PR and main runs use GitHub's
-ordinary execution and retry behavior. A merge normally creates a different SHA.
-OSV scans remain fresh because new vulnerability reports can affect unchanged
-dependencies.
+OSV scans PRs and runs a full scan every Monday or when started manually. It does
+not repeat the scan on merge. Weekly scans check for new vulnerability reports
+that can affect unchanged dependencies.
 
 ## Download caches
 
@@ -90,5 +102,6 @@ bash test/tool/portable_distro_evidence_test.sh
 ```
 
 Expect the selector fixtures, download-cache fixtures, analysis, workflow lint,
-and evidence-retention checks to pass. Live cache restoration and cross-workflow
-downloads need GitHub Actions runs; local fixtures do not prove that integration.
+and evidence-retention checks to pass. Live cache restoration, release artifact
+downloads, and merge enforcement need GitHub Actions runs; local fixtures do not
+prove that integration.

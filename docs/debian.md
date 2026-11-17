@@ -63,9 +63,9 @@ upgrade the package, and purge it. They compare persistent integration files
 throughout. The guests have no Legion driver or JVM. Real hardware and desktop
 password dialogs need separate testing.
 
-CI runs this build and both VMs for relevant PR changes, every push to main,
-and release tags. Future tag releases include the checked package and its
-source, manifest, and acceptance evidence in the draft.
+CI runs this build and both VMs for relevant PR changes and every release tag,
+not again on merge. Tag releases include the checked package and its source,
+manifest, and acceptance evidence in the draft.
 
 Remove the package with:
 
