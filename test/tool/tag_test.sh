@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Exercise the tag app with a disposable signing key and local remote.
 set -euo pipefail
+metadata_script=$1
+shift
 app=("$@")
 temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
@@ -28,11 +30,21 @@ expect_failure() {
 }
 
 printf 'version: "0.1.0-alpha.2+1"\n' > pubspec.yaml
-git add pubspec.yaml
+mkdir -p tool
+cp "$metadata_script" tool/update_nix_metadata.sh
+printf 'packages: {}\n' > pubspec.lock
+bash tool/update_nix_metadata.sh
+git add .
 git commit -qm 'Set alpha version'
 "${app[@]}" --help
 expect_failure --unknown
 expect_failure --push --help
+expect_failure --prepare
+expect_failure --prepare 1.2.3 --push
+for invalid in invalid v1.2.3 1.2 1.2.3-alpha..1 '1.2.3+1;false'; do
+  expect_failure --prepare "$invalid"
+  test -z "$(git status --porcelain)"
+done
 "${app[@]}"
 tag=refs/tags/v0.1.0-alpha.2
 original=$(git rev-parse "$tag")
@@ -55,9 +67,11 @@ test "$(git --git-dir="$temporary/remote" show-ref)" = "$original $tag"
 
 echo '# dirty' >> pubspec.yaml
 expect_failure
+expect_failure --prepare 0.1.0-alpha.3+1
 git restore pubspec.yaml
 touch untracked
 expect_failure
+expect_failure --prepare 0.1.0-alpha.3+1
 rm untracked
 git commit --allow-empty -qm 'Move HEAD'
 expect_failure --push
@@ -86,4 +100,31 @@ git --git-dir="$temporary/remote" tag -d v1.2.3
 "${app[@]}" --push
 test "$(git --git-dir="$temporary/remote" rev-parse refs/tags/v1.2.3)" = \
   "$(git rev-parse refs/tags/v1.2.3)"
+
+# Preparation preserves formatting and leaves changes for review before tagging.
+printf '# Release version\n\nversion: "1.2.3+4"\n\n# Dependencies\n' > pubspec.yaml
+bash tool/update_nix_metadata.sh
+git add .
+git commit -qm 'Add manifest comments'
+head_before=$(git rev-parse HEAD)
+tags_before=$(git show-ref --tags)
+remote_before=$(git --git-dir="$temporary/remote" show-ref)
+cd tool
+"${app[@]}" --prepare 1.2.4-alpha.1+5
+cd ..
+printf '# Release version\n\nversion: 1.2.4-alpha.1+5\n\n# Dependencies\n' > "$temporary/expected.yaml"
+diff -u "$temporary/expected.yaml" pubspec.yaml
+test "$(jq -r .version packaging/nix/pubspec.json)" = '1.2.4-alpha.1+5'
+bash tool/update_nix_metadata.sh --check
+test "$(git diff --name-only)" = $'packaging/nix/pubspec.json\npubspec.yaml'
+test "$(git rev-parse HEAD)" = "$head_before"
+test "$(git show-ref --tags)" = "$tags_before"
+test "$(git --git-dir="$temporary/remote" show-ref)" = "$remote_before"
+expect_failure --push
+git add pubspec.yaml packaging/nix/pubspec.json
+git commit -qm 'Prepare the next alpha'
+"${app[@]}" --push
+git verify-tag v1.2.4-alpha.1
+test "$(git --git-dir="$temporary/remote" rev-parse refs/tags/v1.2.4-alpha.1^{commit})" = \
+  "$(git rev-parse HEAD)"
 echo 'Tag app checks passed.'

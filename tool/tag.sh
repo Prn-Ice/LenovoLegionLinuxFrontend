@@ -1,34 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='Usage: nix run .#tag -- [--push | --help]'
-if (($# > 1)); then
+usage='Usage: nix run .#tag -- [--prepare VERSION | --push | --help]'
+if (($# > 2)) || { (($# > 1)) && [[ $1 != --prepare ]]; }; then
   echo "$usage" >&2
   exit 2
 fi
 push=false
+prepare=false
 case "${1:-}" in
   '') ;;
+  --prepare)
+    if (($# != 2)); then
+      echo "$usage" >&2
+      exit 2
+    fi
+    prepare=true
+    ;;
   --push) push=true ;;
   --help|-h)
-    printf '%s\n\n%s\n' "$usage" \
-      'Sign and verify the pubspec.yaml version tag at HEAD; --push sends it to origin.'
+    printf '%s\n\n%s\n%s\n' "$usage" \
+      '--prepare VERSION updates pubspec.yaml and Nix metadata for a release PR.' \
+      'Without --prepare, sign and verify the version tag at HEAD; --push sends it to origin.'
     exit 0
     ;;
   *) echo "$usage" >&2; exit 2 ;;
 esac
-
 cd "$(git rev-parse --show-toplevel)"
 commit=$(git rev-parse HEAD)
 if [[ -n "$(git status --porcelain)" ]]; then
-  echo 'Commit or stash working-tree changes before tagging.' >&2
+  echo 'Commit or stash working-tree changes before preparing or tagging a release.' >&2
   exit 1
 fi
 
 version=$(git show "$commit:pubspec.yaml" | yq -r '.version')
-if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-  echo "Unsupported pubspec.yaml version: $version" >&2
+if $prepare; then
+  version=$2
+fi
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+  echo "Unsupported release version: $version" >&2
   exit 1
+fi
+if $prepare; then
+  # Change only the version line; YAML reserialization removes blank lines.
+  sed -i "s/^version:.*$/version: $version/" pubspec.yaml
+  if [[ "$(yq -r '.version' pubspec.yaml)" != "$version" ]]; then
+    echo 'Expected a top-level version: line in pubspec.yaml.' >&2
+    exit 1
+  fi
+  bash tool/update_nix_metadata.sh
+  echo "Prepared $version. Review and commit the changes, then open a PR."
+  echo 'After merge, run nix run .#tag -- --push from the release commit.'
+  exit 0
 fi
 tag="v${version%%+*}"
 ref="refs/tags/$tag"
