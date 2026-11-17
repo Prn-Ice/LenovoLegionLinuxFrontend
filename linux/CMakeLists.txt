@@ -83,7 +83,7 @@ install(CODE "
 
 # Build and bundle the root-owned, read-only package power service. System
 # packages install its unit and D-Bus policy from the bundle into /usr.
-# The frontend uses only the bundled temporary helper for hardware authorization.
+# The frontend uses only the bundled privileged control helper for authorization.
 set(BUILD_PORTABLE_CONTROL_HELPER ON)
 set(BUILD_LEGION_CONTROL_SERVICE OFF)
 add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")

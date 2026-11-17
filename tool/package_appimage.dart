@@ -134,7 +134,7 @@ Future<void> main(List<String> args) async {
         'architecture': 'x86_64',
         'build_os': os,
         'portable_control': true,
-        'default_control_mode': 'temporaryHelper',
+        'default_control_mode': 'privilegedControlHelper',
         // SquashFS starts immediately after the pinned AppImage runtime.
         'runtime_size': File('${inputs.path}/runtime-x86_64').lengthSync(),
         'host_executables': ['/bin/sh', 'dirname', 'mktemp', 'rm'],

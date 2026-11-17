@@ -174,7 +174,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
     final scheme = Theme.of(context).colorScheme;
     final errorKind = AppFailure.from(widget.message).kind;
     final title = switch (errorKind) {
-      AppFailureKind.portableSetup => 'Temporary hardware access needs setup',
+      AppFailureKind.portableSetup => 'Administrator access needs setup',
       AppFailureKind.graphicsBlocked => 'Graphics mode was not changed',
       AppFailureKind.graphicsPending => 'Graphics mode switch incomplete',
       _ => 'Action could not be completed',
@@ -244,7 +244,7 @@ class _AppErrorDialogState extends State<AppErrorDialog> {
 
   List<Widget> _buildPortableSetupContent(BuildContext context) => [
     const Text(
-      'Temporary hardware control could not start. The requested action did not complete. Recheck the current settings before retrying.',
+      'Administrator access could not be established. The requested action did not complete. Recheck the current settings before retrying.',
     ),
     const SizedBox(height: 16),
     Text('Before retrying', style: Theme.of(context).textTheme.titleSmall),

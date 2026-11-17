@@ -140,7 +140,7 @@ pkgs.testers.runNixOSTest {
             wait_text("Action could not be completed", "1280x720+0+0", 11)
             assert machine.succeed("cat " + conservation).strip() == "0"
             assert machine.succeed(unit_query).strip() == ""
-            screenshot("temporary-control-denied")
+            screenshot("privileged-control-denied")
             machine.succeed("echo allow >/run/legion-gui-approval")
             # Recognize the enlarged label image, then map back to window pixels.
             words = machine.succeed(desktop("tesseract /home/approved/label.png stdout --psm 11 tsv 2>/dev/null"))
@@ -161,9 +161,9 @@ pkgs.testers.runNixOSTest {
             machine.succeed("echo 1 >" + conservation)
             machine.wait_until_succeeds(click(1142, 23) + "; " + click(734, 667) + "; " + readback + " | grep -x disabled", timeout=timedelta(seconds=20))
             machine.succeed("echo 0 >" + conservation)
-            screenshot("temporary-control-restored")
+            screenshot("privileged-control-restored")
         except Exception:
-            screenshot("temporary-control-failure")
+            screenshot("privileged-control-failure")
             print(machine.execute("cat /home/approved/gui.log; journalctl -b --no-pager -u 'legion-portable-control-*'")[1])
             raise
         machine.succeed(click(90, 427))

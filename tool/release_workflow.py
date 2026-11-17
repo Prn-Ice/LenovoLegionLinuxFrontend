@@ -51,7 +51,7 @@ def prepare_debian(release, inputs, output):
         != package.removeprefix("legion-linux-frontend_").removesuffix("_amd64.deb")
         or manifest["source_commit"] != release["commit"]
         or manifest["portable_control"] is not True
-        or manifest["default_control_mode"] != "temporaryHelper"
+        or manifest["default_control_mode"] != "privilegedControlHelper"
         or manifest["files"] != {name: checksums[name] for name in [package, source]}
     ):
         raise ValueError("The Debian build differs from the tagged portable release.")
@@ -231,7 +231,7 @@ def verify_debian_helper(package, expected):
             if member.name.removeprefix("./") == HELPER_PATH
         ]
         if len(matches) != 1 or not matches[0].isfile():
-            raise ValueError("The Debian payload lacks a regular temporary helper.")
+            raise ValueError("The Debian payload lacks a regular privileged control helper.")
         member = matches[0]
         digest = hashlib.sha256(archive.extractfile(member).read()).hexdigest()
         if (
@@ -330,7 +330,7 @@ def prepare(root, tag, inputs, output):
         manifest["format"] != 1
         or manifest["architecture"] != "x86_64"
         or manifest["portable_control"] is not True
-        or manifest["default_control_mode"] != "temporaryHelper"
+        or manifest["default_control_mode"] != "privilegedControlHelper"
     ):
         raise ValueError("Expected a portable Ubuntu x86-64 AppImage manifest.")
     if (
@@ -412,7 +412,7 @@ def prepare(root, tag, inputs, output):
             nixos["commit"] != release["commit"]
             or nixos["appimage_sha256"] != checksums[image]
             or nixos["nixos"]
-            != "official appimage-run desktop and temporary control verified"
+            != "official appimage-run desktop and privileged control verified"
             or nixos.get("desktop_shutdown")
             != "X11 close button and Wayland window close verified"
         ):
@@ -434,17 +434,17 @@ def prepare(root, tag, inputs, output):
     notes = output / "RELEASE-NOTES.md"
     notes.write_text(f"""Ubuntu x86-64 AppImage and Debian amd64 package built from `{tag}` (`{release["commit"]}`).
 
-FUSE launch, extracted launch, and the bundled temporary helper passed the Ubuntu
-VM checks with a synthetic CLI. Real laptop hardware, actual CLI dependencies,
+FUSE launch, extracted launch, and the bundled privileged control helper passed
+the Ubuntu VM checks with a synthetic CLI. Real laptop hardware, actual CLI dependencies,
 and desktop password prompts still need qualification.
 
 The Debian package passed install, desktop launch, synthetic helper control,
 denied approval, missing-agent, upgrade, and purge checks on Ubuntu 22.04 and
 Debian 12. Existing integration files were preserved.
 
-Hardware control uses the bundled temporary helper and requires the
-LenovoLegionLinux driver, an administrator-owned legion_cli installation,
-systemd, and a desktop authentication agent.
+Hardware control requests administrator approval through the privileged control
+helper. It requires the LenovoLegionLinux driver, an administrator-owned
+legion_cli installation, systemd, and a desktop authentication agent.
 
 Each artifact has a matching source companion, build manifest, and VM evidence.
 Verify SHA256SUMS before using the files.

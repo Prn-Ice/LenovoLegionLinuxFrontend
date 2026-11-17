@@ -371,7 +371,7 @@ void main() {
           }
           if (section == AppSection.settings) {
             await tester.ensureVisible(
-              find.text('Permission to change settings'),
+              find.text('Administrator access'),
             );
             await tester.pumpAndSettle();
             await _capture(tester, 'hardware-permission-$variant');

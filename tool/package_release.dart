@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'bundle_notices.dart' show bundleNotices;
 import 'nix_flutter_provenance.dart' show nixFlutterProvenance;
-import 'package_linux.dart' show requireTemporaryHelper;
+import 'package_linux.dart' show requirePrivilegedControlHelper;
 
 Future<void> main(List<String> args) async {
   try {
@@ -26,7 +26,7 @@ Future<void> main(List<String> args) async {
   }
 }
 
-/// Build the desktop and its temporary helper from the recorded source inputs.
+/// Build the desktop and its privileged control helper from the recorded source inputs.
 Future<({Directory bundle, Map<String, Object> stamp})> buildLinuxRelease(
   Directory root,
 ) async {
@@ -46,7 +46,7 @@ Future<Map<String, Object>> recordReleaseBuild(
   Map<String, Object> inputs, {
   bool staticPortableHelper = false,
 }) async {
-  requireTemporaryHelper(bundle);
+  requirePrivilegedControlHelper(bundle);
   return {
     'inputs': inputs,
     'binary_sha256': await _sha256(File('${bundle.path}/lib/libapp.so')),
@@ -92,7 +92,9 @@ Future<Map<String, Object>> packageReleaseSource(
   Directory? additionalSources,
 }) async {
   if ((stamp['build_config'] as Map?)?['portable_control'] != true) {
-    throw StateError('The build record must include the temporary helper.');
+    throw StateError(
+      'The build record must include the privileged control helper.',
+    );
   }
   final inputs = stamp['inputs'] as Map;
   if (jsonEncode(await captureReleaseInputs(root)) != jsonEncode(inputs)) {

@@ -78,10 +78,10 @@ different recovery steps.
 
 ## Recovery for known errors
 
-### Temporary helper recovery
+### Administrator access recovery
 
-`AppFailureKind.portableSetup` identifies temporary-helper setup failures. Use
-the shared dialog to explain the incomplete action and how to check the installed
+`AppFailureKind.portableSetup` identifies setup failures in the privileged control
+helper. Use the shared dialog to explain the incomplete action and how to check the installed
 CLI, bundled helper, and desktop authentication agent. A denied startup can be
 retried explicitly in the same app after cleanup. Timeouts, uncertain cleanup,
 and failures after startup acknowledgement require reopening the app.

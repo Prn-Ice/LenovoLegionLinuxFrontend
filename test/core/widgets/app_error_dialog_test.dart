@@ -25,7 +25,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
+    expect(find.text('Administrator access needs setup'), findsOneWidget);
     expect(find.textContaining('reopen the app'), findsWidgets);
     expect(find.text('NixOS'), findsNothing);
     expect(find.text('Copy configuration'), findsNothing);
@@ -139,7 +139,7 @@ void main() {
         home: Scaffold(
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
-              'The temporary helper could not start.',
+              'The privileged control helper could not start.',
               kind: AppFailureKind.portableSetup,
               details: 'Missing helper executable',
             ),
@@ -150,7 +150,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
+    expect(find.text('Administrator access needs setup'), findsOneWidget);
     expect(find.text('Before retrying'), findsOneWidget);
     expect(find.textContaining('Polkit authentication prompt'), findsOneWidget);
     expect(find.text('NixOS'), findsNothing);
@@ -174,7 +174,7 @@ void main() {
         home: Scaffold(
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
-              'The temporary helper could not start.',
+              'The privileged control helper could not start.',
               kind: AppFailureKind.portableSetup,
             ),
             child: Text('Page content'),

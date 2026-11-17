@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test the packaged app's temporary controls through official appimage-run.
+# Test the packaged app's privileged controls through official appimage-run.
 set -euo pipefail
 if [[ $# != 2 ]]; then
   echo 'Usage: bash tool/test_appimage_nixos.sh APPIMAGE OUTPUT_DIRECTORY' >&2
@@ -41,7 +41,7 @@ root, image, output = map(Path, sys.argv[1:])
 manifest = {
     'commit': subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip(),
     'appimage_sha256': hashlib.sha256(image.read_bytes()).hexdigest(),
-    'nixos': 'official appimage-run desktop and temporary control verified',
+    'nixos': 'official appimage-run desktop and privileged control verified',
     'desktop_shutdown': 'X11 close button and Wayland window close verified',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',

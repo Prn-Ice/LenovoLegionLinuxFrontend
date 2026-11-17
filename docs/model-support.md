@@ -34,7 +34,7 @@ name does not tell us whether its sensors work.
 driver may still reject it, and the control may be disabled. Writes are marked
 `unverified`: diagnostics do not change settings or test whether a previous
 command changed the hardware. Report schema 4 removes `control_service_active`
-because the app now uses a temporary helper on demand.
+because the app now starts its privileged control helper on demand.
 
 The report includes hardware identifiers, versions, probe results, and command
 history. Serial-number, UUID, and host/user-name fields are excluded;

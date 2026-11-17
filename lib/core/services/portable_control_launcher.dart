@@ -100,7 +100,7 @@ class PortableControlLauncher {
       );
     } on ProcessException catch (error) {
       throw LegionControlSetupException(
-        'Could not start the temporary helper. Reinstall a complete app build and check its host libraries. Hardware readings remain available. $error',
+        'Could not start the privileged control helper. Reinstall a complete app build and check its host libraries. Hardware readings remain available. $error',
       );
     }
     _process = process;

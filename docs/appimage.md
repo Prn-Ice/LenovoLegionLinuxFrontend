@@ -26,8 +26,8 @@ and the socket's PID before authentication. Namespace-visible `nobody` ownership
 is never accepted as root evidence. This uses no project launcher or patched
 executables. The [native Nix package](nix.md) is also available.
 
-Build the desktop app and temporary helper together on Ubuntu 22.04. The AppImage
-contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
+Build the desktop app and privileged control helper together on Ubuntu 22.04.
+The AppImage contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
 settings schemas, icons, and DejaVu fonts. It bundles `xdg-user-dir` to find the
 Documents directory used by the app's existing Hive storage.
 
@@ -37,8 +37,8 @@ driver interfaces; bundling older copies can prevent newer GPU drivers from
 loading. The native-runtime manifest lists the exact host library names found
 during packaging. GTK and its remaining dependencies are private to the app.
 
-The temporary helper is a static ELF executable. It embeds a separate cleanup
-ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
+The privileged control helper is a static ELF executable. It embeds a separate
+cleanup ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
 as retained standard-input data. Both images use validated sealed snapshots.
 Startup, authorized root control, and cleanup need no ELF interpreter or shared
 libraries. The authorization request carries both sealed images. Root execution
@@ -47,8 +47,8 @@ Systemd and the host Polkit service still authorize startup.
 
 Hardware access requires the installed driver and administrator-controlled
 `legion_cli`, systemd, Polkit, and a desktop authentication agent. The app uses
-the bundled temporary helper from its first launch. The first privileged action
-requests approval; closing the app ends the helper session. Persistent service
+the bundled privileged control helper from its first launch. The first privileged
+action requests approval; closing the app ends the helper session. Persistent service
 management and next-boot graphics changes are unavailable through the helper.
 
 This is a qualification build. Desktop password dialogs, actual CLI package

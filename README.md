@@ -74,7 +74,7 @@ ways to help.
 - CMake 3.16 or newer, Ninja, a C/C++ compiler, and pkg-config
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native services
-- Polkit development files for the temporary helper
+- Polkit development files for the privileged control helper
 
 See [Contributing](CONTRIBUTING.md) for installation commands.
 
@@ -82,12 +82,13 @@ See [Contributing](CONTRIBUTING.md) for installation commands.
 
 - Supported `legion_linux` kernel module
 - Administrator-controlled `legion_cli` installation
-- Systemd and the temporary helper bundled with the app
+- Systemd and the privileged control helper bundled with the app
 - Polkit and a desktop authentication agent
 - NVIDIA drivers for NVIDIA dGPU features
 
-The app uses the temporary helper for hardware changes. The first privileged
-action requests desktop approval; closing the app ends the helper session.
+The app requests administrator approval for privileged hardware changes.
+Its privileged control helper performs those changes; closing the app ends
+administrator access.
 On NixOS, enable Polkit and install the CLI in the system profile:
 
 ```nix
@@ -97,9 +98,9 @@ environment.systemPackages = [ pkgs.lenovo-legion ];
 
 ## Running
 
-Hardware controls discover `legion_cli` in fixed host locations. The temporary
-helper checks root ownership before executing privileged commands. Persistent
-service management and next-boot graphics changes are unavailable through the
+Hardware controls discover `legion_cli` in fixed host locations. The privileged
+control helper checks root ownership before executing privileged commands.
+Persistent service management and next-boot graphics changes are unavailable through the
 helper. Optional power telemetry and keyboard access need their own host setup.
 On NixOS, use the [native Nix package](docs/nix.md):
 

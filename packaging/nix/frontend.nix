@@ -109,7 +109,7 @@ in
     addAutoPatchelfSearchPath "${jdk17}/lib/server"
   '';
   meta = {
-    description = "Lenovo Legion hardware frontend with temporary administrator access";
+    description = "Lenovo Legion hardware frontend with administrator approval for hardware changes";
     homepage = "https://github.com/Prn-Ice/LenovoLegionLinuxFrontend";
     license = lib.licenses.gpl2Plus;
     platforms = [ "x86_64-linux" ];

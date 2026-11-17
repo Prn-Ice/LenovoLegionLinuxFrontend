@@ -36,10 +36,10 @@ class LegionBridgeException implements Exception {
 
   String get guidance {
     return switch (code) {
-      LegionBridgeErrorCode.startupDenied => 'Authentication was cancelled or denied before temporary access started. Try the action again to request approval.',
+      LegionBridgeErrorCode.startupDenied => 'Authentication was cancelled or denied before administrator access was granted. Try the action again to request approval.',
       LegionBridgeErrorCode.permissionDenied => 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.',
-      LegionBridgeErrorCode.portableSetup => 'Temporary hardware access could not start. Check the installed CLI and app files, then reopen the app.',
-      LegionBridgeErrorCode.unavailable => 'The requested capability or temporary hardware access is unavailable. Read the current settings and reopen the app before retrying.',
+      LegionBridgeErrorCode.portableSetup => 'Administrator access could not be established. Check the installed CLI and app files, then reopen the app.',
+      LegionBridgeErrorCode.unavailable => 'The requested capability or administrator access is unavailable. Read the current settings and reopen the app before retrying.',
       LegionBridgeErrorCode.busy => 'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
         'The command timed out. Read the current settings before retrying.',
@@ -249,7 +249,7 @@ class LegionFrontendBridgeService {
         final client = _controlClient;
         if (client == null) {
           throw const LegionControlPortableSetupException(
-            'The temporary control helper is not configured.',
+            'The privileged control helper is not configured.',
           );
         }
         await client.authorize();
@@ -325,9 +325,9 @@ class LegionFrontendBridgeService {
 
     final message = switch (code) {
       LegionBridgeErrorCode.startupDenied =>
-        'Temporary access was not approved for $method.',
+        'Administrator access was not approved for $method.',
       LegionBridgeErrorCode.portableSetup =>
-        'Temporary hardware access could not start for $method.',
+        'Administrator access could not be established for $method.',
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',
       LegionBridgeErrorCode.unavailable =>

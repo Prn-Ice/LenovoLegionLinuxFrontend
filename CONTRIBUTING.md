@@ -12,8 +12,8 @@ services.
 - GLib/GIO development files for native service tests
 - Polkit development files for the bundled helper and control-service tests
 
-Linux builds include the temporary helper. Nix development builds also need
-`patchelf` to retain its runtime library paths.
+Linux builds include the privileged control helper. Nix development builds also
+need `patchelf` to retain its runtime library paths.
 
 Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integration/linux/setup).
 On Debian/Ubuntu, install the build dependencies with:

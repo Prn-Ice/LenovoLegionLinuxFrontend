@@ -43,7 +43,7 @@ void main() {
           expect(
             find.textContaining(
               helperExists
-                  ? 'first change a hardware setting'
+                  ? 'approve hardware changes that require administrator access'
                   : 'Reinstall a complete app build',
             ),
             findsOneWidget,

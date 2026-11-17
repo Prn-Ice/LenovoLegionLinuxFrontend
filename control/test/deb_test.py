@@ -33,7 +33,7 @@ def main():
         == manifest["files"][package.name]
     )
     assert manifest["portable_control"] is True
-    assert manifest["default_control_mode"] == "temporaryHelper"
+    assert manifest["default_control_mode"] == "privilegedControlHelper"
     assert not Path("/usr/lib/jvm").exists()
     before = persistent_files()
     machine.fail("systemctl cat legion-control.service")

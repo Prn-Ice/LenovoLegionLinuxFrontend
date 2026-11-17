@@ -16,7 +16,10 @@ before accepting a connection. Host CLI package qualification and release
 publication remain open. See the
 [public backlog](../../BACKLOG.md).
 
-The temporary authorized helper is the app's only hardware-control connection.
+The privileged control helper is a bundled process that performs approved
+hardware operations as root. The interface calls this **administrator access**.
+It is the app's only hardware-control connection and ends when the app closes
+or the session expires.
 Existing saved authorization choices are ignored. The standalone installed
 service remains a separate backend product; the frontend no longer connects to
 it. Persistent service management and next-boot graphics changes are unavailable
@@ -49,7 +52,7 @@ trigger a second privilege mechanism automatically.
 
 Boot-time graphics reconciliation requires persistent system integration.
 Optional power telemetry and direct keyboard HID access also need explicit
-host setup; the temporary helper does not supply those permissions.
+host setup; the privileged control helper does not supply those permissions.
 
 ## Shared control implementation
 
@@ -60,8 +63,8 @@ service. The C++ command validation and dispatch remain shared through
 link this runtime directly.
 
 The standalone installed service keeps its system-bus policy and per-connection
-Polkit approval. The temporary helper establishes approval before exporting
-operations to its one peer. It must never expose a method for
+Polkit approval. The privileged control helper establishes approval before
+exporting operations to its one peer. It must never expose a method for
 running arbitrary commands or accepting an arbitrary backend executable.
 Polkit authorizes launching the helper; the helper and its supervisor enforce
 the session lifetime.
@@ -81,8 +84,8 @@ controls produces setup guidance before API authorization or writes.
 
 `GetCapabilities` now returns protocol version 1 and supported operations.
 The standalone service advertises `interactive-control`, `persistent-services`,
-and `next-boot-graphics` when configured. The temporary helper advertises interactive
-controls and rejects service changes and next-boot requests. Metadata can be
+and `next-boot-graphics` when configured. The privileged control helper advertises
+interactive controls and rejects service changes and next-boot requests. Metadata can be
 read before `Authorize`. An older service without this method needs an
 incompatible-service message; it must not trigger portable elevation. The Dart
 client rejects service changes when `persistent-services` is absent.
@@ -276,8 +279,8 @@ disposal is stopped. Shutdown escalates from SIGTERM to SIGKILL, and launcher
 exit closes the peer. Unit tests cover these races and a real unprivileged child
 that ignores SIGTERM.
 
-The provider creates the temporary-helper transport for the app. The launcher
-accepts production `legion-portable-control-UUID.service` sessions and the guarded
+The provider creates the app's connection to the privileged control helper.
+The launcher accepts production `legion-portable-control-UUID.service` sessions and the guarded
 VM probe names. CLI setup failures stop startup before peer creation and reach
 Dart as typed setup errors. The production helper has a 15-minute idle limit and
 a 12-hour session limit. The launcher observes the running helper after approval;

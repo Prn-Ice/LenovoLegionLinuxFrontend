@@ -27,7 +27,7 @@ image = next(directory.glob("*.AppImage"))
 manifest = json.loads(next(directory.glob("legion-frontend-*.json")).read_text())
 assert (
     manifest["portable_control"]
-    and manifest["default_control_mode"] == "temporaryHelper"
+    and manifest["default_control_mode"] == "privilegedControlHelper"
 )
 assert manifest["host_executables"] == ["/bin/sh", "dirname", "mktemp", "rm"]
 assert manifest["native_runtime"]["helper"]["linkage"] == "static"

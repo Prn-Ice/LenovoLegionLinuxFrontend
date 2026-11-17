@@ -38,7 +38,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
-    'default factory creates only a lazy temporary helper transport',
+    'default factory creates only a lazy privileged control helper transport',
     () async {
       final container = ProviderContainer.test();
       var resolved = false;

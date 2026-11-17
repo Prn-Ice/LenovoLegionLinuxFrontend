@@ -189,10 +189,7 @@ void main() {
         await tester.tap(find.text('Apply').last);
         await tester.pumpAndSettle();
         verify(() => boot.enableBootLogo('/tmp/logo.png')).called(1);
-        expect(
-          find.text('Temporary hardware access needs setup'),
-          findsOneWidget,
-        );
+        expect(find.text('Administrator access needs setup'), findsOneWidget);
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.kind,
           AppFailureKind.portableSetup,

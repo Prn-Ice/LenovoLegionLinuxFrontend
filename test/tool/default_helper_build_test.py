@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class DefaultHelperBuildTest(unittest.TestCase):
-    def test_default_build_and_old_caches_bundle_only_the_temporary_helper(self):
+    def test_default_build_and_old_caches_bundle_only_the_privileged_control_helper(self):
         for cache in [
             [],
             [

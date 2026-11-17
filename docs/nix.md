@@ -1,7 +1,7 @@
 # Nix frontend
 
-Use this package for NixOS. It links the desktop app and temporary helper to
-their Nix store libraries and needs no FUSE mount or AppImage extraction.
+Use this package for NixOS. It links the desktop app and privileged control helper
+to their Nix store libraries and needs no FUSE mount or AppImage extraction.
 From the project directory, build or launch it on x86_64 Linux:
 
 ```bash
@@ -11,8 +11,8 @@ nix run .#frontend
 
 The flake pins Flutter 3.50.0, Dart 3.14.0, Nixpkgs, and the pub.dev dependency
 hashes. Nix downloads these inputs first, then builds the app in its offline
-sandbox. The package contains the desktop launcher, icons, notices, and temporary
-helper. Installing it enables no persistent Legion service.
+sandbox. The package contains the desktop launcher, icons, notices, and privileged
+control helper. Installing it enables no persistent Legion service.
 
 On NixOS, add `inputs.legion.packages.x86_64-linux.frontend` to
 `environment.systemPackages`, where `inputs.legion` is this repository's flake.

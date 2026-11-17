@@ -63,7 +63,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Temporary hardware access needs setup'), findsOneWidget);
+    expect(find.text('Administrator access needs setup'), findsOneWidget);
     verify(() => control.setToggle(ControlToggle.touchpad, true)).called(1);
   });
 }

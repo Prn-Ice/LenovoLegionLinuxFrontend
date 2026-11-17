@@ -84,9 +84,9 @@ Homepage: https://github.com/Prn-Ice/LenovoLegionLinuxFrontend
 Installed-Size: $size
 Depends: $dependencies
 Description: Lenovo Legion hardware frontend
- Desktop controls for supported Lenovo Legion laptops. Temporary hardware
- access requires the separately installed driver, legion_cli, and a desktop
- authentication agent. The bundled helper requests temporary access.
+ Desktop controls for supported Lenovo Legion laptops. Hardware changes require
+ the separately installed driver, legion_cli, and a desktop authentication agent.
+ The app requests administrator approval for privileged hardware changes.
 ''');
       await output.create(recursive: true);
       final fixtureDirectory = '${root.path}/build/deb-fixtures';
@@ -148,7 +148,7 @@ Description: Lenovo Legion hardware frontend
         'architecture': 'amd64',
         'build_os': os,
         'portable_control': true,
-        'default_control_mode': 'temporaryHelper',
+        'default_control_mode': 'privilegedControlHelper',
         'depends': dependencies,
         'vm_fixtures_sha256': await fileSha256(fixtures),
         'elf_dependencies': elf,

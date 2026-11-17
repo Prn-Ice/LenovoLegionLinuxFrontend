@@ -244,7 +244,7 @@ class LegionControlClient {
     final capabilities = await getCapabilities();
     if (!capabilities.supported.contains(capability)) {
       throw const LegionControlNotSupportedException(
-        'The temporary helper cannot manage background services or graphics changes scheduled for the next boot.',
+        'The app cannot manage background services or graphics changes scheduled for the next boot.',
       );
     }
     await _authorizeOnce();
