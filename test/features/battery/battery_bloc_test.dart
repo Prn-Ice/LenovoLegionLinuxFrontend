@@ -131,4 +131,168 @@ void main() {
       expect: () => isEmpty,
     );
   });
+
+  group('charging-mode readback', () {
+    Future<BatteryBloc> start(BatterySnapshot initial) async {
+      when(() => repo.loadSnapshot()).thenAnswer((_) async => initial);
+      final bloc = BatteryBloc(
+        repository: repo,
+        pollInterval: const Duration(days: 1),
+      );
+      addTearDown(bloc.close);
+      final loaded = bloc.stream.firstWhere((state) => state.hasLoaded);
+      bloc.add(const BatteryStarted());
+      await loaded;
+      return bloc;
+    }
+
+    Future<BatteryState> apply(BatteryBloc bloc, BatteryEvent event) async {
+      final completed = bloc.stream.firstWhere(
+        (state) =>
+            !state.isApplying &&
+            (state.noticeMessage != null || state.errorMessage != null),
+      );
+      bloc.add(event);
+      return completed;
+    }
+
+    test(
+      'enabling conservation reads back rapid charging turning off',
+      () async {
+        final bloc = await start(
+          _chargingSnapshot(conservation: false, rapid: true),
+        );
+        when(() => repo.setBatteryConservation(true)).thenAnswer((_) async {});
+        when(() => repo.loadSnapshot()).thenAnswer(
+          (_) async => _chargingSnapshot(conservation: true, rapid: false),
+        );
+
+        final state = await apply(
+          bloc,
+          const BatteryConservationSetRequested(true),
+        );
+
+        expect(state.batteryConservationEnabled, isTrue);
+        expect(state.rapidChargingEnabled, isFalse);
+        expect(state.errorMessage, isNull);
+        verifyNever(() => repo.setRapidCharging(false));
+      },
+    );
+
+    test(
+      'enabling rapid charging reads back conservation turning off',
+      () async {
+        final bloc = await start(
+          _chargingSnapshot(conservation: true, rapid: false),
+        );
+        when(() => repo.setRapidCharging(true)).thenAnswer((_) async {});
+        when(() => repo.loadSnapshot()).thenAnswer(
+          (_) async => _chargingSnapshot(conservation: false, rapid: true),
+        );
+
+        final state = await apply(bloc, const RapidChargingSetRequested(true));
+
+        expect(state.batteryConservationEnabled, isFalse);
+        expect(state.rapidChargingEnabled, isTrue);
+        expect(state.errorMessage, isNull);
+        verifyNever(() => repo.setBatteryConservation(false));
+      },
+    );
+
+    test('disabling conservation preserves reported rapid charging', () async {
+      final bloc = await start(
+        _chargingSnapshot(conservation: true, rapid: true),
+      );
+      when(() => repo.setBatteryConservation(false)).thenAnswer((_) async {});
+      when(() => repo.loadSnapshot()).thenAnswer(
+        (_) async => _chargingSnapshot(conservation: false, rapid: true),
+      );
+
+      final state = await apply(
+        bloc,
+        const BatteryConservationSetRequested(false),
+      );
+
+      expect(state.batteryConservationEnabled, isFalse);
+      expect(state.rapidChargingEnabled, isTrue);
+      verifyNever(() => repo.setRapidCharging(false));
+    });
+
+    for (final reportedConservation in [false, null]) {
+      test(
+        'does not confirm conservation with $reportedConservation readback',
+        () async {
+          final bloc = await start(
+            _chargingSnapshot(conservation: false, rapid: true),
+          );
+          when(() => repo.setBatteryConservation(true))
+              .thenAnswer((_) async {});
+          when(() => repo.loadSnapshot()).thenAnswer(
+            (_) async => _chargingSnapshot(
+              conservation: reportedConservation,
+              rapid: false,
+            ),
+          );
+
+          final state = await apply(
+            bloc,
+            const BatteryConservationSetRequested(true),
+          );
+
+          expect(state.batteryConservationEnabled, reportedConservation);
+          expect(state.rapidChargingEnabled, isFalse);
+          expect(state.noticeMessage, isNull);
+          expect(state.errorMessage, isNotNull);
+        },
+      );
+    }
+
+    for (final reportedRapid in [true, false]) {
+      test(
+        'refreshes failed conservation with rapid charging $reportedRapid',
+        () async {
+          final bloc = await start(
+            _chargingSnapshot(conservation: false, rapid: true),
+          );
+          final failure = Exception('firmware write failed');
+          when(() => repo.setBatteryConservation(true)).thenThrow(failure);
+          when(() => repo.loadSnapshot()).thenAnswer(
+            (_) async =>
+                _chargingSnapshot(conservation: false, rapid: reportedRapid),
+          );
+
+          final state = await apply(
+            bloc,
+            const BatteryConservationSetRequested(true),
+          );
+
+          expect(state.batteryConservationEnabled, isFalse);
+          expect(state.rapidChargingEnabled, reportedRapid);
+          expect(state.noticeMessage, isNull);
+          expect(
+            state.errorMessage.toString(),
+            contains('firmware write failed'),
+          );
+        },
+      );
+    }
+  });
 }
+
+BatterySnapshot _chargingSnapshot({
+  required bool? conservation,
+  required bool? rapid,
+}) => BatterySnapshot(
+  batteryConservationEnabled: conservation,
+  batteryConservationSupported: conservation != null,
+  rapidChargingEnabled: rapid,
+  rapidChargingSupported: rapid != null,
+  batteryPercent: null,
+  batteryCharging: null,
+  batteryPowerDrawW: null,
+  cycleCounts: null,
+  fullCapacityWh: null,
+  designCapacityWh: null,
+  currentCapacityWh: null,
+  batteryTempC: null,
+);
