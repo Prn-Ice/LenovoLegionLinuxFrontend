@@ -2,6 +2,17 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+## Pull requests are required
+
+- **Every change to `main` must go through a PR. Never push directly to `main`.**
+- Work on a separate branch. Sign commits, verify their signatures, push the
+  branch, and open or update a PR targeting `main`.
+- Keep the PR branch up to date with `main`. Required GitHub checks must pass
+  before merging; do not bypass or disable branch protection, including as admin.
+- If a required check fails or blocks merging, fix it or report the blocker.
+  Do not weaken the check to finish the task.
+- Do not merge a PR unless the user asks. A session can end with a pushed branch
+  and an open PR; report its link and any checks still pending.
 
 ## Simple code and repeatable patterns
 
@@ -95,19 +106,27 @@ bd sync               # Sync with git
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+4. **Push the working branch, never `main`** - This is mandatory. Update it from
+   `origin/main` without discarding unrelated work:
    ```bash
-   git pull --rebase
+   git fetch origin
+   git rebase origin/main
    bd sync
-   git push
+   git push -u origin HEAD
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. **Open or update the PR** - Target `main`. If none exists, run
+   `gh pr create --base main`. Do not merge without user approval. Never bypass
+   required checks.
+6. **Clean up** - Remove only your temporary files. Preserve unrelated work and
+   stashes; keep the PR branch until it is merged.
+7. **Verify** - All task changes committed and pushed, signatures verified, and
+   the PR open or merged with user approval.
+8. **Hand off** - Give the PR link, test results, pending checks, and remaining work.
 
 **CRITICAL RULES:**
 - Sign every new commit and verify its signature before pushing.
+- Push only the working branch. Never push directly to `main` or bypass its rules.
 - Work is NOT complete until `git push` succeeds
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
