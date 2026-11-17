@@ -84,6 +84,15 @@ restore checks pass without it. The reported startup flash remains unresolved.
 
 ## Why some packages are held back
 
+### Window manager
+
+`window_manager` remains at 0.5.2 because `yaru_window_manager` 0.1.3 requires
+`^0.5.1`. Yaru uses that implementation on Windows and macOS; it is not our Linux
+window backend. The released 0.7.0 moves to `nativeapi` and changes its API.
+Wait for compatible Yaru support or an approved window migration rather than
+overriding the constraint. See the [November tooling review](tooling-review-2026-11.md#linux-window-styling-and-shutdown)
+for current stable, beta, and master findings.
+
 ### AppImage runtime
 
 AppImage qualification pins the versioned type-2 runtime `20251108`, its binary
