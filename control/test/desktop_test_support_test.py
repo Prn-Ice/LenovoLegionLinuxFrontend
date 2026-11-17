@@ -10,12 +10,13 @@ from desktop_test_support import gui
 
 
 class FixtureMachine:
-    def __init__(self, *, allowed=True, exit_status="0", log="", settings="Hardware control", cleanup=True):
+    def __init__(self, *, allowed=True, exit_status="0", log="", settings="Hardware control", cleanup=True, diagnostic_failure=False):
         self.allowed = allowed
         self.exit_status = exit_status
         self.log = log
         self.settings = settings
         self.cleanup = cleanup
+        self.diagnostic_failure = diagnostic_failure
         self.commands = []
         self.unit_reads = 0
         self.home = "/home/approved/legion-gui-fixture"
@@ -50,6 +51,8 @@ class FixtureMachine:
 
     def execute(self, command):
         self.commands.append(command)
+        if self.diagnostic_failure and "desktop-diagnostics-" in command:
+            raise AssertionError("Diagnostic fixture timed out")
         return 0, ""
 
 
@@ -90,6 +93,25 @@ class DesktopDriverTest(unittest.TestCase):
     def test_nonzero_window_close_remains_a_failure(self):
         with self.assertRaises(AssertionError):
             self.run_gui(FixtureMachine(exit_status="139"))
+
+    def test_diagnostic_failure_does_not_replace_the_original_close_failure(self):
+        with self.assertLogs(level="ERROR"), self.assertRaisesRegex(AssertionError, "Original close failure"):
+            self.run_gui(FixtureMachine(
+                exit_status="139", log="Original close failure", diagnostic_failure=True
+            ))
+
+    def test_ocr_is_bounded_and_does_not_enlarge_full_window_frames(self):
+        machine = FixtureMachine()
+        self.run_gui(machine)
+        recognition = [command for command in machine.commands if "tesseract" in command]
+        self.assertTrue(recognition)
+        for command in recognition:
+            self.assertIn("timeout 15 env OMP_THREAD_LIMIT=1 tesseract", command)
+        for command in recognition:
+            if "-crop 1280x720+0+0" in command:
+                self.assertIn("-resize 100%", command)
+            elif "-crop 380x32+288+7" in command:
+                self.assertIn("-resize 300%", command)
 
     def test_generated_commands_and_nested_scripts_have_valid_shell_syntax(self):
         machine = FixtureMachine()

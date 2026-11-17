@@ -1,11 +1,14 @@
 """Exercise a packaged app's first launch against synthetic VM hardware."""
 
+import logging
 import os
 import re
 import shlex
 import signal
 import subprocess
 from datetime import timedelta
+
+_logger = logging.getLogger(__name__)
 
 
 def stop(process):
@@ -85,12 +88,20 @@ def gui(
             + str(x) + " " + str(y) + " click 1"
         )
 
+    def ocr(image, layout):
+        # Four OCR threads compete with the app on a two-core emulated VM.
+        return (
+            "timeout 15 env OMP_THREAD_LIMIT=1 tesseract " + shlex.quote(image)
+            + " stdout --psm " + str(layout) + " 2>/dev/null"
+        )
+
     def wait_text(text, region, layout=7):
+        # Enlarge small labels, not an already readable full-window screenshot.
+        scale = "100%" if layout == 11 else "300%"
         command = desktop("sh -c " + shlex.quote(
             "import -window root " + shlex.quote(frame) + " && "
-            "convert " + shlex.quote(frame) + " -crop " + region + " -resize 300% "
-            + home + "/label.png && tesseract " + home + "/label.png stdout --psm "
-            + str(layout) + " 2>/dev/null"
+            "convert " + shlex.quote(frame) + " -crop " + region + " -resize "
+            + scale + " " + home + "/label.png && " + ocr(home + "/label.png", layout)
         ))
         machine.wait_until_succeeds(
             command + " | grep -Fi -- " + shlex.quote(text), timeout=timedelta(seconds=30)
@@ -146,9 +157,7 @@ def gui(
         # authorization chooser to select and no next-launch choice to save.
         machine.succeed(click(90, 427))
         wait_text("Hardware control", "1280x720+0+0", 11)
-        settings = machine.succeed(desktop(
-            "tesseract " + home + "/label.png stdout --psm 11 2>/dev/null"
-        ))
+        settings = machine.succeed(desktop(ocr(home + "/label.png", 11)))
         settings = " ".join(settings.lower().split())
         for obsolete in ("installed service", "use on next launch", "in use now:"):
             assert obsolete not in settings, settings
@@ -177,14 +186,17 @@ def gui(
             "cat " + shlex.quote(log) + " " + home + "/display.log " + home + "/exit; "
             "ps -eo pid,ppid,user,stat,args; "
             "ls -ld /proc/$(cat " + home + "/pid) /proc/$(cat " + home + "/pid)/exe; "
-            "tesseract " + home + "/label.png stdout --psm 11 2>/dev/null; "
+            + ocr(home + "/label.png", 11) + "; "
             "journalctl -b --no-pager -u 'legion-portable-control-*'; "
             "journalctl -b --no-pager -k | tail -n 100"
         )
-        print(machine.execute(
-            "(" + command + ") >" + shlex.quote(diagnostics) + " 2>&1; cat "
-            + shlex.quote(diagnostics)
-        )[1])
+        try:
+            print(machine.execute(
+                "(" + command + ") >" + shlex.quote(diagnostics) + " 2>&1; cat "
+                + shlex.quote(diagnostics)
+            )[1])
+        except Exception:
+            _logger.exception("Could not collect GUI diagnostics")
         raise
     finally:
         machine.execute(as_user("kill -TERM -$(cat " + home + "/runner) 2>/dev/null || true"))

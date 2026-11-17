@@ -1,6 +1,8 @@
 """Local command boundary and persistent-file snapshots for disposable VMs."""
 
 import hashlib
+import os
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -10,25 +12,33 @@ class LocalMachine:
     """Run the shared session driver inside the disposable VM."""
 
     def execute(self, command, timeout=45):
-        try:
-            result = subprocess.run(
-                command,
-                check=False,
-                shell=True,
-                executable="/bin/bash",
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                timeout=timeout,
-            )
-        except subprocess.TimeoutExpired as error:
-            output = error.stdout or b""
-            if isinstance(output, bytes):
-                output = output.decode(errors="replace")
-            raise AssertionError(
-                f"Command timed out after {timeout} seconds: {command}\n{output}"
-            ) from error
-        return result.returncode, result.stdout
+        with subprocess.Popen(
+            command,
+            shell=True,
+            executable="/bin/bash",
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        ) as process:
+            try:
+                output, _ = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired as error:
+                # Kill this command's shell and children, not only the shell.
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                try:
+                    output, _ = process.communicate(timeout=5)
+                except subprocess.TimeoutExpired as cleanup_error:
+                    output = cleanup_error.stdout or error.stdout or b""
+                if isinstance(output, bytes):
+                    output = output.decode(errors="replace")
+                raise AssertionError(
+                    f"Command timed out after {timeout} seconds: {command}\n{output}"
+                ) from error
+            return process.returncode, output
 
     def succeed(self, command, timeout=45):
         code, output = self.execute(command, timeout=timeout)
