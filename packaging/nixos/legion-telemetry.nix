@@ -68,7 +68,7 @@ let
     systemd = config.systemd.package;
     preflight = graphicsS2hPreflight;
   };
-  graphicsBootSource = pkgs.replaceVars ./legion-graphics-boot.py {
+  graphicsBootSource = pkgs.replaceVars ./legion-graphics-boot.sh {
     cli = "${control.backendPackage}/bin/legion_cli";
     lifecycle = "${graphicsDetachedLifecycle}/bin/legion-graphics-detached-lifecycle";
     modprobe = "${pkgs.kmod}/bin/modprobe";
@@ -78,11 +78,13 @@ let
     export PATH=${
       lib.makeBinPath [
         pkgs.bashNonInteractive
+        pkgs.coreutils
         pkgs.e2fsprogs
+        pkgs.jq
         pkgs.util-linux
       ]
     }
-    exec ${pkgs.python3}/bin/python3 ${graphicsBootSource} "$@"
+    exec ${pkgs.bashNonInteractive}/bin/bash ${graphicsBootSource} "$@"
   '';
 in
 {

@@ -10,7 +10,7 @@ temporary="$(mktemp -d /tmp/legion-nix-metadata.XXXXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 for manifest in pubspec.yaml pubspec.lock; do
   name=${manifest%.yaml}
-  yq -S . "$root/$manifest" > "$temporary/$name.json"
+  yq -o=json '.' "$root/$manifest" | jq -S . > "$temporary/$name.json"
   if [[ ${1:-} == --check ]]; then
     diff -u "$root/packaging/nix/$name.json" "$temporary/$name.json"
   else

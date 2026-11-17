@@ -58,13 +58,14 @@
           pkgs.runCommand "legion-nix-metadata"
             {
               nativeBuildInputs = [
-                pkgs.yq
+                pkgs.yq-go
+                pkgs.jq
                 pkgs.diffutils
               ];
             }
             ''
-              yq -S . ${./pubspec.yaml} > pubspec.json
-              yq -S . ${./pubspec.lock} > pubspec.lock.json
+              yq -o=json '.' ${./pubspec.yaml} | jq -S . > pubspec.json
+              yq -o=json '.' ${./pubspec.lock} | jq -S . > pubspec.lock.json
               diff -u ${./packaging/nix/pubspec.json} pubspec.json
               diff -u ${./packaging/nix/pubspec.lock.json} pubspec.lock.json
               touch "$out"
@@ -98,7 +99,8 @@
           jdk17
           dbus
           xvfb-run
-          yq
+          yq-go
+          jq
         ];
 
         # JNI build hooks compile against this JDK and load its JVM at runtime.

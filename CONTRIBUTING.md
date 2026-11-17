@@ -11,6 +11,8 @@ services.
 - GTK 3 and C++ standard-library development files
 - GLib/GIO development files for native service tests
 - Polkit development files for the bundled helper and control-service tests
+- Bash, GNU coreutils, and jq for tooling tests and packaging scripts
+- `dpkg-deb` and SquashFS tools for package-payload tests
 
 Linux builds include the privileged control helper. Nix development builds also
 need `patchelf` to retain its runtime library paths.
@@ -19,7 +21,7 @@ Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integra
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools
 ```
 
 Package names vary by distribution. You do not need the Android SDK.

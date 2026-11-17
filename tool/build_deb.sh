@@ -13,7 +13,7 @@ if [[ -n $(git -C "$root" status --porcelain) ]]; then
   echo 'Debian packaging requires a clean checkout.' >&2
   exit 1
 fi
-expected="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["flutter"]["sha256"])' "$root/packaging/appimage/build-inputs.json")"
+expected="$(jq -er '.flutter.sha256' "$root/packaging/appimage/build-inputs.json")"
 printf '%s  %s\n' "$expected" "$sdk" | sha256sum --check --status
 mkdir -p -- "$output"
 scratch="$(mktemp -d /tmp/legion-deb-build.XXXXXXXX)"

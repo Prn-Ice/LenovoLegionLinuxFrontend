@@ -33,8 +33,10 @@ name does not tell us whether its sensors work.
 `frontend_write_available` means the app has code to change that setting. The
 driver may still reject it, and the control may be disabled. Writes are marked
 `unverified`: diagnostics do not change settings or test whether a previous
-command changed the hardware. Report schema 4 removes `control_service_active`
-because the app now starts its privileged control helper on demand.
+command changed the hardware. Report schema 5 omits `control_service_active`
+because the app starts its privileged control helper on demand. It also omits
+`python_available`: the app checks the installed CLI itself rather than assuming
+which interpreter it uses.
 
 The report includes hardware identifiers, versions, probe results, and command
 history. Serial-number, UUID, and host/user-name fields are excluded;

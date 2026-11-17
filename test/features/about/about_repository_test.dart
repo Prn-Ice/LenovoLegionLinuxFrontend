@@ -12,12 +12,14 @@ import 'package:legion_frontend/features/lighting/services/spectrum_hid_service.
 void main() {
   late Directory root;
   late List<List<String>> commands;
+  late List<List<String>> runtimeCommands;
   late AboutRepository repository;
   var cliHealthy = true;
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('about-diagnostics-');
     commands = [];
+    runtimeCommands = [];
     cliHealthy = true;
     final fixture = jsonDecode(
       File('test/fixtures/sysfs/alternate-layout.json').readAsStringSync(),
@@ -54,12 +56,27 @@ void main() {
         devRoot: '${root.path}/dev',
       ),
       processRunner: (executable, arguments) async {
+        runtimeCommands.add([executable, ...arguments]);
         expect(executable, 'which');
         return ProcessResult(0, 1, '', '');
       },
     );
   });
   tearDown(() => root.delete(recursive: true));
+
+  test('runtime checks omit Python and installed services while preserving CLI health probes', () async {
+    final snapshot = await repository.loadSnapshot();
+
+    expect(runtimeCommands, [
+      ['which', 'systemctl'],
+    ]);
+    expect(commands, [
+      ['--donotexpecthwmon', '--help'],
+      ['--donotexpecthwmon', '--version'],
+    ]);
+    expect(snapshot.cliHealthy, isTrue);
+    expect(snapshot.cliVersion, 'fixture-cli-1.0');
+  });
 
   test(
     'power report keeps readable files separate from allowed write actions',
@@ -170,7 +187,8 @@ void main() {
       expect(report['kernel_version'], isNull);
       expect(report['module_version'], isNull);
       expect(report['cli_version'], 'fixture-cli-1.0');
-      expect(report['schema_version'], 4);
+      expect(report['schema_version'], 5);
+      expect(report, isNot(contains('python_available')));
       expect(report, isNot(contains('control_service_active')));
       expect(
         diagnostics['battery_conservation']!['frontend_write_available'],

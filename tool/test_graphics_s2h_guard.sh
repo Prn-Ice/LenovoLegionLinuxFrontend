@@ -1,27 +1,26 @@
-#!/usr/bin/env python3
-"""Run systemd's actual sleep transition code with kernel I/O replaced.
-
-Usage: test_graphics_s2h_guard.py SYSTEMD_SLEEP_C
-The input may be upstream (expected to fail) or the Nix-patched sleep.c.
-No real sleep, hardware inspection, or privileged operation is performed.
-"""
-
-import os
-from pathlib import Path
-import re
-import shutil
-import subprocess
-import sys
-import tempfile
-
-
-def function(source, name):
-    start = source.index(f"static int {name}(")
-    end = source.index("\n}\n", start) + 3
-    return source[start:end]
-
-
-HARNESS = r'''
+#!/usr/bin/env bash
+# Run systemd's sleep transition code with kernel I/O replaced by local fixtures.
+# Usage: bash tool/test_graphics_s2h_guard.sh SYSTEMD_SLEEP_C
+set -euo pipefail
+root=$(mktemp -d -t legion-s2h-test-XXXXXX)
+trap 'rm -rf -- "$root"' EXIT
+guard="$root/guard"
+printf '#!%s\n' "$(command -v sh)" > "$guard"
+cat >> "$guard" <<'SH'
+printf 'guard:check\n' >> "$TEST_EVENTS"
+read -r result < "$TEST_GUARD_STATE" || :
+exit "$result"
+SH
+chmod +x "$guard"
+for name in execute execute_s2h; do
+  awk -v name="$name" '
+    index($0, "static int " name "(") == 1 { found=1 }
+    found { print }
+    found && /^}/ { exit }
+    END { if (!found) exit 1 }
+  ' "$1" > "$root/$name.c"
+done
+cat > "$root/harness.c" <<'C'
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -142,66 +141,41 @@ int main(int argc, char **argv) {
         r = execute(&c, SLEEP_SUSPEND, SLEEP_SUSPEND, NULL);
     return r < 0 ? 1 : 0;
 }
-'''
+C
+sed -e "/@EXECUTE@/r $root/execute.c" -e '/@EXECUTE@/d' \
+  -e "/@EXECUTE_S2H@/r $root/execute_s2h.c" -e '/@EXECUTE_S2H@/d' "$root/harness.c" |
+  sed -E "s#\"(@legionHibernatePreflight@|/nix/store/[^\"]*legion-graphics-s2h-preflight)\"#\"$guard\"#g" > "$root/test.c"
+"${CC:-cc}" -std=gnu11 -o "$root/test" "$root/test.c"
 
-
-def main():
-    source = Path(sys.argv[1]).read_text()
-    with tempfile.TemporaryDirectory(prefix="legion-s2h-test-") as directory:
-        root = Path(directory)
-        guard = root / "guard"
-        guard.write_text(
-            f'#!{shutil.which("sh")}\n'
-            'printf "guard:check\\n" >> "$TEST_EVENTS"\n'
-            'read -r result < "$TEST_GUARD_STATE" || :\n'
-            'exit "$result"\n'
-        )
-        guard.chmod(0o755)
-        c_source = HARNESS.replace("@EXECUTE@", function(source, "execute"))
-        c_source = c_source.replace("@EXECUTE_S2H@", function(source, "execute_s2h"))
-        # The guard path is immutable in production and local only in this harness.
-        c_source = re.sub(r'"(?:@legionHibernatePreflight@|/nix/store/[^"\n]*legion-graphics-s2h-preflight)"',
-                          f'"{guard}"', c_source)
-        (root / "test.c").write_text(c_source)
-        subprocess.run([os.environ.get("CC", "cc"), "-std=gnu11", "-o", str(root / "test"),
-                        str(root / "test.c")], check=True)
-
-        suspend = ["pre:suspend", "homes:lock", "write:mem", "post:suspend"]
-        pre = ["pre:hibernate", "homes:lock"]
-        fallback = ["pre:suspend-after-failed-hibernate", "homes:lock", "write:mem",
-                    "post:suspend-after-failed-hibernate"]
-        cases = [
-            ("state changes after entry", "s2h", "2", {},
-             suspend + pre + ["guard:check", "post:hibernate", "efi:clear"] + fallback),
-            ("safe transition", "s2h", "0", {},
-             suspend + pre + ["guard:check", "write:disk", "post:hibernate"]),
-            ("inspection fails", "s2h", "1", {},
-             suspend + pre + ["guard:check", "post:hibernate", "efi:clear"] + fallback),
-            ("guard times out", "s2h", "124", {},
-             suspend + pre + ["guard:check", "post:hibernate", "efi:clear"] + fallback),
-            ("cannot fork guard", "s2h", "0", {"TEST_FORK_FAIL": "1"},
-             suspend + pre + ["post:hibernate", "efi:clear"] + fallback),
-            ("manual wake", "s2h", "2", {"TEST_MANUAL_WAKE": "1"}, suspend),
-            ("ordinary suspend", "suspend", "2", {}, suspend),
-            ("direct hibernate unchanged", "hibernate", "2", {},
-             pre + ["write:disk", "post:hibernate"]),
-        ]
-        cases.append(("missing guard", "s2h", "0", {},
-                      suspend + pre + ["post:hibernate", "efi:clear"] + fallback))
-        for name, operation, result, extra, expected in cases:
-            if name == "missing guard":
-                guard.unlink()
-            events = root / "events"
-            events.write_text("")
-            state = root / "state"
-            state.write_text("0")  # Initial entry preflight would succeed.
-            env = dict(os.environ, TEST_EVENTS=str(events), TEST_GUARD_STATE=str(state),
-                       TEST_GUARD_RESULT=result, **extra)
-            subprocess.run([str(root / "test"), operation], env=env, check=True, timeout=5)
-            actual = events.read_text().splitlines()
-            assert actual == expected, f"{name}: expected {expected}, got {actual}"
-            print(f"PASS: {name}")
-
-
-if __name__ == "__main__":
-    main()
+export TEST_EVENTS="$root/events" TEST_GUARD_STATE="$root/state"
+suspend=$'pre:suspend\nhomes:lock\nwrite:mem\npost:suspend'
+pre=$'pre:hibernate\nhomes:lock'
+fallback=$'pre:suspend-after-failed-hibernate\nhomes:lock\nwrite:mem\npost:suspend-after-failed-hibernate'
+rejected="$suspend"$'\n'"$pre"$'\nguard:check\npost:hibernate\nefi:clear\n'"$fallback"
+run_case() {
+  local name=$1 operation=$2 expected=$3
+  : > "$TEST_EVENTS"
+  printf '0' > "$TEST_GUARD_STATE"
+  timeout 5s "$root/test" "$operation"
+  printf '%s\n' "$expected" > "$root/expected"
+  diff -u "$root/expected" "$TEST_EVENTS"
+  printf 'PASS: %s\n' "$name"
+}
+export TEST_GUARD_RESULT=2
+run_case 'state changes after entry' s2h "$rejected"
+export TEST_GUARD_RESULT=0
+run_case 'safe transition' s2h "$suspend"$'\n'"$pre"$'\nguard:check\nwrite:disk\npost:hibernate'
+export TEST_GUARD_RESULT=1
+run_case 'inspection fails' s2h "$rejected"
+export TEST_GUARD_RESULT=124
+run_case 'guard times out' s2h "$rejected"
+export TEST_GUARD_RESULT=0 TEST_FORK_FAIL=1
+run_case 'cannot fork guard' s2h "$suspend"$'\n'"$pre"$'\npost:hibernate\nefi:clear\n'"$fallback"
+unset TEST_FORK_FAIL
+export TEST_GUARD_RESULT=2 TEST_MANUAL_WAKE=1
+run_case 'manual wake' s2h "$suspend"
+unset TEST_MANUAL_WAKE
+run_case 'ordinary suspend' suspend "$suspend"
+run_case 'direct hibernate unchanged' hibernate "$pre"$'\nwrite:disk\npost:hibernate'
+rm "$guard"
+run_case 'missing guard' s2h "$suspend"$'\n'"$pre"$'\npost:hibernate\nefi:clear\n'"$fallback"

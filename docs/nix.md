@@ -50,7 +50,8 @@ project's flake lock pins the native libraries and SDK obtained during rebuildin
 The archive's README explains rebuilding and the dependency copies.
 
 After changing `pubspec.yaml` or `pubspec.lock`, refresh the JSON files used by
-Nix's pure evaluator:
+Nix's pure evaluator. The development shell supplies Mike Farah's `yq`
+(`yq-go` in Nixpkgs) and jq to convert YAML to sorted JSON:
 
 ```bash
 nix develop -c bash tool/update_nix_metadata.sh

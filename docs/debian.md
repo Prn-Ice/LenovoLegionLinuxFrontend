@@ -20,7 +20,7 @@ through the helper. Existing installed services remain separately managed.
 
 ## Build
 
-The builder needs Docker, Git, Python 3, and curl. It compiles as an ordinary
+The builder needs Docker, Git, jq, and curl. It compiles as an ordinary
 user in the pinned Ubuntu 22.04 container used for AppImage builds. Build from
 a clean committed checkout:
 

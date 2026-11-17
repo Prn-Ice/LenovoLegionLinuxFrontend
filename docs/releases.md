@@ -94,6 +94,20 @@ The release helper then verifies the tag version, app/source hashes, complete
 helper inventory, and the VM evidence. The evidence must describe a clean
 checkout of the tagged commit and identify the same release manifest.
 
+Run the helper with the Flutter SDK's Dart executable; no package resolution is
+needed:
+
+```bash
+dart tool/release_workflow.dart check-tag v1.0.0
+dart tool/release_workflow.dart prepare v1.0.0 build/release-inputs build/prepared-release
+GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v1.0.0 build/prepared-release
+```
+
+Preparation reads `appimage-release`, `appimage-qualification`, `deb-release`,
+`deb-ubuntu-qualification`, and `deb-debian-qualification` under
+`build/release-inputs`. Publishing needs authenticated `gh` access and creates
+or refreshes a draft; it never publishes that draft.
+
 The draft contains nine assets:
 
 - Ubuntu x86-64 `.AppImage`

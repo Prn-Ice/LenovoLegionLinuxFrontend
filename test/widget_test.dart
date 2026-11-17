@@ -88,7 +88,6 @@ class _FakeAboutRepository implements AboutRepository {
       updatedAt: DateTime.utc(2026),
       cliPath: '/usr/bin/legion',
       cliPathExists: true,
-      pythonAvailable: true,
       systemctlAvailable: true,
       cliHealthy: true,
       cliHealthSummary: 'Healthy',
