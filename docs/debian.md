@@ -7,7 +7,7 @@ Installing it adds no persistent Legion service or authorization policy.
 Install the package with apt so it resolves the runtime dependencies:
 
 ```bash
-sudo apt install ./legion-linux-frontend_0.1.0~alpha.1+1-1_amd64.deb
+sudo apt install ./legion-linux-frontend_0.1.0-alpha.2+1-1_amd64.deb
 legion_frontend
 ```
 
@@ -51,6 +51,9 @@ See the [Debian dependency tool](https://manpages.debian.org/bookworm/dpkg-dev/d
 
 App versions map to Debian versions with a `-1` package revision. Prereleases
 use Debian's `~` ordering: `1.1.0-rc.1+2` becomes `1.1.0~rc.1+2-1`.
+Download filenames use `-` in place of `~` because GitHub renames tildes on
+upload. The version inside the package retains `~`; apt uses that metadata for
+upgrade ordering.
 
 ## Qualification
 

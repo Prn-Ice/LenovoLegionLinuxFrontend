@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/packaging_files.dart';
+import '../../tool/packaging_versions.dart';
 import '../../tool/release_workflow.dart' as release;
 
 void archiveContents(File path, Map<String, String> files) {
@@ -47,13 +48,13 @@ Matcher failsWith(String message) => throwsA(
 );
 
 class ReleaseFixture {
-  ReleaseFixture() {
+  ReleaseFixture({this.version = '1.2.3+7'}) {
     root.createSync();
     git(['init', '-q', '--initial-branch=main']);
     git(['config', 'user.name', 'Release test']);
     git(['config', 'user.email', 'release@example.invalid']);
     File('${root.path}/pubspec.yaml')
-        .writeAsStringSync('name: fixture\nversion: 1.2.3+7\n');
+        .writeAsStringSync('name: fixture\nversion: $version\n');
     git(['add', '.']);
     git(['commit', '-qm', 'fixture']);
     commit = git(['rev-parse', 'HEAD']);
@@ -93,7 +94,7 @@ class ReleaseFixture {
     );
     manifest = {
       'format': 1,
-      'version': '1.2.3+7',
+      'version': version,
       'source_commit': commit,
       'architecture': 'x86_64',
       'portable_control': true,
@@ -118,8 +119,9 @@ class ReleaseFixture {
   late final payload = Directory('${temporary.path}/payload');
   late int runtimeSize;
   late final String commit;
-  final tag = 'v1.2.3';
-  final prefix = 'legion-frontend-1.2.3+7-x86_64';
+  final String version;
+  late final tag = 'v${version.split('+').first}';
+  late final prefix = 'legion-frontend-$version-x86_64';
   late final image = '$prefix.AppImage';
   late final source = '$prefix-source.tar.gz';
   late final metadata = '$prefix.json';
@@ -188,11 +190,11 @@ class ReleaseFixture {
 
   void refreshDebian({Map<String, Object> changes = const {}}) {
     deb.createSync(recursive: true);
-    final names = release.debianNames({'version': '1.2.3+7'});
+    final names = release.debianNames({'version': version});
     File('${payload.path}/DEBIAN/control')
       ..createSync(recursive: true)
       ..writeAsStringSync(
-        'Package: fixture\nVersion: 1.2.3+7-1\nArchitecture: amd64\n'
+        'Package: fixture\nVersion: ${debianVersion(version)}\nArchitecture: amd64\n'
         'Maintainer: Test <test@example.invalid>\nDescription: Package fixture\n',
       );
     packagingCommand('dpkg-deb', [
@@ -208,8 +210,8 @@ class ReleaseFixture {
     );
     debManifest = {
       'format': 1,
-      'version': '1.2.3+7',
-      'package_version': '1.2.3+7-1',
+      'version': version,
+      'package_version': debianVersion(version),
       'architecture': 'amd64',
       'source_commit': commit,
       'portable_control': true,
@@ -343,6 +345,26 @@ class ReleaseFixture {
       };
     }
     return existing == null ? [] : [existing];
+  }
+
+  Map uploadedRelease() {
+    final plan = release.readReleaseJson(
+      File('${output.path}/release-plan.json'),
+    );
+    return {
+      'tag_name': tag,
+      'draft': true,
+      'prerelease': plan['prerelease'],
+      'assets': [
+        for (final entry in (plan['assets'] as Map).entries)
+          {
+            'name': entry.key,
+            'state': 'uploaded',
+            'digest': 'sha256:${entry.value}',
+            'size': File('${output.path}/${entry.key}').lengthSync(),
+          },
+      ],
+    };
   }
 }
 
@@ -522,7 +544,7 @@ void main() {
     expect(File('${fixture.root.path}/owned').existsSync(), false);
   });
 
-  test('prerelease version sets the release flag and Debian ordering', () {
+  test('prerelease version sets the release flag and download filename', () {
     File('${fixture.root.path}/pubspec.yaml')
         .writeAsStringSync('version: 1.2.3-rc.1+7\n');
     fixture.git(['commit', '-qam', 'prerelease']);
@@ -530,8 +552,48 @@ void main() {
     expect(release.checkTag(fixture.root, 'v1.2.3-rc.1')['prerelease'], true);
     expect(
       release.debianNames({'version': '1.2.3-rc.1+7'}).first,
-      'legion-linux-frontend_1.2.3~rc.1+7-1_amd64.deb',
+      'legion-linux-frontend_1.2.3-rc.1+7-1_amd64.deb',
     );
+  });
+
+  test(
+    'alpha assets verify with safe names and Debian prerelease metadata',
+    () {
+      final alpha = ReleaseFixture(version: '0.1.0-alpha.2+1');
+      addTearDown(() => alpha.temporary.deleteSync(recursive: true));
+      final plan = alpha.prepare();
+      expect(plan['prerelease'], isTrue);
+      const package = 'legion-linux-frontend_0.1.0-alpha.2+1-1_amd64.deb';
+      expect((plan['assets'] as Map).keys, contains(package));
+      expect(
+        packagingCommand('dpkg-deb', [
+          '-f',
+          '${alpha.output.path}/$package',
+          'Version',
+        ]).trim(),
+        '0.1.0~alpha.2+1-1',
+      );
+      expect(
+        packagingCommand('sha256sum', [
+          '--check',
+          'SHA256SUMS',
+        ], workingDirectory: alpha.output.path),
+        contains('$package: OK'),
+      );
+      packagingCommand('dpkg', [
+        '--compare-versions',
+        '0.1.0~alpha.2+1-1',
+        'lt',
+        '0.1.0+1-1',
+      ]);
+    },
+  );
+
+  test('download filename cannot replace the internal Debian version', () {
+    final alpha = ReleaseFixture(version: '0.1.0-alpha.2+1');
+    addTearDown(() => alpha.temporary.deleteSync(recursive: true));
+    alpha.refreshDebian(changes: {'package_version': '0.1.0-alpha.2+1-1'});
+    expect(alpha.prepare, failsWith('Debian build differs'));
   });
 
   test('check-tag appends the validated GitHub outputs', () async {
@@ -805,7 +867,10 @@ void main() {
       fixture.tag,
       fixture.output,
       'owner/repository',
-      api: fixture.api,
+      api: (path) => fixture.api(
+        path,
+        existing: writes.length == 2 ? fixture.uploadedRelease() : null,
+      ),
       command: (arguments) async {
         writes.add(arguments);
       },
@@ -830,8 +895,12 @@ void main() {
       fixture.tag,
       fixture.output,
       'owner/repository',
-      api: (path) =>
-          fixture.api(path, existing: {'tag_name': fixture.tag, 'draft': true}),
+      api: (path) => fixture.api(
+        path,
+        existing: writes.length == 2
+            ? fixture.uploadedRelease()
+            : {'tag_name': fixture.tag, 'draft': true},
+      ),
       command: (arguments) async {
         writes.add(arguments);
       },
@@ -839,6 +908,44 @@ void main() {
     expect(writes.first.take(2), ['release', 'edit']);
     expect(writes[1], contains('--clobber'));
   });
+
+  for (final (description, alter) in <(String, void Function(Map))>[
+    (
+      'renamed asset',
+      (result) => result['assets'][0]['name'] = 'renamed.AppImage',
+    ),
+    ('missing asset', (result) => (result['assets'] as List).removeLast()),
+    (
+      'wrong digest',
+      (result) => result['assets'][0]['digest'] = 'sha256:${'0' * 64}',
+    ),
+    ('wrong size', (result) => result['assets'][0]['size'] = 0),
+    ('unfinished asset', (result) => result['assets'][0]['state'] = 'starter'),
+    ('published release', (result) => result['draft'] = false),
+    ('wrong prerelease flag', (result) => result['prerelease'] = true),
+  ]) {
+    test('successful upload command cannot hide $description', () async {
+      fixture.prepare();
+      final uploaded = fixture.uploadedRelease();
+      alter(uploaded);
+      var writes = 0;
+      await expectLater(
+        release.publishRelease(
+          fixture.root,
+          fixture.tag,
+          fixture.output,
+          'owner/repository',
+          api: (path) =>
+              fixture.api(path, existing: writes == 2 ? uploaded : null),
+          command: (_) async {
+            writes++;
+          },
+        ),
+        throwsStateError,
+      );
+      expect(writes, 2);
+    });
+  }
 
   test('finds a draft beyond the first release page', () async {
     final draft = {'tag_name': fixture.tag, 'draft': true};

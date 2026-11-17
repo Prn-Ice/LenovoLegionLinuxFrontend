@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'packaging_files.dart';
+import 'packaging_versions.dart';
 
 enum ReleaseCommand { checkTag, prepare, publish }
 
@@ -25,13 +26,9 @@ const debianChecks = {
 
 List<String> debianNames(Map release) {
   final version = release['version'] as String;
-  final parts = version.split('+');
-  final packageVersion =
-      '${parts.first.replaceFirst('-', '~')}'
-      '${parts.length > 1 ? '+${parts[1]}' : ''}-1';
   final prefix = 'legion-frontend-$version-amd64';
   return [
-    'legion-linux-frontend_${packageVersion}_amd64.deb',
+    debianFileName(version),
     '$prefix-source.tar.gz',
     '$prefix.json',
     '$prefix-acceptance.tar.gz',
@@ -341,9 +338,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
       manifest['architecture'] != 'amd64' ||
       manifest['version'] != release['version'] ||
       manifest['package_version'] !=
-          package
-              .replaceFirst('legion-linux-frontend_', '')
-              .replaceFirst('_amd64.deb', '') ||
+          debianVersion(release['version'] as String) ||
       manifest['source_commit'] != release['commit'] ||
       manifest['portable_control'] != true ||
       manifest['default_control_mode'] != 'privilegedControlHelper' ||
@@ -808,6 +803,28 @@ Future<void> publishRelease(
     '--clobber',
     for (final name in assets.keys) '${output.path}/$name',
   ]);
+  final uploaded = await findRelease(repository, tag, api);
+  if (uploaded == null ||
+      uploaded['draft'] != true ||
+      uploaded['prerelease'] != release['prerelease']) {
+    throw StateError(
+      'GitHub did not retain the expected draft release status.',
+    );
+  }
+  final uploadedAssets = (uploaded['assets'] as List).cast<Map>();
+  if (!sameNames(uploadedAssets.map((asset) => asset['name']), assets.keys)) {
+    throw StateError(
+      'GitHub changed the release asset filenames or inventory.',
+    );
+  }
+  for (final asset in uploadedAssets) {
+    final name = asset['name'] as String;
+    if (asset['state'] != 'uploaded' ||
+        asset['digest'] != 'sha256:${assets[name]}' ||
+        asset['size'] != File('${output.path}/$name').lengthSync()) {
+      throw StateError('GitHub release asset failed verification: $name');
+    }
+  }
 }
 
 Future<void> releaseMain(
