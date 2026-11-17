@@ -18,8 +18,7 @@ chmod +x legion-frontend-0.1.0-alpha.2+1-x86_64.AppImage
 ./legion-frontend-0.1.0-alpha.2+1-x86_64.AppImage
 ```
 
-Use the filename you downloaded. The `.AppImage` is the app; the large
-`-source.tar.gz` archive is for rebuilding it. See the
+Use the filename you downloaded. See the
 [AppImage guide](docs/appimage.md) for NixOS launch instructions, hardware
 requirements, checksum verification, and known issues.
 
