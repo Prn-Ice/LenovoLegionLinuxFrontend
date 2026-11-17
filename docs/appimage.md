@@ -62,12 +62,12 @@ Neither VM reported Pango font errors. The user also confirmed the font fix on
 KDE Wayland with hybrid graphics. These checks do not establish real hardware
 control or desktop password-prompt behavior.
 
-The retained official Flutter 3.50.0 candidate and its matching source/checksums
-are listed in [the release record](releases.md#retained-official-candidate-16-november-2026).
-Its AppImage VM checks passed, but the same CI run's Debian normal-close failure
-still blocks release. The user subsequently reported that the official 3.50.0
-AppImage works on their machine, including retry. Hardware readback,
-restoration, helper cleanup, and numeric exit status were not explicitly reported.
+Current official Flutter 3.50.0 packages pass automated acceptance for all three
+formats; see [the release record](releases.md#deployment-status-17-november-2026)
+for the exact commit, CI run, and artifact identities. The user also confirmed
+that the corrected AppImage works on their desktop, and previously confirmed
+authorization retry. Physical readback, restoration, helper cleanup, and numeric
+exit status still need an explicit record for the final candidate.
 
 Wayland startup still reports `Unable to load  from the cursor theme`.
 Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
@@ -191,20 +191,28 @@ and verifies that they tested the same AppImage hash and source commit.
 
 ## Known shutdown issue
 
-Flutter 3.50.0 can crash when closing the app in the NixOS VM. The SDK upgrade
-and a native cleanup experiment did not resolve it. The experiment was reverted;
-package acceptance remains incomplete. See the
-[shutdown evidence and follow-up](linux-shutdown.md) before treating a trial
-artifact as release-ready.
+Historical official-SDK packages intermittently crashed on normal close in
+NixOS and Ubuntu VMs. The native cleanup experiment was reverted; newer passing
+acceptance does not establish a crash fix. On 17 November, the user deferred
+further investigation unless a concrete cause and simple supported fix become
+available. See the [shutdown evidence and stop condition](linux-shutdown.md).
+Normal-close checks remain required for each release candidate.
 
 ## Desktop trial
 
 Open the app and record the current Conservation mode value.
 Change it and, if a password prompt appears, cancel first: the setting must stay
 unchanged. Retry, approve, and confirm the new value in the app. Restore the
-original value, confirm it, and close the app normally. Record any error and the
-terminal exit status. This checks the actual driver, CLI, and desktop approval;
-the VM tests use synthetic hardware and test-only approval policies.
+original value, confirm it, and close the app normally. Confirm that the session's
+privileged control helper has stopped. Record the package hash, desktop and
+X11/Wayland session, any error, and the numeric terminal exit status; expect zero.
+This checks the actual driver, CLI, and desktop approval; the VM tests use
+synthetic hardware and test-only approval policies.
+
+Also check the running-app icon and window corners: restored content should be
+rounded; maximized and fullscreen content should be square. Restore the window
+and confirm that rounded corners return. Record these results separately from
+hardware control and Dolphin's file preview.
 
 On a host with the core library and graphics baseline, verify `SHA256SUMS`, make the AppImage
 executable, and open it as your normal user from a regular desktop terminal.
