@@ -39,6 +39,23 @@ it automatically with nix-direnv.
 See [the Nix frontend build](docs/nix.md) for the packaged app, source archive,
 dependency metadata updates, and disposable VM acceptance check.
 
+### Rebuild after changing the Nix environment
+
+After updating `flake.lock` or switching development shells, CMake can retain
+library paths from the previous environment. A runtime search-path cycle that
+lists two GLib versions indicates mixed library paths. Enter the current shell
+and rebuild from a clean cache:
+
+```bash
+nix develop
+flutter clean
+flutter pub get --enforce-lockfile
+flutter run -d linux
+```
+
+The build should resolve one GLib version and launch without the search-path
+cycle warning. Close any running app instance first so it releases its data files.
+
 ## Test without hardware
 
 ```bash
