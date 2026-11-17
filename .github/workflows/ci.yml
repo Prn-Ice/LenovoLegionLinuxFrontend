@@ -6,20 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
-    outputs:
-      appimage_run:
-        description: Run containing the checked AppImage and acceptance evidence.
-        value: ${{ jobs.changes.outputs.appimage_run || github.run_id }}
-      debian_run:
-        description: Run containing the checked Debian package and acceptance evidence.
-        value: ${{ jobs.changes.outputs.debian_run || github.run_id }}
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -32,15 +24,6 @@ jobs:
       nix: ${{ steps.changes.outputs.nix }}
       appimage: ${{ steps.changes.outputs.appimage }}
       debian: ${{ steps.changes.outputs.debian }}
-      test_run: ${{ steps.reuse.outputs.test_run }}
-      native_run: ${{ steps.reuse.outputs.native_run }}
-      lifecycle_run: ${{ steps.reuse.outputs.lifecycle_run }}
-      integration_run: ${{ steps.reuse.outputs.integration_run }}
-      nix_run: ${{ steps.reuse.outputs.nix_run }}
-      appimage_run: ${{ steps.reuse.outputs.appimage_run }}
-      appimage_build_run: ${{ steps.reuse.outputs.appimage_build_run }}
-      debian_run: ${{ steps.reuse.outputs.debian_run }}
-      debian_build_run: ${{ steps.reuse.outputs.debian_build_run }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,23 +42,9 @@ jobs:
             bash tool/ci_build_changes.sh
           fi
 
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: '3.50.0'
-          cache: true
-          pub-cache: false
-      - name: Find successful exact-commit checks
-        id: reuse
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: dart tool/ci_reuse.dart
-
   test:
     name: Flutter Test & Analyze
     runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.test_run == ''
 
     steps:
       - uses: actions/checkout@v7
@@ -115,15 +84,9 @@ jobs:
           bash test/tool/portable_distro_evidence_test.sh
           bash test/tool/portable_distro_readiness_test.sh
 
-      - uses: ./.github/actions/ci-success
-        with:
-          check: test
-
   native:
     name: Native services and tests
     runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.native_run == ''
 
     steps:
       - uses: actions/checkout@v7
@@ -173,16 +136,12 @@ jobs:
         timeout-minutes: 2
         run: dart run tool/probe_portable_control.dart --helper build/native/portable_control_probe
 
-      - uses: ./.github/actions/ci-success
-        with:
-          check: native
-
   control-lifecycle:
     name: Control lifecycle and portable startup VMs
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.lifecycle == 'true' && needs.changes.outputs.lifecycle_run == ''
+    if: needs.changes.outputs.lifecycle == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -195,16 +154,13 @@ jobs:
         run: >-
           nix build .#checks.x86_64-linux.control-lifecycle
           .#checks.x86_64-linux.portable-bootstrap --print-build-logs
-      - uses: ./.github/actions/ci-success
-        with:
-          check: lifecycle
 
   appimage-build:
     name: AppImage build and source companion
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.appimage == 'true' && needs.changes.outputs.appimage_run == '' && needs.changes.outputs.appimage_build_run == ''
+    if: needs.changes.outputs.appimage == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -221,9 +177,6 @@ jobs:
           if-no-files-found: error
           overwrite: true
           retention-days: 7
-      - uses: ./.github/actions/ci-success
-        with:
-          check: appimage_build
 
   appimage:
     name: AppImage build and Ubuntu/NixOS acceptance
@@ -231,11 +184,7 @@ jobs:
     timeout-minutes: 45
     env:
       LLLF_VM_ACCELERATOR: kvm
-    needs: [changes, appimage-build]
-    if: >-
-      always() && !cancelled() && needs.changes.result == 'success' &&
-      needs.changes.outputs.appimage == 'true' && needs.changes.outputs.appimage_run == '' &&
-      (needs.appimage-build.result == 'success' || needs.changes.outputs.appimage_build_run != '')
+    needs: appimage-build
     steps:
       - uses: actions/checkout@v7
         with:
@@ -245,8 +194,6 @@ jobs:
         with:
           name: appimage-build
           path: build/appimage-release
-          run-id: ${{ needs.changes.outputs.appimage_build_run || github.run_id }}
-          github-token: ${{ github.token }}
       - name: Restore the AppImage executable bit after artifact download
         run: chmod +x build/appimage-release/*.AppImage
       - uses: cachix/install-nix-action@v31
@@ -288,16 +235,12 @@ jobs:
             build/appimage-nixos-qualification
           if-no-files-found: ignore
 
-      - uses: ./.github/actions/ci-success
-        with:
-          check: appimage
-
   linux-integration:
     name: Linux native app integration
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.integration == 'true' && needs.changes.outputs.integration_run == ''
+    if: needs.changes.outputs.integration == 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -347,16 +290,12 @@ jobs:
           path: linux-integration.log
           if-no-files-found: ignore
 
-      - uses: ./.github/actions/ci-success
-        with:
-          check: integration
-
   nix-frontend:
     name: Nix frontend build and acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.nix == 'true' && needs.changes.outputs.nix_run == ''
+    if: needs.changes.outputs.nix == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -372,16 +311,12 @@ jobs:
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs
 
-      - uses: ./.github/actions/ci-success
-        with:
-          check: nix
-
   debian-build:
     name: Debian build and source companion
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.debian == 'true' && needs.changes.outputs.debian_run == '' && needs.changes.outputs.debian_build_run == ''
+    if: needs.changes.outputs.debian == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -400,9 +335,6 @@ jobs:
           if-no-files-found: error
           overwrite: true
           retention-days: 7
-      - uses: ./.github/actions/ci-success
-        with:
-          check: debian_build
 
   debian:
     name: Debian package build and acceptance
@@ -410,11 +342,7 @@ jobs:
     timeout-minutes: 45
     env:
       LLLF_VM_ACCELERATOR: kvm
-    needs: [changes, debian-build]
-    if: >-
-      always() && !cancelled() && needs.changes.result == 'success' &&
-      needs.changes.outputs.debian == 'true' && needs.changes.outputs.debian_run == '' &&
-      (needs.debian-build.result == 'success' || needs.changes.outputs.debian_build_run != '')
+    needs: debian-build
     steps:
       - uses: actions/checkout@v7
         with:
@@ -424,8 +352,6 @@ jobs:
         with:
           name: debian-build
           path: build/deb-release
-          run-id: ${{ needs.changes.outputs.debian_build_run || github.run_id }}
-          github-token: ${{ github.token }}
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
@@ -467,7 +393,3 @@ jobs:
             build/deb-ubuntu-qualification
             build/deb-debian-qualification
           if-no-files-found: ignore
-
-      - uses: ./.github/actions/ci-success
-        with:
-          check: debian

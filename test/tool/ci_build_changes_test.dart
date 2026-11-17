@@ -111,6 +111,7 @@ void main() {
     'tool/test_portable_distro.sh': {'nix', 'appimage', 'debian'},
     'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
     'tool/release_workflow.dart': {},
+    'tool/find_release_ci.dart': {},
   };
   for (final entry in cases.entries) {
     test('${entry.key} selects its consumers', () {

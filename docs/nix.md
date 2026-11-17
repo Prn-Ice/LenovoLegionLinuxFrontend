@@ -72,5 +72,5 @@ password dialogs need separate testing.
 
 CI selects analysis, unit tests, and native tests on every PR. Each packaging,
 desktop integration, and VM job has its own changed-path selection. Main pushes
-and release tags select all checks. Verified exact-commit successes can be reused
-instead of rerun. See [CI selection and caching](ci.md).
+select all checks. Release tags can reuse a successful main CI run for the exact
+commit. See [CI selection and caching](ci.md).

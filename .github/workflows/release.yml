@@ -20,6 +20,7 @@ jobs:
     outputs:
       tag: ${{ steps.version.outputs.tag }}
       commit: ${{ steps.version.outputs.commit }}
+      ci_run: ${{ steps.ci.outputs.ci_run }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,19 +38,30 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: dart tool/release_workflow.dart check-tag "$RELEASE_TAG"
+      - name: Find completed main CI for the tagged commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dart tool/find_release_ci.dart
 
   checks:
     name: Release checks and artifacts
     needs: version
+    if: needs.version.outputs.ci_run == ''
     uses: ./.github/workflows/ci.yml
 
   draft:
     name: Prepare GitHub release draft
     needs: [version, checks]
+    if: >-
+      always() && !cancelled() && needs.version.result == 'success' &&
+      (needs.checks.result == 'success' ||
+       (needs.checks.result == 'skipped' && needs.version.outputs.ci_run != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -67,14 +79,14 @@ jobs:
         with:
           name: appimage-ubuntu-22.04
           path: build/release-inputs
-          run-id: ${{ needs.checks.outputs.appimage_run }}
+          run-id: ${{ needs.version.outputs.ci_run || github.run_id }}
           github-token: ${{ github.token }}
       - name: Download the checked Debian package and both VM results
         uses: actions/download-artifact@v8
         with:
           name: debian-amd64
           path: build/release-inputs
-          run-id: ${{ needs.checks.outputs.debian_run }}
+          run-id: ${{ needs.version.outputs.ci_run || github.run_id }}
           github-token: ${{ github.token }}
       - name: Install the AppImage inspection tool
         run: |

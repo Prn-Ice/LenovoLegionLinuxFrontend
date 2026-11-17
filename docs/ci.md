@@ -23,48 +23,44 @@ sides of renames and deletions:
 | Documentation, unit tests, or release-draft tooling alone | None |
 
 Unknown build-tool changes select every expensive check. Main pushes and tag
-workflows select every check, then look for reusable successes. No required
-package acceptance was moved until after merge. A newer PR run cancels an older
-run for the same PR. Main and tag CI runs for the same SHA share a concurrency
-group, so a tag waits for an active main run before checking its results.
+CI select every check. A newer PR run cancels an older run for the same PR.
 
-## Reusing passed checks and artifacts
+## Retry failed jobs
 
-Each successful job uploads a small `ci-pass-v1-CHECK-SHA` artifact. Its name
-records the exact checked-out commit, including the synthetic merge commit on a
-PR. `tool/ci_reuse.dart` uses GitHub's Actions API to find these markers and verify:
+Use GitHub's **Re-run failed jobs**, or:
 
-- The source workflow is this repository's CI on main, its tag workflow, or CI
-  for the same open PR and head commit. Fork results are not reused.
-- Main/tag results match the checkout SHA. PR markers match the merge SHA; a
-  passed PR head is not a passed merge commit.
-- The matching job succeeded, and uploaded the marker during that successful
-  attempt. Failed, cancelled, and skipped jobs do not supply reusable results.
-- Package jobs still have a nonempty, unexpired artifact uploaded during that
-  same successful attempt, not a replacement from a later failed rerun.
+```bash
+gh run rerun RUN_ID --failed
+```
 
-Successful jobs can be reused even when another job in the source run failed.
-The current run's summary links each reused result. Missing markers, expired
-artifacts, unknown source workflows, and API failures cause checks to run again.
-Markers expire after 90 days or the repository's shorter retention limit.
-Deleting a check's success markers in GitHub forces that check to run again.
+GitHub preserves successful jobs and their outputs, then reruns failed jobs and
+their dependents. Package builds and acceptance are separate jobs, so an
+acceptance retry downloads the existing build from the same run. Unqualified
+build artifacts last seven days; if they expire, rerun the build job too.
+**Re-run all jobs** deliberately runs all jobs again.
 
-The tag workflow downloads AppImage and Debian artifacts from the selected run
-IDs; the packages may come from different runs. It still validates the tag,
-source and binary hashes, helper inventory, and acceptance evidence before
-updating a draft. It never promotes PR artifacts into a release.
+Acceptance jobs retain the package and evidence together for releases. Artifact
+downloads do not preserve execute permissions; AppImage acceptance restores its
+executable bit before running it.
 
-Package builds and acceptance are separate jobs. A passed build can supply an
-acceptance retry without rebuilding. Unqualified build artifacts last seven days.
-Acceptance jobs retain their complete package and evidence together, so release
-reuse does not depend on those temporary build artifacts. This duplicates package
-storage briefly, but avoids rebuilding after a VM-only failure. Artifact downloads
-do not preserve execute permissions; the AppImage job restores its executable bit.
+## Reuse main CI for a release
 
-SHA matching is deliberate: a merge or squash normally creates a different
-commit, even when its tree resembles the PR. We do not equate those commits.
-OSV scans also remain fresh: new vulnerability reports can affect unchanged
-dependencies, so a previous scan is not reused as a security result.
+The tag workflow uses `tool/find_release_ci.dart` to look for a completed,
+successful `ci.yml` push run on this repository's main branch at the exact tagged
+SHA. Both package artifacts must still be nonempty and unexpired. The lookup
+checks up to 20 matching runs and the first 100 artifacts per run; this workflow
+produces fewer than 100 artifacts. A missed result costs a fresh CI run.
+
+When a match exists, the release skips its CI call and downloads both qualified
+packages from that run. Otherwise, including on API failure, it runs full CI.
+Create the tag after main CI completes to get this reuse; an unfinished main run
+does not qualify. Release preparation still verifies the tag, source/binary hashes,
+helper inventory, and acceptance evidence. PR runs never supply releases.
+
+This is the only cross-workflow result lookup. PR and main runs use GitHub's
+ordinary execution and retry behavior. A merge normally creates a different SHA.
+OSV scans remain fresh because new vulnerability reports can affect unchanged
+dependencies.
 
 ## Download caches
 
@@ -79,7 +75,7 @@ dependencies, so a previous scan is not reused as a security result.
   before booting a fresh overlay. VM state is never cached.
 
 GitHub controls cache scope: PR merge-ref caches do not become main/tag caches.
-Caches save downloads; only verified successful-job markers can skip checks.
+Caches save downloads; a cache hit does not count as a passed check.
 Nix still uses its configured upstream binary caches. We do not copy `/nix/store`
 into an Actions cache or add a project binary-cache service. Debian images,
 container layers, and container-local pub downloads are not cached here.
