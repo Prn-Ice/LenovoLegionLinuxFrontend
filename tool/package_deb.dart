@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package_linux.dart';
 import 'package_release.dart';
+import 'packaging_versions.dart';
 
 Future<void> main(List<String> args) async {
   try {
@@ -118,9 +119,7 @@ Description: Lenovo Legion hardware frontend
         'legion-portable-test-client',
       ]);
       final prefix = 'legion-frontend-$version-amd64';
-      final deb = File(
-        '${output.path}/legion-linux-frontend_${packageVersion}_amd64.deb',
-      );
+      final deb = File('${output.path}/${debianFileName(version)}');
       final payload = await inventoryReleaseTree(
         Directory('${staging.path}/usr'),
       );
@@ -178,16 +177,6 @@ Description: Lenovo Legion hardware frontend
     stderr.writeln('Debian package: $error');
     exitCode = error is FormatException ? 64 : 1;
   }
-}
-
-String debianVersion(String version) {
-  final match = RegExp(
-    r'^(\d+\.\d+\.\d+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.]+))?$',
-  ).firstMatch(version);
-  if (match == null) {
-    throw FormatException('Unsupported release version: $version');
-  }
-  return '${match[1]}${match[2] == null ? '' : '~${match[2]}'}${match[3] == null ? '' : '+${match[3]}'}-1';
 }
 
 Future<String> debianDependencies(

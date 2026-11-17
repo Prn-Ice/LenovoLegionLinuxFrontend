@@ -8,10 +8,18 @@ remain open.
 
 ## Deployment status: 17 November 2026
 
-The first planned release is `v0.1.0-alpha.1`, an early testing release marked as a
-GitHub prerelease. The app version is `0.1.0-alpha.1+1`. The earlier `1.0.0+1`
+The next planned release is `v0.1.0-alpha.2`, an early testing release marked as a
+GitHub prerelease. The app version is `0.1.0-alpha.2+1`. The earlier `1.0.0+1`
 was a placeholder, not a stability claim; no `v1.0.0` tag was pushed. Build and
 qualify the alpha-version commit before tagging it.
+
+The signed `v0.1.0-alpha.1` tag and its draft remain as evidence of the first
+live workflow run. It reused passing main CI and uploaded all nine files, but
+GitHub renamed the Debian filename's `~` to `.`. The downloaded package bytes
+matched their digest; `sha256sum --check SHA256SUMS` failed because the listed
+filename was missing. The draft was not published. Alpha.2 uses upload-safe
+filenames, preserves Debian's internal prerelease version, and verifies remote
+asset names, sizes, digests, and draft/prerelease flags after uploading.
 
 Nix, Debian, and AppImage packaging and automated acceptance pass on merged
 main `404980d9e00c4ef17271b87a7db93ca37ceca93f`:
@@ -45,9 +53,9 @@ Remaining work:
   that confirmation did not enumerate every window state.
 - Keep the known-issue notes with the release. Exact upstream Alpine package
   revisions remain unverified; see the [runtime provenance limitation](appimage.md#runtime-inputs).
-- Select the release version and commit, push a signed tag, verify the draft's
-  uploaded files and checksums, then review it for publication. The live tag and
-  upload path has not yet been exercised; no GitHub release exists.
+- Qualify the alpha.2 commit, push its signed tag, and verify the downloaded
+  draft files with `sha256sum --check SHA256SUMS`. Review the resulting draft
+  for publication. Alpha.1 remains an unpublished draft with a filename defect.
 
 TCG/Nehalem rendering stalls, Dolphin previews, and the initial cursor warning
 remain separate follow-ups. CI requires KVM; its passes do not qualify TCG.
@@ -109,15 +117,15 @@ Tag a commit containing the release workflow and the intended version in
 
 | pubspec.yaml | Tag |
 | --- | --- |
-| `0.1.0-alpha.1+1` | `v0.1.0-alpha.1` |
+| `0.1.0-alpha.2+1` | `v0.1.0-alpha.2` |
 | `1.1.0-rc.1+2` | `v1.1.0-rc.1` |
 
 For the current version, when ready:
 
 ```bash
-git tag -s v0.1.0-alpha.1 -m "v0.1.0-alpha.1"
-git verify-tag v0.1.0-alpha.1
-git push origin v0.1.0-alpha.1
+git tag -s v0.1.0-alpha.2 -m "v0.1.0-alpha.2"
+git verify-tag v0.1.0-alpha.2
+git push origin v0.1.0-alpha.2
 ```
 
 A mismatched tag stops before the build. The workflow checks out the triggering
@@ -145,9 +153,9 @@ Run the helper with the Flutter SDK's Dart executable; no package resolution is
 needed:
 
 ```bash
-dart tool/release_workflow.dart check-tag v0.1.0-alpha.1
-dart tool/release_workflow.dart prepare v0.1.0-alpha.1 build/release-inputs build/prepared-release
-GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v0.1.0-alpha.1 build/prepared-release
+dart tool/release_workflow.dart check-tag v0.1.0-alpha.2
+dart tool/release_workflow.dart prepare v0.1.0-alpha.2 build/release-inputs build/prepared-release
+GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v0.1.0-alpha.2 build/prepared-release
 ```
 
 Preparation reads `appimage-release`, `appimage-qualification`, `deb-release`,
@@ -181,8 +189,9 @@ missing evidence, or an altered artifact stops the draft update.
 See [Debian installation](debian.md) for the `.deb` and its dependency baseline.
 The [Nix frontend](nix.md) can be built directly from the release tag's flake.
 
-The workflow was checked with actionlint and offline fixture tests. The first
-tag push will exercise GitHub's live draft/upload path.
+The alpha.1 tag exercised GitHub's live draft/upload path and exposed the
+filename normalization described above. Alpha.2 still needs live download and
+checksum verification after its corrected workflow passes.
 
 See GitHub's [reusable workflows](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows),
 [artifact downloads](https://github.com/actions/download-artifact), and
