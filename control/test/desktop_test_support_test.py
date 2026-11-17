@@ -51,7 +51,7 @@ class FixtureMachine:
 
     def execute(self, command):
         self.commands.append(command)
-        if self.diagnostic_failure and "desktop-diagnostics-" in command:
+        if self.diagnostic_failure and "ps -eo pid,ppid,user,stat,args" in command:
             raise AssertionError("Diagnostic fixture timed out")
         return 0, ""
 
@@ -84,11 +84,23 @@ class DesktopDriverTest(unittest.TestCase):
         scroll = next(i for i, command in enumerate(commands) if "--repeat 18" in command)
         self.assertLess(ready, scroll)
         restored = next(i for i, command in enumerate(commands) if "grep -x disabled" in command)
-        settings = next(i for i, command in enumerate(commands) if "427 click 1" in command)
+        settings = next(i for i, command in enumerate(commands) if "90 427" in command)
         self.assertLess(restored, settings)
-        self.assertEqual(sum("1258 23 click 1" in command for command in commands), 1)
+        self.assertEqual(sum("1258 23" in command for command in commands), 1)
         self.assertTrue(any("Legion control cleanup complete." in command for command in commands))
         self.assertIn("kill -TERM", commands[-1])
+
+    def test_dashboard_content_and_focus_are_ready_before_the_first_click(self):
+        machine = FixtureMachine()
+        self.run_gui(machine)
+        commands = machine.commands
+        content = next(i for i, command in enumerate(commands) if "Battery health" in command)
+        focus = next(i for i, command in enumerate(commands) if "windowfocus --sync" in command)
+        click = next(i for i, command in enumerate(commands) if "90 228" in command)
+        self.assertLess(content, focus)
+        self.assertLess(focus, click)
+        self.assertIn("mousemove --sync", commands[click])
+        self.assertIn("getmouselocation --shell", commands[click])
 
     def test_nonzero_window_close_remains_a_failure(self):
         with self.assertRaises(AssertionError):

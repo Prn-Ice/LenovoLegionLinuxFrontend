@@ -55,6 +55,7 @@ def gui(
     ))
     log = "/home/approved/" + log_name
     frame = "/home/approved/desktop-frame-" + label + ".png"
+    diagnostics = "/home/approved/desktop-diagnostics-" + label + ".txt"
     launch = (
         "export HOME=" + home + " XDG_CONFIG_HOME=" + home + "/config "
         "XDG_DATA_HOME=" + home + "/data GSETTINGS_BACKEND=memory "
@@ -83,10 +84,13 @@ def gui(
         )
 
     def click(x, y):
-        return desktop(
-            "xdotool mousemove --window $(head -n1 " + home + "/window) "
-            + str(x) + " " + str(y) + " click 1"
+        command = (
+            "printf '%s\\n' " + shlex.quote(f"click {x},{y}") + " >>" + shlex.quote(diagnostics)
+            + " && xdotool mousemove --sync --window $(head -n1 " + home + "/window) "
+            + str(x) + " " + str(y) + " getmouselocation --shell click 1 >>"
+            + shlex.quote(diagnostics) + " 2>&1"
         )
+        return desktop("sh -c " + shlex.quote(command))
 
     def ocr(image, layout):
         # Four OCR threads compete with the app on a two-core emulated VM.
@@ -111,6 +115,10 @@ def gui(
     try:
         machine.wait_until_succeeds("test -s " + home + "/pid", timeout=timedelta(seconds=120))
         wait_text("Dashboard", "380x32+288+7")
+        wait_text("Battery health", "1280x720+0+0", 11)
+        machine.succeed(desktop(
+            "xdotool windowfocus --sync $(head -n1 " + home + "/window)"
+        ))
         machine.wait_until_succeeds("test -f " + home + "/preferences.hive", timeout=timedelta(seconds=10))
         pid = int(machine.succeed("cat " + home + "/pid").strip())
         # FUSE allows the mount owner, not arbitrary root traversal. Resolve and
@@ -181,18 +189,18 @@ def gui(
             assert diagnostic not in gui_log, gui_log
         print("PASS: close button exits normally and cleans up the helper from " + label, flush=True)
     except Exception:
-        diagnostics = "/home/approved/desktop-diagnostics-" + label + ".txt"
         command = (
             "cat " + shlex.quote(log) + " " + home + "/display.log " + home + "/exit; "
             "ps -eo pid,ppid,user,stat,args; "
             "ls -ld /proc/$(cat " + home + "/pid) /proc/$(cat " + home + "/pid)/exe; "
+            + desktop("xdotool getwindowfocus getmouselocation --shell") + "; "
             + ocr(home + "/label.png", 11) + "; "
             "journalctl -b --no-pager -u 'legion-portable-control-*'; "
             "journalctl -b --no-pager -k | tail -n 100"
         )
         try:
             print(machine.execute(
-                "(" + command + ") >" + shlex.quote(diagnostics) + " 2>&1; cat "
+                "(" + command + ") >>" + shlex.quote(diagnostics) + " 2>&1; cat "
                 + shlex.quote(diagnostics)
             )[1])
         except Exception:
