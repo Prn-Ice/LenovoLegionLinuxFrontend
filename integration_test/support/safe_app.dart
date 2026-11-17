@@ -28,7 +28,24 @@ import 'package:yaru/yaru.dart';
 
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
 
-enum FixturePlatformProfile { quiet, balanced, performance, maxPower }
+enum FixturePlatformProfile { quiet, balanced, performance, maxPower, custom }
+
+/// Synthetic values chosen to distinguish edits and rollback from initial state.
+enum FixturePowerLimit {
+  sustained(
+    ControlFeature.cpuLongtermPowerLimit,
+    'cpu_longterm_powerlimit',
+    45,
+  ),
+  boost(ControlFeature.cpuShorttermPowerLimit, 'cpu_shortterm_powerlimit', 80),
+  gpu(ControlFeature.gpuCtgpPowerLimit, 'gpu_ctgp_powerlimit', 100);
+
+  const FixturePowerLimit(this.feature, this.attribute, this.initialValue);
+
+  final ControlFeature feature;
+  final String attribute;
+  final int initialValue;
+}
 
 /// Synthetic readings, not defaults or measurements from a supported laptop.
 /// All writes stay inside this instance's temporary directory.
@@ -38,12 +55,17 @@ class SafeApp {
     this.conservationFile, {
     required this._ownsDirectory,
     required this.hasFanFixture,
+    required this.hasPowerLimitFixture,
   });
 
   final Directory directory;
   final File conservationFile;
   final bool _ownsDirectory;
   final bool hasFanFixture;
+  final bool hasPowerLimitFixture;
+  final powerLimitRequests = <(FixturePowerLimit, int)>[];
+  final powerLimitWrites = <(FixturePowerLimit, int)>[];
+  FixturePowerLimit? failNextPowerLimit;
   final writes = <bool>[];
   final requests = <bool>[];
   final platformProfileWrites = <FixturePlatformProfile>[];
@@ -62,6 +84,7 @@ class SafeApp {
     Directory? fixtureDirectory,
     bool acOnline = true,
     bool includeFanFixture = false,
+    bool includePowerLimitFixture = false,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
       FixturePlatformProfile.balanced,
@@ -85,6 +108,7 @@ class SafeApp {
       profileChoices: profileChoices,
       acOnline: acOnline,
       includeFanFixture: includeFanFixture,
+      includePowerLimitFixture: includePowerLimitFixture,
     );
     Hive.init('${directory.path}/storage');
     if (!Hive.isAdapterRegistered(1)) {
@@ -101,6 +125,7 @@ class SafeApp {
       ),
       ownsDirectory: ownsDirectory,
       hasFanFixture: includeFanFixture,
+      hasPowerLimitFixture: includePowerLimitFixture,
     );
   }
 
@@ -109,6 +134,7 @@ class SafeApp {
     required List<FixturePlatformProfile> profileChoices,
     required bool acOnline,
     required bool includeFanFixture,
+    required bool includePowerLimitFixture,
   }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -131,6 +157,16 @@ class SafeApp {
     await Directory('${directory.path}/proc').create(recursive: true);
     if (includeFanFixture) {
       await _prepareFanFixture(directory);
+    }
+    if (includePowerLimitFixture) {
+      final controller = Directory(
+        '${directory.path}/sys/module/legion_laptop/drivers/platform:legion/legion',
+      );
+      await controller.create(recursive: true);
+      for (final limit in FixturePowerLimit.values) {
+        await File('${controller.path}/${limit.attribute}')
+            .writeAsString('${limit.initialValue}\n');
+      }
     }
   }
 
@@ -281,6 +317,35 @@ class _FixtureControl extends LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'SetFeature' &&
+        app.hasPowerLimitFixture &&
+        arguments.length == 2 &&
+        arguments.last is String) {
+      final limit = FixturePowerLimit.values
+          .where((limit) => limit.feature.wireValue == arguments.first)
+          .firstOrNull;
+      if (limit != null) {
+        final value = int.tryParse(arguments.last as String);
+        final minimum = limit == FixturePowerLimit.gpu ? 1 : 5;
+        if (value == null || value < minimum || value > 200) {
+          throw StateError('Unexpected power limit: $arguments');
+        }
+        app.powerLimitRequests.add((limit, value));
+        if (app.failNextPowerLimit == limit) {
+          app.failNextPowerLimit = null;
+          throw const LegionControlCommandFailedException(
+            'Test backend rejected the power limit. Retry after recovery.',
+          );
+        }
+        await app.writeCompletion?.future;
+        await File(
+          '${app.directory.path}/sys/module/legion_laptop/drivers/'
+          'platform:legion/legion/${limit.attribute}',
+        ).writeAsString('$value\n');
+        app.powerLimitWrites.add((limit, value));
+        return;
+      }
+    }
     if (method == 'ApplyFanPreset' &&
         app.hasFanFixture &&
         arguments.length == 1 &&
@@ -379,6 +444,7 @@ extension on FixturePlatformProfile {
     FixturePlatformProfile.balanced => 'balanced',
     FixturePlatformProfile.performance => 'performance',
     FixturePlatformProfile.maxPower => 'max-power',
+    FixturePlatformProfile.custom => 'custom',
   };
 }
 

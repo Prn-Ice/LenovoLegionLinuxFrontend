@@ -86,6 +86,11 @@ controlled pending write completes.
 
 Power journeys select Performance, verify Power and Dashboard readback, and
 check that selecting an AC-only mode on battery sends no privileged request.
+Power-limit journeys stage two slider edits without writing, revert them, then
+apply them together and verify temporary sysfs and page readback. A rejected
+second write restores the first value and leaves the edits available for retry.
+Non-Custom mode, battery power, unknown AC status, and unsupported limits send no
+privileged requests. Polling is paused so it cannot repair missing readback.
 The keyboard journey saves a Lighting profile, makes a different manual edit,
 assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting

@@ -116,6 +116,7 @@ Future<void> _setObservedMode(SafeApp app, FixturePlatformProfile mode) async {
     FixturePlatformProfile.balanced => 'balanced',
     FixturePlatformProfile.performance => 'performance',
     FixturePlatformProfile.maxPower => 'max-power',
+    FixturePlatformProfile.custom => 'custom',
   };
   final pending = File('${file.path}.pending');
   await pending.writeAsString('$value\n');
