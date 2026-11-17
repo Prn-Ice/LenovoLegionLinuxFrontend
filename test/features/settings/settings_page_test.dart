@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +33,18 @@ class AboutRepo extends Mock implements AboutRepository {}
 class DevicesRepo extends Mock implements DevicesRepository {}
 
 class DisplayRepo extends Mock implements DisplayRepository {}
+
+class ManifestBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async {
+    if (key == 'pubspec.yaml') {
+      return ByteData.sublistView(
+        utf8.encode('name: settings_fixture\nversion: 9.8.7-test.1+42\n'),
+      );
+    }
+    return rootBundle.load(key);
+  }
+}
 
 void main() {
   for (final scenario in [
@@ -309,10 +323,13 @@ void main() {
             container: container,
             child: MaterialApp(
               home: Scaffold(
-                body: ValueListenableBuilder<bool>(
-                  valueListenable: visible,
-                  builder: (_, show, _) =>
-                      show ? const SettingsPage() : const SizedBox(),
+                body: DefaultAssetBundle(
+                  bundle: ManifestBundle(),
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: visible,
+                    builder: (_, show, _) =>
+                        show ? const SettingsPage() : const SizedBox(),
+                  ),
                 ),
               ),
             ),
@@ -346,7 +363,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Copied GitHub link'), findsOneWidget);
         expect(copied, 'https://github.com/Prn-Ice/LenovoLegionLinuxFrontend');
-        expect(find.text('Manifest version: 1.0.0+1'), findsOneWidget);
+        expect(find.text('Manifest version: 9.8.7-test.1+42'), findsOneWidget);
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           SystemChannels.platform,
           (call) async {
