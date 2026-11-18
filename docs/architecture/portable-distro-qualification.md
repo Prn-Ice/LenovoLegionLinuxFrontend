@@ -89,8 +89,9 @@ AppImage evidence archive, rather than repeating it in another VM.
 The host writes this manifest through `tool/record_qualification.dart` after
 the guest succeeds and its evidence archive is retrieved. CI uses the same tool
 to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
-operations retain the existing manifest fields; failed qualification or evidence
-retrieval still stops the shell runner before it writes a success manifest.
+operations use the existing manifest format; the NixOS update preserves its
+other fields. Failed qualification or evidence retrieval stops the shell runner
+before it writes a success manifest.
 
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
