@@ -231,7 +231,7 @@ See the [startup experiment](docs/architecture/portable-control.md#administrator
 for its trust boundary and remaining checks.
 
 To build and test the production helper with Ubuntu 22.04's libraries, follow
-the [Ubuntu VM qualification](docs/architecture/portable-distro-qualification.md).
+the [Ubuntu helper tests](docs/architecture/portable-helper-tests.md).
 It uses a synthetic CLI and records the image, source, package versions, and results.
 
 To build and test the actual AppImage through FUSE and extraction, follow
