@@ -25,13 +25,12 @@ cleanup() {
 trap cleanup EXIT
 git clone --quiet --depth 1 --no-local --single-branch "file://$root" "$scratch/source"
 test "$(git -C "$scratch/source" rev-parse HEAD)" = "$(git -C "$root" rev-parse HEAD)"
-docker build --tag lllf-deb-builder:ubuntu22.04 \
-  --file "$root/packaging/appimage/Dockerfile" "$root/packaging/appimage" 2>&1 | tee "$output/builder.log"
+image="$(bash "$root/tool/package_builder_image.sh" 2> >(tee "$output/builder.log" >&2))"
 cache_mount=()
 if [[ ${RUNNER_ENVIRONMENT:-} == self-hosted ]]; then
   cache_mount=(--volume legion-package-pub:/home/builder/.pub-cache)
 fi
-container="$(docker create "${cache_mount[@]}" --user root --entrypoint bash lllf-deb-builder:ubuntu22.04 -c '
+container="$(docker create "${cache_mount[@]}" --user root --entrypoint bash "$image" -c '
   set -e
   tar -xJf /tmp/flutter.tar.xz -C /opt
   rm /tmp/flutter.tar.xz

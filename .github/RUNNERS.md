@@ -27,12 +27,19 @@ Flutter tests reuse the installed SDK and `~/.pub-cache`. Tests on a cold runner
 and package builds use the same checksum-verified SDK archive under
 `~/.cache/legion-ci`. AppImage runtime inputs stay there too. The two package
 formats share Pub downloads in the local Docker volume `legion-package-pub`.
+They also share a builder image tagged with its Dockerfile checksum. BuildKit
+retains apt indexes and packages even if the install step fails. To refresh
+system dependencies without changing the recipe, run
+`bash tool/package_builder_image.sh` without `RUNNER_ENVIRONMENT`, after
+invalidating the Docker build cache if a fresh install is required.
 Package artifacts still go to GitHub for the hosted acceptance jobs.
 Docker uses its supported `cgroupfs` driver in `/etc/docker/daemon.json`, because
 systemd's container-scope process checks fail under Rosetta.
-It also uses the classic `overlay2` image store
-(`features.containerd-snapshotter=false` and `storage-driver=overlay2`);
-the containerd snapshotter cannot mount build layers in this machine.
+Install `fuse-overlayfs` and set `features.containerd-snapshotter=false` and
+`storage-driver=fuse-overlayfs` in Docker's config. The default snapshotter
+could not mount build layers, and with `overlay2`, `dpkg` could not install new
+directories. The runners keep the FUSE store in `/var/lib/docker-legion-fuse`.
+The local Flutter job runs one test worker to fit its 4 GiB memory limit.
 After changing Docker configuration, stop and start the idle OrbStack machine
 so both Docker and the runner restart cleanly.
 

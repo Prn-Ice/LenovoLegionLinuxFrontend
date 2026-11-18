@@ -94,7 +94,13 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test --reporter=compact
+        env:
+          LOCAL_RUNNER: ${{ runner.environment == 'self-hosted' }}
+        run: |
+          # Two Flutter workers exceeded the local machine's 4 GiB limit.
+          workers=()
+          if [[ $LOCAL_RUNNER == true ]]; then workers=(--concurrency=1); fi
+          flutter test --reporter=expanded "${workers[@]}"
 
       - name: Test VM readiness and evidence handling
         run: |
