@@ -26,7 +26,7 @@ trap cleanup EXIT
 git clone --quiet --depth 1 --no-local --single-branch "file://$root" "$scratch/source"
 test "$(git -C "$scratch/source" rev-parse HEAD)" = "$(git -C "$root" rev-parse HEAD)"
 docker build --tag lllf-deb-builder:ubuntu22.04 \
-  --file "$root/packaging/appimage/Dockerfile" "$root/packaging/appimage" > "$output/builder.log" 2>&1
+  --file "$root/packaging/appimage/Dockerfile" "$root/packaging/appimage" 2>&1 | tee "$output/builder.log"
 container="$(docker create --user root --entrypoint bash lllf-deb-builder:ubuntu22.04 -c '
   set -e
   tar -xJf /tmp/flutter.tar.xz -C /opt

@@ -84,7 +84,9 @@ jobs:
 
   native:
     name: Native services and tests
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
+    # These checks need pidfds and execution from sealed file descriptors,
+    # which fail under the temporary runner's Rosetta translation.
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v7
@@ -235,7 +237,9 @@ jobs:
 
   linux-integration:
     name: Linux native app integration
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
+    # Run the desktop journey on native Linux; translated execution failed
+    # during Flutter/Xvfb cleanup after the test cases.
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
     if: needs.changes.outputs.integration == 'true'

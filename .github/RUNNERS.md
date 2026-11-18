@@ -1,12 +1,15 @@
 # Temporary local CI
 
 `CI_RUNNER=mac-legion-linux-x64` routes compatible jobs to this Mac. These
-include path selection, Flutter and native tests, Linux integration,
-AppImage/Debian builds, commit checks and OSV scans. Fork PRs use hosted
+include path selection, Flutter tests, AppImage/Debian builds, commit checks
+and OSV scans. Fork PRs use hosted
 runners in these workflows.
 
 KVM acceptance jobs stay on GitHub: `control-lifecycle`, `appimage`,
 `nix-frontend` and `debian`. OrbStack on this M1 Pro has no nested KVM.
+Native syscall tests and Linux desktop integration also stay hosted: pidfd and
+sealed-file execution checks fail under Rosetta, and the desktop test runner
+fails during cleanup.
 The release workflow's tag-check and publishing jobs also remain hosted.
 Standard GitHub-hosted runners are free for this public repository.
 
@@ -22,6 +25,11 @@ disk limit). Jobs run sequentially. It has its own Docker daemon, no Mac file
 mounts or SSH agent forwarding, and cannot access other local machines.
 Docker uses its supported `cgroupfs` driver in `/etc/docker/daemon.json`, because
 systemd's container-scope process checks fail under Rosetta.
+It also uses the classic `overlay2` image store
+(`features.containerd-snapshotter=false` and `storage-driver=overlay2`);
+the containerd snapshotter cannot mount build layers in this machine.
+After changing Docker configuration, stop and start the idle OrbStack machine
+so both Docker and the runner restart cleanly.
 
 Keep the Mac connected to power and online. The shared user LaunchAgent
 `ng.prnice.github-runners-awake` runs `caffeinate -s` to prevent idle sleep on
