@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'qualification_manifest.dart';
+import 'package_test_results.dart';
 
 const _usage =
-    'Usage: dart tool/record_qualification.dart '
+    'Usage: dart tool/record_package_test_results.dart '
     'distro DIRECTORY COMMIT MODIFIED IMAGE_SHA256 CPU native|appimage|deb\n'
-    '       dart tool/record_qualification.dart nixos DIRECTORY';
+    '       dart tool/record_package_test_results.dart nixos DIRECTORY';
 
 void main(List<String> arguments) {
   try {
@@ -19,16 +19,16 @@ void main(List<String> arguments) {
         final cpuModel,
         final format,
       ]:
-        writeDistroQualification(
+        writeDistroTestResults(
           Directory(directory),
           commit: commit,
-          sourceWorktreeModified: modified.isNotEmpty,
+          sourceHasLocalEdits: modified.isNotEmpty,
           cloudImageSha256: imageSha256,
           cpuModel: cpuModel,
-          format: QualificationFormat.parse(format),
+          format: PackageTestFormat.parse(format),
         );
       case ['nixos', final directory]:
-        addNixosQualification(Directory(directory));
+        addNixosTestResults(Directory(directory));
       default:
         throw const FormatException(_usage);
     }

@@ -245,7 +245,7 @@ jobs:
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
-          dart tool/record_qualification.dart nixos build/appimage-qualification
+          dart tool/record_package_test_results.dart nixos build/appimage-qualification
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7

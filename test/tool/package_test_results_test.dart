@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final script = File('tool/record_qualification.dart').absolute.path;
+  final script = File('tool/record_package_test_results.dart').absolute.path;
   const sourceHash =
       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
   const evidenceHash =

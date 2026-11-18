@@ -5,9 +5,11 @@ import 'dart:io';
 
 import 'packaging_files.dart';
 import 'packaging_versions.dart';
-import 'qualification_manifest.dart' show qualifiedAppImage, qualifiedDeb;
+import 'package_test_results.dart'
+    show passedAppImageChecks, passedDebianChecks;
 
-export 'qualification_manifest.dart' show qualifiedAppImage, qualifiedDeb;
+export 'package_test_results.dart'
+    show passedAppImageChecks, passedDebianChecks;
 
 enum ReleaseCommand { checkTag, prepare, publish }
 
@@ -474,7 +476,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
     final qa = readReleaseJson(File('${qaDirectory.path}/manifest.json'));
     if (qa['commit'] != release['commit'] ||
         qa['source_worktree_modified'] != false ||
-        qa['deb'] != qualifiedDeb) {
+        qa['deb'] != passedDebianChecks) {
       throw StateError('Debian package acceptance is incomplete for $label.');
     }
     const expected = {'native-source.tar.gz', 'deb-qualification.tar.gz'};
@@ -616,7 +618,7 @@ Map<String, Object> prepareRelease(
       'VM qualification used a different or modified source checkout.',
     );
   }
-  if (qa['appimage'] != qualifiedAppImage) {
+  if (qa['appimage'] != passedAppImageChecks) {
     throw StateError('AppImage VM acceptance has not passed.');
   }
   final qaFiles = {

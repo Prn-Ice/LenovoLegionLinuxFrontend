@@ -159,7 +159,7 @@ class ReleaseFixture {
     evidence = {
       'commit': commit,
       'source_worktree_modified': false,
-      'appimage': release.qualifiedAppImage,
+      'appimage': release.passedAppImageChecks,
       'files': {
         for (final name in [
           'native-source.tar.gz',
@@ -244,7 +244,7 @@ class ReleaseFixture {
       writePackagingJson(File('${directory.path}/manifest.json'), {
         'commit': commit,
         'source_worktree_modified': false,
-        'deb': release.qualifiedDeb,
+        'deb': release.passedDebianChecks,
         'files': {
           for (final name in [
             'native-source.tar.gz',

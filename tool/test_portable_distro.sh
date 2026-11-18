@@ -132,7 +132,7 @@ remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd
 result=${PIPESTATUS[0]}
 set -e
 retrieve_distro_evidence "$output" "$qualification_archive" "$result" "$port" "${ssh_options[@]}"
-dart "$root/tool/record_qualification.dart" distro "$output" \
+dart "$root/tool/record_package_test_results.dart" distro "$output" \
   "$LLLF_QUALIFICATION_COMMIT" "$LLLF_QUALIFICATION_MODIFIED" \
   "$expected" "$vm_cpu" "$format"
 echo "Distro qualification passed: $output"

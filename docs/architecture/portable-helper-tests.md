@@ -95,7 +95,7 @@ ELF headers, and exact distro package versions. CI runs this check inside AppIma
 acceptance and includes `appimage-native-qualification.tar.gz` in that job's
 AppImage evidence archive, rather than repeating it in another VM.
 
-The host writes this JSON file through `tool/record_qualification.dart` after
+The host writes this JSON file through `tool/record_package_test_results.dart` after
 the guest succeeds and its evidence archive is retrieved. CI uses the same tool
 to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
 operations use the existing JSON format; the NixOS update preserves its
