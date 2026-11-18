@@ -221,6 +221,10 @@ jobs:
           path: build/appimage-release
       - name: Restore the AppImage executable bit after artifact download
         run: chmod +x build/appimage-release/*.AppImage
+      - name: Set up Dart for qualification manifests
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.14.0'
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
@@ -241,12 +245,7 @@ jobs:
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
-          directory=build/appimage-qualification
-          name=appimage-nixos-qualification.tar.gz
-          digest="$(sha256sum "$directory/$name" | cut -d ' ' -f1)"
-          jq --arg name "$name" --arg digest "$digest" '.files[$name] = $digest' \
-            "$directory/manifest.json" >"$directory/manifest.json.tmp"
-          mv "$directory/manifest.json.tmp" "$directory/manifest.json"
+          dart tool/record_qualification.dart nixos build/appimage-qualification
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -359,6 +358,10 @@ jobs:
         with:
           name: debian-build
           path: build/deb-release
+      - name: Set up Dart for qualification manifests
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.14.0'
           compression-level: 0
           if-no-files-found: error
           overwrite: true

@@ -31,6 +31,9 @@ static void test_features() {
   }
   std::string error;
   g_assert_false(ValidateFeature("CPUDefaultPowerLimit", "45", &error));
+  g_assert_cmpstr(
+      error.c_str(), ==,
+      "Cannot set CPUDefaultPowerLimit to 45: unsupported feature or value.");
   const std::array<std::tuple<const char *, int, int>, 9> integers = {
       {{"CPULongtermPowerLimit", 5, 200},
        {"CPUShorttermPowerLimit", 5, 200},

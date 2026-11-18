@@ -27,7 +27,7 @@ if [[ $# == 5 ]]; then
   release="$(realpath -- "$5")"
   qualification_archive="$format-qualification.tar.gz"
 fi
-for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen jq ss timeout; do
+for program in qemu-system-x86_64 qemu-img cloud-localds ssh scp ssh-keygen dart ss timeout; do
   if ! command -v "$program" >/dev/null; then
     echo "Required program is missing: $program" >&2
     exit 1
@@ -67,7 +67,7 @@ printf 'instance-id: legion-distro-qualification\nlocal-hostname: legion-distro-
 cloud-localds "$scratch/seed.img" "$scratch/user-data" "$scratch/meta-data"
 qemu-img create -q -f qcow2 -F qcow2 -b "$image" "$scratch/disk.qcow2" 8G
 # Bind SSH to loopback. The cloud image and host filesystem are never mounted
-# into the guest; only the native source archive is copied over SSH.
+# into the guest; source and selected release archives are copied over SSH.
 # Check a random high port before QEMU binds it. QEMU still fails closed if
 # another process binds the port between this check and startup.
 port=
@@ -132,16 +132,7 @@ remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd
 result=${PIPESTATUS[0]}
 set -e
 retrieve_distro_evidence "$output" "$qualification_archive" "$result" "$port" "${ssh_options[@]}"
-jq -n --arg commit "$LLLF_QUALIFICATION_COMMIT" --arg modified "$LLLF_QUALIFICATION_MODIFIED" \
-  --arg image "$expected" --arg cpu "$vm_cpu" --arg archive "$qualification_archive" \
-  --arg source_hash "$(sha256sum "$output/native-source.tar.gz" | cut -d' ' -f1)" \
-  --arg archive_hash "$(sha256sum "$output/$qualification_archive" | cut -d' ' -f1)" \
-  '{commit:$commit, source_worktree_modified:($modified != ""), cloud_image_sha256:$image,
-    cpu_model:$cpu, files:{"native-source.tar.gz":$source_hash, ($archive):$archive_hash},
-    scope:"Portable control with a synthetic CLI in a disposable distro VM",
-    hardware:"unverified", desktop_authentication:"unverified",
-    appimage:(if $archive == "appimage-qualification.tar.gz" then
-      "FUSE, extraction, desktop launch, and synthetic helper control verified" else "unverified" end),
-    deb:(if $archive == "deb-qualification.tar.gz" then
-      "install, desktop, helper, upgrade, and purge verified" else "unverified" end)}' >"$output/manifest.json"
+dart "$root/tool/record_qualification.dart" distro "$output" \
+  "$LLLF_QUALIFICATION_COMMIT" "$LLLF_QUALIFICATION_MODIFIED" \
+  "$expected" "$vm_cpu" "$format"
 echo "Distro qualification passed: $output"

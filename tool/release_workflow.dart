@@ -5,6 +5,9 @@ import 'dart:io';
 
 import 'packaging_files.dart';
 import 'packaging_versions.dart';
+import 'qualification_manifest.dart' show qualifiedAppImage, qualifiedDeb;
+
+export 'qualification_manifest.dart' show qualifiedAppImage, qualifiedDeb;
 
 enum ReleaseCommand { checkTag, prepare, publish }
 
@@ -20,9 +23,6 @@ enum ReleaseSection {
   final String heading;
 }
 
-const qualifiedAppImage =
-    'FUSE, extraction, desktop launch, and synthetic helper control verified';
-const qualifiedDeb = 'install, desktop, helper, upgrade, and purge verified';
 const releaseHelperPath =
     'usr/lib/legion_frontend/libexec/legion-portable-control';
 const debianChecks = {

@@ -40,7 +40,8 @@ Those results predate the Bash test port; rerun qualification for current eviden
 
 ## Run locally
 
-Install QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`. On Debian/Ubuntu,
+Install Dart 3.14 or newer, QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`.
+The project's Flutter SDK includes Dart. On Debian/Ubuntu,
 their packages are `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`,
 `openssh-client`, `jq`, and `iproute2`. On Nix, use the pinned Nixpkgs versions of
 `qemu`, `cloud-utils`, `openssh`, `jq`, and `iproute2`.
@@ -84,6 +85,12 @@ and qualification archive hash. The qualification archive contains the helper,
 ELF headers, and exact distro package versions. CI runs this check inside AppImage
 acceptance and includes `appimage-native-qualification.tar.gz` in that job's
 AppImage evidence archive, rather than repeating it in another VM.
+
+The host writes this manifest through `tool/record_qualification.dart` after
+the guest succeeds and its evidence archive is retrieved. CI uses the same tool
+to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
+operations retain the existing manifest fields; failed qualification or evidence
+retrieval still stops the shell runner before it writes a success manifest.
 
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
