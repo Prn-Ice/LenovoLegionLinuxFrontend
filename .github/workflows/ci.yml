@@ -1,8 +1,6 @@
-name: CI
+name: Release validation
 
 on:
-  pull_request:
-    branches: [main]
   workflow_call:
 
 permissions:
@@ -10,7 +8,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   changes:

@@ -31,7 +31,23 @@ git clone https://github.com/Prn-Ice/LenovoLegionLinuxFrontend.git
 cd LenovoLegionLinuxFrontend
 flutter --version
 flutter pub get
+git config --local core.hooksPath .githooks
 ```
+
+The pre-push hook runs analysis and the Flutter suite against each commit tip
+being pushed. A failed command stops the push. Enable the hook in every clone;
+Git does not install repository hooks when cloning.
+
+On Linux, the hook uses the checkout's local tools. On this Mac, the suite
+needs Linux process, D-Bus and package behavior, so the hook sends the outgoing
+commit to `ci-legion` through OrbStack. It creates a temporary clone, reuses the
+machine's installed Flutter SDK and Pub cache, and removes the clone afterward.
+Set `LEGION_TEST_MACHINE` to select another prepared Linux machine or
+`LEGION_ORB` to select the OrbStack CLI.
+
+Merging a PR into `main` does not publish a release. Pushing a matching `v*`
+tag starts the release workflow, which checks the tag, builds the packages,
+runs acceptance tests and publishes the verified artifacts.
 
 Run `nix develop` for the project's development shell, or `direnv allow` to load
 it automatically with nix-direnv.
