@@ -9,9 +9,10 @@ enum DashboardMetric {
   igpuUsage('iGPU usage'),
   dgpuUsage('dGPU usage'),
   vram('dGPU memory usage'),
-  battery('Battery'),
   systemTemperature('System temperature');
 
   const DashboardMetric(this.label);
   final String label;
+
+  static const defaultHidden = {systemTemperature};
 }
