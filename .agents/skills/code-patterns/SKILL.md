@@ -61,10 +61,8 @@ precedence; this does not install Ponytail or add its modes and commands.
 - For an unfamiliar flow, start with its purpose. Name the main method, who
   calls it, and the helper that makes the next decision. Describe the actual
   check in plain words. A helper's comment should stand on its own: say what
-  it checks and what its result means to the caller. For example, if a helper
-  returns `false` for an unsupported setting, say whether the caller skips
-  that setting or stops the whole operation. Fix stale, vague, or misleading
-  comments in older code as you encounter them in the area you're changing.
+  it checks and what its result means to the caller. Fix unclear older comments
+  as you encounter them. Use the [templates and worked examples](references/comments.md).
 - Read construction, callers, failure handling, and cleanup together. State the
   behavior being preserved before choosing a pattern.
 - Prefer product-language names and straightforward statements. Extract helpers
@@ -88,32 +86,6 @@ precedence; this does not install Ponytail or add its modes and commands.
   exact locations and a proposed correction in Beads when outside this task.
 
 ## Say what things are
-
-**Comment templates.** Pick the lines a reader needs. Replace each placeholder
-with a name or action from the code.
-
-```dart
-/// <Caller> uses <entry point> to <goal>. <Helper> checks <condition>.
-/// If <condition holds>, <next action>. Otherwise, <other action>.
-
-/// Returns <value> when <condition>. For <false/null/error>, the caller
-/// <skips this item / continues to the next check / stops and retries>.
-
-// Do <step> before <later step> because <consequence of reversing them>.
-```
-
-**Filled examples:** reading power profiles from Linux.
-
-```dart
-/// loadSnapshot asks Linux for its power profiles. It calls parseProperties
-/// to read the active profile and the list of choices. If the service can't
-/// be reached or its reply can't be read, loadSnapshot returns null.
-
-/// _stringProperty returns the named field's text, or null if the field is
-/// missing or isn't text. For a missing Profile, the parser skips that entry.
-
-// Skip the unnamed entry so the other profiles in the reply stay available.
-```
 
 Use [Writing Clearly and Concisely](../writing-clearly-and-concisely/SKILL.md)
 for prose, including responses, comments, docs, UI copy, PR bodies, and handoffs.
