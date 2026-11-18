@@ -1,5 +1,3 @@
-// Validate control requests and build command arguments for the native service.
-// The service handles authorization and execution.
 #include "control_commands.h"
 #include <map>
 #include <regex>
@@ -7,18 +5,14 @@
 
 namespace legion_control {
 namespace {
-
-// Feature names and values the control service accepts from the app.
-const std::set<std::string> platform_profiles = {
-    "quiet",    "low-power",   "power-saver",
-    "balanced", "performance", "balanced-performance",
-    "custom",   "max-power"};
-
-const std::set<std::string> boolean_features = {
-    "OverdriveFeature", "WinkeyFeature", "CPUOverclock",
-    "GPUOverclock",     "YLogoLight",    "IOPortLight"};
-
-const std::map<std::string, std::pair<int, int>> integer_feature_limits = {
+const std::set<std::string> profiles = {"quiet",       "low-power",
+                                        "power-saver", "balanced",
+                                        "performance", "balanced-performance",
+                                        "custom",      "max-power"};
+const std::set<std::string> bools = {"OverdriveFeature", "WinkeyFeature",
+                                     "CPUOverclock",     "GPUOverclock",
+                                     "YLogoLight",       "IOPortLight"};
+const std::map<std::string, std::pair<int, int>> ints = {
     {"CPULongtermPowerLimit", {5, 200}},
     {"CPUShorttermPowerLimit", {5, 200}},
     {"CPUPeakPowerLimit", {1, 200}},
@@ -28,19 +22,15 @@ const std::map<std::string, std::pair<int, int>> integer_feature_limits = {
     {"GPUPPABPowerLimit", {1, 200}},
     {"GPUBoostClock", {1, 10000}},
     {"GPUTemperatureLimit", {1, 120}}};
-
-// Fan presets supported by the CLI, for battery and AC power.
-const std::set<std::string> fan_presets = {"quiet-battery",
-                                           "balanced-battery",
-                                           "performance-battery",
-                                           "balanced-performance-battery",
-                                           "quiet-ac",
-                                           "balanced-ac",
-                                           "performance-ac",
-                                           "balanced-performance-ac"};
-
-// Translate app capability names to CLI command prefixes.
-const std::map<std::string, std::string> toggle_commands = {
+const std::set<std::string> presets = {"quiet-battery",
+                                       "balanced-battery",
+                                       "performance-battery",
+                                       "balanced-performance-battery",
+                                       "quiet-ac",
+                                       "balanced-ac",
+                                       "performance-ac",
+                                       "balanced-performance-ac"};
+const std::map<std::string, std::string> toggles = {
     {"hybrid-mode", "hybrid-mode"},
     {"battery-conservation", "batteryconservation"},
     {"rapid-charging", "rapid-charging"},
@@ -50,204 +40,136 @@ const std::map<std::string, std::string> toggle_commands = {
     {"mini-fan-curve", "minifancurve"},
     {"lock-fan-controller", "lockfancontroller"},
     {"maximum-fan-speed", "maximumfanspeed"}};
-
-// Each service choice controls only these systemd units.
-const std::map<std::string, std::vector<std::string>> service_units = {
+const std::map<std::string, std::vector<std::string>> services = {
     {"power_profiles_daemon", {"power-profiles-daemon.service"}},
     {"legiond_stack",
      {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
       "legiond-cpuset.timer"}}};
-
 const std::set<std::string> graphics_modes = {"hybrid", "hybrid-igpu-only",
                                               "discrete"};
-
-// Accept digits without a sign, whitespace, or extra leading zeroes.
-bool IsUnsignedDecimal(const std::string &value) {
-  return !value.empty() &&
-         std::regex_match(value, std::regex("(0|[1-9][0-9]*)"));
+bool decimal(const std::string &s) {
+  return !s.empty() && std::regex_match(s, std::regex("(0|[1-9][0-9]*)"));
 }
-
 } // namespace
-
-// Check profile names, on/off values, and integer limits before a feature
-// write.
-bool ValidateFeature(const std::string &feature, const std::string &value,
-                     std::string *error) {
-  if (feature == "PlatformProfileFeature") {
-    if (platform_profiles.count(value)) {
+bool ValidateFeature(const std::string &f, const std::string &v,
+                     std::string *e) {
+  if (f == "PlatformProfileFeature") {
+    if (profiles.count(v))
       return true;
-    }
-  } else if (boolean_features.count(feature)) {
-    if (value == "0" || value == "1") {
+  } else if (bools.count(f)) {
+    if (v == "0" || v == "1")
       return true;
-    }
   } else {
-    const auto limits = integer_feature_limits.find(feature);
-    if (limits != integer_feature_limits.end() && IsUnsignedDecimal(value)) {
+    auto i = ints.find(f);
+    if (i != ints.end() && decimal(v)) {
       try {
-        const long number = std::stol(value);
-        const int lower = limits->second.first;
-        const int upper = limits->second.second;
-        if (number >= lower && number <= upper) {
+        long n = std::stol(v);
+        if (n >= i->second.first && n <= i->second.second)
           return true;
-        }
       } catch (...) {
-        // Values outside the parser's range are rejected below.
       }
     }
   }
-  *error = "Cannot set " + feature + " to " + value +
-           ": unsupported feature or value.";
+  *e = "unsupported feature or value";
   return false;
 }
-
-// Only known capabilities can be switched on or off.
-bool ValidateToggle(const std::string &capability, bool, std::string *error) {
-  if (toggle_commands.count(capability)) {
+bool ValidateToggle(const std::string &c, bool, std::string *e) {
+  if (toggles.count(c))
     return true;
-  }
-  *error = "unsupported capability";
+  *e = "unsupported capability";
   return false;
 }
-
-// Reject fan preset names outside the supported list.
-bool ValidatePreset(const std::string &preset, std::string *error) {
-  if (fan_presets.count(preset)) {
+bool ValidatePreset(const std::string &p, std::string *e) {
+  if (presets.count(p))
     return true;
-  }
-  *error = "unsupported fan preset";
+  *e = "unsupported fan preset";
   return false;
 }
-
-// Charging thresholds are percentages, ordered from lower to upper.
-bool ValidateConservation(uint32_t lower, uint32_t upper, std::string *error) {
-  if (lower <= 100 && upper <= 100 && lower <= upper) {
+bool ValidateConservation(uint32_t l, uint32_t u, std::string *e) {
+  if (l <= 100 && u <= 100 && l <= u)
     return true;
-  }
-  *error = "invalid conservation limits";
+  *e = "invalid conservation limits";
   return false;
 }
-
-// Reject empty uploads and uploads larger than the operation allows.
-bool ValidateBytes(const std::vector<uint8_t> &bytes, std::size_t maximum_size,
-                   std::string *error) {
-  if (bytes.empty()) {
-    *error = "payload must not be empty";
+bool ValidateBytes(const std::vector<uint8_t> &b, std::size_t max,
+                   std::string *e) {
+  if (b.empty()) {
+    *e = "payload must not be empty";
     return false;
   }
-  if (bytes.size() > maximum_size) {
-    *error = "payload exceeds maximum size";
+  if (b.size() > max) {
+    *e = "payload exceeds maximum size";
     return false;
   }
   return true;
 }
-
-// Build a feature-write command without requiring a hwmon device.
-Command FeatureCommand(const std::string &feature, const std::string &value) {
-  return {{"--donotexpecthwmon", "set-feature", feature, value}};
+Command FeatureCommand(const std::string &f, const std::string &v) {
+  return {{"--donotexpecthwmon", "set-feature", f, v}};
 }
-
-// Fan-controller commands require hwmon; other toggles can run without it.
-Command ToggleCommand(const std::string &capability, bool enabled) {
-  const std::string command =
-      toggle_commands.at(capability) + (enabled ? "-enable" : "-disable");
-  if (capability == "mini-fan-curve" || capability == "lock-fan-controller" ||
-      capability == "maximum-fan-speed") {
+Command ToggleCommand(const std::string &c, bool on) {
+  const std::string command = toggles.at(c) + (on ? "-enable" : "-disable");
+  if (c == "mini-fan-curve" || c == "lock-fan-controller" ||
+      c == "maximum-fan-speed")
     return {{command}};
-  }
   return {{"--donotexpecthwmon", command}};
 }
-
-// Apply a named fan preset to the hardware.
-Command PresetCommand(const std::string &preset) {
-  return {{"fancurve-write-preset-to-hw", preset}};
+Command PresetCommand(const std::string &p) {
+  return {{"fancurve-write-preset-to-hw", p}};
 }
-
-// CLI discovery requires all these commands before accepting an installation.
 std::vector<std::string> InteractiveCliCommands() {
-  std::vector<std::string> commands = {"set-feature",
-                                       "graphics-mode",
-                                       "boot-logo",
-                                       "fancurve-write-preset-to-hw",
-                                       "fancurve-write-current-preset-to-hw",
-                                       "fancurve-write-file-to-hw",
-                                       "custom-conservation-mode-apply"};
-  for (const auto &toggle : toggle_commands) {
-    for (const bool enabled : {false, true}) {
+  std::vector<std::string> commands = {
+      "set-feature", "graphics-mode", "boot-logo",
+      "fancurve-write-preset-to-hw", "fancurve-write-current-preset-to-hw",
+      "fancurve-write-file-to-hw", "custom-conservation-mode-apply"};
+  for (const auto &toggle : toggles)
+    for (const bool enabled : {false, true})
       commands.push_back(toggle.second + (enabled ? "-enable" : "-disable"));
-    }
-  }
   return commands;
 }
-
-// Apply the CLI's current fan preset.
 Command CurrentPresetCommand() {
   return {{"fancurve-write-current-preset-to-hw"}};
 }
-
-// Load a fan curve from the supplied file.
 Command FileCommand(const std::string &path) {
   return {{"fancurve-write-file-to-hw", path}};
 }
-
-// Use the supplied image as the boot logo.
 Command BootLogoCommand(const std::string &path) {
   return {{"--donotexpecthwmon", "boot-logo", "enable", path}};
 }
-
-// Restore the original boot logo.
 Command RestoreBootLogoCommand() {
   return {{"--donotexpecthwmon", "boot-logo", "restore"}};
 }
-
-// Apply the lower and upper battery charging thresholds.
-Command ConservationCommand(uint32_t lower, uint32_t upper) {
+Command ConservationCommand(uint32_t l, uint32_t u) {
   return {{"--donotexpecthwmon", "custom-conservation-mode-apply",
-           std::to_string(lower), std::to_string(upper)}};
+           std::to_string(l), std::to_string(u)}};
 }
-
-// Reject service choices outside the supported systemd groups.
-bool ValidateService(const std::string &service_id, std::string *error) {
-  if (service_units.count(service_id)) {
+bool ValidateService(const std::string &id, std::string *e) {
+  if (services.count(id))
     return true;
-  }
-  *error = "unsupported service id";
+  *e = "unsupported service id";
   return false;
 }
-
-// Enable or disable the group's units and start or stop them immediately.
-Command ServiceCommand(const std::string &service_id, bool enabled) {
-  Command command{{enabled ? "enable" : "disable", "--now"}};
-  const auto &units = service_units.at(service_id);
+Command ServiceCommand(const std::string &id, bool on) {
+  Command command{{on ? "enable" : "disable", "--now"}};
+  const auto &units = services.at(id);
   command.argv.insert(command.argv.end(), units.begin(), units.end());
   return command;
 }
-
-// Check that the requested graphics mode is supported.
 bool ValidateGraphicsMode(const std::string &mode, std::string *error) {
-  if (graphics_modes.count(mode)) {
+  if (graphics_modes.count(mode))
     return true;
-  }
   *error = "unsupported graphics mode";
   return false;
 }
-
-// Request a graphics mode change and ask the CLI for a JSON result.
 Command GraphicsModeCommand(const std::string &mode) {
   return {{"--donotexpecthwmon", "graphics-mode", "set", mode, "--json"}};
 }
-
-// Translate CLI exit codes into graphics outcomes for the app.
 GraphicsExit ClassifyGraphicsExit(int exit_status) {
-  if (exit_status == 0) {
+  if (exit_status == 0)
     return GraphicsExit::kSuccess;
-  }
-  if (exit_status == 2) {
+  if (exit_status == 2)
     return GraphicsExit::kBlocked;
-  }
-  if (exit_status == 3) {
+  if (exit_status == 3)
     return GraphicsExit::kPending;
-  }
   return GraphicsExit::kFailed;
 }
 CliExit ClassifyCliExit(int exit_status) {
@@ -259,19 +181,13 @@ CliExit ClassifyCliExit(int exit_status) {
     return CliExit::kFeatureNotFound;
   return CliExit::kFailed;
 }
-
-// Next-boot requests support only the two hybrid graphics modes.
 bool ValidateBootGraphicsMode(const std::string &mode, std::string *error) {
-  if (mode == "hybrid" || mode == "hybrid-igpu-only") {
+  if (mode == "hybrid" || mode == "hybrid-igpu-only")
     return true;
-  }
   *error = "only hybrid and hybrid-igpu-only can be requested for next boot";
   return false;
 }
-
-// Build the request sent to the next-boot graphics tool.
 Command BootGraphicsRequestCommand(const std::string &mode) {
   return {{"request", mode}};
 }
-
 } // namespace legion_control
