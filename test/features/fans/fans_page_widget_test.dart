@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legion_frontend/core/theme/legion_accent.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
@@ -117,9 +118,9 @@ void main() {
     final harness = await _pumpPage(tester, width: 800);
 
     var editor = tester.widget<FanCurveEditor>(find.byType(FanCurveEditor));
-    final appAccent = Theme.of(
-      tester.element(find.byType(FansPage)),
-    ).colorScheme.primary;
+    final appAccent = Theme.of(tester.element(find.byType(FansPage)))
+        .colorScheme
+        .primary;
     expect(editor.accent, appAccent);
 
     final curve = harness.fansBloc.state.fanCurve!;
@@ -283,13 +284,11 @@ Future<_PageHarness> _pumpPage(
 
   final fansRepository = _MockFansRepository();
   final sensorRepository = _MockLiveSensorRepository();
-  when(
-    fansRepository.loadSnapshot,
-  ).thenAnswer((_) async => snapshot ?? _fansSnapshot());
+  when(fansRepository.loadSnapshot)
+      .thenAnswer((_) async => snapshot ?? _fansSnapshot());
   when(() => fansRepository.applyPreset(any())).thenAnswer((_) async {});
-  when(
-    sensorRepository.loadSnapshot,
-  ).thenAnswer((_) async => sensors ?? _sensorSnapshot());
+  when(sensorRepository.loadSnapshot)
+      .thenAnswer((_) async => sensors ?? _sensorSnapshot());
 
   final fansBloc = FansBloc(
     repository: fansRepository,
@@ -375,15 +374,15 @@ LiveSensorSnapshot _sensorSnapshot() => const LiveSensorSnapshot(
   cpuPackagePowerW: 24.5,
   fan1Rpm: 2180,
   fan2Rpm: 1940,
-  gpuName: 'Test GPU',
-  gpuTempC: 58,
-  gpuUtilPercent: 20,
-  gpuClockGhz: 1.8,
-  gpuVramUsedGb: 2,
-  gpuVramTotalGb: 8,
-  gpuFanPercent: null,
-  gpuPowerDrawW: 40,
-  gpuIsDiscrete: true,
+  dgpu: GpuReading(
+    name: 'Test GPU',
+    tempC: 58,
+    usagePercent: 20,
+    clockGhz: 1.8,
+    vramUsedGb: 2,
+    vramTotalGb: 8,
+    powerDrawW: 40,
+  ),
   motherboardTempC: 42,
   batteryPercent: 90,
   batteryCharging: true,
