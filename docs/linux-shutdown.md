@@ -128,8 +128,9 @@ The local reports are `/tmp/opencode/lllf-shutdown-results/RESULTS.md` and
 The user approved this bounded comparison in `lllf-b68.4`, not a production
 upgrade or removal of engine retention. **Beta did not demonstrate an improvement
 in the reported shutdown failure.** Both SDKs completed the comparable Ubuntu
-checks without reproducing it. The host comparison stopped at a beta build
-blocker; stable also exposed a different, Yaru window-state crash.
+checks without reproducing it. The initial host comparison stopped at a beta
+build blocker; stable also exposed a different, Yaru window-state crash. The
+follow-up below resolves that build blocker without changing SDK pins.
 
 The app source was main `34539dd24463189d90c7dc6f3e7fdfa0342f155c`, with its
 unchanged native runner and retention. Separate checkouts, SDK directories, and
@@ -155,6 +156,8 @@ task-runner fix alone does not establish renderer shutdown synchronization.
 Beta's `flutter pub get --enforce-lockfile` exited 65: its SDK requires `test`
 1.33.0, `test_api` 0.7.15, and `test_core` 0.6.21. Ordinary `flutter pub get`
 resolved only those three version changes in the disposable beta copies.
+
+These initial results precede the host environment follow-up below:
 
 | Environment and normal close route | Stable result | Beta result |
 | --- | --- | --- |
@@ -187,7 +190,8 @@ The host beta command `flutter build linux --debug --no-pub`, inside the same
 project shell, exited 1 with unresolved native-library link dependencies,
 including epoxy, Wayland, and fontconfig; pkg-config also reported missing
 `sysprof-capture-4`. No SDK patch or compatibility launcher was added to bypass
-that blocker. Beta's native Wayland/XWayland behavior remains unverified.
+that blocker in the initial experiment. Beta's native Wayland/XWayland behavior
+was still unverified at that point.
 
 Commands, orchestration scripts, SDK/build/bundle checksums, lockfile differences,
 per-close process maps and logs, and the host core/backtrace remain under
@@ -204,6 +208,74 @@ No release-mode, AppImage, Debian, Nix package, authorization, hardware readback
 restoration, or helper-cleanup qualification ran. Keep production on stable with
 engine retention; this result changes neither the deployment decision nor the
 known-failure assertions.
+
+### Host follow-up with the approved Nix environment
+
+The user supplied a working build-environment correction from the separate
+window prototype. This shutdown experiment used that file only as a reference;
+it changed no styling code or prototype files. A temporary Nix expression
+overrides the root project's pinned development shell with GTK, GLib, Pango,
+ATK, Cairo, epoxy, Wayland, fontconfig, and libGL in `buildInputs` and
+`LD_LIBRARY_PATH`, plus the existing JDK server library path. Build inputs also
+include `sysprof` and its separately packaged `libsysprof-capture`, which supplies
+`sysprof-capture-4.pc` in this pinned package set.
+
+Both SDKs build through the standard Flutter commands after `flutter clean`.
+The final checks use `nix-shell --pure`, retaining only the desktop connection
+and existing nix-ld variables needed to run the official SDK. This prevents the
+outer shell's Pango 1.58/GLib 2.90 pkg-config paths from entering the pinned
+Pango 1.57.1/GLib 2.88.3 environment. GTK is 3.24.52 and sysprof capture is 50.0;
+both candidates use the same library paths, unchanged app revision `34539dd`,
+and their original SDKs and engine retention.
+
+The controlled runs used `flutter run -d linux --no-pub -v` in that same shell,
+with `GDK_BACKEND=wayland` or `x11`, fresh HOME/XDG storage, process-only strace,
+and PID/title-qualified KWin normal window close. KDE's existing session-version
+variables were preserved for kdotool. Controller preflight failures were excluded;
+each final backend loop stopped at its first native failure or ten closes.
+
+| Final host comparison | Stable 3.50.0 | Beta 3.51.0-0.1.pre |
+| --- | --- | --- |
+| Wayland native exits | `0,0,0,0,0,0,0,0,0,0` | `0,0,0,0,0,0,0,0,0,0` |
+| XWayland native exits | `0`, then SIGSEGV 11 (shell convention 139) | `0,0,0,0,0`, then SIGSEGV 11 (shell convention 139) |
+| Flutter CLI exits | All 0, including the crash | All 0, including the crash |
+
+Both cores show the same main-thread fault:
+`gdk_window_get_type_hint` → `yaru_window_get_state(window=0x0)` at
+`yaru_window_linux` 0.2.2's `linux/yaru_window.cc:74`, called from
+`linux/yaru_window_linux_plugin.cc:119` while `g_application_run` remains active.
+The captured core PIDs are stable `1003333` and beta `1042531`; both have
+all-thread GDB traces. Current runner/engine checksums matched the per-attempt
+checksums before decoding either core. Process maps confirm the same pinned
+GLib and Pango library paths in both candidates, with no second version loaded.
+Both use Impeller OpenGLESSDF and Mesa 26.3.0; logs retain frame-timeout and
+missing `colorreload-gtk-module` messages, plus GTK/GDK criticals on both crashes.
+
+| Final host artifact SHA256 | Stable | Beta |
+| --- | --- | --- |
+| Runner | `ad0d483d0830f3678d265332aab9fcf79175192c01f1981659a6fd0dafe97011` | `28c6ba334d1b7bfb812a3581aa6d7ba00acd990ab9f17d152436b287a1c4f6f2` |
+| Bundled debug engine | `cfa523dfd3614163848b8789c0c00737eeb1ea05cadd739622e38e9f6c980178` | `6c94b48502f98b5b69a3dc2dde48e56419bf69677718c04e616a22b4664dc614` |
+
+Stable's host engine comes from the unchanged Nix SDK; beta's matches its
+official archive. The temporary expression is
+`/tmp/opencode/beta-shutdown-evidence/host-shell.nix`; `FOLLOWUP.md` beside it
+records exact shell/build/run commands, final `native-stable-*` and
+`native-beta-*` logs, excluded setup attempts, library checks, and core paths.
+The build-environment follow-up `lllf-b68.4.2` is resolved. The Yaru fault remains
+in `lllf-b68.4.1`; no plugin change or further reproduction loop was attempted.
+
+Beta does not eliminate this app shutdown crash. Failure on a later attempt is
+not evidence of a lower crash rate from these small, first-failure samples.
+Neither core establishes task-runner use-after-free or reproduces the historical
+Mesa raster stack. Retention stayed enabled, so this does not test removing that
+workaround or isolate PR 194525's effect. Release/package qualification, visual
+content, authorization, hardware restoration, and helper cleanup remain
+unverified. Keep production on stable; no deployment decision changed.
+
+GitHub's API independently confirmed PR #29 as `MERGED`, at
+`2026-11-17T23:36:29Z`, merge commit
+`08588aeaba5c44eb07c26613e22d64c2e45d853d`; the saved response is
+`pr29-github-status.json` in the evidence directory.
 
 ## When to reopen the investigation
 
