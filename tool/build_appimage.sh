@@ -28,7 +28,11 @@ git clone --quiet --depth 1 --no-local --single-branch "file://$root" "$scratch/
 test "$(git -C "$scratch/source" rev-parse HEAD)" = "$(git -C "$root" rev-parse HEAD)"
 docker build --tag lllf-appimage-builder:ubuntu22.04 \
   --file "$root/packaging/appimage/Dockerfile" "$root/packaging/appimage" 2>&1 | tee "$output/builder.log"
-container="$(docker create --user root --entrypoint bash lllf-appimage-builder:ubuntu22.04 -c '
+cache_mount=()
+if [[ ${RUNNER_ENVIRONMENT:-} == self-hosted ]]; then
+  cache_mount=(--volume legion-package-pub:/home/builder/.pub-cache)
+fi
+container="$(docker create "${cache_mount[@]}" --user root --entrypoint bash lllf-appimage-builder:ubuntu22.04 -c '
   set -e
   tar -xJf /tmp/flutter.tar.xz -C /opt
   rm /tmp/flutter.tar.xz

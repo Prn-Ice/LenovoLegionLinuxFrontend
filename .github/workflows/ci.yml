@@ -50,7 +50,24 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Load the local Flutter SDK
+        if: runner.environment == 'self-hosted'
+        run: |
+          version="$(jq -er '.flutter.version' packaging/appimage/build-inputs.json)"
+          digest="$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json)"
+          sdk="$RUNNER_TOOL_CACHE/flutter/stable-$version-x64"
+          if [[ ! -x "$sdk/flutter/bin/flutter" ]]; then
+            archive="$(bash tool/cache_flutter_archive.sh "$HOME/.cache/legion-ci/flutter-$digest.tar.xz")"
+            mkdir -p "$sdk"
+            staging="$(mktemp -d "$sdk/.extract.XXXXXXXX")"
+            trap 'rm -rf "$staging"' EXIT
+            tar -xf "$archive" -C "$staging"
+            mv "$staging/flutter" "$sdk/flutter"
+          fi
+          echo "$sdk/flutter/bin" >> "$GITHUB_PATH"
+          echo "FLUTTER_ROOT=$sdk/flutter" >> "$GITHUB_ENV"
       - name: Set up Flutter
+        if: runner.environment == 'github-hosted'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -59,8 +76,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
+          packages=(cmake g++ make dpkg squashfs-tools)
+          if ! dpkg-query -W -f='${db:Status-Status}\n' "${packages[@]}" > "$RUNNER_TEMP/package-status" 2>/dev/null ||
+              grep -qvx installed "$RUNNER_TEMP/package-status"; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          fi
           flutter pub get --enforce-lockfile
 
       - name: Generate Hive adapters
@@ -168,7 +189,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/package-inputs
       - name: Build the AppImage and source companion
-        run: bash tool/build_appimage.sh "$RUNNER_TEMP/flutter.tar.xz" build/appimage-inputs build/appimage-release
+        run: bash tool/build_appimage.sh "$PACKAGE_FLUTTER_ARCHIVE" "$PACKAGE_RUNTIME_INPUTS" build/appimage-release
       - uses: actions/upload-artifact@v7
         with:
           name: appimage-build
@@ -329,7 +350,7 @@ jobs:
         with:
           appimage-runtime: 'false'
       - name: Build the Debian package and source companion
-        run: bash tool/build_deb.sh "$RUNNER_TEMP/flutter.tar.xz" build/deb-release
+        run: bash tool/build_deb.sh "$PACKAGE_FLUTTER_ARCHIVE" build/deb-release
       - uses: actions/upload-artifact@v7
         with:
           name: debian-build

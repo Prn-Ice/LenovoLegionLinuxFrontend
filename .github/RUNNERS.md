@@ -2,8 +2,7 @@
 
 `CI_RUNNER=mac-legion-linux-x64` routes compatible jobs to this Mac. These
 include path selection, Flutter tests, AppImage/Debian builds, commit checks
-and OSV scans. Fork PRs use hosted
-runners in these workflows.
+and OSV scans. Fork PRs use hosted runners in these workflows.
 
 KVM acceptance jobs stay on GitHub: `control-lifecycle`, `appimage`,
 `nix-frontend` and `debian`. OrbStack on this M1 Pro has no nested KVM.
@@ -19,10 +18,16 @@ Remove the variable to restore hosted execution for every job:
 gh variable delete CI_RUNNER --repo Prn-Ice/LenovoLegionLinuxFrontend
 ```
 
-The repository has one runner in the isolated OrbStack machine `ci-legion`
-(Ubuntu 24.04 x64 through Rosetta, two CPUs, a 4 GiB memory limit and a 25 GiB
-disk limit). Jobs run sequentially. It has its own Docker daemon, no Mac file
-mounts or SSH agent forwarding, and cannot access other local machines.
+`ci-legion` and `ci-legion-2` each run one job. Each machine runs Ubuntu 24.04
+x64 through Rosetta with two CPUs, a 4 GiB memory limit and a 25 GiB disk limit.
+Each has its own Docker daemon and caches, no Mac file mounts or SSH agent
+forwarding, and no access to the other machines.
+
+Flutter tests reuse the installed SDK and `~/.pub-cache`. Tests on a cold runner
+and package builds use the same checksum-verified SDK archive under
+`~/.cache/legion-ci`. AppImage runtime inputs stay there too. The two package
+formats share Pub downloads in the local Docker volume `legion-package-pub`.
+Package artifacts still go to GitHub for the hosted acceptance jobs.
 Docker uses its supported `cgroupfs` driver in `/etc/docker/daemon.json`, because
 systemd's container-scope process checks fail under Rosetta.
 It also uses the classic `overlay2` image store
@@ -36,18 +41,19 @@ Keep the Mac connected to power and online. The shared user LaunchAgent
 power. Closing the lid can still suspend the Mac.
 
 ```sh
-orb start ci-legion
-orb -m ci-legion -w /home/runner/actions-runner sudo ./svc.sh status
+for machine in ci-legion ci-legion-2; do
+  orb start "$machine"
+  orb -m "$machine" -w /home/runner/actions-runner sudo ./svc.sh status
+done
 ```
 
-To pause, wait for the current job to finish, restore hosted routing, then run
-`orb stop ci-legion`. Queued jobs retain their selected labels; cancel and rerun
-them after changing the variable. The service starts with its Linux machine.
-After restarting the Mac, start OrbStack and this machine.
+To pause, restore hosted routing, let active jobs finish, then run
+`orb stop ci-legion` and `orb stop ci-legion-2`. Queued jobs retain their labels;
+cancel and rerun them after changing the variable. After restarting the Mac,
+start OrbStack and both machines.
 
-To remove the setup, restore hosted routing, remove the runner under GitHub
-**Settings → Actions → Runners**, then delete `ci-legion` in OrbStack. Deleting
-the machine also removes its caches.
+To remove the setup, restore hosted routing, remove both runners under GitHub
+**Settings → Actions → Runners**, then delete both machines and their caches in OrbStack.
 
 After all three projects return to hosted CI, stop the shared awake service:
 `launchctl bootout gui/$(id -u)/ng.prnice.github-runners-awake`. Then remove
