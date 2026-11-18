@@ -16,7 +16,7 @@ class DashboardReadingChanged extends Equatable {
 
 class DashboardReadingsState extends Equatable {
   DashboardReadingsState({
-    Set<DashboardMetric> hidden = const {},
+    Set<DashboardMetric> hidden = DashboardMetric.defaultHidden,
     this.errorMessage,
   }) : hidden = Set.unmodifiable(hidden);
 
@@ -42,12 +42,14 @@ class DashboardReadingsBloc
 
   static DashboardReadingsState _load(DashboardReadingsStore? store) {
     try {
-      return DashboardReadingsState(hidden: store?.load() ?? {});
+      return DashboardReadingsState(
+        hidden: store?.load() ?? DashboardMetric.defaultHidden,
+      );
     } catch (error) {
       return DashboardReadingsState(
         errorMessage:
-            'Could not load dashboard preferences. All available '
-            'readings are shown. Check that your application data is readable, '
+            'Could not load dashboard preferences. Using the default readings. '
+            'Check that your application data is readable, '
             'then restart the app. Technical details: $error',
       );
     }

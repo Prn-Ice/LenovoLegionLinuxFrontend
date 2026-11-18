@@ -167,6 +167,19 @@ void main() {
         expect(find.text(label), findsWidgets);
       }
       if (scenario == 'dashboard readings') {
+        expect(find.text('Battery'), findsNothing);
+        expect(
+          container.read(dashboardReadingsProvider).hidden,
+          contains(DashboardMetric.systemTemperature),
+        );
+        await tester.ensureVisible(find.text('System temperature'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('System temperature'));
+        await tester.pumpAndSettle();
+        expect(
+          container.read(dashboardReadingsProvider).hidden,
+          isNot(contains(DashboardMetric.systemTemperature)),
+        );
         for (final metric in [
           DashboardMetric.igpuUsage,
           DashboardMetric.dgpuUsage,
