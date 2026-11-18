@@ -80,6 +80,16 @@ precedence; this does not install Ponytail or add its modes and commands.
   related occurrences. Ask before behavior changes or broader migrations; link
   exact locations and a proposed correction in Beads when outside this task.
 
+## Write readable Dart scripts
+
+Use [`docs/dart-scripting.md`](../../../docs/dart-scripting.md) and the real
+`tool/package_release.dart` / `tool/release_source/` implementation as the
+benchmark for Dart scripts. Entrypoints should tell a short story through typed,
+descriptive operations. Keep reusable details in responsibility-named files,
+raw commands and JSON conversion at external boundaries, and asynchronous
+completion explicit. Preserve validation, authorization, cleanup, and failure
+status. Do not add forwarding layers or a framework merely to shorten `main`.
+
 ## Say what things are
 
 Use [Writing Clearly and Concisely](../writing-clearly-and-concisely/SKILL.md)

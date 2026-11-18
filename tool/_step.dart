@@ -113,9 +113,12 @@ List<SpectrumLed> _dimWhiteBands(List<double> gains) {
 
 Future<void> main(List<String> args) async {
   final step = args.isNotEmpty ? (int.tryParse(args[0]) ?? 1) : 1;
-  final s = SpectrumHidService();
-  if (!s.open()) {
-    stderr.writeln('open FAILED — keyboard not at /dev/hidraw0?');
+  final keyboard = SpectrumHidService();
+  if (!keyboard.open()) {
+    stderr.writeln(
+      'Could not open the Spectrum keyboard. Check the detected keyboard model '
+      'and your access to its hidraw device.',
+    );
     return;
   }
   List<SpectrumLed> frame;
@@ -165,27 +168,27 @@ Future<void> main(List<String> args) async {
           : 8;
       final seconds = requestedSeconds.clamp(1, 120);
       final frameCount = seconds * 30;
-      s.setBrightness(9);
+      keyboard.setBrightness(9);
       var ok = true;
       for (var i = 0; i < frameCount; i++) {
-        ok = s.sendDirectFrame(_rainbow(i * 2)) && ok;
+        ok = keyboard.sendDirectFrame(_rainbow(i * 2)) && ok;
         await Future<void>.delayed(const Duration(milliseconds: 33));
       }
       stdout.writeln(
         'STEP 12: ANIMATED RAINBOW '
         '($frameCount frames over ${seconds}s, sent=$ok)',
       );
-      s.close();
+      keyboard.close();
       return;
     default:
       stderr.writeln('unknown step $step');
-      s.close();
+      keyboard.close();
       return;
   }
-  s.setBrightness(brightness);
-  final ok = s.sendDirectFrame(frame);
+  keyboard.setBrightness(brightness);
+  final ok = keyboard.sendDirectFrame(frame);
   stdout.writeln(
     'STEP $step: $label  (${frame.length} LEDs, sent=$ok, brightness=$brightness)',
   );
-  s.close();
+  keyboard.close();
 }
