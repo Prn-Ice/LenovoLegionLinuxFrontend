@@ -44,8 +44,9 @@ Dart installation. It can still need system libraries. The `readelf` output
 shows which libraries this particular build needs. The tool inspects the file;
 it does not start the control helper or test approval, hardware writes, or cleanup.
 
-We tested the default `dart compile exe` command. We have not tested alternate
-compiler or linker options.
+The default `dart compile exe` command was tested in both the Ubuntu builder
+and the Nix development shell. The additional build options below were tested
+in the Nix shell with the same Dart 3.14.0 version.
 
 In the actual pinned Ubuntu 22.04 AppImage builder, using Flutter 3.50.0's
 bundled stable Dart 3.14.0 on 2026-11-18, the compiled x86-64 test program was
@@ -62,16 +63,147 @@ Running this tool requires `readelf`. Running it in the Nix development shell
 shows that it works with that shell's loader and libraries. It does not prove
 that a packaged helper will start on another Linux distribution.
 
-## What needs deciding next
+## Other supported build options checked
 
-Find a supported way to package and start the Dart helper through the normal
-AppImage launch. The default build fails the current library requirements;
-we have not shown that every supported build option would fail.
+| Command | Result | Why it does not yet fit the AppImage helper |
+| --- | --- | --- |
+| `dart compile exe` | One executable containing the app code and Dart runtime. | The runtime needs a loader and five separate system libraries. |
+| `dart build cli` | An executable in `bundle/bin` and app code in `bundle/lib/libdartaotcheck_dart_helper_build.so`. | The executable still needs those system libraries. The separate app-code file also falls outside the current single protected executable. |
+| `dart compile aot-snapshot` | App code in `helper.aot`, run with `dartaotruntime`. | The separate runtime still needs a loader and system libraries. Splitting the files does not remove those requirements. |
 
-Then decide how Dart will call the Linux functions used for protected program
-copies, process tracking, D-Bus file-descriptor transfer, and systemd/Polkit.
-Using host libraries or retaining C/C++ code to call those functions would need
-an explicit design decision. Neither approach has been approved.
+All three commands compiled successfully. The resulting program or runtime
+failed the loader, library, and search-path checks, as expected. Local reports
+are in `build/dart-helper-build-check.json`, `build/dart-helper-cli/report.json`,
+and `build/dart-helper-aot/report.json`. The Ubuntu measurement above remains
+the evidence for the production build environment.
+
+To repeat the two additional checks:
+
+```bash
+nix develop
+dart build cli --target=tool/check_dart_helper_build.dart \
+  --output=build/dart-helper-cli
+build/dart-helper-cli/bundle/bin/check_dart_helper_build
+
+mkdir -p build/dart-helper-aot
+dart compile aot-snapshot tool/check_dart_helper_build.dart \
+  -o build/dart-helper-aot/helper.aot
+sdk_bin="$(dirname "$(readlink -f "$(command -v dart)")")"
+"$sdk_bin/dartaotruntime" build/dart-helper-aot/helper.aot
+```
+
+Each inspection command should report the failed requirements and exit with
+status 1. For the snapshot command, the inspected executable is
+`dartaotruntime`, because that is the program loading the app code.
+
+### Why a compiler flag does not solve this
+
+Dart 3.14.0's verbose `compile exe` help lists target operating system and CPU
+options, but no option to statically link its system libraries. The
+[compiler source at 3.14.0](https://github.com/dart-lang/sdk/blob/3.14.0/pkg/dart2native/lib/generate.dart)
+shows why: it combines the app snapshot with an already-built
+`dartaotruntime` through `writeAppendedExecutable`. It does not relink the
+runtime's libraries.
+
+The [official compile guide](https://dart.dev/tools/dart-compile) describes
+these output formats. The [build guide](https://dart.dev/tools/dart-build)
+describes bundling app libraries; that does not make the Dart runtime static.
+An [upstream answer about musl](https://github.com/dart-lang/sdk/issues/55782)
+points to a separately built Alpine SDK, rather than a compiler switch.
+The [request to select a different runtime](https://github.com/dart-lang/sdk/issues/61374)
+is still open. Neither source establishes that a fully static runtime can
+support all the Linux calls this helper needs.
+
+### Why using host libraries needs a design decision
+
+`control/executable_snapshot.cc` already accepts a dynamic executable when its
+loader and library search directories are controlled by root. The AppImage
+package has a stricter rule: its helper and cleanup program must be static.
+The app starts the privileged service through the host's systemd, outside the
+app's bundled library environment. This matters on NixOS as well as Ubuntu.
+
+Removing the static check would not establish a working replacement. A
+host-library design must show how the service finds trusted, compatible
+libraries on each supported distribution and still starts through the normal
+AppImage command. Loading libraries from the user-owned AppImage directory
+does not satisfy the existing trust checks.
+
+## Linux API checks
+
+We inspected Dart 3.14.0 and the resolved `dbus` 0.8.0 package, then ran a
+small compiled check in the Nix development shell. These checks establish
+available APIs; they do not establish a working privileged helper.
+
+### What Dart can already do
+
+- `RawSocket.getRawOption()` calls the operating system's socket-option API.
+  Our local Unix-socket check read Linux `SO_PEERCRED` and confirmed that the
+  peer's process and user IDs matched the client. This can supply the identity
+  check used by `control/portable_control_session.cc`.
+- `DynamicLibrary.process()` finds symbols already loaded into the process.
+  The compiled check found `getuid`, `memfd_create`, `pidfd_open`, `fcntl`,
+  `sendmsg`, `recvmsg`, and `getsockopt`. It called only `getuid`; finding the
+  other symbols does not test their use, descriptor ownership, or cleanup.
+  Dart FFI therefore does not necessarily require loading another library.
+  This result applies to the tested dynamic runtime, not a future static one.
+- `RawSocket.readMessage()` and `sendMessage()` support descriptor transfer
+  through `SocketControlMessage` and `ResourceHandle`. The `dbus` package
+  exposes D-Bus descriptors as `DBusUnixFd`.
+
+The SDK's [`socket.dart`](https://github.com/dart-lang/sdk/blob/3.14.0/sdk/lib/io/socket.dart)
+defines these socket and descriptor APIs. Its
+[`DynamicLibrary.process()` documentation](https://api.dart.dev/dart-ffi/DynamicLibrary/DynamicLibrary.process.html)
+explains symbol lookup. No hardware or privileged service was used in the
+compiled check.
+
+### What the current packages do not provide
+
+The resolved `dbus` 0.8.0 source has two gaps for our private helper connection:
+
+- In `lib/src/dbus_auth_server.dart`, `_authenticateExternal()` accepts the
+  supplied user ID without checking the socket's peer credentials.
+- In `lib/src/dbus_server.dart`, the accepted sockets are private, with no
+  public peer-authorization callback. With `messageBus: false`,
+  `_processServerMethodCall()` returns `UnknownObject` for application calls;
+  this server has no public application-object registration API.
+
+The existing native server checks both process and user IDs and serves only
+the approved app session. Using the Dart server unchanged would lose those
+checks. Dart's socket APIs can read the credentials, but the package needs
+an integration point to use them and dispatch helper requests.
+
+`ResourceHandle` also has no public constructor for an arbitrary Linux file
+descriptor. Its constructors wrap Dart-managed resources. That limits direct
+use of an FFI-created process handle with `DBusUnixFd`; it does not prove that
+Dart cannot transfer such a handle. Calling Linux descriptor operations through
+FFI is another possible route, with ownership and cleanup still to design.
+
+These are package-integration gaps, not evidence that the migration requires
+new C++ code. An upstream package change, a maintained fork, or a native
+integration would each need a concrete proposal before implementation.
+
+## Proposed next step
+
+First resolve whether Dart can meet the AppImage packaging requirement.
+The smallest next experiment is to build a static Dart runtime from the pinned
+SDK source and check whether it can run compiled Dart code and the required
+Linux calls. This is a custom runtime build and needs explicit agreement.
+
+The three standard build formats keep the runtime's shared-library dependencies.
+A custom build would make us responsible for runtime build instructions,
+security updates, symbol availability, and compatibility with each Dart SDK
+upgrade. Users would still launch the normal AppImage and would not install
+Dart. That user experience remains a goal, not a verified result.
+
+If approved, stop the experiment if it needs SDK source patches or a different
+user launch flow, and discuss the findings before expanding it. A successful
+build must pass the static executable checks and run on Ubuntu and NixOS
+without a Dart installation. Production adoption would still require the
+standard AppImage tests, including approval, denial, and cleanup.
+
+After that packaging check passes, propose the smallest D-Bus and descriptor
+integration that preserves the existing identity and lifetime checks. A
+host-library exception, package fork, and new C/C++ bridge remain unapproved.
 
 ## Building commands without running them
 
