@@ -1,8 +1,15 @@
 # Dashboard readings
 
 Choose readings under **Settings → Dashboard readings**. The app saves each
-choice and restores it on launch. Available readings are shown by default;
-missing or unsupported readings stay hidden. A measured 0% remains visible.
+choice and restores it on launch. Available readings are shown by default,
+except **System temperature**, which starts off. Saved choices take precedence
+over these defaults. Missing or unsupported readings stay hidden. A measured 0%
+remains visible.
+
+Battery status appears in the sidebar and on the Battery page, rather than
+repeating it beneath the dashboard usage bars. System temperature comes from
+a system/ACPI hwmon sensor, not the CPU temperature reader. Enable it in Settings
+if you want that additional reading.
 
 CPU, integrated GPU (iGPU), and discrete GPU (dGPU) usage have separate rows.
 The two GPU temperatures also appear separately. A missing GPU reading never

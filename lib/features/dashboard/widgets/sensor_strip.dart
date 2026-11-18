@@ -116,8 +116,6 @@ class SensorStrip extends StatelessWidget {
     ];
 
     final secondary = <String>[
-      if (_show(DashboardMetric.battery, snapshot.batteryPercent))
-        _batterySummary(),
       if (_show(DashboardMetric.systemTemperature, snapshot.motherboardTempC))
         'System ${snapshot.motherboardTempC!.toStringAsFixed(1)}°C',
     ];
@@ -183,17 +181,6 @@ class SensorStrip extends StatelessWidget {
 
   Widget _tile(String label, double? value, String unit) =>
       MetricTile(label: label, value: value, unit: unit, accent: accent);
-
-  String _batterySummary() {
-    final parts = ['Battery ${snapshot.batteryPercent}%'];
-    if (snapshot.batteryCharging != null) {
-      parts.add(snapshot.batteryCharging! ? 'charging' : 'discharging');
-    }
-    if (snapshot.batteryPowerDrawW != null) {
-      parts.add('${snapshot.batteryPowerDrawW!.toStringAsFixed(0)}W');
-    }
-    return parts.join(' ');
-  }
 }
 
 /// Uses a gauge only when firmware reports a positive maximum RPM.
