@@ -108,6 +108,8 @@ void main() {
     'packaging/nix/frontend.nix': {'nix', 'lifecycle', 'appimage'},
     'flake.lock': {'nix', 'lifecycle', 'appimage'},
     'tool/nix_flutter_provenance.dart': {'nix', 'appimage', 'debian'},
+    'tool/package_release.dart': {'nix', 'appimage', 'debian'},
+    'tool/release_source/source_archive.dart': {'nix', 'appimage', 'debian'},
     'tool/test_portable_distro.sh': {'nix', 'appimage', 'debian'},
     'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
     'tool/release_workflow.dart': {},

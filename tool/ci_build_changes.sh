@@ -42,7 +42,7 @@ if [[ -n "$base" ]]; then
       packaging/debian/*|tool/build_deb.sh|tool/package_deb.dart|tool/fetch_debian_test_image.sh) debian=true ;;
       packaging/appimage/*) appimage=true; debian=true; nix=true ;;
       packaging/*) all=true ;;
-      tool/package_linux.dart|tool/package_release.dart|tool/packaging_files.dart|tool/bundle_notices.dart|tool/nix_flutter_provenance.dart|tool/test_portable_distro.sh|tool/portable_distro_*.sh|LICENSE|THIRD_PARTY_NOTICES.md) appimage=true; debian=true; nix=true ;;
+      tool/package_linux.dart|tool/package_release.dart|tool/release_source/*|tool/packaging_files.dart|tool/bundle_notices.dart|tool/nix_flutter_provenance.dart|tool/test_portable_distro.sh|tool/portable_distro_*.sh|LICENSE|THIRD_PARTY_NOTICES.md) appimage=true; debian=true; nix=true ;;
       tool/*appimage*) appimage=true ;;
       tool/update_nix_metadata.sh) nix=true ;;
       tool/ci_*|tool/release_workflow.dart|test/*|analysis_options.yaml) ;;
