@@ -8,7 +8,7 @@ import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/widgets.dart';
 
-import 'window_preview.dart';
+import 'window_preview_app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

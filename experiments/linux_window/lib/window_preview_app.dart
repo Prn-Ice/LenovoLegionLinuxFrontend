@@ -23,7 +23,7 @@ class _WindowPreviewAppState extends State<WindowPreviewApp> {
 
   WindowControllerLinux get window => widget.window;
 
-  void restore() {
+  void restoreWindow() {
     window.setFullscreen(false);
     window.setMaximized(false);
   }
@@ -76,13 +76,13 @@ class _WindowPreviewAppState extends State<WindowPreviewApp> {
                   onDrag: (_) => window.beginMoveDrag(button: 1),
                   onDoubleTap: (_) => window.setMaximized(!window.isMaximized),
                   onMaximize: (_) => window.setMaximized(true),
-                  onRestore: (_) => restore(),
+                  onRestore: (_) => restoreWindow(),
                   onMinimize: (_) => window.setMinimized(true),
                   onClose: (_) => ServicesBinding.instance.exitApplication(
                     AppExitType.required,
                   ),
                 ),
-                body: Builder(builder: buildPreviewBody),
+                body: Builder(builder: buildWindowControls),
               ),
             ),
           ),
@@ -91,7 +91,7 @@ class _WindowPreviewAppState extends State<WindowPreviewApp> {
     },
   );
 
-  Widget buildPreviewBody(BuildContext context) {
+  Widget buildWindowControls(BuildContext context) {
     final theme = Theme.of(context);
     final state = window.isFullscreen
         ? 'Fullscreen'
@@ -125,7 +125,7 @@ class _WindowPreviewAppState extends State<WindowPreviewApp> {
               label: const Text('Fullscreen'),
             ),
             OutlinedButton.icon(
-              onPressed: restore,
+              onPressed: restoreWindow,
               icon: const Icon(Icons.fullscreen_exit),
               label: const Text('Restore'),
             ),

@@ -23,19 +23,19 @@ class WindowResizeBorder extends StatelessWidget {
     children: [
       child,
       if (enabled) ...[
-        edge(WindowDragEdge.north, top: 0, left: 8, right: 8),
-        edge(WindowDragEdge.south, bottom: 0, left: 8, right: 8),
-        edge(WindowDragEdge.west, left: 0, top: 8, bottom: 8),
-        edge(WindowDragEdge.east, right: 0, top: 8, bottom: 8),
-        edge(WindowDragEdge.northWest, top: 0, left: 0),
-        edge(WindowDragEdge.northEast, top: 0, right: 0),
-        edge(WindowDragEdge.southWest, bottom: 0, left: 0),
-        edge(WindowDragEdge.southEast, bottom: 0, right: 0),
+        buildResizeHandle(WindowDragEdge.north, top: 0, left: 8, right: 8),
+        buildResizeHandle(WindowDragEdge.south, bottom: 0, left: 8, right: 8),
+        buildResizeHandle(WindowDragEdge.west, left: 0, top: 8, bottom: 8),
+        buildResizeHandle(WindowDragEdge.east, right: 0, top: 8, bottom: 8),
+        buildResizeHandle(WindowDragEdge.northWest, top: 0, left: 0),
+        buildResizeHandle(WindowDragEdge.northEast, top: 0, right: 0),
+        buildResizeHandle(WindowDragEdge.southWest, bottom: 0, left: 0),
+        buildResizeHandle(WindowDragEdge.southEast, bottom: 0, right: 0),
       ],
     ],
   );
 
-  Widget edge(
+  Widget buildResizeHandle(
     WindowDragEdge edge, {
     double? top,
     double? bottom,
