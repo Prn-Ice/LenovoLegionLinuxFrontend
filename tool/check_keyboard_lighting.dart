@@ -52,7 +52,7 @@ SpectrumLed _spectrumLed(int ledValue, int red, int green, int blue) {
   return SpectrumLed(ledValue, cappedRed, cappedGreen, cappedBlue);
 }
 
-List<SpectrumLed> _solidFrame(int red, int green, int blue) => [
+List<SpectrumLed> _solidColorFrame(int red, int green, int blue) => [
   for (final ledValue in kSpectrumLedValues.values)
     _spectrumLed(ledValue, red, green, blue),
 ];
@@ -94,27 +94,30 @@ List<SpectrumLed> _escapeKeyFrame() => [
     _spectrumLed(entry.value, entry.key == 'Key: Escape' ? 255 : 0, 0, 0),
 ];
 
-SpectrumLed _whiteLedAtGain(int ledValue, double gain) {
-  final (red, green, blue) = capPowerRgb(255, (255 * gain).round(), 255);
+SpectrumLed _whiteLedWithGreenScale(int ledValue, double greenScale) {
+  final (red, green, blue) = capPowerRgb(255, (255 * greenScale).round(), 255);
   return SpectrumLed(ledValue, red, green, blue);
 }
 
-List<SpectrumLed> _whiteFrameAtGain(double gain) => [
+List<SpectrumLed> _whiteFrameWithGreenScale(double greenScale) => [
   for (final ledValue in kSpectrumLedValues.values)
-    _whiteLedAtGain(ledValue, gain),
+    _whiteLedWithGreenScale(ledValue, greenScale),
 ];
 
-List<SpectrumLed> _bandedWhiteFrame(List<double> gains) {
-  final gainByKey = <String, double>{};
+List<SpectrumLed> _whiteBandsWithGreenScales(List<double> greenScales) {
+  final greenScaleByKey = <String, double>{};
   for (final row in kKeyboardLayout) {
     var horizontalPosition = 0.0;
     for (final key in row.main) {
       if (!key.isGap) {
         final band =
-            (((horizontalPosition + key.width / 2) / kMainUnits) * gains.length)
+            (((horizontalPosition + key.width / 2) / kMainUnits) *
+                    greenScales.length)
                 .floor();
-        gainByKey[key.led] =
-            gains[band < gains.length ? band : gains.length - 1];
+        greenScaleByKey[key.led] =
+            greenScales[band < greenScales.length
+                ? band
+                : greenScales.length - 1];
       }
       horizontalPosition += key.width;
     }
@@ -122,8 +125,8 @@ List<SpectrumLed> _bandedWhiteFrame(List<double> gains) {
 
   return [
     for (final entry in kSpectrumLedValues.entries)
-      if (gainByKey[entry.key] case final gain?)
-        _whiteLedAtGain(entry.value, gain)
+      if (greenScaleByKey[entry.key] case final greenScale?)
+        _whiteLedWithGreenScale(entry.value, greenScale)
       else
         SpectrumLed(entry.value, 0, 0, 0),
   ];
@@ -144,16 +147,16 @@ Future<void> main(List<String> args) async {
   String label;
   switch (step) {
     case 1:
-      frame = _solidFrame(255, 0, 0);
+      frame = _solidColorFrame(255, 0, 0);
       label = 'ALL RED';
     case 2:
-      frame = _solidFrame(0, 255, 0);
+      frame = _solidColorFrame(0, 255, 0);
       label = 'ALL GREEN';
     case 3:
-      frame = _solidFrame(0, 0, 255);
+      frame = _solidColorFrame(0, 0, 255);
       label = 'ALL BLUE';
     case 4:
-      frame = _solidFrame(255, 255, 255);
+      frame = _solidColorFrame(255, 255, 255);
       label = 'ALL WHITE (LED power limited)';
     case 5:
       frame = _rainbowFrame();
@@ -164,22 +167,22 @@ Future<void> main(List<String> args) async {
           'SECTIONS (Escape/function keys=red, numbers=green, '
           'letters=blue, number pad=white)';
     case 7:
-      frame = _solidFrame(255, 255, 255);
+      frame = _solidColorFrame(255, 255, 255);
       brightness = 3;
       label = 'DIM WHITE (brightness 3 — same white, dimmer)';
     case 8:
       frame = _escapeKeyFrame();
       label = 'SINGLE KEY (only Esc red)';
     case 9:
-      frame = _bandedWhiteFrame(const [0.88, 0.92, 0.96, 1.0]);
+      frame = _whiteBandsWithGreenScales(const [0.88, 0.92, 0.96, 1.0]);
       brightness = 3;
       label = 'DIM WHITE BANDS (left->right green: 0.88, 0.92, 0.96, 1.00)';
     case 10:
-      frame = _bandedWhiteFrame(const [0.91, 0.93, 0.95, 0.97]);
+      frame = _whiteBandsWithGreenScales(const [0.91, 0.93, 0.95, 0.97]);
       brightness = 3;
       label = 'DIM WHITE BANDS (left->right green: 0.91, 0.93, 0.95, 0.97)';
     case 11:
-      frame = _whiteFrameAtGain(0.94);
+      frame = _whiteFrameWithGreenScale(0.94);
       brightness = 3;
       label = 'DIM WHITE (green multiplied by 0.94)';
     case 12:
