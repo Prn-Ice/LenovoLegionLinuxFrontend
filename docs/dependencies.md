@@ -44,7 +44,7 @@ compatible stable SDK includes [the upstream fix](https://github.com/flutter/flu
 and repeated window-close checks pass (`lllf-dt0.5.13`).
 
 
-Flutter 3.50 package qualification remains blocked by Linux renderer teardown
+Historical Flutter 3.50 packages failed during Linux renderer teardown
 (`lllf-dt0.5.16`). The NixOS AppImage can exit while its raster thread still uses
 Mesa; explicitly destroying the retained window instead can abort in
 `g_mutex_clear`. The experimental cleanup was rejected. Upstream
