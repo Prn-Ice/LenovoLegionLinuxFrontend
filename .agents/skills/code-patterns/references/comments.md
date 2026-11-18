@@ -1,10 +1,25 @@
 # Comment template: Ester's browser sessions
 
-Start with the job. Name the main method, who calls it, and which helper makes
-the decision. Give each helper a comment a reader can understand on its own.
-The excerpts below show three places to tell different parts of the same story.
+Ester's dashboard sends requests to an API. `BrowserSessions` helps the API
+check those requests and read or set the sign-in cookie. Each pair below
+documents the **same code** before and after a comment edit. In your own
+project, read the function and its caller first; borrow the pattern, not
+Ester's terminology.
 
 ### 1. At the class: what is this for?
+
+**Before (vague):**
+
+```dart
+/// Cookie and request rules for the dashboard's browser sessions.
+/// Applies browser rules before a route changes data.
+class BrowserSessions {
+```
+
+The first line is a useful summary. The second leaves the reader to guess:
+who calls this class, which method do they call, and what does it check?
+
+**After (keep the summary; name the caller, method, and checks):**
 
 ```dart
 /// Cookie and request rules for the dashboard's browser sessions.
@@ -21,11 +36,20 @@ The excerpts below show three places to tell different parts of the same story.
 class BrowserSessions {
 ```
 
-“Applies browser rules” leaves the reader guessing. The overview names the
-two checks and uses signing out as a familiar example. It also names the cookie
-methods in the order a signed-in person encounters them.
-
 ### 2. At the helper: what question does it answer?
+
+**Before (explains a missing header, not the result):**
+
+```dart
+/// Omitting the CSRF header cannot opt a browser out of these rules.
+bool appliesTo(Request request) =>
+```
+
+If the header is missing but the session cookie is present, would this return
+`true` or `false`? The comment should let a caller answer without tracing the
+whole request.
+
+**After (name the inputs and both outcomes):**
 
 ```dart
 /// Treats a request as a browser request if it includes `Origin`,
@@ -42,6 +66,18 @@ Stop there. This method classifies a request. It doesn't reject it, sign anyone
 in, or decide whether someone may open a protected page.
 
 ### 3. At the main method and its caller: what happens next?
+
+**Before (names only the error case):**
+
+```dart
+/// Returns a rejection before browser mutations reach authentication/routes.
+Response? rejectUnsafeRequest(Request request) {
+```
+
+The `?` says the result can be `null`, but not what the API does with it.
+Read the caller before documenting that result.
+
+**After (say what stops and what continues):**
 
 ```dart
 /// Returns an error to stop the request, or `null` to let it continue.
@@ -65,9 +101,26 @@ final rejection = browser.rejectUnsafeRequest(context.request);
 if (rejection != null) return rejection;
 ```
 
-Now the reader can answer “Does `false` reject the request?” by following two
-short branches: `false` makes this check return `null`; the middleware returns
-early only for an error. Otherwise it continues handling the request.
+Here `appliesTo == false` skips this check. The API still checks authentication
+on protected routes. Describing `null` as “access granted” would be wrong.
+
+### 4. Beside a branch: does the code here support the comment?
+
+**Before (claims more than the branch shows):**
+
+```dart
+// Let the router handle this request so the user can sign out safely.
+if (rejection != null) return rejection;
+```
+
+**After (remove the comment):**
+
+```dart
+if (rejection != null) return rejection;
+```
+
+The branch returns an error. It doesn't call a router or sign anyone out.
+The method comment already explains the result, so no replacement is needed.
 
 **Use this pattern in older code, too.** Fix unclear comments as you encounter
 them. Put a reason beside the decision it explains. If the code below only
