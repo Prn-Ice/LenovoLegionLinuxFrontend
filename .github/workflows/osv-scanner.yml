@@ -17,10 +17,12 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     with:
+      runs-on: ${{ github.event.pull_request.head.repo.full_name == github.repository && vars.CI_RUNNER || 'ubuntu-latest' }}
       upload-sarif: false
 
   full-scan:
     if: github.event_name != 'pull_request'
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
     with:
+      runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
       upload-sarif: false
