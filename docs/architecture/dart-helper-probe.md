@@ -68,6 +68,23 @@ explicit decision about any documented static-link or host-library packaging
 option and about Linux bindings for pidfds, sealed snapshots, D-Bus file
 descriptor passing, and systemd/Polkit integration.
 
+## Pure command prototype
+
+`experiments/dart_helper_commands.dart` is the next isolated slice. It ports
+the allow-listed feature, toggle, preset, conservation, file, graphics,
+service, payload, and exit-classification logic as typed operations. It builds
+argument lists only; it never executes a command, opens a file, connects to
+D-Bus, or starts a helper. For example,
+`buildBootLogoCommand(File('/tmp/logo.bmp'))` returns
+`['--donotexpecthwmon', 'boot-logo', 'enable', '/tmp/logo.bmp']`.
+
+`test/tool/dart_helper_commands_test.dart` checks accepted and rejected bounds,
+serialized-input parsing, argument order, payload limits, and the distinct
+generic CLI, graphics, systemctl, and boot-helper exit meanings. The parity
+source was PR30 head `e44b39f537f627f5580255ae9eb28a1734a58fd5`, inspected
+read-only on 2026-11-18. This is pure-logic evidence, not a replacement
+helper or an IPC migration.
+
 ## Required compatibility input from PR30
 
 PR30 (`feat/backend-upgrade-compatibility`, open as
