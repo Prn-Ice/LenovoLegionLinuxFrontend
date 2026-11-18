@@ -388,7 +388,7 @@ detached stdout holders, output limits, runtime deadlines, and client/helper
 `SIGKILL`. Its fixture executables refuse to run outside the marked test VM.
 The test passed on 2026-11-11 with the pinned NixOS environment: systemd 262,
 GLib 2.88.3, and Polkit 127. See the
-[Ubuntu helper qualification](portable-distro-qualification.md) for the separate
+[Ubuntu helper tests](portable-helper-tests.md) for the separate
 distro-library check. Debian compatibility and live authentication-dialog
 cancellation still need testing.
 
@@ -452,7 +452,7 @@ versions; extend that matrix as other distributions are checked. Verify:
 CI can prove builds and hardware-free behavior. Record desktop authorization and
 hardware checks separately, with the distribution and component versions.
 
-The [Ubuntu helper qualification](portable-distro-qualification.md) builds and
+The [Ubuntu helper tests](portable-helper-tests.md) build and
 tests the production helper against distro libraries in a disposable VM. Its
 synthetic CLI checks startup and containment before release packaging.
 

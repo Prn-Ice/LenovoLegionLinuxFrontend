@@ -149,7 +149,7 @@ remaining desktop check in `lllf-dt0.5.18`.
 
 ## Test the artifact
 
-Use the [Ubuntu VM runner](architecture/portable-distro-qualification.md) with the
+Use the [Ubuntu VM runner](architecture/portable-helper-tests.md) with the
 additional release directory:
 
 ```bash

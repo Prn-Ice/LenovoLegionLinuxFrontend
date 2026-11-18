@@ -40,7 +40,8 @@ Those results predate the Bash test port; rerun qualification for current eviden
 
 ## Run locally
 
-Install QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`. On Debian/Ubuntu,
+Install Dart 3.14 or newer, QEMU, `cloud-localds`, OpenSSH clients, `jq`, and `ss`.
+The project's Flutter SDK includes Dart. On Debian/Ubuntu,
 their packages are `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`,
 `openssh-client`, `jq`, and `iproute2`. On Nix, use the pinned Nixpkgs versions of
 `qemu`, `cloud-utils`, `openssh`, `jq`, and `iproute2`.
@@ -78,12 +79,28 @@ over the network. The runner copies native source directories into the VM and ru
 setup script there. It terminates the VM and deletes the disk overlay and
 temporary SSH key on exit. It requires an unused output directory.
 
-The output retains boot, build, test, and system logs. `manifest.json` records the
-source commit, modified source status, cloud-image checksum, source archive hash,
-and qualification archive hash. The qualification archive contains the helper,
+## Saved test results
+
+The output retains boot, build, test, and system logs. The JSON file
+`manifest.json`, called a qualification manifest in the tools, records which
+source commit and test-system image were used, whether the source had local
+edits, which checks passed, and what remains unverified.
+
+It also records checksums of the source and test-result archives. A checksum
+identifies a file's contents. The release tools compare these values to confirm
+that the saved results belong to the package being released.
+
+The test-result archive contains the helper,
 ELF headers, and exact distro package versions. CI runs this check inside AppImage
 acceptance and includes `appimage-native-qualification.tar.gz` in that job's
 AppImage evidence archive, rather than repeating it in another VM.
+
+The host writes this JSON file through `tool/record_package_test_results.dart` after
+the guest succeeds and its evidence archive is retrieved. CI uses the same tool
+to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
+operations use the existing JSON format; the NixOS update preserves its
+other fields. Failed qualification or evidence retrieval stops the shell runner
+before it records a successful test run.
 
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
