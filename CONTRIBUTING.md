@@ -127,6 +127,12 @@ The missing-profile journey deletes an assigned profile and clears its missing
 assignment without another RGB command. The Fans journey cancels a preset
 confirmation, then applies the preset and checks its curve readback through the
 real repository. Polling is paused so it cannot hide a missing write readback.
+The curve-editing journeys use the precise CPU/GPU controls to change temperature
+and speed, check that edits stay within neighbouring points, cancel save without
+writing, then apply and verify the full table and visible readback. Rejected
+writes and accepted commands with unchanged readback preserve the draft for
+retry. The fixture accepts only this synthetic edited table; it does not parse
+arbitrary YAML or qualify a real controller.
 
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
