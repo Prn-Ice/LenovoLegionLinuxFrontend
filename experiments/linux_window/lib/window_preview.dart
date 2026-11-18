@@ -145,8 +145,8 @@ class _WindowPreviewAppState extends State<WindowPreviewApp> {
           title: const Text('Corners'),
           subtitle: Text(
             window.isMaximized || window.isFullscreen
-                ? 'Square, so the surface reaches every edge.'
-                : '8 px clip; native transparency requested.',
+                ? 'Square, so the window fills every edge.'
+                : 'Rounded by 8 px; transparency is not yet verified.',
           ),
         ),
         const Divider(),

@@ -4,7 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/widgets.dart';
 
-/// Gives the undecorated preview native edge-resize gestures.
+/// Lets the desktop resize the preview when the user drags a window edge.
 class WindowResizeBorder extends StatelessWidget {
   const WindowResizeBorder({
     super.key,
