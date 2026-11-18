@@ -5,107 +5,123 @@ import 'package:legion_frontend/features/lighting/models/spectrum_led_map.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 import 'package:legion_frontend/features/lighting/models/keyboard_layout.dart';
 
-final _func = RegExp(r'^Key: (Escape|F\d)');
-final _num = RegExp(r'^Key: [0-9`\-=]$');
-final _letter = RegExp(r'^Key: [A-Z]$');
+final _functionKeyPattern = RegExp(r'^Key: (Escape|F\d)');
+final _numberKeyPattern = RegExp(r'^Key: [0-9`\-=]$');
+final _letterKeyPattern = RegExp(r'^Key: [A-Z]$');
 
-(int, int, int) _hsv(double h, double s, double v) {
-  final c = v * s;
-  final x = c * (1 - (((h / 60) % 2) - 1).abs());
-  final m = v - c;
-  double r, g, b;
-  if (h < 60) {
-    (r, g, b) = (c, x, 0);
-  } else if (h < 120) {
-    (r, g, b) = (x, c, 0);
-  } else if (h < 180) {
-    (r, g, b) = (0, c, x);
-  } else if (h < 240) {
-    (r, g, b) = (0, x, c);
-  } else if (h < 300) {
-    (r, g, b) = (x, 0, c);
+(int, int, int) _rgbFromHsv(double hue, double saturation, double value) {
+  // Convert a hue wheel position to the RGB values sent to the keyboard.
+  final chroma = value * saturation;
+  final secondLargest = chroma * (1 - (((hue / 60) % 2) - 1).abs());
+  final minimum = value - chroma;
+  double red, green, blue;
+  if (hue < 60) {
+    (red, green, blue) = (chroma, secondLargest, 0);
+  } else if (hue < 120) {
+    (red, green, blue) = (secondLargest, chroma, 0);
+  } else if (hue < 180) {
+    (red, green, blue) = (0, chroma, secondLargest);
+  } else if (hue < 240) {
+    (red, green, blue) = (0, secondLargest, chroma);
+  } else if (hue < 300) {
+    (red, green, blue) = (secondLargest, 0, chroma);
   } else {
-    (r, g, b) = (c, 0, x);
+    (red, green, blue) = (chroma, 0, secondLargest);
   }
   return (
-    ((r + m) * 255).round(),
-    ((g + m) * 255).round(),
-    ((b + m) * 255).round(),
+    ((red + minimum) * 255).round(),
+    ((green + minimum) * 255).round(),
+    ((blue + minimum) * 255).round(),
   );
 }
 
-SpectrumLed _led(int v, int r, int g, int b) {
-  // Same pipeline as the app's spectrumLedsFor: white-balance, then power-cap.
-  final (wr, wg, wb) = whiteBalanceRgb(r, g, b);
-  final (cr, cg, cb) = capPowerRgb(wr, wg, wb);
-  return SpectrumLed(v, cr, cg, cb);
+SpectrumLed _spectrumLed(int ledValue, int red, int green, int blue) {
+  // Match the app: white-balance first, then apply the power cap.
+  final (balancedRed, balancedGreen, balancedBlue) = whiteBalanceRgb(
+    red,
+    green,
+    blue,
+  );
+  final (cappedRed, cappedGreen, cappedBlue) = capPowerRgb(
+    balancedRed,
+    balancedGreen,
+    balancedBlue,
+  );
+  return SpectrumLed(ledValue, cappedRed, cappedGreen, cappedBlue);
 }
 
-List<SpectrumLed> _fill(int r, int g, int b) => [
-  for (final v in kSpectrumLedValues.values) _led(v, r, g, b),
+List<SpectrumLed> _solidFrame(int red, int green, int blue) => [
+  for (final ledValue in kSpectrumLedValues.values)
+    _spectrumLed(ledValue, red, green, blue),
 ];
 
-List<SpectrumLed> _rainbow([double phase = 0]) {
-  final e = kSpectrumLedValues.entries.toList();
-  final out = <SpectrumLed>[];
-  for (var i = 0; i < e.length; i++) {
-    final (r, g, b) = _hsv(((i / e.length) * 360 + phase) % 360, 1, 1);
-    out.add(_led(e[i].value, r, g, b));
+List<SpectrumLed> _rainbowFrame([double phase = 0]) {
+  final ledEntries = kSpectrumLedValues.entries.toList();
+  final frame = <SpectrumLed>[];
+  for (var index = 0; index < ledEntries.length; index++) {
+    final (red, green, blue) = _rgbFromHsv(
+      ((index / ledEntries.length) * 360 + phase) % 360,
+      1,
+      1,
+    );
+    frame.add(_spectrumLed(ledEntries[index].value, red, green, blue));
   }
-  return out;
+  return frame;
 }
 
-List<SpectrumLed> _sections() {
-  final out = <SpectrumLed>[];
-  kSpectrumLedValues.forEach((name, v) {
-    if (_func.hasMatch(name)) {
-      out.add(_led(v, 255, 0, 0));
-    } else if (_num.hasMatch(name)) {
-      out.add(_led(v, 0, 255, 0));
-    } else if (_letter.hasMatch(name)) {
-      out.add(_led(v, 0, 0, 255));
-    } else if (name.contains('Number Pad')) {
-      out.add(_led(v, 255, 255, 255));
+List<SpectrumLed> _keyboardSectionFrame() {
+  final frame = <SpectrumLed>[];
+  kSpectrumLedValues.forEach((keyName, ledValue) {
+    if (_functionKeyPattern.hasMatch(keyName)) {
+      frame.add(_spectrumLed(ledValue, 255, 0, 0));
+    } else if (_numberKeyPattern.hasMatch(keyName)) {
+      frame.add(_spectrumLed(ledValue, 0, 255, 0));
+    } else if (_letterKeyPattern.hasMatch(keyName)) {
+      frame.add(_spectrumLed(ledValue, 0, 0, 255));
+    } else if (keyName.contains('Number Pad')) {
+      frame.add(_spectrumLed(ledValue, 255, 255, 255));
     } else {
-      out.add(_led(v, 25, 25, 25));
+      frame.add(_spectrumLed(ledValue, 25, 25, 25));
     }
   });
-  return out;
+  return frame;
 }
 
-List<SpectrumLed> _escOnly() => [
-  for (final e in kSpectrumLedValues.entries)
-    _led(e.value, e.key == 'Key: Escape' ? 255 : 0, 0, 0),
+List<SpectrumLed> _escapeKeyFrame() => [
+  for (final entry in kSpectrumLedValues.entries)
+    _spectrumLed(entry.value, entry.key == 'Key: Escape' ? 255 : 0, 0, 0),
 ];
 
-SpectrumLed _whiteAtGain(int value, double gain) {
-  final (r, g, b) = capPowerRgb(255, (255 * gain).round(), 255);
-  return SpectrumLed(value, r, g, b);
+SpectrumLed _whiteLedAtGain(int ledValue, double gain) {
+  final (red, green, blue) = capPowerRgb(255, (255 * gain).round(), 255);
+  return SpectrumLed(ledValue, red, green, blue);
 }
 
-List<SpectrumLed> _fillWhiteAtGain(double gain) => [
-  for (final value in kSpectrumLedValues.values) _whiteAtGain(value, gain),
+List<SpectrumLed> _whiteFrameAtGain(double gain) => [
+  for (final ledValue in kSpectrumLedValues.values)
+    _whiteLedAtGain(ledValue, gain),
 ];
 
-List<SpectrumLed> _dimWhiteBands(List<double> gains) {
-  final gainByLed = <String, double>{};
+List<SpectrumLed> _bandedWhiteFrame(List<double> gains) {
+  final gainByKey = <String, double>{};
   for (final row in kKeyboardLayout) {
-    var x = 0.0;
+    var horizontalPosition = 0.0;
     for (final key in row.main) {
       if (!key.isGap) {
-        final band = (((x + key.width / 2) / kMainUnits) * gains.length)
-            .floor();
-        gainByLed[key.led] =
+        final band =
+            (((horizontalPosition + key.width / 2) / kMainUnits) * gains.length)
+                .floor();
+        gainByKey[key.led] =
             gains[band < gains.length ? band : gains.length - 1];
       }
-      x += key.width;
+      horizontalPosition += key.width;
     }
   }
 
   return [
     for (final entry in kSpectrumLedValues.entries)
-      if (gainByLed[entry.key] case final gain?)
-        _whiteAtGain(entry.value, gain)
+      if (gainByKey[entry.key] case final gain?)
+        _whiteLedAtGain(entry.value, gain)
       else
         SpectrumLed(entry.value, 0, 0, 0),
   ];
@@ -113,9 +129,12 @@ List<SpectrumLed> _dimWhiteBands(List<double> gains) {
 
 Future<void> main(List<String> args) async {
   final step = args.isNotEmpty ? (int.tryParse(args[0]) ?? 1) : 1;
-  final s = SpectrumHidService();
-  if (!s.open()) {
-    stderr.writeln('open FAILED — keyboard not at /dev/hidraw0?');
+  final keyboard = SpectrumHidService();
+  if (!keyboard.open()) {
+    stderr.writeln(
+      'Could not open the Spectrum keyboard. Check the detected keyboard model '
+      'and your access to its hidraw device.',
+    );
     return;
   }
   List<SpectrumLed> frame;
@@ -123,40 +142,40 @@ Future<void> main(List<String> args) async {
   String label;
   switch (step) {
     case 1:
-      frame = _fill(255, 0, 0);
+      frame = _solidFrame(255, 0, 0);
       label = 'ALL RED';
     case 2:
-      frame = _fill(0, 255, 0);
+      frame = _solidFrame(0, 255, 0);
       label = 'ALL GREEN';
     case 3:
-      frame = _fill(0, 0, 255);
+      frame = _solidFrame(0, 0, 255);
       label = 'ALL BLUE';
     case 4:
-      frame = _fill(255, 255, 255);
+      frame = _solidFrame(255, 255, 255);
       label = 'ALL WHITE (power-capped)';
     case 5:
-      frame = _rainbow();
+      frame = _rainbowFrame();
       label = 'PER-KEY RAINBOW';
     case 6:
-      frame = _sections();
+      frame = _keyboardSectionFrame();
       label = 'SECTIONS (Fn=red, nums=green, letters=blue, numpad=white)';
     case 7:
-      frame = _fill(255, 255, 255);
+      frame = _solidFrame(255, 255, 255);
       brightness = 3;
       label = 'DIM WHITE (brightness 3 — same white, dimmer)';
     case 8:
-      frame = _escOnly();
+      frame = _escapeKeyFrame();
       label = 'SINGLE KEY (only Esc red)';
     case 9:
-      frame = _dimWhiteBands(const [0.88, 0.92, 0.96, 1.0]);
+      frame = _bandedWhiteFrame(const [0.88, 0.92, 0.96, 1.0]);
       brightness = 3;
       label = 'DIM WHITE BANDS (left->right green: 0.88, 0.92, 0.96, 1.00)';
     case 10:
-      frame = _dimWhiteBands(const [0.91, 0.93, 0.95, 0.97]);
+      frame = _bandedWhiteFrame(const [0.91, 0.93, 0.95, 0.97]);
       brightness = 3;
       label = 'DIM WHITE BANDS (left->right green: 0.91, 0.93, 0.95, 0.97)';
     case 11:
-      frame = _fillWhiteAtGain(0.94);
+      frame = _whiteFrameAtGain(0.94);
       brightness = 3;
       label = 'ADAPTIVE DIM WHITE (green: 0.94)';
     case 12:
@@ -165,27 +184,27 @@ Future<void> main(List<String> args) async {
           : 8;
       final seconds = requestedSeconds.clamp(1, 120);
       final frameCount = seconds * 30;
-      s.setBrightness(9);
+      keyboard.setBrightness(9);
       var ok = true;
       for (var i = 0; i < frameCount; i++) {
-        ok = s.sendDirectFrame(_rainbow(i * 2)) && ok;
+        ok = keyboard.sendDirectFrame(_rainbowFrame(i * 2)) && ok;
         await Future<void>.delayed(const Duration(milliseconds: 33));
       }
       stdout.writeln(
         'STEP 12: ANIMATED RAINBOW '
         '($frameCount frames over ${seconds}s, sent=$ok)',
       );
-      s.close();
+      keyboard.close();
       return;
     default:
       stderr.writeln('unknown step $step');
-      s.close();
+      keyboard.close();
       return;
   }
-  s.setBrightness(brightness);
-  final ok = s.sendDirectFrame(frame);
+  keyboard.setBrightness(brightness);
+  final ok = keyboard.sendDirectFrame(frame);
   stdout.writeln(
     'STEP $step: $label  (${frame.length} LEDs, sent=$ok, brightness=$brightness)',
   );
-  s.close();
+  keyboard.close();
 }
