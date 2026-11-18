@@ -5,9 +5,12 @@ administrator approval. This experiment checks two parts of replacing it with
 Dart: which system libraries a compiled Dart program needs, and whether Dart
 can build the same commands and reject the same invalid values.
 
-The current result: Dart compiles and the command tests pass, but the compiled
-program needs system libraries. The AppImage helper currently must run without
-loading separate libraries. Packaging and startup still need a working design.
+The current result: Dart compiles and the command tests pass. A bundled Dart
+runtime and separate compiled app snapshot also pass isolated startup checks
+with copied Ubuntu and Nix libraries. Privileged startup still needs a design
+that protects every bundled code file. See the
+[bundling evaluation](dart-bundled-runtime-evaluation.md) and
+[static-runtime evaluation](dart-static-runtime-evaluation.md).
 
 ## Check the compiled program
 
@@ -182,28 +185,24 @@ These are package-integration gaps, not evidence that the migration requires
 new C++ code. An upstream package change, a maintained fork, or a native
 integration would each need a concrete proposal before implementation.
 
-## Proposed next step
+## Evaluation and next decision
 
-First resolve whether Dart can meet the AppImage packaging requirement.
-The smallest next experiment is to build a static Dart runtime from the pinned
-SDK source and check whether it can run compiled Dart code and the required
-Linux calls. This is a custom runtime build and needs explicit agreement.
+The user approved evaluating bundled libraries and a custom static runtime.
+The [bundling check](dart-bundled-runtime-evaluation.md) ran compiled Dart code
+with host libraries hidden. The standard AOT snapshot/runtime pair worked;
+the single-executable alternatives failed for the upstream reasons recorded
+there. This is evidence for bundled runtime startup, not privileged AppImage
+compatibility.
 
-The three standard build formats keep the runtime's shared-library dependencies.
-A custom build would make us responsible for runtime build instructions,
-security updates, symbol availability, and compatibility with each Dart SDK
-upgrade. Users would still launch the normal AppImage and would not install
-Dart. That user experience remains a goal, not a verified result.
+The [static-runtime review](dart-static-runtime-evaluation.md) records the
+upstream build options and limits. No fully static runtime was built, so its
+feasibility remains unverified.
 
-If approved, stop the experiment if it needs SDK source patches or a different
-user launch flow, and discuss the findings before expanding it. A successful
-build must pass the static executable checks and run on Ubuntu and NixOS
-without a Dart installation. Production adoption would still require the
-standard AppImage tests, including approval, denial, and cleanup.
-
-After that packaging check passes, propose the smallest D-Bus and descriptor
-integration that preserves the existing identity and lifetime checks. A
-host-library exception, package fork, and new C/C++ bridge remain unapproved.
+Prefer developing the bundle design next. The smallest candidate reuses the
+existing static starter to protect and prepare all runtime files after approval.
+That retains native startup code and adds staging and cleanup responsibilities;
+it needs agreement before implementation. A different user launch flow,
+host-library exception, package fork, and new native bridge remain unapproved.
 
 ## Building commands without running them
 
