@@ -86,6 +86,17 @@ controlled pending write completes.
 
 Power journeys select Performance, verify Power and Dashboard readback, and
 check that selecting an AC-only mode on battery sends no privileged request.
+Power-limit journeys stage two slider edits without writing, revert them, then
+apply them together and verify temporary sysfs and page readback. A rejected
+second write restores the first value and leaves the edits available for retry.
+Non-Custom mode, battery power, unknown AC status, and unsupported limits send no
+privileged requests. Polling is paused so it cannot repair missing readback.
+Rapid-charging journeys cancel and apply the Power confirmation while on battery,
+then check confirmed readback. Battery has no rapid-charging readout: its Refresh
+action reloads a simulated firmware change into shared state, and returning to
+Power verifies the visible switch. A failed write preserves the confirmed value;
+a controlled pending retry keeps the switch disabled and unchanged until
+completion. Unsupported devices expose no rapid-charging control.
 The keyboard journey saves a Lighting profile, makes a different manual edit,
 assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting

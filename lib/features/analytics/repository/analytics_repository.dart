@@ -1,5 +1,6 @@
 import 'package:hive_ce/hive.dart';
 
+import '../../../core/models/gpu_reading.dart';
 import '../../../core/services/legion_sysfs_service.dart';
 import '../../../core/services/nvidia_smi_service.dart';
 import '../models/sensor_record.dart';
@@ -30,7 +31,7 @@ class AnalyticsRepository {
       _sysfsService.readBatteryTempC(),
       _nvidiaSmiService.readSnapshot(),
     ]);
-    final nvidia = results[8] as NvidiaSmiSnapshot?;
+    final nvidia = results[8] as GpuReading?;
     final record = SensorRecord(
       timestamp: DateTime.now(),
       fan1Rpm: results[0] as int?,
@@ -41,14 +42,15 @@ class AnalyticsRepository {
       batteryPercent: results[5] as int?,
       batteryPowerDrawW: results[6] as double?,
       batteryTempC: results[7] as double?,
-      gpuUtilPercent: nvidia?.utilPercent,
+      gpuUtilPercent: nvidia?.usagePercent,
       gpuPowerDrawW: nvidia?.powerDrawW,
+      dgpuTempC: nvidia?.tempC,
     );
     await _box.add(record);
     return record;
   }
 
-  /// Return all records with timestamp >= [since], sorted oldest-first.
+  /// Return records newer than [since], oldest first.
   List<SensorRecord> readHistory({required DateTime since}) {
     return _box.values.where((r) => r.timestamp.isAfter(since)).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));

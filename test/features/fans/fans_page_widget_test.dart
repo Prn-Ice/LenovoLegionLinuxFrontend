@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:legion_frontend/core/theme/legion_accent.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
@@ -413,15 +414,15 @@ LiveSensorSnapshot _sensorSnapshot() => const LiveSensorSnapshot(
   cpuPackagePowerW: 24.5,
   fan1Rpm: 2180,
   fan2Rpm: 1940,
-  gpuName: 'Test GPU',
-  gpuTempC: 58,
-  gpuUtilPercent: 20,
-  gpuClockGhz: 1.8,
-  gpuVramUsedGb: 2,
-  gpuVramTotalGb: 8,
-  gpuFanPercent: null,
-  gpuPowerDrawW: 40,
-  gpuIsDiscrete: true,
+  dgpu: GpuReading(
+    name: 'Test GPU',
+    tempC: 58,
+    usagePercent: 20,
+    clockGhz: 1.8,
+    vramUsedGb: 2,
+    vramTotalGb: 8,
+    powerDrawW: 40,
+  ),
   motherboardTempC: 42,
   batteryPercent: 90,
   batteryCharging: true,

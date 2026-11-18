@@ -14,6 +14,7 @@ import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
@@ -28,7 +29,24 @@ import 'package:yaru/yaru.dart';
 
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
 
-enum FixturePlatformProfile { quiet, balanced, performance, maxPower }
+enum FixturePlatformProfile { quiet, balanced, performance, maxPower, custom }
+
+/// Synthetic values chosen to distinguish edits and rollback from initial state.
+enum FixturePowerLimit {
+  sustained(
+    ControlFeature.cpuLongtermPowerLimit,
+    'cpu_longterm_powerlimit',
+    45,
+  ),
+  boost(ControlFeature.cpuShorttermPowerLimit, 'cpu_shortterm_powerlimit', 80),
+  gpu(ControlFeature.gpuCtgpPowerLimit, 'gpu_ctgp_powerlimit', 100);
+
+  const FixturePowerLimit(this.feature, this.attribute, this.initialValue);
+
+  final ControlFeature feature;
+  final String attribute;
+  final int initialValue;
+}
 
 /// Synthetic readings, not defaults or measurements from a supported laptop.
 /// All writes stay inside this instance's temporary directory.
@@ -38,14 +56,25 @@ class SafeApp {
     this.conservationFile, {
     required this._ownsDirectory,
     required this.hasFanFixture,
+    required this.hasPowerLimitFixture,
   });
 
   final Directory directory;
   final File conservationFile;
   final bool _ownsDirectory;
   final bool hasFanFixture;
+  final bool hasPowerLimitFixture;
+  final powerLimitRequests = <(FixturePowerLimit, int)>[];
+  final powerLimitWrites = <(FixturePowerLimit, int)>[];
+  FixturePowerLimit? failNextPowerLimit;
   final writes = <bool>[];
   final requests = <bool>[];
+  final rapidChargingRequests = <bool>[];
+  final rapidChargingWrites = <bool>[];
+  File get rapidChargingFile => File(
+    '${directory.path}/sys/module/legion_laptop/drivers/'
+    'platform:legion/legion/rapidcharge',
+  );
   final platformProfileWrites = <FixturePlatformProfile>[];
   final platformProfileRequests = <FixturePlatformProfile>[];
   final fanPresetWrites = <ControlFanPreset>[];
@@ -62,6 +91,8 @@ class SafeApp {
     Directory? fixtureDirectory,
     bool acOnline = true,
     bool includeFanFixture = false,
+    bool includePowerLimitFixture = false,
+    bool includeRapidChargingFixture = false,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
       FixturePlatformProfile.balanced,
@@ -85,6 +116,8 @@ class SafeApp {
       profileChoices: profileChoices,
       acOnline: acOnline,
       includeFanFixture: includeFanFixture,
+      includePowerLimitFixture: includePowerLimitFixture,
+      includeRapidChargingFixture: includeRapidChargingFixture,
     );
     Hive.init('${directory.path}/storage');
     if (!Hive.isAdapterRegistered(1)) {
@@ -101,6 +134,7 @@ class SafeApp {
       ),
       ownsDirectory: ownsDirectory,
       hasFanFixture: includeFanFixture,
+      hasPowerLimitFixture: includePowerLimitFixture,
     );
   }
 
@@ -109,6 +143,8 @@ class SafeApp {
     required List<FixturePlatformProfile> profileChoices,
     required bool acOnline,
     required bool includeFanFixture,
+    required bool includePowerLimitFixture,
+    required bool includeRapidChargingFixture,
   }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -129,8 +165,26 @@ class SafeApp {
     await File('${ac.path}/type').writeAsString('Mains\n');
     await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
     await Directory('${directory.path}/proc').create(recursive: true);
+    if (includeRapidChargingFixture) {
+      final rapidCharge = File(
+        '${directory.path}/sys/module/legion_laptop/drivers/'
+        'platform:legion/legion/rapidcharge',
+      );
+      await rapidCharge.parent.create(recursive: true);
+      await rapidCharge.writeAsString('0\n');
+    }
     if (includeFanFixture) {
       await _prepareFanFixture(directory);
+    }
+    if (includePowerLimitFixture) {
+      final controller = Directory(
+        '${directory.path}/sys/module/legion_laptop/drivers/platform:legion/legion',
+      );
+      await controller.create(recursive: true);
+      for (final limit in FixturePowerLimit.values) {
+        await File('${controller.path}/${limit.attribute}')
+            .writeAsString('${limit.initialValue}\n');
+      }
     }
   }
 
@@ -281,6 +335,53 @@ class _FixtureControl extends LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'SetToggle' &&
+        arguments.length == 2 &&
+        arguments.first == ControlToggle.rapidCharging.wireValue &&
+        arguments.last is bool &&
+        await app.rapidChargingFile.exists()) {
+      final enabled = arguments.last as bool;
+      app.rapidChargingRequests.add(enabled);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the write. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      await app.rapidChargingFile.writeAsString(enabled ? '1\n' : '0\n');
+      app.rapidChargingWrites.add(enabled);
+      return;
+    }
+    if (method == 'SetFeature' &&
+        app.hasPowerLimitFixture &&
+        arguments.length == 2 &&
+        arguments.last is String) {
+      final limit = FixturePowerLimit.values
+          .where((limit) => limit.feature.wireValue == arguments.first)
+          .firstOrNull;
+      if (limit != null) {
+        final value = int.tryParse(arguments.last as String);
+        final minimum = limit == FixturePowerLimit.gpu ? 1 : 5;
+        if (value == null || value < minimum || value > 200) {
+          throw StateError('Unexpected power limit: $arguments');
+        }
+        app.powerLimitRequests.add((limit, value));
+        if (app.failNextPowerLimit == limit) {
+          app.failNextPowerLimit = null;
+          throw const LegionControlCommandFailedException(
+            'Test backend rejected the power limit. Retry after recovery.',
+          );
+        }
+        await app.writeCompletion?.future;
+        await File(
+          '${app.directory.path}/sys/module/legion_laptop/drivers/'
+          'platform:legion/legion/${limit.attribute}',
+        ).writeAsString('$value\n');
+        app.powerLimitWrites.add((limit, value));
+        return;
+      }
+    }
     if (method == 'ApplyFanPreset' &&
         app.hasFanFixture &&
         arguments.length == 1 &&
@@ -379,6 +480,7 @@ extension on FixturePlatformProfile {
     FixturePlatformProfile.balanced => 'balanced',
     FixturePlatformProfile.performance => 'performance',
     FixturePlatformProfile.maxPower => 'max-power',
+    FixturePlatformProfile.custom => 'custom',
   };
 }
 
@@ -393,7 +495,7 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 
 class _NoNvidia implements NvidiaSmiService {
   @override
-  Future<NvidiaSmiSnapshot?> readSnapshot() async => null;
+  Future<GpuReading?> readSnapshot() async => null;
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

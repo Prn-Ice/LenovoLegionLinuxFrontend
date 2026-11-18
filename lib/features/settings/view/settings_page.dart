@@ -9,6 +9,9 @@ import '../../../core/widgets/responsive_card_grid.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../../core/widgets/legion_mark.dart';
 import '../../about/providers/about_provider.dart';
+import '../../dashboard/bloc/dashboard_readings_bloc.dart';
+import '../../dashboard/models/dashboard_metric.dart';
+import '../../dashboard/providers/dashboard_readings_provider.dart';
 import '../../devices/bloc/devices_event.dart';
 import '../../devices/providers/devices_provider.dart';
 import '../../display/bloc/display_event.dart';
@@ -29,6 +32,7 @@ class SettingsPage extends ConsumerWidget {
     final about = ref.watch(aboutBlocProvider);
     final devices = ref.watch(devicesBlocProvider);
     final display = ref.watch(displayBlocProvider);
+    final readings = ref.watch(dashboardReadingsProvider);
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -73,6 +77,22 @@ class SettingsPage extends ConsumerWidget {
             null => 'Unavailable',
           }),
         ),
+      ],
+    );
+    final dashboardReadings = _SettingsSection(
+      title: 'Dashboard readings',
+      description:
+          'Choose which readings appear on the dashboard. '
+          'Unavailable readings stay hidden.',
+      children: [
+        for (final metric in DashboardMetric.values)
+          AppSwitchTile(
+            title: metric.label,
+            value: !readings.hidden.contains(metric),
+            onChanged: (visible) => ref
+                .read(dashboardReadingsProvider.bloc)
+                .add(DashboardReadingChanged(metric, visible: visible)),
+          ),
       ],
     );
     final bootLogo = _SettingsSection(
@@ -221,6 +241,7 @@ class SettingsPage extends ConsumerWidget {
     return AppPageBody(
       errorMessage:
           state.appearanceErrorMessage ??
+          readings.errorMessage ??
           bootLogoState.errorMessage ??
           about.errorMessage ??
           devices.errorMessage ??
@@ -237,6 +258,8 @@ class SettingsPage extends ConsumerWidget {
                 deviceControls,
                 const SizedBox(height: 24),
                 displayControls,
+                const SizedBox(height: 24),
+                dashboardReadings,
               ],
             ),
             Column(

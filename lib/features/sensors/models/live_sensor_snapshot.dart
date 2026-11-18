@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/gpu_reading.dart';
+
 class LiveSensorSnapshot extends Equatable {
   const LiveSensorSnapshot({
     required this.cpuName,
@@ -13,16 +15,8 @@ class LiveSensorSnapshot extends Equatable {
     this.fan2MaxRpm,
     this.fan3Rpm,
     this.fan3MaxRpm,
-    required this.gpuName,
-    required this.gpuTempC,
-    required this.gpuUtilPercent,
-    required this.gpuClockGhz,
-    required this.gpuVramUsedGb,
-    required this.gpuVramTotalGb,
-    required this.gpuFanPercent,
-    required this.gpuPowerDrawW,
-    required this.gpuIsDiscrete,
-    this.gpuPerformanceState,
+    this.igpu,
+    this.dgpu,
     required this.motherboardTempC,
     required this.batteryPercent,
     required this.batteryCharging,
@@ -42,15 +36,6 @@ class LiveSensorSnapshot extends Equatable {
     fan2MaxRpm: null,
     fan3Rpm: null,
     fan3MaxRpm: null,
-    gpuName: null,
-    gpuTempC: null,
-    gpuUtilPercent: null,
-    gpuClockGhz: null,
-    gpuVramUsedGb: null,
-    gpuVramTotalGb: null,
-    gpuFanPercent: null,
-    gpuPowerDrawW: null,
-    gpuIsDiscrete: false,
     motherboardTempC: null,
     batteryPercent: null,
     batteryCharging: null,
@@ -70,17 +55,8 @@ class LiveSensorSnapshot extends Equatable {
   final int? fan3Rpm;
   final int? fan3MaxRpm;
 
-  // Active GPU (dGPU when active, iGPU otherwise).
-  final String? gpuName;
-  final double? gpuTempC;
-  final double? gpuUtilPercent;
-  final double? gpuClockGhz;
-  final double? gpuVramUsedGb;
-  final double? gpuVramTotalGb;
-  final int? gpuFanPercent;
-  final double? gpuPowerDrawW;
-  final bool gpuIsDiscrete;
-  final String? gpuPerformanceState;
+  final GpuReading? igpu;
+  final GpuReading? dgpu;
 
   final double? motherboardTempC;
   final int? batteryPercent;
@@ -101,16 +77,8 @@ class LiveSensorSnapshot extends Equatable {
     fan2MaxRpm,
     fan3Rpm,
     fan3MaxRpm,
-    gpuName,
-    gpuTempC,
-    gpuUtilPercent,
-    gpuClockGhz,
-    gpuVramUsedGb,
-    gpuVramTotalGb,
-    gpuFanPercent,
-    gpuPowerDrawW,
-    gpuIsDiscrete,
-    gpuPerformanceState,
+    igpu,
+    dgpu,
     motherboardTempC,
     batteryPercent,
     batteryCharging,

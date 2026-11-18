@@ -9,6 +9,7 @@ final liveSensorRepositoryProvider = Provider<LiveSensorRepository>((ref) {
   return LiveSensorRepository(
     sysfsService: ref.watch(legionSysfsServiceProvider),
     nvidiaSmiService: ref.watch(nvidiaSmiServiceProvider),
+    igpuSysfsService: ref.watch(igpuSysfsServiceProvider),
     packagePowerTelemetryClient: ref.watch(packagePowerTelemetryClientProvider),
   );
 });

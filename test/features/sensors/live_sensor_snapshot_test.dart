@@ -22,15 +22,6 @@ void main() {
         cpuPackagePowerW: 24.5,
         fan1Rpm: 1800,
         fan2Rpm: 1500,
-        gpuName: null,
-        gpuTempC: null,
-        gpuUtilPercent: null,
-        gpuClockGhz: null,
-        gpuVramUsedGb: null,
-        gpuVramTotalGb: null,
-        gpuFanPercent: null,
-        gpuPowerDrawW: null,
-        gpuIsDiscrete: false,
         motherboardTempC: null,
         batteryPercent: 78,
         batteryCharging: true,
@@ -41,8 +32,9 @@ void main() {
       expect(a, equals(b));
     });
 
-    test('gpuIsDiscrete defaults to false', () {
-      expect(LiveSensorSnapshot.initial().gpuIsDiscrete, isFalse);
+    test('both GPUs start without readings', () {
+      expect(LiveSensorSnapshot.initial().igpu, isNull);
+      expect(LiveSensorSnapshot.initial().dgpu, isNull);
     });
   });
 }

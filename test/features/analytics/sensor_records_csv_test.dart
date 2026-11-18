@@ -16,14 +16,18 @@ void main() {
         gpuPowerDrawW: 37.8,
         gpuTempC: 64,
         fan3Rpm: 2300,
+        dgpuTempC: 64,
       ),
     ]);
     final csv = utf8.decode(bytes);
 
     expect(csv, contains('battery_percent,battery_power_w,battery_temp_c'));
     expect(csv, contains('gpu_util_percent,gpu_power_w,gpu_temp_c'));
-    expect(csv, contains('fan1_rpm,fan2_rpm,fan3_rpm'));
-    expect(csv, contains(',2300'));
+    expect(
+      csv.split('\n').first,
+      endsWith(',fan1_rpm,fan2_rpm,dgpu_temp_c,fan3_rpm'),
+    );
+    expect(csv.split('\n').last, endsWith(',64.0,2300'));
     expect(
       csv,
       contains('2026-08-30T12:00:00.000Z,78,14.2,28.5,42.0,37.8,64.0'),

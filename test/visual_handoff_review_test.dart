@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 import 'package:yaru/yaru.dart';
 
@@ -156,6 +157,7 @@ void main() {
       final variant =
           '${brightness.name}-${size.width.toInt()}x${size.height.toInt()}';
       for (final section in [
+        AppSection.dashboard,
         AppSection.settings,
         AppSection.battery,
         AppSection.automation,
@@ -197,7 +199,12 @@ void main() {
             const Stream<LiveSensorState>.empty(),
             initialState: LiveSensorState.initial().copyWith(
               isLoading: false,
-              snapshot: section == AppSection.fans ? _fanReadings : null,
+              snapshot: switch (section) {
+                AppSection.dashboard ||
+                AppSection.dgpu ||
+                AppSection.fans => _sensorReadings,
+                _ => null,
+              },
             ),
           );
           final dgpu = _Dgpu();
@@ -305,7 +312,9 @@ void main() {
           whenListen(
             dashboard,
             const Stream<DashboardState>.empty(),
-            initialState: DashboardState.initial(),
+            initialState: DashboardState.initial().copyWith(
+              hasInitialized: true,
+            ),
           );
           whenListen(
             devices,
@@ -386,6 +395,17 @@ void main() {
             await tester.ensureVisible(find.text('Hardware control'));
             await tester.pumpAndSettle();
             await _capture(tester, 'hardware-control-$variant');
+            await tester.ensureVisible(find.text('Dashboard readings'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-reading-settings-$variant');
+            await tester.ensureVisible(find.text('CPU usage'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-usage-settings-$variant');
+          }
+          if (section == AppSection.dashboard) {
+            await tester.ensureVisible(find.text('CPU usage'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-usage-$variant');
           }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
@@ -449,23 +469,20 @@ void main() {
 }
 
 // Synthetic sensor values keep copy review independent of the host's hardware.
-const _fanReadings = LiveSensorSnapshot(
+const _sensorReadings = LiveSensorSnapshot(
   cpuName: null,
   cpuTempC: 47,
-  cpuUtilPercent: null,
+  cpuUtilPercent: 19,
   cpuClockGhz: null,
   cpuPackagePowerW: null,
   fan1Rpm: 1800,
   fan2Rpm: 1600,
-  gpuName: null,
-  gpuTempC: 43,
-  gpuUtilPercent: null,
-  gpuClockGhz: null,
-  gpuVramUsedGb: null,
-  gpuVramTotalGb: null,
-  gpuFanPercent: null,
-  gpuPowerDrawW: null,
-  gpuIsDiscrete: true,
+  igpu: GpuReading(tempC: 46, usagePercent: 17),
+  dgpu: GpuReading(
+    name: 'NVIDIA GeForce RTX 4060 Laptop GPU',
+    tempC: 43,
+    usagePercent: 0,
+  ),
   motherboardTempC: null,
   batteryPercent: null,
   batteryCharging: null,

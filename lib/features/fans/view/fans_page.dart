@@ -47,7 +47,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         state.lockFanControllerEnabled != null;
     final currentTemperature = _channel == FanChannel.cpu
         ? sensors.cpuTempC
-        : sensors.gpuTempC;
+        : sensors.dgpu?.tempC;
     final currentRpm = _channel == FanChannel.cpu
         ? sensors.fan1Rpm
         : sensors.fan2Rpm;
@@ -368,9 +368,9 @@ class _LiveFanReadings extends StatelessWidget {
               'CPU temperature: ${sensors.cpuTempC!.round()}°C',
               style: theme.textTheme.bodyMedium,
             ),
-          if (sensors.gpuTempC != null)
+          if (sensors.dgpu?.tempC case final temperature?)
             Text(
-              'GPU temperature: ${sensors.gpuTempC!.round()}°C',
+              'dGPU temperature: ${temperature.round()}°C',
               style: theme.textTheme.bodyMedium,
             ),
         ],

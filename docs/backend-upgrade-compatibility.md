@@ -33,6 +33,12 @@ charging-setting readback after success or partial failure (`lllf-i14`). Power
 batch failures attempt rollback and verify the restored values. Missing or
 clamped readback preserves pending edits and reports the failure.
 
+The integration with separate GPU readings preserves independent iGPU/dGPU
+telemetry and Dashboard visibility settings. Third-fan RPM uses Hive field 11;
+field 10 remains dGPU temperature from `main`. CSV retains the existing dGPU
+column and appends third-fan RPM. Persisted-record tests cover both older
+formats and records containing both new readings.
+
 For level tables, `pwm1_auto_pointN_pwm` still uses the hwmon 0–255 scale.
 In `baafe12`, `fancurve_get_speed_pwm` exports `level * 255 / 10`, while the
 setter rounds `pwm * 10 / 255` to the nearest level. The frontend must decode
