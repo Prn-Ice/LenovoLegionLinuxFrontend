@@ -69,6 +69,12 @@ class SafeApp {
   FixturePowerLimit? failNextPowerLimit;
   final writes = <bool>[];
   final requests = <bool>[];
+  final rapidChargingRequests = <bool>[];
+  final rapidChargingWrites = <bool>[];
+  File get rapidChargingFile => File(
+    '${directory.path}/sys/module/legion_laptop/drivers/'
+    'platform:legion/legion/rapidcharge',
+  );
   final platformProfileWrites = <FixturePlatformProfile>[];
   final platformProfileRequests = <FixturePlatformProfile>[];
   final fanPresetWrites = <ControlFanPreset>[];
@@ -86,6 +92,7 @@ class SafeApp {
     bool acOnline = true,
     bool includeFanFixture = false,
     bool includePowerLimitFixture = false,
+    bool includeRapidChargingFixture = false,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
       FixturePlatformProfile.balanced,
@@ -110,6 +117,7 @@ class SafeApp {
       acOnline: acOnline,
       includeFanFixture: includeFanFixture,
       includePowerLimitFixture: includePowerLimitFixture,
+      includeRapidChargingFixture: includeRapidChargingFixture,
     );
     Hive.init('${directory.path}/storage');
     if (!Hive.isAdapterRegistered(1)) {
@@ -136,6 +144,7 @@ class SafeApp {
     required bool acOnline,
     required bool includeFanFixture,
     required bool includePowerLimitFixture,
+    required bool includeRapidChargingFixture,
   }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -156,6 +165,14 @@ class SafeApp {
     await File('${ac.path}/type').writeAsString('Mains\n');
     await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
     await Directory('${directory.path}/proc').create(recursive: true);
+    if (includeRapidChargingFixture) {
+      final rapidCharge = File(
+        '${directory.path}/sys/module/legion_laptop/drivers/'
+        'platform:legion/legion/rapidcharge',
+      );
+      await rapidCharge.parent.create(recursive: true);
+      await rapidCharge.writeAsString('0\n');
+    }
     if (includeFanFixture) {
       await _prepareFanFixture(directory);
     }
@@ -318,6 +335,24 @@ class _FixtureControl extends LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'SetToggle' &&
+        arguments.length == 2 &&
+        arguments.first == ControlToggle.rapidCharging.wireValue &&
+        arguments.last is bool &&
+        await app.rapidChargingFile.exists()) {
+      final enabled = arguments.last as bool;
+      app.rapidChargingRequests.add(enabled);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the write. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      await app.rapidChargingFile.writeAsString(enabled ? '1\n' : '0\n');
+      app.rapidChargingWrites.add(enabled);
+      return;
+    }
     if (method == 'SetFeature' &&
         app.hasPowerLimitFixture &&
         arguments.length == 2 &&
