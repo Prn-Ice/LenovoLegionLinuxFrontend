@@ -197,11 +197,11 @@ HelperCommand buildFeatureFromSerializedInput(
   String featureName,
   String value,
 ) {
-  _requireBounded(featureName, 'feature');
-  _requireBounded(value, 'value');
+  validateBoundedInput(featureName, 'feature');
+  validateBoundedInput(value, 'value');
   final feature = ControlFeature.values.firstWhere(
     (candidate) => candidate.serializedName == featureName,
-    orElse: () => throw const FormatException('unsupported feature'),
+    orElse: () => throw const FormatException('unsupported feature or value'),
   );
   if (feature == ControlFeature.platformProfile) {
     final profile = PlatformProfile.values.firstWhere(
@@ -233,19 +233,16 @@ HelperCommand buildFeatureFromSerializedInput(
   return buildFeatureCommand(feature, IntegerValue(integer));
 }
 
-void _requireBounded(String value, String label) {
+/// Applies the native 128-byte text bound before an external value is parsed.
+void validateBoundedInput(String value, String label) {
   if (utf8.encode(value).length > helperInputLimit) {
     throw FormatException('$label exceeds maximum length');
   }
 }
 
-/// Applies the native 128-byte text bound before an external value is parsed.
-void validateBoundedInput(String value, String label) =>
-    _requireBounded(value, label);
-
 /// Parses a serialized capability before selecting its allow-listed command.
 ControlCapability parseCapability(String value) {
-  _requireBounded(value, 'toggle');
+  validateBoundedInput(value, 'toggle');
   return ControlCapability.values.firstWhere(
     (candidate) => candidate.serializedName == value,
     orElse: () => throw const FormatException('unsupported capability'),
@@ -253,7 +250,7 @@ ControlCapability parseCapability(String value) {
 }
 
 FanPreset parsePreset(String value) {
-  _requireBounded(value, 'preset');
+  validateBoundedInput(value, 'preset');
   return FanPreset.values.firstWhere(
     (candidate) => candidate.serializedName == value,
     orElse: () => throw const FormatException('unsupported fan preset'),
@@ -261,7 +258,7 @@ FanPreset parsePreset(String value) {
 }
 
 ServiceId parseServiceId(String value) {
-  _requireBounded(value, 'service id');
+  validateBoundedInput(value, 'service id');
   return ServiceId.values.firstWhere(
     (candidate) => candidate.serializedName == value,
     orElse: () => throw const FormatException('unsupported service id'),
@@ -269,7 +266,7 @@ ServiceId parseServiceId(String value) {
 }
 
 GraphicsMode parseGraphicsMode(String value) {
-  _requireBounded(value, 'graphics mode');
+  validateBoundedInput(value, 'graphics mode');
   return switch (value) {
     'hybrid' => GraphicsMode.hybrid,
     'hybrid-igpu-only' => GraphicsMode.hybridIgpuOnly,
@@ -279,7 +276,7 @@ GraphicsMode parseGraphicsMode(String value) {
 }
 
 BootGraphicsMode parseBootGraphicsMode(String value) {
-  _requireBounded(value, 'graphics mode');
+  validateBoundedInput(value, 'graphics mode');
   return switch (value) {
     'hybrid' => BootGraphicsMode.hybrid,
     'hybrid-igpu-only' => BootGraphicsMode.hybridIgpuOnly,

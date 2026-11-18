@@ -82,13 +82,16 @@ That path is only an argv value in this prototype. Production IPC writes a
 validated payload to a native private temporary file before passing its path.
 
 `test/tool/dart_helper_commands_test.dart` checks all nine integer feature
-ranges and adjacent failures, the profile and boolean allow-lists, every
-toggle spelling and flag, presets, services, graphics rejection, malformed
-decimal forms, 128-byte UTF-8 boundaries, both payload maxima and max-plus-one,
-conservation ordering, file paths with spaces, and every backend category for
-exit statuses 0, 1, 2, 3, and an unknown status. The parity source was PR30
-head `e44b39f537f627f5580255ae9eb28a1734a58fd5`, inspected read-only on
-2026-11-18. This scope does not test D-Bus IPC, backend failure details,
+ranges and adjacent failures through typed and serialized inputs, the profile
+and boolean allow-lists, and complete arguments for toggles, presets, services,
+and graphics commands. It also checks malformed decimals, 128-byte UTF-8
+boundaries, both payload maxima and one extra valid byte, empty and invalid-byte
+payloads, conservation ordering, file paths with spaces, and every backend
+category for exit statuses 0, 1, 2, 3, and an unknown status. The expected values
+come from manual inspection of PR30 head
+`e44b39f537f627f5580255ae9eb28a1734a58fd5` on 2026-11-18; these tests do not
+run the native implementation for comparison. This scope does not test D-Bus
+IPC, backend failure details,
 process-status or cleanup precedence, interactive allow-list/startup behavior,
 or deployed helper qualification. It is pure-logic evidence, not a replacement
 helper or an IPC migration.

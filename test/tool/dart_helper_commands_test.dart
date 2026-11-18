@@ -1,11 +1,19 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../experiments/dart_helper_commands.dart';
 
-void expectFormatException(void Function() action) {
-  expect(action, throwsA(isA<FormatException>()));
+void expectFormatException(void Function() action, [String? message]) {
+  final matcher = message == null
+      ? isA<FormatException>()
+      : isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          message,
+        );
+  expect(action, throwsA(matcher));
 }
 
 void main() {
@@ -26,7 +34,12 @@ void main() {
           'PlatformProfileFeature',
           profile,
         );
-        expect(command.arguments.last, profile);
+        expect(command.arguments, [
+          '--donotexpecthwmon',
+          'set-feature',
+          'PlatformProfileFeature',
+          profile,
+        ]);
       }
       const booleans = [
         'OverdriveFeature',
@@ -38,15 +51,21 @@ void main() {
       ];
       for (final feature in booleans) {
         for (final value in ['0', '1']) {
-          expect(
-            buildFeatureFromSerializedInput(feature, value).arguments.last,
+          expect(buildFeatureFromSerializedInput(feature, value).arguments, [
+            '--donotexpecthwmon',
+            'set-feature',
+            feature,
             value,
-          );
+          ]);
         }
       }
     });
 
     test('rejects unknown profiles, booleans, and mismatched typed values', () {
+      expectFormatException(
+        () => buildFeatureFromSerializedInput('missing', '1'),
+        'unsupported feature or value',
+      );
       expectFormatException(
         () =>
             buildFeatureFromSerializedInput('PlatformProfileFeature', 'turbo'),
@@ -103,6 +122,17 @@ void main() {
           wireName,
           '$maximum',
         ]);
+        for (final value in [minimum, maximum]) {
+          expect(
+            buildFeatureFromSerializedInput(wireName, '$value').arguments,
+            ['--donotexpecthwmon', 'set-feature', wireName, '$value'],
+          );
+        }
+        for (final value in [minimum - 1, maximum + 1]) {
+          expectFormatException(
+            () => buildFeatureFromSerializedInput(wireName, '$value'),
+          );
+        }
       }
     });
 
@@ -130,8 +160,10 @@ void main() {
 
     test('rejects malformed decimal forms and overflow', () {
       for (final value in [
+        '',
         '1\n',
         ' 1',
+        '1 ',
         '+1',
         '-1',
         '01',
@@ -148,27 +180,44 @@ void main() {
       final accepted = 'é' * 64;
       final rejected = '${'é' * 64}a';
       validateBoundedInput(accepted, 'value');
-      expectFormatException(() => validateBoundedInput(rejected, 'value'));
+      expectFormatException(
+        () => validateBoundedInput(rejected, 'value'),
+        'value exceeds maximum length',
+      );
       expectFormatException(
         () => buildFeatureFromSerializedInput(rejected, '1'),
+        'feature exceeds maximum length',
+      );
+      expectFormatException(
+        () => buildFeatureFromSerializedInput('OverdriveFeature', rejected),
+        'value exceeds maximum length',
+      );
+      expectFormatException(
+        () => parseCapability(accepted),
+        'unsupported capability',
+      );
+      expectFormatException(
+        () => parseCapability(rejected),
+        'toggle exceeds maximum length',
       );
     });
   });
 
   group('allow-listed command construction', () {
     test('uses every toggle spelling and flag for enable and disable', () {
-      const expected = <(ControlCapability, String, bool)>[
-        (ControlCapability.hybridMode, 'hybrid-mode', true),
-        (ControlCapability.batteryConservation, 'batteryconservation', true),
-        (ControlCapability.rapidCharging, 'rapid-charging', true),
-        (ControlCapability.alwaysOnUsbCharging, 'always-on-usb-charging', true),
-        (ControlCapability.touchpad, 'touchpad', true),
-        (ControlCapability.fnLock, 'fnlock', true),
-        (ControlCapability.miniFanCurve, 'minifancurve', false),
-        (ControlCapability.lockFanController, 'lockfancontroller', false),
-        (ControlCapability.maximumFanSpeed, 'maximumfanspeed', false),
+      const expected = <(String, String, bool)>[
+        ('hybrid-mode', 'hybrid-mode', true),
+        ('battery-conservation', 'batteryconservation', true),
+        ('rapid-charging', 'rapid-charging', true),
+        ('always-on-usb-charging', 'always-on-usb-charging', true),
+        ('touchpad', 'touchpad', true),
+        ('fn-lock', 'fnlock', true),
+        ('mini-fan-curve', 'minifancurve', false),
+        ('lock-fan-controller', 'lockfancontroller', false),
+        ('maximum-fan-speed', 'maximumfanspeed', false),
       ];
-      for (final (capability, spelling, needsFlag) in expected) {
+      for (final (wireName, spelling, needsFlag) in expected) {
+        final capability = parseCapability(wireName);
         for (final enabled in [false, true]) {
           final arguments = buildToggleCommand(capability, enabled).arguments;
           expect(arguments, [
@@ -177,6 +226,7 @@ void main() {
           ]);
         }
       }
+      expectFormatException(() => parseCapability('unknown'));
     });
 
     test('builds every preset and service from explicit wire values', () {
@@ -190,18 +240,36 @@ void main() {
         'performance-ac',
         'balanced-performance-ac',
       ];
-      for (var index = 0; index < presets.length; index++) {
-        expect(parsePreset(presets[index]), FanPreset.values[index]);
+      for (final preset in presets) {
+        expect(buildPresetCommand(parsePreset(preset)).arguments, [
+          'fancurve-write-preset-to-hw',
+          preset,
+        ]);
       }
-      expect(
-        parseServiceId('power_profiles_daemon'),
-        ServiceId.powerProfilesDaemon,
-      );
-      expect(parseServiceId('legiond_stack'), ServiceId.legiondStack);
+      const services = {
+        'power_profiles_daemon': ['power-profiles-daemon.service'],
+        'legiond_stack': [
+          'legiond.service',
+          'legiond-onresume.service',
+          'legiond-cpuset.service',
+          'legiond-cpuset.timer',
+        ],
+      };
+      for (final service in services.entries) {
+        for (final enabled in [false, true]) {
+          expect(
+            buildServiceCommand(parseServiceId(service.key), enabled).arguments,
+            [enabled ? 'enable' : 'disable', '--now', ...service.value],
+          );
+        }
+      }
       for (final value in ['missing', 'legiond', 'power-profiles-daemon']) {
         expectFormatException(() => parseServiceId(value));
       }
       expectFormatException(() => parsePreset('quiet'));
+      expect(buildCurrentPresetCommand().arguments, [
+        'fancurve-write-current-preset-to-hw',
+      ]);
     });
 
     test('builds file argv with spaces without reading the file', () {
@@ -216,6 +284,13 @@ void main() {
         'fancurve-write-file-to-hw',
         file.path,
       ]);
+      expect(buildRestoreBootLogoCommand().arguments, [
+        '--donotexpecthwmon',
+        'boot-logo',
+        'restore',
+      ]);
+      expectFormatException(() => buildBootLogoCommand(File('')));
+      expectFormatException(() => buildFanCurveFileCommand(File('')));
     });
 
     test('keeps conservation order and graphics allow-lists', () {
@@ -227,31 +302,71 @@ void main() {
       ]);
       expectFormatException(() => buildConservationCommand(51, 50));
       expectFormatException(() => buildConservationCommand(-1, 50));
+      expectFormatException(() => buildConservationCommand(0, 101));
+      expectFormatException(() => buildConservationCommand(101, 101));
+      expectFormatException(() => buildConservationCommand(0, -1));
+      for (final limit in [0, 100]) {
+        expect(buildConservationCommand(limit, limit).arguments, [
+          '--donotexpecthwmon',
+          'custom-conservation-mode-apply',
+          '$limit',
+          '$limit',
+        ]);
+      }
       for (final (wire, mode) in [
         ('hybrid', GraphicsMode.hybrid),
         ('hybrid-igpu-only', GraphicsMode.hybridIgpuOnly),
         ('discrete', GraphicsMode.discrete),
       ]) {
         expect(parseGraphicsMode(wire), mode);
-        expect(buildGraphicsCommand(mode).arguments[3], wire);
+        expect(buildGraphicsCommand(mode).arguments, [
+          '--donotexpecthwmon',
+          'graphics-mode',
+          'set',
+          wire,
+          '--json',
+        ]);
       }
       expectFormatException(() => parseGraphicsMode('unknown'));
-      expect(parseBootGraphicsMode('hybrid'), BootGraphicsMode.hybrid);
+      for (final wire in ['hybrid', 'hybrid-igpu-only']) {
+        expect(
+          buildBootGraphicsCommand(parseBootGraphicsMode(wire)).arguments,
+          ['request', wire],
+        );
+      }
       expectFormatException(() => parseBootGraphicsMode('discrete'));
     });
   });
 
   group('payload validation', () {
-    test('checks actual fan and boot-logo maxima before byte scanning', () {
-      final fanMaximum = List<int>.filled(fanCurvePayloadLimit, 0);
-      final logoMaximum = List<int>.filled(bootLogoPayloadLimit, 0);
-      validatePayload(fanMaximum, fanCurvePayloadLimit);
-      validatePayload(logoMaximum, bootLogoPayloadLimit);
+    test('accepts each payload maximum and rejects one extra valid byte', () {
+      for (final (limit, expectedBytes) in [
+        (fanCurvePayloadLimit, 65536),
+        (bootLogoPayloadLimit, 16777216),
+      ]) {
+        validatePayload(Uint8List(expectedBytes), limit);
+        expectFormatException(
+          () => validatePayload(Uint8List(expectedBytes + 1), limit),
+          'payload exceeds maximum size',
+        );
+      }
+    });
+
+    test('rejects empty and invalid bytes, with size errors first', () {
+      validatePayload([0, 255], fanCurvePayloadLimit);
       expectFormatException(
-        () => validatePayload([...fanMaximum, 256], fanCurvePayloadLimit),
+        () => validatePayload([], fanCurvePayloadLimit),
+        'payload must not be empty',
       );
+      for (final byte in [-1, 256]) {
+        expectFormatException(
+          () => validatePayload([byte], fanCurvePayloadLimit),
+          'payload contains a non-byte value',
+        );
+      }
       expectFormatException(
-        () => validatePayload([...logoMaximum, 256], bootLogoPayloadLimit),
+        () => validatePayload([0, 256], 1),
+        'payload exceeds maximum size',
       );
     });
   });
