@@ -239,9 +239,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final captured =
-        verify(
-              () => harness.repository.setPowerLimits(captureAny()),
-            ).captured.single
+        verify(() => harness.repository.setPowerLimits(captureAny()))
+                .captured
+                .single
             as List<PowerLimitReading>;
     expect(captured.single.value, greaterThan(55));
   });
@@ -573,9 +573,8 @@ Future<_PowerHarness> _pumpPage(
   when(() => repository.setGpuOverclock(any())).thenAnswer((_) async {});
   final sensorRepository = _MockLiveSensorRepository();
   final resolvedSensorSnapshot = sensorSnapshot ?? _liveSensorSnapshot;
-  when(
-    () => sensorRepository.loadSnapshot(),
-  ).thenAnswer((_) async => resolvedSensorSnapshot);
+  when(() => sensorRepository.loadSnapshot())
+      .thenAnswer((_) async => resolvedSensorSnapshot);
 
   final bloc = PowerBloc(
     repository: repository,
@@ -692,15 +691,6 @@ const _liveSensorSnapshot = LiveSensorSnapshot(
   cpuPackagePowerW: 24.5,
   fan1Rpm: null,
   fan2Rpm: null,
-  gpuName: null,
-  gpuTempC: null,
-  gpuUtilPercent: null,
-  gpuClockGhz: null,
-  gpuVramUsedGb: null,
-  gpuVramTotalGb: null,
-  gpuFanPercent: null,
-  gpuPowerDrawW: null,
-  gpuIsDiscrete: false,
   motherboardTempC: null,
   batteryPercent: null,
   batteryCharging: null,

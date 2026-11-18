@@ -15,6 +15,7 @@ class SensorRecord extends HiveObject {
     this.batteryTempC,
     this.gpuUtilPercent,
     this.gpuPowerDrawW,
+    this.dgpuTempC,
   });
 
   @HiveField(0)
@@ -46,4 +47,9 @@ class SensorRecord extends HiveObject {
 
   @HiveField(9)
   double? gpuPowerDrawW;
+
+  // Older gpuTempC records may describe either GPU. Only this field is used
+  // for discrete GPU temperature history.
+  @HiveField(10)
+  double? dgpuTempC;
 }

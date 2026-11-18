@@ -62,6 +62,8 @@ class PowerPage extends ConsumerWidget {
   not CPU package power or wall power.
 - Show `—` for missing readings. Do not invent values or silently substitute
   another measurement.
+- Hide unavailable optional readings on the Dashboard and Discrete GPU overview.
+  See [dashboard readings](dashboard-readings.md) for sources and saved visibility.
 
 ## 4. Typography
 

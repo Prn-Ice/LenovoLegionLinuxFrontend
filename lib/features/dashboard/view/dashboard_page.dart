@@ -9,6 +9,7 @@ import '../../battery/bloc/battery_event.dart';
 import '../../battery/bloc/battery_state.dart';
 import '../../battery/providers/battery_provider.dart';
 import '../providers/dashboard_provider.dart';
+import '../providers/dashboard_readings_provider.dart';
 import '../widgets/device_identity_card.dart';
 import '../widgets/mode_hero.dart';
 import '../widgets/quick_controls.dart';
@@ -41,6 +42,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final sensorState = ref.watch(liveSensorBlocProvider);
     final devicesState = ref.watch(devicesBlocProvider);
     final batteryState = ref.watch(batteryBlocProvider);
+    final readings = ref.watch(dashboardReadingsProvider);
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
 
@@ -54,7 +56,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final accent = Theme.of(context).colorScheme.primary;
     final modeFacts = _modeFacts(
       cpuPackageWatts: sensors.cpuPackagePowerW,
-      gpuWatts: sensors.gpuPowerDrawW,
+      gpuWatts: sensors.dgpu?.powerDrawW,
     );
 
     return AppPageBody(
@@ -62,6 +64,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           state.errorMessage ??
           batteryState.errorMessage ??
           devicesState.errorMessage ??
+          readings.errorMessage ??
           sensorState.errorMessage,
       children: [
         ModeHero(
@@ -82,7 +85,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         const SizedBox(height: 16),
         DeviceIdentityCard(identity: snapshot.deviceIdentity, accent: accent),
         const SizedBox(height: 16),
-        SensorStrip(snapshot: sensors, accent: accent),
+        SensorStrip(
+          snapshot: sensors,
+          accent: accent,
+          hiddenMetrics: readings.hidden,
+        ),
         const SizedBox(height: 16),
         _buildQuickControls(context, batteryState, devicesState, accent),
       ],
@@ -105,8 +112,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         final confirmed = await confirmPrivilegedAction(
           context,
           title: title,
-          message:
-              'This action uses privileged access and may require authentication.',
+          message: 'This action uses privileged access and may require authentication.',
           confirmLabel: 'Apply',
         );
         if (!context.mounted || !confirmed || !canApply()) return;
