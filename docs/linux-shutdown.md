@@ -123,6 +123,88 @@ The local reports are `/tmp/opencode/lllf-shutdown-results/RESULTS.md` and
 `14235153844` retains the A comparison. Optional collector follow-up
 `lllf-dt0.5.16.1.2` does not block assessment of the official candidate.
 
+## Isolated stable/beta comparison: 18 November 2026
+
+The user approved this bounded comparison in `lllf-b68.4`, not a production
+upgrade or removal of engine retention. **Beta did not demonstrate an improvement
+in the reported shutdown failure.** Both SDKs completed the comparable Ubuntu
+checks without reproducing it. The host comparison stopped at a beta build
+blocker; stable also exposed a different, Yaru window-state crash.
+
+The app source was main `34539dd24463189d90c7dc6f3e7fdfa0342f155c`, with its
+unchanged native runner and retention. Separate checkouts, SDK directories, and
+fresh HOME/XDG storage kept the experiment away from user data. No hardware
+settings, installed services, shared SDKs, production pins, or release artifacts
+were changed. This tested the real application, not a minimal template.
+
+The official Linux release manifest still selected these SDKs. Both downloaded
+archive SHA256 values matched the manifest:
+
+| Input | Stable | Beta |
+| --- | --- | --- |
+| Flutter | 3.50.0 | 3.51.0-0.1.pre |
+| Dart | 3.14.0 | 3.15.0-118.1.beta |
+| Framework | `ab2912035e160d9cad6306df307576da6128ebdb` | `d040ef5c5c4c8be0948207fadd35e87305920146` |
+| Engine | `371f77202a73e8dff57a8b3bff75bca55c090aee` | `e98d27d956eb75479e4677bcc651a3d8f0b7eb91` |
+| SDK archive SHA256 | `6ea2d806fd57269ae783e6788e2a81fc26eaad782f1e0d0ff38623bb765ff9f5` | `e0470b8f29693a2b2a4fc2bb16c170a286079217c8800ae5efa2625bfb7b0ecd` |
+| Official debug engine SHA256 | `f38c8d6a0ef588b58daccdecaf2000f5cbdad267979369560c347a40af3eb258` | `6c94b48502f98b5b69a3dc2dde48e56419bf69677718c04e616a22b4664dc614` |
+
+Exact `fl_task_runner.cc` source confirms that beta includes PR 194525's single
+source and lifetime fix; stable does not. Renderer PR 193533 remains open. The
+task-runner fix alone does not establish renderer shutdown synchronization.
+Beta's `flutter pub get --enforce-lockfile` exited 65: its SDK requires `test`
+1.33.0, `test_api` 0.7.15, and `test_core` 0.6.21. Ordinary `flutter pub get`
+resolved only those three version changes in the disposable beta copies.
+
+| Environment and normal close route | Stable result | Beta result |
+| --- | --- | --- |
+| Ubuntu 22.04.5, private Xvfb/Openbox, `flutter run -d linux --no-pub`, WM close | CLI exit 0; native exit not independently observed | Same |
+| Same Ubuntu environment, debug bundle executable, ten fresh processes, `wmctrl -ic` | Native exits `0,0,0,0,0,0,0,0,0,0` | Native exits `0,0,0,0,0,0,0,0,0,0` |
+| NixOS/KDE Wayland, project `nix develop`, `flutter run`, KWin close | Five native exits 0 | Not run: official beta archive failed to link |
+| Same host, `GDK_BACKEND=x11` through XWayland | Native exits `0,0,0`, then SIGSEGV (11; shell convention 139); loop stopped | Same build blocker |
+
+Ubuntu used the same existing container image
+`sha256:da06da12a98209869e0d5bb0c656bea9d44ca4207f1d2508a0bf64bce3cc338b`
+for both SDKs: GTK 3.24.33, GLib 2.72.4, libc 2.35-0ubuntu3.18, Mesa 23.2.1,
+and LLVM 15.0.7. Logs identify Impeller OpenGLESSDF; process maps confirm
+`swrast_dri.so` and `libLLVM-15.so.1`. Both candidates logged OpenGL frame-size
+timeouts. No critical errors appeared in their app logs. Windows mapped and
+advertised `WM_DELETE_WINDOW`; no screenshot or Dashboard-content assertion was
+captured. These are bounded close results, not visual or package acceptance.
+
+The host used KDE/KWin 6.8.3, Mesa 26.3.0, and the Radeon 780M desktop renderer.
+Its stable SDK came from the committed Nix environment, not the inherited
+3.47.9 shell command. `strace -f -e trace=process` recorded native exit status
+independently of Flutter's CLI, which also returned 0 for the crash. All host
+launches logged an ATK critical. The failing close additionally logged invalid
+GTK/GDK widget/window assertions. Its core and all-thread GDB trace show the
+main thread in `gdk_window_get_type_hint`, called by
+`yaru_window_get_state(window=0x0)` in `yaru_window_linux` 0.2.2
+(`lllf-b68.4.1`). This is not the
+historical Mesa raster-thread stack and does not prove a task-runner failure.
+
+The host beta command `flutter build linux --debug --no-pub`, inside the same
+project shell, exited 1 with unresolved native-library link dependencies,
+including epoxy, Wayland, and fontconfig; pkg-config also reported missing
+`sysprof-capture-4`. No SDK patch or compatibility launcher was added to bypass
+that blocker. Beta's native Wayland/XWayland behavior remains unverified.
+
+Commands, orchestration scripts, SDK/build/bundle checksums, lockfile differences,
+per-close process maps and logs, and the host core/backtrace remain under
+`/tmp/opencode/beta-shutdown-evidence/`. The Ubuntu commands were
+`flutter pub get`, `flutter build linux --debug --no-pub`,
+`flutter run -d linux --no-pub`, and
+`build/linux/x64/debug/bundle/legion_frontend`; `wmctrl -ic` requested normal WM
+close. Host runs used the same `flutter run` command with `-v` for diagnostics
+and PID-qualified `kdotool windowclose`. No app was signalled to count a close.
+Two earlier host automation attempts ended on CLI stdin EOF with SIGTERM; they
+were excluded. Keeping the CLI input open corrected the test setup.
+
+No release-mode, AppImage, Debian, Nix package, authorization, hardware readback,
+restoration, or helper-cleanup qualification ran. Keep production on stable with
+engine retention; this result changes neither the deployment decision nor the
+known-failure assertions.
+
 ## When to reopen the investigation
 
 Resume only when new evidence identifies a concrete cause and a small supported
