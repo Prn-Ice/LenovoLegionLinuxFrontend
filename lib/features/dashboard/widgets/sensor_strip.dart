@@ -30,7 +30,7 @@ class SensorStrip extends StatelessWidget {
       if (_show(DashboardMetric.cpuTemperature, snapshot.cpuTempC))
         _GaugeCard(
           value: snapshot.cpuTempC,
-          min: 30,
+          min: 0,
           max: 100,
           label: 'CPU temp',
           unit: '°',
@@ -41,7 +41,7 @@ class SensorStrip extends StatelessWidget {
       if (_show(DashboardMetric.igpuTemperature, snapshot.igpu?.tempC))
         _GaugeCard(
           value: snapshot.igpu?.tempC,
-          min: 30,
+          min: 0,
           max: 100,
           label: 'iGPU temp',
           unit: '°',
@@ -52,7 +52,7 @@ class SensorStrip extends StatelessWidget {
       if (_show(DashboardMetric.dgpuTemperature, snapshot.dgpu?.tempC))
         _GaugeCard(
           value: snapshot.dgpu?.tempC,
-          min: 30,
+          min: 0,
           max: 100,
           label: 'dGPU temp',
           unit: '°',
@@ -79,8 +79,8 @@ class SensorStrip extends StatelessWidget {
       if (_show(DashboardMetric.diskTemperature, snapshot.diskTempC))
         _GaugeCard(
           value: snapshot.diskTempC,
-          min: 20,
-          max: 90,
+          min: 0,
+          max: 100,
           label: 'Disk temp',
           unit: '°',
           fractionDigits: 1,
