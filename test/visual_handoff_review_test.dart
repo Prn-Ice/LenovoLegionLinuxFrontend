@@ -37,6 +37,7 @@ import 'package:legion_frontend/features/dgpu/providers/dgpu_provider.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
+import 'package:legion_frontend/features/fans/models/fan_curve.dart';
 import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 
@@ -188,7 +189,7 @@ void main() {
                 PowerLimitReading(
                   spec: PowerRepository.allPowerLimits.first,
                   value: 55,
-                  hardwareDefault: 54,
+                  reference: 54,
                 ),
               ],
             ),
@@ -233,14 +234,24 @@ void main() {
             initialState: FansState.initial().copyWith(
               platformProfile: 'balanced',
               onPowerSupply: true,
-              availablePresets: [
-                'quiet-ac',
-                'balanced-ac',
-                'performance-ac',
-                'balanced-performance-ac',
-              ],
+              availablePresets: const [],
               maximumFanSpeedEnabled: false,
-              lockFanControllerEnabled: true,
+              fanCurve: const FanCurve(
+                name: 'Firmware speed table',
+                schema: FanCurveSchema.speedOnly,
+                speedUnit: FanSpeedUnit.level,
+                writeStatus: FanCurveWriteStatus.unsupported,
+                points: [
+                  FanCurvePoint(fan1Level: 1, fan1Rpm: 1000, fan2Rpm: 900),
+                  FanCurvePoint(fan1Level: 2, fan1Rpm: 1500, fan2Rpm: 1400),
+                  FanCurvePoint(fan1Level: 3, fan1Rpm: 2000, fan2Rpm: 1900),
+                  FanCurvePoint(fan1Level: 4, fan1Rpm: 2500, fan2Rpm: 2400),
+                  FanCurvePoint(fan1Level: 5, fan1Rpm: 3000, fan2Rpm: 2900),
+                  FanCurvePoint(fan1Level: 6, fan1Rpm: 3500, fan2Rpm: 3400),
+                  FanCurvePoint(fan1Level: 7, fan1Rpm: 4000, fan2Rpm: 3900),
+                  FanCurvePoint(fan1Level: 8, fan1Rpm: 4500, fan2Rpm: 4400),
+                ],
+              ),
             ),
           );
           final analytics = _Analytics();

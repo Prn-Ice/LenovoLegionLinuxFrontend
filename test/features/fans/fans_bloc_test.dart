@@ -61,9 +61,8 @@ void main() {
           };
         });
         final draft = curve.copyWithPoint(0, editedPoint);
-        when(
-          () => repo.writeFanCurveToHardware(draft),
-        ).thenAnswer((_) async {});
+        when(() => repo.writeFanCurveToHardware(draft))
+            .thenAnswer((_) async {});
         final bloc = FansBloc(
           repository: repo,
           pollInterval: const Duration(days: 1),
@@ -297,5 +296,25 @@ void main() {
       act: (bloc) => bloc.add(const FansTicked()),
       expect: () => isEmpty,
     );
+  });
+
+  test('blocks presets when the loaded curve is speed-only', () async {
+    final repo = FakeFansRepository();
+    final bloc = FansBloc(repository: repo);
+    addTearDown(bloc.close);
+    bloc.emit(
+      FansState.initial().copyWith(
+        fanCurve: const FanCurve(
+          name: 'm1cn',
+          schema: FanCurveSchema.speedOnly,
+          writeStatus: FanCurveWriteStatus.unvalidated,
+          points: [FanCurvePoint(fan1Level: 1)],
+        ),
+        selectedPreset: 'quiet-ac',
+      ),
+    );
+    bloc.add(const FansApplySelectedPresetRequested());
+    await Future<void>.delayed(Duration.zero);
+    verifyNever(() => repo.applyPreset(any()));
   });
 }

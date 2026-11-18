@@ -9,6 +9,7 @@ void main() {
       expect(s.cpuTempC, isNull);
       expect(s.cpuPackagePowerW, isNull);
       expect(s.fan1Rpm, isNull);
+      expect(s.fan3Rpm, isNull);
       expect(s.batteryPercent, isNull);
     });
 

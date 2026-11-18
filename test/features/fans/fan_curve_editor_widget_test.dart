@@ -7,6 +7,8 @@ import 'package:yaru/yaru.dart';
 
 FanCurve _curve() => FanCurve(
   name: 'widget-test',
+  fan1MaxRpm: 5000,
+  fan2MaxRpm: 5000,
   points: List.generate(10, (index) {
     final cpuUpper = 20 + index * 7;
     final gpuUpper = 25 + index * 7;
@@ -116,7 +118,7 @@ void main() {
     await tester.pump();
 
     expect(changedPoint, isNotNull);
-    expect(changedPoint!.fan1Rpm, greaterThan(_curve().points.first.fan1Rpm));
+    expect(changedPoint!.fan1Rpm, greaterThan(_curve().points.first.fan1Rpm!));
   });
 
   testWidgets('drag maps exact plot bounds to temperature and RPM', (
@@ -149,6 +151,17 @@ void main() {
     expect(changedIndex, 8);
     expect(changedPoint!.cpuUpperTemp, closeTo(76, 1));
     expect(changedPoint!.fan1Rpm, 3650);
+    await _expandPreciseControls(tester);
+    final selected = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, '9'),
+    );
+    expect(selected.selected, isTrue);
+    expect(
+      tester
+          .widget<Slider>(find.byKey(const ValueKey('fan-speed-slider')))
+          .value,
+      73,
+    );
   });
 
   testWidgets('edits stay within hysteresis and neighboring curve points', (
@@ -175,6 +188,114 @@ void main() {
     speedSlider.onChanged!(100);
     await tester.pump();
     expect(changedPoint!.fan1Rpm, _curve().points[1].fan1Rpm);
+  });
+
+  testWidgets('tooltip-only dragging leaves the editor controls untouched', (
+    tester,
+  ) async {
+    var edits = 0;
+    await _pumpEditor(tester, width: 800, onPointChanged: (_, _) => edits++);
+    await _expandPreciseControls(tester);
+    final plot = find.byKey(const ValueKey('fan-curve-chart-plot'));
+    final origin = tester.getTopLeft(plot);
+    final size = tester.getSize(plot);
+    final gesture = await tester.startGesture(
+      origin + Offset(size.width * 0.2, size.height * 0.9),
+    );
+    await gesture.moveTo(origin + Offset(-30, size.height + 30));
+    await tester.pump();
+    final editsAtBoundary = edits;
+    expect(editsAtBoundary, greaterThan(0));
+    final save = tester.widget(find.byKey(const ValueKey('fan-curve-save')));
+    final summary = tester.widget(find.text('Current CPU fan speed'));
+    final slider = tester.widget(
+      find.byKey(const ValueKey('fan-speed-slider')),
+    );
+
+    await gesture.moveTo(origin + Offset(-60, size.height + 60));
+    await tester.pump();
+    expect(edits, editsAtBoundary);
+    expect(
+      tester.widget(find.byKey(const ValueKey('fan-curve-save'))),
+      same(save),
+    );
+    expect(tester.widget(find.text('Current CPU fan speed')), same(summary));
+    expect(
+      tester.widget(find.byKey(const ValueKey('fan-speed-slider'))),
+      same(slider),
+    );
+    await gesture.up();
+    await tester.pump();
+    expect(
+      tester.widget(find.byKey(const ValueKey('fan-curve-save'))),
+      same(save),
+    );
+  });
+
+  testWidgets('subpixel dragging moves the tooltip without another edit', (
+    tester,
+  ) async {
+    var edits = 0;
+    await _pumpEditor(tester, width: 800, onPointChanged: (_, _) => edits++);
+    final plot = find.byKey(const ValueKey('fan-curve-chart-plot'));
+    final origin = tester.getTopLeft(plot);
+    final size = tester.getSize(plot);
+    final gesture = await tester.startGesture(
+      origin + Offset(size.width * 0.2, size.height * 0.9),
+    );
+    await gesture.moveTo(origin + Offset(size.width * 0.25, size.height * 0.9));
+    await tester.pump();
+    final editsBeforeMovement = edits;
+    final tooltip = find.text('25°  ·  10%');
+    final tooltipPosition = tester.getTopLeft(tooltip);
+    final save = tester.widget(find.byKey(const ValueKey('fan-curve-save')));
+
+    await gesture.moveBy(const Offset(0.01, 0));
+    await tester.pump();
+    expect(edits, editsBeforeMovement);
+    expect(tester.getTopLeft(tooltip).dx, greaterThan(tooltipPosition.dx));
+    expect(
+      tester.widget(find.byKey(const ValueKey('fan-curve-save'))),
+      same(save),
+    );
+
+    await gesture.moveBy(Offset(0, -size.height * 0.01));
+    await tester.pump();
+    expect(edits, editsBeforeMovement + 1);
+    expect(find.text('25°  ·  11%'), findsOneWidget);
+    await gesture.cancel();
+    await tester.pump();
+    expect(find.text('25°  ·  11%'), findsNothing);
+  });
+
+  testWidgets('applying a curve clears an active drag and prevents edits', (
+    tester,
+  ) async {
+    var edits = 0;
+    await _pumpEditor(tester, width: 800, onPointChanged: (_, _) => edits++);
+    final plot = find.byKey(const ValueKey('fan-curve-chart-plot'));
+    final origin = tester.getTopLeft(plot);
+    final size = tester.getSize(plot);
+    final gesture = await tester.startGesture(
+      origin + Offset(size.width * 0.2, size.height * 0.9),
+    );
+    await gesture.moveTo(origin + Offset(size.width * 0.25, size.height * 0.9));
+    await tester.pump();
+    expect(find.text('25°  ·  10%'), findsOneWidget);
+    final editsBeforeApplying = edits;
+
+    await _pumpEditor(
+      tester,
+      width: 800,
+      isApplying: true,
+      onPointChanged: (_, _) => edits++,
+    );
+    expect(find.text('25°  ·  10%'), findsNothing);
+    await gesture.moveBy(const Offset(0, -30));
+    await gesture.up();
+    await tester.pump();
+    expect(edits, editsBeforeApplying);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('save is enabled only while dirty and not applying', (

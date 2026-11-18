@@ -85,8 +85,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
                             context,
                             title:
                                 '${enabled ? 'Enable' : 'Disable'} rapid charging',
-                            message:
-                                'Rapid charging charges the battery faster when the charger is connected.',
+                            message: 'Rapid charging charges the battery faster when the charger is connected.',
                             confirmLabel: enabled ? 'Enable' : 'Disable',
                           );
                           if (!context.mounted || !confirmed) return;
@@ -149,8 +148,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: '${enabled ? 'Enable' : 'Disable'} CPU overclock',
-      message:
-          'CPU overclocking can increase heat, power use, and instability. This change requires privileged access.',
+      message: 'CPU overclocking can increase heat, power use, and instability. This change requires privileged access.',
       confirmLabel: enabled ? 'Enable' : 'Disable',
     );
     if (!context.mounted || !confirmed) return;
@@ -165,8 +163,7 @@ class _PowerPageState extends ConsumerState<PowerPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: '${enabled ? 'Enable' : 'Disable'} GPU overclock',
-      message:
-          'GPU overclocking can increase heat, power use, and instability. This change requires privileged access.',
+      message: 'GPU overclocking can increase heat, power use, and instability. This change requires privileged access.',
       confirmLabel: enabled ? 'Enable' : 'Disable',
     );
     if (!context.mounted || !confirmed) return;
@@ -237,7 +234,10 @@ class _PowerLimitValueDialogState extends State<_PowerLimitValueDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Allowed range: ${spec.effectiveMin}-${spec.max} ${spec.unit}'),
+          Text(
+            'App input limits: ${spec.effectiveMin}-${spec.max} ${spec.unit}. '
+            'Firmware may enforce different limits.',
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
@@ -487,7 +487,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
       for (final reading in widget.readings) reading.spec.id: reading.value,
     };
     _drafts.removeWhere(
-      (id, value) => !current.containsKey(id) || current[id] == value,
+      (id, value) => current.containsKey(id) && current[id] == value,
     );
   }
 
@@ -510,7 +510,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
         PowerLimitReading(
           spec: reading.spec,
           value: value,
-          hardwareDefault: reading.hardwareDefault,
+          reference: reading.reference,
         ),
   ];
 
@@ -528,6 +528,13 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
       (reading) => reading.spec.isWritable,
     );
     final blockReason = hasWritableLimits ? widget.blockReason : null;
+    final availableIds = widget.readings
+        .map((reading) => reading.spec.id)
+        .toSet();
+    final pendingUnavailable = _drafts.keys
+        .where((id) => !availableIds.contains(id))
+        .toList(growable: false);
+    final stagedReadings = _stagedReadings();
 
     return SurfaceCard(
       key: const ValueKey('power-limits-card'),
@@ -549,6 +556,44 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 ),
             ],
           ),
+          if (pendingUnavailable.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(YaruIcons.warning, size: 18, color: scheme.warning),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Some requested limits are temporarily unavailable. '
+                        'Refresh the power page to retry; pending values stay '
+                        'unsent until their current readings return.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurface.withValues(alpha: 0.72),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: widget.isApplying
+                              ? null
+                              : () => setState(() {
+                                  for (final id in pendingUnavailable) {
+                                    _drafts.remove(id);
+                                  }
+                                }),
+                          child: const Text('Discard pending changes'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (widget.readings.isEmpty) ...[
             const SizedBox(height: 14),
             Row(
@@ -598,8 +643,9 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                 reading: PowerLimitReading(
                   spec: primary[i].spec,
                   value: _valueFor(primary[i]),
-                  hardwareDefault: primary[i].hardwareDefault,
+                  reference: primary[i].reference,
                 ),
+                currentValue: primary[i].value,
                 accent: widget.accent,
                 enabled: widget.canEdit && !widget.isApplying,
                 onChanged: (value) => _stage(primary[i], value),
@@ -619,6 +665,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                       _AdditionalLimitRow(
                         reading: additional[i],
                         value: _valueFor(additional[i]),
+                        currentValue: additional[i].value,
                         onChange:
                             additional[i].spec.isWritable &&
                                 widget.canEdit &&
@@ -656,8 +703,11 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
                         child: const Text('Revert'),
                       ),
                       FilledButton(
-                        onPressed: widget.canEdit && !widget.isApplying
-                            ? () => widget.onApplyRequested(_stagedReadings())
+                        onPressed:
+                            widget.canEdit &&
+                                !widget.isApplying &&
+                                stagedReadings.isNotEmpty
+                            ? () => widget.onApplyRequested(stagedReadings)
                             : null,
                         child: widget.isApplying
                             ? const SizedBox.square(
@@ -684,7 +734,7 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
       PowerLimitReading(
         spec: reading.spec,
         value: _valueFor(reading),
-        hardwareDefault: reading.hardwareDefault,
+        reference: reading.reference,
       ),
     );
     if (value != null && mounted) {
@@ -696,12 +746,14 @@ class _PowerLimitsCardState extends State<_PowerLimitsCard> {
 class _PowerLimitSlider extends StatelessWidget {
   const _PowerLimitSlider({
     required this.reading,
+    required this.currentValue,
     required this.accent,
     required this.enabled,
     required this.onChanged,
   });
 
   final PowerLimitReading reading;
+  final int currentValue;
   final Color accent;
   final bool enabled;
   final ValueChanged<int> onChanged;
@@ -722,13 +774,13 @@ class _PowerLimitSlider extends StatelessWidget {
               children: [
                 _LimitDatum(
                   label: 'Current',
-                  value: '${value.round()} ${spec.unit}',
+                  value: '$currentValue ${spec.unit}',
                   valueKey: ValueKey('power-limit-current-${spec.id}'),
                 ),
                 const SizedBox(width: 18),
                 _LimitDatum(
                   label: 'Reference',
-                  value: _hardwareDefaultValue(reading),
+                  value: _referenceValue(reading),
                   valueKey: ValueKey('power-limit-default-${spec.id}'),
                 ),
               ],
@@ -788,23 +840,25 @@ class _AdditionalLimitRow extends StatelessWidget {
   const _AdditionalLimitRow({
     required this.reading,
     required this.value,
+    required this.currentValue,
     this.onChange,
   });
 
   final PowerLimitReading reading;
   final int value;
+  final int currentValue;
   final VoidCallback? onChange;
 
   @override
   Widget build(BuildContext context) {
     final current = _LimitDatum(
       label: 'Current',
-      value: '$value ${reading.spec.unit}',
+      value: '$currentValue ${reading.spec.unit}',
       valueKey: ValueKey('power-limit-current-${reading.spec.id}'),
     );
     final baseline = _LimitDatum(
       label: 'Reference',
-      value: _hardwareDefaultValue(reading),
+      value: _referenceValue(reading),
       valueKey: ValueKey('power-limit-default-${reading.spec.id}'),
     );
     final changeButton = SizedBox(
@@ -892,8 +946,8 @@ class _LimitDatum extends StatelessWidget {
   }
 }
 
-String _hardwareDefaultValue(PowerLimitReading reading) {
-  final value = reading.hardwareDefault;
+String _referenceValue(PowerLimitReading reading) {
+  final value = reading.reference;
   return value == null ? 'Unavailable' : '$value ${reading.spec.unit}';
 }
 

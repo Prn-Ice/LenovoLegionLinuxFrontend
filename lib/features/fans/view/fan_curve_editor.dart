@@ -120,7 +120,7 @@ class FanCurveUnavailablePanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'The app could not read the temperature and fan-speed settings needed to edit a curve. $sensorMessage',
+                        'A readable fan table is unavailable. $sensorMessage',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: scheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -163,120 +163,17 @@ class FanCurveUnavailablePanel extends StatelessWidget {
 
 class _FanCurveEditorState extends State<FanCurveEditor> {
   int _selectedIndex = 0;
-  int? _draggingIndex;
-  Offset? _dragPosition;
 
   bool get _canEdit => widget.enabled && !widget.isApplying;
 
-  double get _maxRpm =>
-      (widget.channel == FanChannel.cpu
-              ? widget.curve.fan1MaxRpm
-              : widget.curve.fan2MaxRpm)
-          .toDouble();
-
-  int _temperature(FanCurvePoint point) => widget.channel == FanChannel.cpu
-      ? point.cpuUpperTemp
-      : point.gpuUpperTemp;
-
-  int _rpm(FanCurvePoint point) =>
-      widget.channel == FanChannel.cpu ? point.fan1Rpm : point.fan2Rpm;
-
-  int _lowerTemperature(FanCurvePoint point) => widget.channel == FanChannel.cpu
-      ? point.cpuLowerTemp
-      : point.gpuLowerTemp;
-
-  FanCurvePoint _updatePoint(
-    FanCurvePoint point, {
-    int? temperature,
-    int? rpm,
-  }) {
-    return widget.channel == FanChannel.cpu
-        ? point.copyWith(cpuUpperTemp: temperature, fan1Rpm: rpm)
-        : point.copyWith(gpuUpperTemp: temperature, fan2Rpm: rpm);
+  void _selectPoint(int index) {
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
   }
 
-  int _boundedTemperature(int index, int value) {
-    final points = widget.curve.points;
-    var minimum = _lowerTemperature(points[index]).clamp(0, 100);
-    if (index > 0) {
-      final previous = _temperature(points[index - 1]).clamp(0, 100);
-      if (previous > minimum) minimum = previous;
-    }
-    var maximum = 100;
-    if (index < points.length - 1) {
-      maximum = _temperature(points[index + 1]).clamp(0, 100);
-    }
-    if (minimum > maximum) return _temperature(points[index]);
-    return value.clamp(minimum, maximum);
-  }
-
-  int _boundedRpm(int index, int value) {
-    final points = widget.curve.points;
-    final maximumRpm = _maxRpm.round();
-    final minimum = index == 0
-        ? 0
-        : _rpm(points[index - 1]).clamp(0, maximumRpm);
-    final maximum = index == points.length - 1
-        ? maximumRpm
-        : _rpm(points[index + 1]).clamp(0, maximumRpm);
-    if (minimum > maximum) return _rpm(points[index]);
-    return value.clamp(minimum, maximum);
-  }
-
-  List<FlSpot> _spots() => [
-    for (final point in widget.curve.points)
-      FlSpot(_temperature(point).toDouble(), _rpm(point) / _maxRpm * 100),
-  ];
-
-  void _selectNearest(Offset position, Size size) {
-    if (widget.curve.points.isEmpty) return;
-    var nearest = 0;
-    var distance = double.infinity;
-    for (var i = 0; i < widget.curve.points.length; i++) {
-      final point = widget.curve.points[i];
-      final pointPosition = Offset(
-        _temperature(point) / 100 * size.width,
-        (1 - _rpm(point) / _maxRpm) * size.height,
-      );
-      final candidate = (pointPosition - position).distanceSquared;
-      if (candidate < distance) {
-        nearest = i;
-        distance = candidate;
-      }
-    }
-    setState(() {
-      _selectedIndex = nearest;
-      _draggingIndex = nearest;
-    });
-  }
-
-  void _updateFromPosition(Offset position, Size size) {
-    final index = _draggingIndex;
-    if (!_canEdit || index == null || size.isEmpty) return;
-    final temperature = _boundedTemperature(
-      index,
-      (position.dx / size.width * 100).round(),
-    );
-    final percent = ((1 - position.dy / size.height) * 100).clamp(0, 100);
-    final rpm = _boundedRpm(index, (percent * _maxRpm / 100).round());
-    final point = widget.curve.points[index];
-    widget.onPointChanged(
-      index,
-      _updatePoint(point, temperature: temperature, rpm: rpm),
-    );
-    setState(() {
-      _dragPosition = Offset(
-        position.dx.clamp(0, size.width),
-        position.dy.clamp(0, size.height),
-      );
-    });
-  }
-
-  void _endDrag() {
-    setState(() {
-      _draggingIndex = null;
-      _dragPosition = null;
-    });
+  void _changePoint(int index, FanCurvePoint point) {
+    if (point == widget.curve.points[index]) return;
+    widget.onPointChanged(index, point);
   }
 
   @override
@@ -302,18 +199,40 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
         children: [
           SurfaceCard(
             padding: const EdgeInsets.all(18),
-            child: widget.curve.points.isEmpty
+            child: widget.curve.schema == FanCurveSchema.speedOnly
+                ? _FanSpeedTable(curve: widget.curve)
+                : widget.curve.points.isEmpty
                 ? const SizedBox(
                     height: 300,
                     child: Center(
                       child: Text('This fan curve has no editable points.'),
                     ),
                   )
-                : _buildChart(context),
+                : _FanCurveChart(
+                    key: ValueKey(widget.channel),
+                    curve: widget.curve,
+                    channel: widget.channel,
+                    selectedIndex: _selectedIndex,
+                    currentTemperature: widget.currentTemperature,
+                    accent: widget.accent,
+                    enabled: _canEdit,
+                    onSelected: _selectPoint,
+                    onPointChanged: _changePoint,
+                  ),
           ),
-          const SizedBox(height: 12),
-          if (widget.curve.points.isNotEmpty) _buildSummaryCards(context),
-          if (widget.curve.points.isNotEmpty) ...[
+          if (widget.curve.schema != FanCurveSchema.speedOnly) ...[
+            const SizedBox(height: 12),
+            if (widget.curve.points.isNotEmpty)
+              _FanCurveSummary(
+                point: widget.curve.points[_selectedIndex],
+                channel: widget.channel,
+                currentTemperature: widget.currentTemperature,
+                currentRpm: widget.currentRpm,
+                accent: widget.accent,
+              ),
+          ],
+          if (widget.curve.schema != FanCurveSchema.speedOnly &&
+              widget.curve.points.isNotEmpty) ...[
             const SizedBox(height: 12),
             SurfaceCard(
               padding: EdgeInsets.zero,
@@ -327,7 +246,14 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: _buildPointControls(context),
+                  child: _FanPointControls(
+                    curve: widget.curve,
+                    channel: widget.channel,
+                    selectedIndex: _selectedIndex,
+                    enabled: _canEdit,
+                    onSelected: _selectPoint,
+                    onPointChanged: _changePoint,
+                  ),
                 ),
               ),
             ),
@@ -338,7 +264,11 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                 dirty: widget.dirty,
                 isApplying: widget.isApplying,
                 accent: widget.accent,
-                onSave: widget.dirty && !widget.isApplying
+                onSave:
+                    widget.enabled &&
+                        widget.curve.canEdit &&
+                        widget.dirty &&
+                        !widget.isApplying
                     ? widget.onSave
                     : null,
               ),
@@ -348,10 +278,180 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
       ),
     );
   }
+}
 
-  Widget _buildChart(BuildContext context) {
+class _FanSpeedTable extends StatelessWidget {
+  const _FanSpeedTable({required this.curve});
+
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final unit = curve.speedUnit;
+    final valueLabel = switch (unit) {
+      FanSpeedUnit.level => 'Level',
+      FanSpeedUnit.percent => 'Speed (%)',
+      FanSpeedUnit.rpm || FanSpeedUnit.unknown => 'PWM (0–255)',
+    };
+    String speedValue(FanCurvePoint point) {
+      if (unit == FanSpeedUnit.level) return '${point.fan1Level ?? '—'}';
+      final pwm = point.fan1Pwm;
+      if (pwm == null) return '—';
+      return unit == FanSpeedUnit.percent
+          ? '${(pwm * 100 + 254) ~/ 255}'
+          : '$pwm';
+    }
+
+    final table = <DataRow>[
+      for (var i = 0; i < curve.points.length; i++)
+        DataRow(
+          cells: [
+            DataCell(Text('${i + 1}')),
+            DataCell(Text(speedValue(curve.points[i]))),
+            DataCell(Text(curve.points[i].fan1Rpm?.toString() ?? '—')),
+            if (unit == FanSpeedUnit.level)
+              DataCell(Text(curve.points[i].fan2Rpm?.toString() ?? '—')),
+          ],
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          curve.speedUnit == FanSpeedUnit.level
+              ? 'Fan speed levels'
+              : 'Fan speed values',
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          curve.writeStatus == FanCurveWriteStatus.unvalidated
+              ? 'This laptop exposes a speed-only table, but writes have not been validated. Current readings remain available.'
+              : 'This firmware table is read-only in the app. It has no temperature or ramp settings. '
+                    'Table values describe firmware settings, not current fan speeds. '
+                    'RPM values come from the firmware ladder when available.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          key: const ValueKey('fan-speed-table'),
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: [
+              const DataColumn(label: Text('Point')),
+              DataColumn(label: Text(valueLabel)),
+              const DataColumn(label: Text('Fan 1 RPM')),
+              if (unit == FanSpeedUnit.level)
+                const DataColumn(label: Text('Fan 2 RPM')),
+            ],
+            rows: table,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FanCurveChart extends StatefulWidget {
+  const _FanCurveChart({
+    super.key,
+    required this.curve,
+    required this.channel,
+    required this.selectedIndex,
+    required this.currentTemperature,
+    required this.accent,
+    required this.enabled,
+    required this.onSelected,
+    required this.onPointChanged,
+  });
+
+  final FanCurve curve;
+  final FanChannel channel;
+  final int selectedIndex;
+  final double? currentTemperature;
+  final Color accent;
+  final bool enabled;
+  final ValueChanged<int> onSelected;
+  final void Function(int index, FanCurvePoint point) onPointChanged;
+
+  @override
+  State<_FanCurveChart> createState() => _FanCurveChartState();
+}
+
+class _FanCurveChartState extends State<_FanCurveChart> {
+  int? _draggingIndex;
+  Offset? _dragPosition;
+
+  int get _maxRpm => widget.channel.maxRpm(widget.curve);
+
+  void _selectNearest(Offset position, Size size) {
+    var nearest = 0;
+    var distance = double.infinity;
+    for (var i = 0; i < widget.curve.points.length; i++) {
+      final point = widget.curve.points[i];
+      final pointPosition = Offset(
+        widget.channel.temperature(point) / 100 * size.width,
+        (1 - widget.channel.rpm(point) / _maxRpm) * size.height,
+      );
+      final candidate = (pointPosition - position).distanceSquared;
+      if (candidate < distance) {
+        nearest = i;
+        distance = candidate;
+      }
+    }
+    setState(() => _draggingIndex = nearest);
+    widget.onSelected(nearest);
+  }
+
+  void _updateFromPosition(Offset position, Size size) {
+    final index = _draggingIndex;
+    if (!widget.enabled || index == null || size.isEmpty) return;
+    final percent = ((1 - position.dy / size.height) * 100).clamp(0, 100);
+    widget.onPointChanged(
+      index,
+      widget.channel.updatePoint(
+        widget.curve,
+        index,
+        temperature: (position.dx / size.width * 100).round(),
+        rpm: (percent * _maxRpm / 100).round(),
+      ),
+    );
+    setState(() {
+      _dragPosition = Offset(
+        position.dx.clamp(0, size.width),
+        position.dy.clamp(0, size.height),
+      );
+    });
+  }
+
+  void _endDrag() {
+    setState(() {
+      _draggingIndex = null;
+      _dragPosition = null;
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _FanCurveChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled ||
+        (_draggingIndex != null &&
+            _draggingIndex! >= widget.curve.points.length)) {
+      _draggingIndex = null;
+      _dragPosition = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final currentTemperature = widget.currentTemperature?.clamp(0, 100);
+    final selectedPoint = widget.curve.points[widget.selectedIndex];
+    final selectedPercent = widget.channel.rpm(selectedPoint) / _maxRpm * 100;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -404,7 +504,7 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                       return GestureDetector(
                         key: const ValueKey('fan-curve-chart-plot'),
                         behavior: HitTestBehavior.opaque,
-                        onPanStart: _canEdit
+                        onPanStart: widget.enabled
                             ? (details) {
                                 _selectNearest(details.localPosition, plotSize);
                                 _updateFromPosition(
@@ -413,14 +513,14 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                                 );
                               }
                             : null,
-                        onPanUpdate: _canEdit
+                        onPanUpdate: widget.enabled
                             ? (details) => _updateFromPosition(
                                 details.localPosition,
                                 plotSize,
                               )
                             : null,
-                        onPanEnd: _canEdit ? (_) => _endDrag() : null,
-                        onPanCancel: _canEdit ? _endDrag : null,
+                        onPanEnd: widget.enabled ? (_) => _endDrag() : null,
+                        onPanCancel: widget.enabled ? _endDrag : null,
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
@@ -437,14 +537,10 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                               _DragTooltip(
                                 position: position,
                                 plotSize: plotSize,
-                                temperature: _temperature(
-                                  widget.curve.points[_selectedIndex],
+                                temperature: widget.channel.temperature(
+                                  selectedPoint,
                                 ),
-                                percent:
-                                    (_rpm(widget.curve.points[_selectedIndex]) /
-                                            _maxRpm *
-                                            100)
-                                        .round(),
+                                percent: selectedPercent.round(),
                               ),
                           ],
                         ),
@@ -531,7 +627,13 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
       lineTouchData: const LineTouchData(enabled: false),
       lineBarsData: [
         LineChartBarData(
-          spots: _spots(),
+          spots: [
+            for (final point in widget.curve.points)
+              FlSpot(
+                widget.channel.temperature(point).toDouble(),
+                widget.channel.rpm(point) / _maxRpm * 100,
+              ),
+          ],
           color: widget.accent,
           barWidth: 3,
           isCurved: false,
@@ -544,7 +646,8 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
           dotData: FlDotData(
             show: true,
             getDotPainter: (_, _, _, index) {
-              final active = index == _selectedIndex || index == _draggingIndex;
+              final active =
+                  index == widget.selectedIndex || index == _draggingIndex;
               return FlDotCirclePainter(
                 radius: active ? 6 : 4.5,
                 color: active ? widget.accent : scheme.surface,
@@ -557,27 +660,40 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
       ],
     );
   }
+}
 
-  Widget _buildSummaryCards(BuildContext context) {
-    final point = widget.curve.points[_selectedIndex];
-    final temperature = _temperature(point);
-    final hysteresis = (temperature - _lowerTemperature(point)).clamp(0, 100);
-    final currentTemperature = widget.currentTemperature;
+class _FanCurveSummary extends StatelessWidget {
+  const _FanCurveSummary({
+    required this.point,
+    required this.channel,
+    required this.currentTemperature,
+    required this.currentRpm,
+    required this.accent,
+  });
+
+  final FanCurvePoint point;
+  final FanChannel channel;
+  final double? currentTemperature;
+  final int? currentRpm;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final hysteresis = channel.hysteresis(point);
     final cards = [
       _FanSummaryCard(
-        title:
-            'Current ${widget.channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan speed',
-        value: widget.currentRpm == null ? '—' : '${widget.currentRpm}',
-        unit: widget.currentRpm == null ? null : 'RPM',
+        title: 'Current ${channel == FanChannel.cpu ? 'CPU' : 'GPU'} fan speed',
+        value: currentRpm == null ? '—' : '$currentRpm',
+        unit: currentRpm == null ? null : 'RPM',
         subtitle: currentTemperature == null
             ? 'Temperature unavailable'
-            : '${currentTemperature.round()}°C now',
+            : '${currentTemperature!.round()}°C now',
       ),
       _FanSummaryCard(
         title: 'Hysteresis',
         value: '$hysteresis°C',
         subtitle: 'Ramp ${point.accel}/${point.decel}',
-        accent: widget.accent,
+        accent: accent,
       ),
     ];
 
@@ -605,13 +721,33 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
       },
     );
   }
+}
 
-  Widget _buildPointControls(BuildContext context) {
-    final point = widget.curve.points[_selectedIndex];
-    final temperature = _temperature(point);
-    final rpm = _rpm(point);
-    final percent = rpm / _maxRpm * 100;
-    final hysteresis = (temperature - _lowerTemperature(point)).clamp(0, 100);
+class _FanPointControls extends StatelessWidget {
+  const _FanPointControls({
+    required this.curve,
+    required this.channel,
+    required this.selectedIndex,
+    required this.enabled,
+    required this.onSelected,
+    required this.onPointChanged,
+  });
+
+  final FanCurve curve;
+  final FanChannel channel;
+  final int selectedIndex;
+  final bool enabled;
+  final ValueChanged<int> onSelected;
+  final void Function(int index, FanCurvePoint point) onPointChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final point = curve.points[selectedIndex];
+    final temperature = channel.temperature(point);
+    final rpm = channel.rpm(point);
+    final maxRpm = channel.maxRpm(curve);
+    final percent = rpm / maxRpm * 100;
+    final hysteresis = channel.hysteresis(point);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -630,13 +766,11 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (var i = 0; i < widget.curve.points.length; i++)
+                for (var i = 0; i < curve.points.length; i++)
                   ChoiceChip(
                     label: Text('${i + 1}'),
-                    selected: _selectedIndex == i,
-                    onSelected: _canEdit
-                        ? (_) => setState(() => _selectedIndex = i)
-                        : null,
+                    selected: selectedIndex == i,
+                    onSelected: enabled ? (_) => onSelected(i) : null,
                   ),
               ],
             ),
@@ -655,15 +789,13 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                 label: 'Temperature',
                 valueLabel: '$temperature°C',
                 value: temperature.toDouble(),
-                enabled: _canEdit,
-                onChanged: (value) => widget.onPointChanged(
-                  _selectedIndex,
-                  _updatePoint(
-                    point,
-                    temperature: _boundedTemperature(
-                      _selectedIndex,
-                      value.round(),
-                    ),
+                enabled: enabled,
+                onChanged: (value) => onPointChanged(
+                  selectedIndex,
+                  channel.updatePoint(
+                    curve,
+                    selectedIndex,
+                    temperature: value.round(),
                   ),
                 ),
               ),
@@ -672,15 +804,13 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
                 label: 'Fan speed',
                 valueLabel: '${percent.round()}%  ·  $rpm RPM',
                 value: percent,
-                enabled: _canEdit,
-                onChanged: (value) => widget.onPointChanged(
-                  _selectedIndex,
-                  _updatePoint(
-                    point,
-                    rpm: _boundedRpm(
-                      _selectedIndex,
-                      (value * _maxRpm / 100).round(),
-                    ),
+                enabled: enabled,
+                onChanged: (value) => onPointChanged(
+                  selectedIndex,
+                  channel.updatePoint(
+                    curve,
+                    selectedIndex,
+                    rpm: (value * maxRpm / 100).round(),
                   ),
                 ),
               ),
@@ -705,6 +835,70 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
         ),
       ],
     );
+  }
+}
+
+/// Maps full-table fields and bounds for both chart and slider edits.
+extension _FanChannelEditing on FanChannel {
+  int maxRpm(FanCurve curve) =>
+      (this == FanChannel.cpu ? curve.fan1MaxRpm : curve.fan2MaxRpm)!;
+
+  int temperature(FanCurvePoint point) =>
+      (this == FanChannel.cpu ? point.cpuUpperTemp : point.gpuUpperTemp)!;
+
+  int rpm(FanCurvePoint point) =>
+      (this == FanChannel.cpu ? point.fan1Rpm : point.fan2Rpm)!;
+
+  int lowerTemperature(FanCurvePoint point) =>
+      (this == FanChannel.cpu ? point.cpuLowerTemp : point.gpuLowerTemp)!;
+
+  int hysteresis(FanCurvePoint point) =>
+      (temperature(point) - lowerTemperature(point)).clamp(0, 100);
+
+  FanCurvePoint updatePoint(
+    FanCurve curve,
+    int index, {
+    int? temperature,
+    int? rpm,
+  }) {
+    final point = curve.points[index];
+    final boundedTemperature = temperature == null
+        ? this.temperature(point)
+        : _boundedTemperature(curve, index, temperature);
+    final boundedRpm = rpm == null
+        ? this.rpm(point)
+        : _boundedRpm(curve, index, rpm);
+    return this == FanChannel.cpu
+        ? point.copyWith(cpuUpperTemp: boundedTemperature, fan1Rpm: boundedRpm)
+        : point.copyWith(gpuUpperTemp: boundedTemperature, fan2Rpm: boundedRpm);
+  }
+
+  int _boundedTemperature(FanCurve curve, int index, int value) {
+    final points = curve.points;
+    var minimum = lowerTemperature(points[index]).clamp(0, 100);
+    if (index > 0) {
+      final previous = temperature(points[index - 1]).clamp(0, 100);
+      if (previous > minimum) minimum = previous;
+    }
+    var maximum = 100;
+    if (index < points.length - 1) {
+      maximum = temperature(points[index + 1]).clamp(0, 100);
+    }
+    if (minimum > maximum) return temperature(points[index]);
+    return value.clamp(minimum, maximum);
+  }
+
+  int _boundedRpm(FanCurve curve, int index, int value) {
+    final points = curve.points;
+    final maximumRpm = maxRpm(curve);
+    final minimum = index == 0
+        ? 0
+        : rpm(points[index - 1]).clamp(0, maximumRpm);
+    final maximum = index == points.length - 1
+        ? maximumRpm
+        : rpm(points[index + 1]).clamp(0, maximumRpm);
+    if (minimum > maximum) return rpm(points[index]);
+    return value.clamp(minimum, maximum);
   }
 }
 
@@ -742,9 +936,8 @@ class _FanSummaryCard extends StatelessWidget {
                   children: [
                     Text(
                       value,
-                      style: monoBarStyle(
-                        accent ?? scheme.onSurface,
-                      ).copyWith(fontSize: 22, fontWeight: FontWeight.w700),
+                      style: monoBarStyle(accent ?? scheme.onSurface)
+                          .copyWith(fontSize: 22, fontWeight: FontWeight.w700),
                     ),
                     if (unit != null)
                       Padding(
@@ -791,9 +984,8 @@ class _SaveRow extends StatelessWidget {
           dirty
               ? 'Unsaved changes · review the curve before applying.'
               : 'No unsaved curve changes.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: dirty ? accent : null),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: dirty ? accent : null),
         ),
         FilledButton.icon(
           key: const ValueKey('fan-curve-save'),

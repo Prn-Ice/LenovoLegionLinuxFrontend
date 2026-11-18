@@ -148,6 +148,8 @@ class PowerBloc extends Bloc<PowerEvent, PowerState> {
       );
     } catch (error) {
       if (_closing || emit.isDone) return;
+      await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }

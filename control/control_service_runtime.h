@@ -27,6 +27,7 @@ struct ControlContext {
     std::string sender;
     bool disconnected = false;
     bool graphics_operation = false;
+    bool cli_exit_contract = false;
     bool return_output = false;
   };
   std::unique_ptr<ActiveOperation> active;

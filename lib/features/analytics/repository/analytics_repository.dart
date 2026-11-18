@@ -23,6 +23,7 @@ class AnalyticsRepository {
     final results = await Future.wait([
       _sysfsService.readFan1Rpm(),
       _sysfsService.readFan2Rpm(),
+      _sysfsService.readFan3Rpm(),
       _sysfsService.readCpuTempC(),
       _sysfsService.readGpuTempC(),
       _sysfsService.readBatteryPercent(),
@@ -30,16 +31,17 @@ class AnalyticsRepository {
       _sysfsService.readBatteryTempC(),
       _nvidiaSmiService.readSnapshot(),
     ]);
-    final nvidia = results[7] as GpuReading?;
+    final nvidia = results[8] as GpuReading?;
     final record = SensorRecord(
       timestamp: DateTime.now(),
       fan1Rpm: results[0] as int?,
       fan2Rpm: results[1] as int?,
-      cpuTempC: results[2] as double?,
-      gpuTempC: nvidia?.tempC ?? results[3] as double?,
-      batteryPercent: results[4] as int?,
-      batteryPowerDrawW: results[5] as double?,
-      batteryTempC: results[6] as double?,
+      fan3Rpm: results[2] as int?,
+      cpuTempC: results[3] as double?,
+      gpuTempC: nvidia?.tempC ?? results[4] as double?,
+      batteryPercent: results[5] as int?,
+      batteryPowerDrawW: results[6] as double?,
+      batteryTempC: results[7] as double?,
       gpuUtilPercent: nvidia?.usagePercent,
       gpuPowerDrawW: nvidia?.powerDrawW,
       dgpuTempC: nvidia?.tempC,

@@ -81,5 +81,40 @@ void main() {
       final entryCount = RegExp(r'- fan1_speed').allMatches(yaml).length;
       expect(entryCount, equals(10));
     });
+
+    test('rejects incomplete or speed-only serialization', () {
+      expect(
+        () => const FanCurve(
+          name: 'speed-only',
+          schema: FanCurveSchema.speedOnly,
+          points: [FanCurvePoint(fan1Level: 1)],
+        ).toYaml(),
+        throwsStateError,
+      );
+      expect(
+        () => const FanCurve(
+          name: 'incomplete',
+          points: [FanCurvePoint(fan1Rpm: 1000)],
+        ).toYaml(),
+        throwsStateError,
+      );
+    });
+
+    test('normalizes full-curve RPM readback through PWM bytes', () {
+      final requested = FanCurve(
+        name: 'test',
+        fan1MaxRpm: 5000,
+        fan2MaxRpm: 5000,
+        points: List.generate(
+          1,
+          (_) => _makePoint(fan1Rpm: 1234, fan2Rpm: 2345),
+        ),
+      );
+      final readback = requested.copyWithPoint(
+        0,
+        requested.points.first.copyWith(fan1Rpm: 1235, fan2Rpm: 2344),
+      );
+      expect(requested.matchesReadback(readback), isTrue);
+    });
   });
 }

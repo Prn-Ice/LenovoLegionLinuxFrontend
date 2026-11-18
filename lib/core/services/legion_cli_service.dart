@@ -2,8 +2,12 @@ import 'dart:io';
 
 import 'host_command_environment.dart';
 
-typedef ProcessRunner =
-    Future<ProcessResult> Function(String executable, List<String> arguments);
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String executable,
+  List<String> arguments,
+);
+
+enum LegionCliExit { success, failure, unavailable, featureNotFound }
 
 class LegionCliResult {
   const LegionCliResult({
@@ -17,6 +21,13 @@ class LegionCliResult {
   final String stderr;
 
   bool get ok => exitCode == 0;
+
+  LegionCliExit get classification => switch (exitCode) {
+    0 => LegionCliExit.success,
+    2 => LegionCliExit.unavailable,
+    3 => LegionCliExit.featureNotFound,
+    _ => LegionCliExit.failure,
+  };
 }
 
 class LegionCliService {

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../../../core/models/app_failure.dart';
+import '../models/fan_curve.dart';
 import '../repository/fans_repository.dart';
 import 'fans_event.dart';
 import 'fans_state.dart';
@@ -18,6 +19,14 @@ class FansBloc extends Bloc<FansEvent, FansState> {
         switch (event) {
           case FansStarted():
             await _onStarted(event, emit);
+          case FanCurveDraftDiscarded():
+            emit(
+              state.copyWith(
+                fanCurve: state.authoritativeFanCurve,
+                fanCurveDirty: false,
+                fanCurveCapabilityStale: false,
+              ),
+            );
           case FansRefreshRequested():
             await _onRefreshRequested(event, emit);
           case FansTicked():
@@ -109,6 +118,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     FansApplyCurrentPresetRequested event,
     Emitter<FansState> emit,
   ) async {
+    if (!_curveWritesAllowed) return;
     await _apply(
       emit,
       action: _repository.applyCurrentContextPreset,
@@ -120,6 +130,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     FansApplySelectedPresetRequested event,
     Emitter<FansState> emit,
   ) async {
+    if (!_curveWritesAllowed) return;
     final selected = state.selectedPreset;
     if (selected == null || selected.isEmpty) {
       emit(
@@ -142,6 +153,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     MiniFanCurveSetRequested event,
     Emitter<FansState> emit,
   ) async {
+    if (state.miniFanCurveEnabled == null) return;
     await _apply(
       emit,
       action: () => _repository.setMiniFanCurve(event.enabled),
@@ -154,6 +166,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     LockFanControllerSetRequested event,
     Emitter<FansState> emit,
   ) async {
+    if (state.lockFanControllerEnabled == null) return;
     await _apply(
       emit,
       action: () => _repository.setLockFanController(event.enabled),
@@ -166,6 +179,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     MaximumFanSpeedSetRequested event,
     Emitter<FansState> emit,
   ) async {
+    if (state.maximumFanSpeedEnabled == null) return;
     await _apply(
       emit,
       action: () => _repository.setMaximumFanSpeed(event.enabled),
@@ -180,6 +194,8 @@ class FansBloc extends Bloc<FansEvent, FansState> {
   ) {
     final current = state.fanCurve;
     if (current == null ||
+        !current.canEdit ||
+        state.fanCurveCapabilityStale ||
         event.index < 0 ||
         event.index >= current.points.length) {
       return;
@@ -199,7 +215,11 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit,
   ) async {
     final curve = state.fanCurve;
-    if (curve == null || state.isApplying) {
+    if (curve == null ||
+        !curve.canEdit ||
+        curve.schema != FanCurveSchema.full ||
+        state.fanCurveCapabilityStale ||
+        state.isApplying) {
       return;
     }
 
@@ -215,17 +235,46 @@ class FansBloc extends Bloc<FansEvent, FansState> {
         emit(state.copyWith(isApplying: false));
         return;
       }
+      final readback = state.authoritativeFanCurve;
+      if (readback == null || !curve.matchesReadback(readback)) {
+        emit(
+          state.copyWith(
+            isApplying: false,
+            errorMessage: AppFailure.from(
+              StateError(
+                'Fan curve readback did not match the requested curve.',
+              ),
+              message:
+                  'The reported fan curve does not match your changes. '
+                  'Your draft is preserved. Refresh the readings and review '
+                  'the curve before retrying.',
+            ),
+          ),
+        );
+        return;
+      }
       emit(
         state.copyWith(
           isApplying: false,
+          fanCurve: readback,
           fanCurveDirty: false,
           noticeMessage: 'Fan curve applied to hardware.',
         ),
       );
     } catch (error) {
       if (_closing || emit.isDone) return;
+      await _reloadState(emit, showLoading: false);
+      if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
+  }
+
+  bool get _curveWritesAllowed {
+    final curve = state.fanCurve;
+    return curve != null &&
+        curve.canEdit &&
+        curve.schema == FanCurveSchema.full &&
+        !state.fanCurveCapabilityStale;
   }
 
   Future<void> _apply(
@@ -280,6 +329,15 @@ class FansBloc extends Bloc<FansEvent, FansState> {
         currentSelected: state.selectedPreset,
         availablePresets: snapshot.availablePresets,
       );
+      final staleDraft =
+          state.fanCurveDirty &&
+          state.fanCurve != null &&
+          (snapshot.fanCurve == null ||
+              state.fanCurve!.schema != snapshot.fanCurve!.schema ||
+              state.fanCurve!.speedUnit != snapshot.fanCurve!.speedUnit ||
+              state.fanCurve!.points.length !=
+                  snapshot.fanCurve!.points.length ||
+              state.fanCurve!.writeStatus != snapshot.fanCurve!.writeStatus);
 
       emit(
         state.copyWith(
@@ -292,6 +350,8 @@ class FansBloc extends Bloc<FansEvent, FansState> {
           lockFanControllerEnabled: snapshot.lockFanControllerEnabled,
           maximumFanSpeedEnabled: snapshot.maximumFanSpeedEnabled,
           fanCurve: state.fanCurveDirty ? state.fanCurve : snapshot.fanCurve,
+          authoritativeFanCurve: snapshot.fanCurve,
+          fanCurveCapabilityStale: staleDraft,
           isLoading: false,
           errorMessage: null,
         ),

@@ -129,7 +129,23 @@ void complete_operation(ControlContext::ActiveOperation *op,
                     output.empty()
                         ? "graphics policy changed but topology did not settle"
                         : output);
-      else
+      else if (op->cli_exit_contract) {
+        const auto cli_exit = legion_control::ClassifyCliExit(result.exit_status);
+        if (cli_exit == legion_control::CliExit::kUnavailable)
+          reply_error(op->invocation, "Unavailable",
+                      output.empty() ? "backend capability is unavailable"
+                                     : "backend capability is unavailable: " +
+                                           output);
+        else if (cli_exit == legion_control::CliExit::kFeatureNotFound)
+          reply_error(op->invocation, "NotSupported",
+                      output.empty() ? "backend feature is not supported"
+                                     : "backend feature is not supported: " +
+                                           output);
+        else
+          reply_error(op->invocation, "CommandFailed",
+                      output.empty() ? "backend command failed"
+                                     : "backend command failed: " + output);
+      } else
         reply_error(op->invocation, "CommandFailed",
                     output.empty() ? "backend command failed"
                                    : "backend command failed: " + output);
@@ -174,6 +190,7 @@ void invoke(ControlContext *c, GDBusMethodInvocation *i,
   const char *sender = g_dbus_method_invocation_get_sender(i);
   operation->sender = sender ? sender : "";
   operation->graphics_operation = graphics;
+  operation->cli_exit_contract = backend == CommandBackend::kCli;
   operation->return_output = return_output;
   ControlContext::ActiveOperation *q = operation.get();
   c->active = std::move(operation);

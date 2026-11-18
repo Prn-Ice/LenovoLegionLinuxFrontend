@@ -180,6 +180,11 @@ static void test_graphics_modes() {
   g_assert_true(ClassifyGraphicsExit(2) == GraphicsExit::kBlocked);
   g_assert_true(ClassifyGraphicsExit(3) == GraphicsExit::kPending);
   g_assert_true(ClassifyGraphicsExit(1) == GraphicsExit::kFailed);
+
+  g_assert_true(ClassifyCliExit(0) == CliExit::kSuccess);
+  g_assert_true(ClassifyCliExit(1) == CliExit::kFailed);
+  g_assert_true(ClassifyCliExit(2) == CliExit::kUnavailable);
+  g_assert_true(ClassifyCliExit(3) == CliExit::kFeatureNotFound);
 }
 
 static void test_boot_graphics_modes() {

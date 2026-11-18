@@ -246,6 +246,67 @@ void main() {
     expect(captured.single.value, greaterThan(55));
   });
 
+  testWidgets('mismatched readback keeps the requested draft for retry', (
+    tester,
+  ) async {
+    final harness = await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(currentMode: const PowerMode('custom')),
+    );
+    final spec = PowerRepository.allPowerLimits.first;
+    when(() => harness.repository.setPowerLimits(any())).thenThrow(
+      PowerLimitReadbackException(limit: spec, requested: 60, actual: 55),
+    );
+
+    await tester.drag(
+      find.byKey(const ValueKey('power-limit-slider-cpu_longterm')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply changes').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved limit changes'), findsOneWidget);
+    expect(find.textContaining('did not accept'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('missing readback keeps the requested draft for retry', (
+    tester,
+  ) async {
+    final harness = await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: _snapshot(currentMode: const PowerMode('custom')),
+    );
+    final spec = PowerRepository.allPowerLimits.first;
+    when(() => harness.repository.loadSnapshot()).thenAnswer(
+      (_) async => _snapshot(
+        currentMode: const PowerMode('custom'),
+        omitPowerLimitIds: {'cpu_longterm'},
+      ),
+    );
+    when(() => harness.repository.setPowerLimits(any()))
+        .thenThrow(PowerLimitReadbackException(limit: spec, requested: 60));
+
+    await tester.drag(
+      find.byKey(const ValueKey('power-limit-slider-cpu_longterm')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply changes').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unsaved limit changes'), findsOneWidget);
+    expect(find.textContaining('actual value is unavailable'), findsOneWidget);
+    expect(find.textContaining('temporarily unavailable'), findsOneWidget);
+    expect(find.text('Discard pending changes'), findsOneWidget);
+    final apply = find.widgetWithText(FilledButton, 'Apply changes');
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+    verify(() => harness.repository.setPowerLimits(any())).called(1);
+  });
+
   testWidgets('power limits explain Custom and AC prerequisites', (
     tester,
   ) async {
@@ -625,14 +686,15 @@ PowerSnapshot _snapshot({
   bool gpuOverclockSupported = false,
   PowerProfilesDaemonSnapshot? daemonSnapshot,
   CpuPolicySnapshot? cpuPolicy,
+  Set<String> omitPowerLimitIds = const {},
 }) {
-  PowerLimitReading reading(String id, int value, int hardwareDefault) =>
+  PowerLimitReading reading(String id, int value, int reference) =>
       PowerLimitReading(
         spec: PowerRepository.allPowerLimits.firstWhere(
           (spec) => spec.id == id,
         ),
         value: value,
-        hardwareDefault: hardwareDefault,
+        reference: reference,
       );
 
   return PowerSnapshot(
@@ -650,7 +712,7 @@ PowerSnapshot _snapshot({
       reading('cpu_temperature', 100, 100),
       reading('gpu_temperature', 87, 87),
       reading('gpu_power_target_offset', 45, 45),
-    ],
+    ].where((reading) => !omitPowerLimitIds.contains(reading.spec.id)).toList(),
     cpuOverclockEnabled: false,
     gpuOverclockEnabled: gpuOverclockSupported ? false : null,
     onPowerSupply: onPowerSupply,

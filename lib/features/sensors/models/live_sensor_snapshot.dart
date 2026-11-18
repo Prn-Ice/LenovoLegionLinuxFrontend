@@ -13,6 +13,8 @@ class LiveSensorSnapshot extends Equatable {
     this.fan1MaxRpm,
     required this.fan2Rpm,
     this.fan2MaxRpm,
+    this.fan3Rpm,
+    this.fan3MaxRpm,
     this.igpu,
     this.dgpu,
     required this.motherboardTempC,
@@ -32,6 +34,8 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm: null,
     fan2Rpm: null,
     fan2MaxRpm: null,
+    fan3Rpm: null,
+    fan3MaxRpm: null,
     motherboardTempC: null,
     batteryPercent: null,
     batteryCharging: null,
@@ -48,6 +52,8 @@ class LiveSensorSnapshot extends Equatable {
   final int? fan1MaxRpm;
   final int? fan2Rpm;
   final int? fan2MaxRpm;
+  final int? fan3Rpm;
+  final int? fan3MaxRpm;
 
   final GpuReading? igpu;
   final GpuReading? dgpu;
@@ -69,6 +75,8 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm,
     fan2Rpm,
     fan2MaxRpm,
+    fan3Rpm,
+    fan3MaxRpm,
     igpu,
     dgpu,
     motherboardTempC,
