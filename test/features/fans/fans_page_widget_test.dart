@@ -23,6 +23,44 @@ class _MockFansRepository extends Mock implements FansRepository {}
 class _MockLiveSensorRepository extends Mock implements LiveSensorRepository {}
 
 void main() {
+  testWidgets(
+    'speed-only table hides editing and keeps both live fan readings',
+    (tester) async {
+      await _pumpPage(
+        tester,
+        width: 420,
+        snapshot: const FansSnapshot(
+          platformProfile: 'balanced',
+          onPowerSupply: true,
+          recommendedPreset: null,
+          availablePresets: ['quiet-ac'],
+          miniFanCurveEnabled: null,
+          lockFanControllerEnabled: null,
+          maximumFanSpeedEnabled: null,
+          fanCurve: FanCurve(
+            name: 'firmware',
+            schema: FanCurveSchema.speedOnly,
+            speedUnit: FanSpeedUnit.level,
+            writeStatus: FanCurveWriteStatus.unsupported,
+            points: [FanCurvePoint(fan1Level: 2, fan1Rpm: 1800, fan2Rpm: 1700)],
+          ),
+        ),
+      );
+      expect(find.byKey(const ValueKey('fan-speed-table')), findsOneWidget);
+      expect(find.byKey(const ValueKey('fan-channel-toggle')), findsNothing);
+      expect(find.byKey(const ValueKey('fan-preset-quiet-ac')), findsNothing);
+      expect(find.byKey(const ValueKey('fan-curve-save')), findsNothing);
+      expect(find.byKey(const ValueKey('fan-precise-controls')), findsNothing);
+      expect(find.text('Lock fan controller'), findsNothing);
+      expect(find.text('Reduce fan cycling'), findsNothing);
+      expect(find.text('CPU fan: 2180 RPM'), findsOneWidget);
+      expect(find.text('GPU fan: 1940 RPM'), findsOneWidget);
+      expect(find.text('1800'), findsOneWidget);
+      expect(find.text('1700'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('full page has no overflow at compact width', (tester) async {
     await _pumpPage(tester, width: 320);
 
@@ -347,6 +385,8 @@ FansSnapshot _fansSnapshot({
   fanCurve: curveAvailable
       ? FanCurve(
           name: 'page-test',
+          fan1MaxRpm: 5000,
+          fan2MaxRpm: 5000,
           points: List.generate(
             10,
             (index) => FanCurvePoint(

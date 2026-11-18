@@ -133,6 +133,12 @@ class DashboardRepository extends PrivilegedRepository {
   }
 
   Future<void> applyContextFanPreset() async {
+    if ((await _sysfsService.readFanCurve())?.canEdit != true) {
+      throw const DashboardRepositoryException(
+        'The current fan table is unavailable or read-only in this app.',
+        kind: AppFailureKind.unavailable,
+      );
+    }
     await runControlOperation(
       (client) => client.applyCurrentFanPreset(),
       method: 'fan_curve.apply_context_preset',

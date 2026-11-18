@@ -54,6 +54,7 @@ void main() {
       await container.pump();
       expect(container.read(dashboardReadingsProvider).hidden, {
         DashboardMetric.igpuUsage,
+        DashboardMetric.systemTemperature,
       });
       final closed = bloc.stream.drain<void>();
       subscription.close();
@@ -62,25 +63,59 @@ void main() {
       expect(bloc.isClosed, isTrue);
       await box.close();
       box = await Hive.openBox<dynamic>('preferences');
-      expect(DashboardReadingsStore(box).load(), {DashboardMetric.igpuUsage});
+      expect(DashboardReadingsStore(box).load(), {
+        DashboardMetric.igpuUsage,
+        DashboardMetric.systemTemperature,
+      });
       expect(box.get('appearance'), {'themeMode': 'dark'});
     });
 
+    test('missing and malformed settings hide system temperature and ignore unknown names', () async {
+      final store = DashboardReadingsStore(box);
+      expect(store.load(), {DashboardMetric.systemTemperature});
+      await box.put(DashboardReadingsStore.key, 'invalid');
+      expect(store.load(), {DashboardMetric.systemTemperature});
+      await box.put(DashboardReadingsStore.key, [
+        'futureMetric',
+        'battery',
+        'dgpuUsage',
+        42,
+      ]);
+      expect(store.load(), {DashboardMetric.dgpuUsage});
+    });
+
     test(
-      'missing and malformed settings show readings and ignore unknown names',
+      'an enabled system temperature survives reopening preferences',
       () async {
-        final store = DashboardReadingsStore(box);
-        expect(store.load(), isEmpty);
-        await box.put(DashboardReadingsStore.key, 'invalid');
-        expect(store.load(), isEmpty);
-        await box.put(DashboardReadingsStore.key, [
-          'futureMetric',
-          'dgpuUsage',
-          42,
-        ]);
-        expect(store.load(), {DashboardMetric.dgpuUsage});
+        final bloc = DashboardReadingsBloc(store: DashboardReadingsStore(box));
+        addTearDown(bloc.close);
+        expect(bloc.state.hidden, {DashboardMetric.systemTemperature});
+        final saved = bloc.stream.firstWhere((state) => state.hidden.isEmpty);
+        bloc.add(
+          const DashboardReadingChanged(
+            DashboardMetric.systemTemperature,
+            visible: true,
+          ),
+        );
+        await saved;
+        await box.close();
+        box = await Hive.openBox<dynamic>('preferences');
+        expect(DashboardReadingsStore(box).load(), isEmpty);
       },
     );
+  });
+
+  test('missing or unreadable storage uses the default reading choices', () {
+    final withoutStore = DashboardReadingsBloc();
+    addTearDown(withoutStore.close);
+    expect(withoutStore.state.hidden, {DashboardMetric.systemTemperature});
+
+    final store = _Store();
+    when(store.load).thenThrow(StateError('unreadable preferences'));
+    final bloc = DashboardReadingsBloc(store: store);
+    addTearDown(bloc.close);
+    expect(bloc.state.hidden, {DashboardMetric.systemTemperature});
+    expect(bloc.state.errorMessage, contains('default readings'));
   });
 
   test('serializes visibility edits without losing another metric', () async {

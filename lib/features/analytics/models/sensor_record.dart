@@ -8,6 +8,7 @@ class SensorRecord extends HiveObject {
     required this.timestamp,
     this.fan1Rpm,
     this.fan2Rpm,
+    this.fan3Rpm,
     this.cpuTempC,
     this.gpuTempC,
     this.batteryPercent,
@@ -26,6 +27,9 @@ class SensorRecord extends HiveObject {
 
   @HiveField(2)
   int? fan2Rpm;
+
+  @HiveField(11)
+  int? fan3Rpm;
 
   @HiveField(3)
   double? cpuTempC;

@@ -290,7 +290,8 @@ void _pollingContract<E, S, T>(
       expect(error(bloc.state), failure);
       expect(notice(bloc.state), isNull);
       expect(value(bloc.state), isFalse);
-      expect(reads, 1);
+      // Charging commands can change their counterpart before failing.
+      expect(reads, feature == 'battery' ? 2 : 1);
       await tester.runAsync(bloc.close);
     });
 

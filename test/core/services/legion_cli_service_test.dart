@@ -5,6 +5,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 
 void main() {
+  test('classifies generic CLI compatibility exit statuses', () {
+    expect(
+      const LegionCliResult(exitCode: 0, stdout: '', stderr: '').classification,
+      LegionCliExit.success,
+    );
+    expect(
+      const LegionCliResult(exitCode: 1, stdout: '', stderr: '').classification,
+      LegionCliExit.failure,
+    );
+    expect(
+      const LegionCliResult(exitCode: 2, stdout: '', stderr: '').classification,
+      LegionCliExit.unavailable,
+    );
+    expect(
+      const LegionCliResult(exitCode: 3, stdout: '', stderr: '').classification,
+      LegionCliExit.featureNotFound,
+    );
+  });
+
   test(
     'shares delayed path resolution and pins all reads to that CLI',
     () async {

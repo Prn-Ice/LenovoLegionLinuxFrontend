@@ -51,20 +51,25 @@ class FansRepository extends PrivilegedRepository {
     final lockFanController = await _sysfsService.readLockFanControllerMode();
     final maximumFanSpeed = await _sysfsService.readMaximumFanSpeedMode();
     final fanCurve = await _sysfsService.readFanCurve();
+    final presets = fanCurve?.canEdit == true
+        ? defaultPresets
+        : const <String>[];
 
-    return FansSnapshot(
+    final snapshot = FansSnapshot(
       platformProfile: profile,
       onPowerSupply: onPowerSupply,
       recommendedPreset: recommendedPreset,
-      availablePresets: defaultPresets,
+      availablePresets: presets,
       miniFanCurveEnabled: miniFanCurve,
       lockFanControllerEnabled: lockFanController,
       maximumFanSpeedEnabled: maximumFanSpeed,
       fanCurve: fanCurve,
     );
+    return snapshot;
   }
 
   Future<void> applyCurrentContextPreset() async {
+    await _ensureCurveWriteAllowed();
     await runControlOperation(
       (client) => client.applyCurrentFanPreset(),
       method: 'fan_curve.apply_context_preset',
@@ -73,6 +78,7 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> applyPreset(String presetName) async {
+    await _ensureCurveWriteAllowed();
     await runControlOperation(
       (client) {
         final ControlFanPreset preset;
@@ -122,12 +128,36 @@ class FansRepository extends PrivilegedRepository {
   }
 
   Future<void> writeFanCurveToHardware(FanCurve curve) async {
+    await _ensureCurveWriteAllowed(curve);
     final bytes = utf8.encode(curve.toYaml());
     await runControlOperation(
       (client) => client.applyFanCurve(bytes),
       method: 'fan_curve.write_to_hw',
       failurePrefix: 'Failed to write fan curve to hardware',
     );
+  }
+
+  Future<void> _ensureCurveWriteAllowed([FanCurve? requested]) async {
+    final current = await _sysfsService.readFanCurve();
+    if (current == null ||
+        !current.canEdit ||
+        current.schema != FanCurveSchema.full) {
+      throw const LegionControlNotSupportedException(
+        'The current fan table is unavailable or read-only in this app. '
+        'Refresh its readings before trying again.',
+      );
+    }
+    if (requested != null &&
+        (requested.schema != current.schema ||
+            !requested.canEdit ||
+            requested.speedUnit != current.speedUnit ||
+            requested.points.length != current.points.length ||
+            requested.fan1MaxRpm != current.fan1MaxRpm ||
+            requested.fan2MaxRpm != current.fan2MaxRpm)) {
+      throw const LegionControlNotSupportedException(
+        'The requested fan curve is not writable for this laptop.',
+      );
+    }
   }
 
   String? _computeRecommendedPreset({

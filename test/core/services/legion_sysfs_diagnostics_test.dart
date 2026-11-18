@@ -28,13 +28,9 @@ void main() {
   test(
     'alternate synthetic layout reports the actual reader selections',
     () async {
-      final fixture =
-          jsonDecode(
-                File(
-                  'test/fixtures/sysfs/alternate-layout.json',
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+      final fixture = jsonDecode(
+        File('test/fixtures/sysfs/alternate-layout.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
       fixture.forEach((path, value) => write(path, value as String));
       write('sys/class/dmi/id/product_serial', 'DO-NOT-EXPORT-SERIAL');
       write('sys/class/dmi/id/product_uuid', 'DO-NOT-EXPORT-UUID');
@@ -61,6 +57,8 @@ void main() {
         '${await service.readFan1Rpm()}',
       );
       expect(probes[HardwareCheck.fan2Rpm]?.selectedRead?.value, '0');
+      expect(probes[HardwareCheck.fan3Rpm]?.selectedRead?.value, '2300');
+      expect(await service.readFan3Rpm(), 2300);
       expect(
         probes[HardwareCheck.acOnline]?.selectedRead?.path,
         '/sys/class/power_supply/USBC/online',
@@ -87,9 +85,8 @@ void main() {
       'garbage',
     );
     // A directory cannot be read as a file, even when the test runs as root.
-    Directory(
-      '${root.path}/sys/class/dmi/id/bios_version',
-    ).createSync(recursive: true);
+    Directory('${root.path}/sys/class/dmi/id/bios_version')
+        .createSync(recursive: true);
     // ELOOP is an unexpected filesystem failure, not an absent capability.
     final loop = '${root.path}/sys/class/dmi/id/product_name';
     Link(loop).createSync(loop);

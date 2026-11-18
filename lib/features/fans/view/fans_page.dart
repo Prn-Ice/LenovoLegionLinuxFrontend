@@ -5,12 +5,15 @@ import 'package:yaru/yaru.dart';
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/surface_card.dart';
 import '../../dashboard/widgets/quick_controls.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
+import '../../sensors/models/live_sensor_snapshot.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/fans_bloc.dart';
 import '../bloc/fans_event.dart';
 import '../bloc/fans_state.dart';
+import '../models/fan_curve.dart';
 import '../providers/fans_provider.dart';
 import 'fan_curve_editor.dart';
 
@@ -63,9 +66,35 @@ class _FansPageState extends ConsumerState<FansPage> {
           recommendedPreset: state.recommendedPreset,
           onPowerSupply: state.onPowerSupply,
           isApplying: state.isApplying,
+          sharedSpeedOnly: state.fanCurve?.schema == FanCurveSchema.speedOnly,
+          presetsEnabled:
+              state.fanCurve?.canEdit == true && !state.fanCurveCapabilityStale,
           onChannelChanged: (channel) => setState(() => _channel = channel),
           onPresetSelected: (preset) => _applyPreset(context, preset, bloc),
         ),
+        if (state.fanCurve?.schema == FanCurveSchema.speedOnly) ...[
+          const SizedBox(height: 12),
+          _LiveFanReadings(sensors: sensors),
+        ],
+        if (sensors.fan3Rpm case final fan3Rpm?) ...[
+          const SizedBox(height: 12),
+          SurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Additional fan',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(
+                  '$fan3Rpm RPM',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         if (state.fanCurve == null)
           FanCurveUnavailablePanel(
@@ -81,15 +110,40 @@ class _FansPageState extends ConsumerState<FansPage> {
             currentTemperature: currentTemperature,
             currentRpm: currentRpm,
             accent: accent,
-            enabled: !state.isApplying,
+            enabled:
+                !state.isApplying &&
+                state.fanCurve!.canEdit &&
+                !state.fanCurveCapabilityStale,
             dirty: state.fanCurveDirty,
             isApplying: state.isApplying,
             onPointChanged: (index, point) =>
                 bloc.add(FanCurvePointUpdated(index: index, point: point)),
-            onSave: state.fanCurveDirty && !state.isApplying
+            onSave:
+                state.fanCurveDirty &&
+                    !state.isApplying &&
+                    state.fanCurve!.canEdit &&
+                    !state.fanCurveCapabilityStale
                 ? () => _saveCurve(context, bloc)
                 : null,
           ),
+        if (state.fanCurveCapabilityStale) ...[
+          const Text(
+            'Fan-table support changed. Your earlier draft is preserved, '
+            'but cannot be applied to the current table. Refresh to check again '
+            'or discard the draft to view the current table.',
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: state.isApplying
+                  ? null
+                  : () => ref
+                        .read(fansBlocProvider.bloc)
+                        .add(const FanCurveDraftDiscarded()),
+              child: const Text('Discard draft'),
+            ),
+          ),
+        ],
         if (hasFanControls) ...[
           const SizedBox(height: 16),
           _FanControls(
@@ -173,7 +227,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Change fan controller lock',
-      message: 'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
+      message: 'Locking the embedded controller fan state requires privileged access.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
@@ -189,6 +243,8 @@ class _FanWorkspaceToolbar extends StatelessWidget {
     required this.recommendedPreset,
     required this.onPowerSupply,
     required this.isApplying,
+    required this.sharedSpeedOnly,
+    required this.presetsEnabled,
     required this.onChannelChanged,
     required this.onPresetSelected,
   });
@@ -199,6 +255,8 @@ class _FanWorkspaceToolbar extends StatelessWidget {
   final String? recommendedPreset;
   final bool? onPowerSupply;
   final bool isApplying;
+  final bool sharedSpeedOnly;
+  final bool presetsEnabled;
   final ValueChanged<FanChannel> onChannelChanged;
   final ValueChanged<String> onPresetSelected;
 
@@ -249,12 +307,15 @@ class _FanWorkspaceToolbar extends StatelessWidget {
                 selected: preset == selectedPreset,
                 recommended: preset == recommendedPreset,
                 showContext: suffix == null,
-                enabled: !isApplying,
+                enabled: !isApplying && presetsEnabled,
                 onSelected: onPresetSelected,
               ),
           ],
         );
 
+        if (sharedSpeedOnly) {
+          return const SizedBox.shrink();
+        }
         if (constraints.maxWidth < 760) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,6 +336,45 @@ class _FanWorkspaceToolbar extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _LiveFanReadings extends StatelessWidget {
+  const _LiveFanReadings({required this.sensors});
+
+  final LiveSensorSnapshot sensors;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    String reading(int? value) => value == null ? '—' : '$value RPM';
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 28,
+        runSpacing: 12,
+        children: [
+          Text(
+            'CPU fan: ${reading(sensors.fan1Rpm)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          Text(
+            'GPU fan: ${reading(sensors.fan2Rpm)}',
+            style: theme.textTheme.bodyMedium,
+          ),
+          if (sensors.cpuTempC != null)
+            Text(
+              'CPU temperature: ${sensors.cpuTempC!.round()}°C',
+              style: theme.textTheme.bodyMedium,
+            ),
+          if (sensors.dgpu?.tempC case final temperature?)
+            Text(
+              'dGPU temperature: ${temperature.round()}°C',
+              style: theme.textTheme.bodyMedium,
+            ),
+        ],
+      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:yaru/yaru.dart';
 
 import '../bloc/analytics_event.dart';
 import '../bloc/analytics_state.dart';
+import '../../../core/widgets/fan_icon.dart';
 import '../models/sensor_record.dart';
 import '../providers/analytics_provider.dart';
 
@@ -54,6 +55,12 @@ class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
             value: latest?.fan2Rpm != null ? '${latest!.fan2Rpm} RPM' : '—',
             icon: Icons.air,
           ),
+          if (latest?.fan3Rpm != null)
+            _SensorTile(
+              label: 'Fan 3',
+              value: '${latest!.fan3Rpm} RPM',
+              leading: const FanIcon(),
+            ),
           _SensorTile(
             label: 'CPU Temp',
             value: latest?.cpuTempC != null
@@ -118,17 +125,19 @@ class _SensorTile extends StatelessWidget {
   const _SensorTile({
     required this.label,
     required this.value,
-    required this.icon,
+    this.icon,
+    this.leading,
   });
 
   final String label;
   final String value;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
 
   @override
   Widget build(BuildContext context) {
     return YaruListTile(
-      leading: Icon(icon),
+      leading: leading ?? Icon(icon),
       title: Text(label),
       trailing: Text(
         value,
@@ -205,34 +214,86 @@ class _FanSpeedChart extends StatelessWidget {
   List<FlSpot> _spots(int? Function(SensorRecord) pick) => history
       .asMap()
       .entries
-      .where((e) => pick(e.value) != null)
-      .map((e) => FlSpot(e.key.toDouble(), pick(e.value)!.toDouble()))
+      .map(
+        (e) => pick(e.value) == null
+            ? FlSpot.nullSpot
+            : FlSpot(e.key.toDouble(), pick(e.value)!.toDouble()),
+      )
       .toList();
 
   @override
   Widget build(BuildContext context) {
-    return LineChart(
-      LineChartData(
-        lineBarsData: [
-          LineChartBarData(
-            spots: _spots((r) => r.fan1Rpm),
-            isCurved: true,
-            color: Colors.green,
-            barWidth: 2,
-            dotData: const FlDotData(show: false),
+    final fan3Available = history.any((r) => r.fan3Rpm != null);
+    return Column(
+      children: [
+        SizedBox(
+          height: fan3Available ? 108 : 140,
+          child: LineChart(
+            LineChartData(
+              lineBarsData: [
+                LineChartBarData(
+                  spots: _spots((r) => r.fan1Rpm),
+                  isCurved: true,
+                  color: Colors.green,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                ),
+                LineChartBarData(
+                  spots: _spots((r) => r.fan2Rpm),
+                  isCurved: true,
+                  color: Colors.purple,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: false),
+                ),
+                if (fan3Available)
+                  LineChartBarData(
+                    spots: _spots((r) => r.fan3Rpm),
+                    isCurved: true,
+                    color: Theme.of(context).colorScheme.tertiary,
+                    barWidth: 2,
+                    dotData: const FlDotData(show: false),
+                  ),
+              ],
+              titlesData: const FlTitlesData(show: false),
+              borderData: FlBorderData(show: false),
+              gridData: const FlGridData(show: false),
+            ),
           ),
-          LineChartBarData(
-            spots: _spots((r) => r.fan2Rpm),
-            isCurved: true,
-            color: Colors.purple,
-            barWidth: 2,
-            dotData: const FlDotData(show: false),
+        ),
+        if (fan3Available)
+          _FanLegend(
+            entries: [
+              ('Fan 1', Colors.green),
+              ('Fan 2', Colors.purple),
+              ('Fan 3', Theme.of(context).colorScheme.tertiary),
+            ],
           ),
-        ],
-        titlesData: const FlTitlesData(show: false),
-        borderData: FlBorderData(show: false),
-        gridData: const FlGridData(show: false),
-      ),
+      ],
     );
   }
+}
+
+class _FanLegend extends StatelessWidget {
+  const _FanLegend({required this.entries});
+
+  final List<(String, Color)> entries;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: entries.map((entry) => entry.$1).join(', '),
+    child: Wrap(
+      spacing: 16,
+      children: [
+        for (final entry in entries)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 8, height: 8, color: entry.$2),
+              const SizedBox(width: 4),
+              Text(entry.$1, style: Theme.of(context).textTheme.labelSmall),
+            ],
+          ),
+      ],
+    ),
+  );
 }

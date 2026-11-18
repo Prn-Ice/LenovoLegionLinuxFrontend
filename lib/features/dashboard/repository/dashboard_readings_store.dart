@@ -10,7 +10,7 @@ class DashboardReadingsStore {
 
   Set<DashboardMetric> load() {
     final raw = _box.get(key);
-    if (raw is! List) return {};
+    if (raw is! List) return DashboardMetric.defaultHidden;
     return {
       for (final metric in DashboardMetric.values)
         if (raw.contains(metric.name)) metric,
