@@ -5,6 +5,8 @@ import 'package:legion_frontend/features/lighting/models/spectrum_led_map.dart';
 import 'package:legion_frontend/features/lighting/services/spectrum_protocol.dart';
 import 'package:legion_frontend/features/lighting/models/keyboard_layout.dart';
 
+// Run one numbered keyboard-lighting check. A frame is one set of key colors.
+// These checks send colors to the keyboard; the color helpers build the data.
 final _functionKeyPattern = RegExp(r'^Key: (Escape|F\d)');
 final _numberKeyPattern = RegExp(r'^Key: [0-9`\-=]$');
 final _letterKeyPattern = RegExp(r'^Key: [A-Z]$');
@@ -36,7 +38,7 @@ final _letterKeyPattern = RegExp(r'^Key: [A-Z]$');
 }
 
 SpectrumLed _spectrumLed(int ledValue, int red, int green, int blue) {
-  // Match the app: white-balance first, then apply the power cap.
+  // Match the app: adjust the color balance, then limit LED power use.
   final (balancedRed, balancedGreen, balancedBlue) = whiteBalanceRgb(
     red,
     green,
@@ -133,7 +135,7 @@ Future<void> main(List<String> args) async {
   if (!keyboard.open()) {
     stderr.writeln(
       'Could not open the Spectrum keyboard. Check the detected keyboard model '
-      'and your access to its hidraw device.',
+      'and your permission to access its device file (/dev/hidraw*).',
     );
     return;
   }
@@ -152,13 +154,15 @@ Future<void> main(List<String> args) async {
       label = 'ALL BLUE';
     case 4:
       frame = _solidFrame(255, 255, 255);
-      label = 'ALL WHITE (power-capped)';
+      label = 'ALL WHITE (LED power limited)';
     case 5:
       frame = _rainbowFrame();
       label = 'PER-KEY RAINBOW';
     case 6:
       frame = _keyboardSectionFrame();
-      label = 'SECTIONS (Fn=red, nums=green, letters=blue, numpad=white)';
+      label =
+          'SECTIONS (Escape/function keys=red, numbers=green, '
+          'letters=blue, number pad=white)';
     case 7:
       frame = _solidFrame(255, 255, 255);
       brightness = 3;
@@ -177,7 +181,7 @@ Future<void> main(List<String> args) async {
     case 11:
       frame = _whiteFrameAtGain(0.94);
       brightness = 3;
-      label = 'ADAPTIVE DIM WHITE (green: 0.94)';
+      label = 'DIM WHITE (green multiplied by 0.94)';
     case 12:
       final requestedSeconds = args.length > 1
           ? (int.tryParse(args[1]) ?? 8)
