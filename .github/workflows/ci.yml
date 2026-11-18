@@ -1,8 +1,6 @@
-name: CI
+name: Release validation
 
 on:
-  pull_request:
-    branches: [main]
   workflow_call:
 
 permissions:
@@ -10,12 +8,12 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   changes:
     name: Select build and VM checks
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     outputs:
       integration: ${{ steps.changes.outputs.integration }}
       lifecycle: ${{ steps.changes.outputs.lifecycle }}
@@ -42,7 +40,7 @@ jobs:
 
   test:
     name: Flutter Test & Analyze
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -50,7 +48,24 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Load the local Flutter SDK
+        if: runner.environment == 'self-hosted'
+        run: |
+          version="$(jq -er '.flutter.version' packaging/appimage/build-inputs.json)"
+          digest="$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json)"
+          sdk="$RUNNER_TOOL_CACHE/flutter/stable-$version-x64"
+          if [[ ! -x "$sdk/flutter/bin/flutter" ]]; then
+            archive="$(bash tool/cache_flutter_archive.sh "$HOME/.cache/legion-ci/flutter-$digest.tar.xz")"
+            mkdir -p "$sdk"
+            staging="$(mktemp -d "$sdk/.extract.XXXXXXXX")"
+            trap 'rm -rf "$staging"' EXIT
+            tar -xf "$archive" -C "$staging"
+            mv "$staging/flutter" "$sdk/flutter"
+          fi
+          echo "$sdk/flutter/bin" >> "$GITHUB_PATH"
+          echo "FLUTTER_ROOT=$sdk/flutter" >> "$GITHUB_ENV"
       - name: Set up Flutter
+        if: runner.environment == 'github-hosted'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -59,8 +74,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
+          packages=(cmake g++ make dpkg squashfs-tools)
+          if ! dpkg-query -W -f='${db:Status-Status}\n' "${packages[@]}" > "$RUNNER_TEMP/package-status" 2>/dev/null ||
+              grep -qvx installed "$RUNNER_TEMP/package-status"; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          fi
           flutter pub get --enforce-lockfile
 
       - name: Generate Hive adapters
@@ -73,7 +92,13 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test --reporter=compact
+        env:
+          LOCAL_RUNNER: ${{ runner.environment == 'self-hosted' }}
+        run: |
+          # Two Flutter workers exceeded the local machine's 4 GiB limit.
+          workers=()
+          if [[ $LOCAL_RUNNER == true ]]; then workers=(--concurrency=1); fi
+          flutter test --reporter=expanded "${workers[@]}"
 
       - name: Test VM readiness and evidence handling
         run: |
@@ -84,6 +109,8 @@ jobs:
 
   native:
     name: Native services and tests
+    # These checks need pidfds and execution from sealed file descriptors,
+    # which fail under the temporary runner's Rosetta translation.
     runs-on: ubuntu-latest
 
     steps:
@@ -155,7 +182,7 @@ jobs:
 
   appimage-build:
     name: AppImage build and source companion
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.appimage == 'true'
@@ -166,7 +193,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/package-inputs
       - name: Build the AppImage and source companion
-        run: bash tool/build_appimage.sh "$RUNNER_TEMP/flutter.tar.xz" build/appimage-inputs build/appimage-release
+        run: bash tool/build_appimage.sh "$PACKAGE_FLUTTER_ARCHIVE" "$PACKAGE_RUNTIME_INPUTS" build/appimage-release
       - uses: actions/upload-artifact@v7
         with:
           name: appimage-build
@@ -235,6 +262,8 @@ jobs:
 
   linux-integration:
     name: Linux native app integration
+    # Run the desktop journey on native Linux; translated execution failed
+    # during Flutter/Xvfb cleanup after the test cases.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
@@ -312,7 +341,7 @@ jobs:
 
   debian-build:
     name: Debian build and source companion
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.debian == 'true'
@@ -325,7 +354,7 @@ jobs:
         with:
           appimage-runtime: 'false'
       - name: Build the Debian package and source companion
-        run: bash tool/build_deb.sh "$RUNNER_TEMP/flutter.tar.xz" build/deb-release
+        run: bash tool/build_deb.sh "$PACKAGE_FLUTTER_ARCHIVE" build/deb-release
       - uses: actions/upload-artifact@v7
         with:
           name: debian-build
