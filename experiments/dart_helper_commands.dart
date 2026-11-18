@@ -134,7 +134,7 @@ final class IntegerValue extends FeatureValue {
   final int value;
 }
 
-/// An argv value for a future caller; this prototype never executes it.
+/// The arguments to pass to a backend command. This experiment never runs it.
 class HelperCommand {
   HelperCommand(List<String> arguments)
     : arguments = List.unmodifiable(arguments);
@@ -142,7 +142,7 @@ class HelperCommand {
   final List<String> arguments;
 }
 
-/// Validates a feature value and constructs the native helper's argv.
+/// Checks a requested setting and builds the backend command's arguments.
 HelperCommand buildFeatureCommand(ControlFeature feature, FeatureValue value) {
   final serializedValue = switch ((feature, value)) {
     (ControlFeature.platformProfile, ProfileValue(:final value)) =>
@@ -192,7 +192,7 @@ String _boundedInteger(int value, int minimum, int maximum) {
   return value.toString();
 }
 
-/// Parses the strings received at the native boundary before building argv.
+/// Checks an incoming setting name and value before building its command.
 HelperCommand buildFeatureFromSerializedInput(
   String featureName,
   String value,
@@ -233,14 +233,14 @@ HelperCommand buildFeatureFromSerializedInput(
   return buildFeatureCommand(feature, IntegerValue(integer));
 }
 
-/// Applies the native 128-byte text bound before an external value is parsed.
+/// Rejects input longer than 128 UTF-8 bytes, matching the C++ helper's limit.
 void validateBoundedInput(String value, String label) {
   if (utf8.encode(value).length > helperInputLimit) {
     throw FormatException('$label exceeds maximum length');
   }
 }
 
-/// Parses a serialized capability before selecting its allow-listed command.
+/// Accepts only the toggle names supported by the helper.
 ControlCapability parseCapability(String value) {
   validateBoundedInput(value, 'toggle');
   return ControlCapability.values.firstWhere(
@@ -286,7 +286,7 @@ BootGraphicsMode parseBootGraphicsMode(String value) {
   };
 }
 
-/// Checks a payload before any byte scan; the native runtime owns its temp file.
+/// Checks the file-size limit first, then rejects empty data or invalid bytes.
 void validatePayload(List<int> bytes, int maximumSize) {
   if (bytes.length > maximumSize) {
     throw const FormatException('payload exceeds maximum size');
@@ -299,7 +299,7 @@ void validatePayload(List<int> bytes, int maximumSize) {
   }
 }
 
-/// Builds one allow-listed toggle command without invoking the backend.
+/// Builds the command to turn a supported setting on or off.
 HelperCommand buildToggleCommand(ControlCapability capability, bool on) {
   final command = '${capability.commandName}-${on ? 'enable' : 'disable'}';
   return HelperCommand([
@@ -321,8 +321,8 @@ String _filePath(File file) {
   return file.path;
 }
 
-// The path is an argv placeholder; production IPC first writes a validated
-// payload to a private native temporary file and passes that path instead.
+// This experiment uses the supplied path as a command argument. In the real app,
+// the helper validates file contents and writes its own private temporary file.
 HelperCommand buildFanCurveFileCommand(File curve) =>
     HelperCommand(['fancurve-write-file-to-hw', _filePath(curve)]);
 
@@ -371,7 +371,7 @@ String _bootGraphicsName(BootGraphicsMode mode) => switch (mode) {
   BootGraphicsMode.hybridIgpuOnly => 'hybrid-igpu-only',
 };
 
-/// Applies PR30's exit meanings only within the selected backend category.
+/// Interprets an exit code using the rules for the command that produced it.
 BackendOutcome classifyBackendExit(BackendCategory backend, int exitCode) {
   if (exitCode == 0) return BackendOutcome.success;
   if (backend == BackendCategory.cli) {

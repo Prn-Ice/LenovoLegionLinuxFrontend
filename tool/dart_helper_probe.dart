@@ -37,7 +37,7 @@ Future<RequirementResult> inspectElfHeader(String executable) async {
   );
   if (result.exitCode != 0) {
     return RequirementResult(
-      'ELF header',
+      '64-bit x86 Linux executable (ELF)',
       RequirementStatus.fail,
       'readelf failed: ${outputOf(result)}',
     );
@@ -48,7 +48,7 @@ Future<RequirementResult> inspectElfHeader(String executable) async {
       output.contains('Type:') &&
       RegExp(r'Machine:\s+Advanced Micro Devices X86-64').hasMatch(output);
   return RequirementResult(
-    'ELF header',
+    '64-bit x86 Linux executable (ELF)',
     isElf ? RequirementStatus.pass : RequirementStatus.fail,
     output,
   );
@@ -62,7 +62,7 @@ Future<RequirementResult> inspectInterpreter(String executable) async {
   );
   if (result.exitCode != 0) {
     return RequirementResult(
-      'ELF interpreter',
+      'External program loader',
       RequirementStatus.fail,
       'readelf failed: ${outputOf(result)}',
     );
@@ -79,9 +79,10 @@ Future<RequirementResult> inspectInterpreter(String executable) async {
             ? 'PT_INTERP segment present'
             : 'No PT_INTERP segment',
       );
-  // The current AppImage helper contract requires no PT_INTERP segment.
+  // PT_INTERP names an external program loader.
+  // The AppImage helper must not need one.
   return RequirementResult(
-    'No ELF interpreter',
+    'No external program loader',
     hasInterpreter ? RequirementStatus.fail : RequirementStatus.pass,
     line,
   );
@@ -90,7 +91,7 @@ Future<RequirementResult> inspectInterpreter(String executable) async {
 RequirementResult inspectDynamicLibraries(ProcessResult result) {
   if (result.exitCode != 0) {
     return RequirementResult(
-      'ELF shared-library dependencies',
+      'Required system libraries',
       RequirementStatus.fail,
       'readelf failed: ${outputOf(result)}',
     );
@@ -99,9 +100,10 @@ RequirementResult inspectDynamicLibraries(ProcessResult result) {
       .split('\n')
       .where((line) => line.contains('(NEEDED)'))
       .toList();
-  // The current AppImage helper is static and must have no NEEDED entries.
+  // NEEDED lists separate libraries.
+  // The AppImage helper must include its libraries.
   return RequirementResult(
-    'No ELF shared-library dependencies',
+    'No separate system libraries required',
     needed.isEmpty ? RequirementStatus.pass : RequirementStatus.fail,
     needed.isEmpty ? 'No DT_NEEDED entries' : needed.join('\n'),
   );
@@ -110,7 +112,7 @@ RequirementResult inspectDynamicLibraries(ProcessResult result) {
 RequirementResult inspectLoaderSearchPath(ProcessResult result) {
   if (result.exitCode != 0) {
     return RequirementResult(
-      'No ELF library search path',
+      'No embedded library search path',
       RequirementStatus.fail,
       'readelf failed: ${outputOf(result)}',
     );
@@ -120,7 +122,7 @@ RequirementResult inspectLoaderSearchPath(ProcessResult result) {
       .where((line) => line.contains('(RPATH)') || line.contains('(RUNPATH)'))
       .toList();
   return RequirementResult(
-    'No ELF library search path',
+    'No embedded library search path',
     paths.isEmpty ? RequirementStatus.pass : RequirementStatus.fail,
     paths.isEmpty ? 'No DT_RPATH or DT_RUNPATH entries' : paths.join('\n'),
   );
@@ -140,14 +142,14 @@ Future<void> main() async {
     inspectDynamicLibraries(dynamicSection),
     inspectLoaderSearchPath(dynamicSection),
     const RequirementResult(
-      'Dart runtime inclusion',
+      'Dart installation requirement',
       RequirementStatus.evidence,
-      'dart compile exe embeds the Dart runtime; this probe does not establish static linkage.',
+      'dart compile exe includes the Dart runtime. The program can still need system libraries.',
     ),
     const RequirementResult(
-      'Startup contract',
+      'Helper startup checks',
       RequirementStatus.evidence,
-      'This probe performs no D-Bus, systemd, Polkit, pidfd, snapshot, or helper launch operation.',
+      'This tool inspects the compiled file. It does not start the helper or test administrator approval, messaging, process tracking, or cleanup.',
     ),
   ];
   final report = <String, Object>{
