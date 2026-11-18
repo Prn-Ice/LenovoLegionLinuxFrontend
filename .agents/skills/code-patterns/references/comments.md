@@ -1,57 +1,76 @@
-# Comments that explain the next step
+# Comment template: Ester's browser sessions
 
-Use `///` on a class or method for the caller's view. Use `//` beside a step
-whose order matters. Choose the lines needed for the code in front of you:
+Start with the job. Name the main method, who calls it, and which helper makes
+the decision. Give each helper a comment a reader can understand on its own.
+The excerpts below show three places to tell different parts of the same story.
 
-```dart
-/// [Caller] uses [entryPoint] to <goal>. It asks [helper] <specific question>.
-/// If <condition>, <next action>. Otherwise, <who takes over>.
-
-/// Returns <value> when <condition>. A <false/null/error> result means
-/// <what the caller skips, stops, or tries next>.
-
-// Do <step> before <later step>; otherwise <visible consequence>.
-```
-
-## Example: one bad entry or no usable list?
-
-In `lib/core/services/power_profile_service.dart`, “Loads the snapshot” leaves
-two questions: where did the profiles come from, and what does `null` mean?
-Introduce `DBusPowerProfilesDaemonClient.loadSnapshot` from the caller's view:
+### 1. At the class: what is this for?
 
 ```dart
-/// Reads the active power profile and the available choices from the Linux
-/// power profiles service. Returns null if the service can't be reached
-/// or its reply can't be read. Without a snapshot, availableProfiles lists
-/// the firmware choices instead.
+/// Cookie and request rules for the dashboard's browser sessions.
+///
+/// The API calls [rejectUnsafeRequest] before it handles a request.
+/// [rejectUnsafeRequest] uses [appliesTo] to recognize browser requests.
+/// Before allowing a change such as signing out, it checks that `Origin`
+/// matches an allowed dashboard address and `X-Ester-CSRF` is `1`.
+/// If the request specifies a content type, it must be JSON.
+///
+/// At sign-in, the API uses [cookie] to tell the browser to save the session
+/// token. On later requests, [token] reads it back so the API can check the
+/// session. At sign-out, [expiredCookie] tells the browser to remove it.
+class BrowserSessions {
 ```
 
-For `parseProperties`, distinguish a missing field from a missing list:
+“Applies browser rules” leaves the reader guessing. The overview names the
+two checks and uses signing out as a familiar example. It also names the cookie
+methods in the order a signed-in person encounters them.
+
+### 2. At the helper: what question does it answer?
 
 ```dart
-/// Reads ActiveProfile and the list of Profiles from the service's reply.
-/// Skips a profile with no text name and keeps the other named profiles.
-/// Returns null if the active name is missing or no named profiles remain.
+/// Treats a request as a browser request if it includes `Origin`,
+/// `X-Ester-CSRF`, or the session cookie. Otherwise returns false.
+bool appliesTo(Request request) =>
+    request.headers.containsKey('origin') ||
+    request.headers.containsKey('x-ester-csrf') ||
+    (request.headers['cookie'] ?? '')
+        .split(';')
+        .any((part) => part.trim().startsWith('$cookieName='));
 ```
 
-`_stringProperty` needs less. Its callers decide whether a field is required:
+Stop there. This method classifies a request. It doesn't reject it, sign anyone
+in, or decide whether someone may open a protected page.
+
+### 3. At the main method and its caller: what happens next?
 
 ```dart
-/// Returns the named field's text, or null if it's missing or isn't text.
+/// Returns an error to stop the request, or `null` to let it continue.
+/// Skips non-browser requests and GET, HEAD, and OPTIONS.
+Response? rejectUnsafeRequest(Request request) {
+  if (!appliesTo(request) ||
+      const {
+        HttpMethod.get,
+        HttpMethod.head,
+        HttpMethod.options,
+      }.contains(request.method)) {
+    return null;
+  }
+  // … remaining checks omitted from this excerpt …
 ```
 
-## Example: the daemon accepted a setting. Why read it back?
-
-“Verify state” is too vague beside the read in `PowerProfileService.setProfile`.
-Name the two actors and say which one gets the final write:
+The API middleware uses that result here:
 
 ```dart
-// The Linux service may already report performance while the firmware is
-// still in a vendor-only mode. Read the firmware after setting the service
-// profile; if it still maps to a different profile, write the firmware setting.
+final rejection = browser.rejectUnsafeRequest(context.request);
+if (rejection != null) return rejection;
 ```
 
-Check the failure path before strengthening the claim: if the firmware read
-returns `null`, this branch does **not** issue that corrective write. When you
-encounter an older comment promising that a setting “always applies,” fix it
-against the actual read and write conditions.
+Now the reader can answer “Does `false` reject the request?” by following two
+short branches: `false` makes this check return `null`; the middleware returns
+early only for an error. Otherwise it continues handling the request.
+
+**Use this pattern in older code, too.** Fix unclear comments as you encounter
+them. Put a reason beside the decision it explains. If the code below only
+builds a loading screen, describe that screen there. Explain routing where
+the router actually chooses a page. If a line adds no useful explanation,
+leave it out.
