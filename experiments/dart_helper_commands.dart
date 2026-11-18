@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 const helperInputLimit = 128;
@@ -15,8 +16,6 @@ enum BackendOutcome {
   graphicsPending,
 }
 
-enum CliExit { success, failed, unavailable, featureNotFound }
-
 enum ControlFeature {
   platformProfile('PlatformProfileFeature'),
   overdrive('OverdriveFeature'),
@@ -25,24 +24,19 @@ enum ControlFeature {
   gpuOverclock('GPUOverclock'),
   yLogoLight('YLogoLight'),
   ioPortLight('IOPortLight'),
-  cpuLongtermPowerLimit('CPULongtermPowerLimit', 5, 200),
-  cpuShorttermPowerLimit('CPUShorttermPowerLimit', 5, 200),
-  cpuPeakPowerLimit('CPUPeakPowerLimit', 1, 200),
-  cpuCrossLoadingPowerLimit('CPUCrossLoadingPowerLimit', 1, 100),
-  cpuApusPptPowerLimit('CPUAPUSPPTPowerLimit', 1, 100),
-  gpuCtgppPowerLimit('GPUCTGPPowerLimit', 1, 200),
-  gpuPpabPowerLimit('GPUPPABPowerLimit', 1, 200),
-  gpuBoostClock('GPUBoostClock', 1, 10000),
-  gpuTemperatureLimit('GPUTemperatureLimit', 1, 120);
+  cpuLongtermPowerLimit('CPULongtermPowerLimit'),
+  cpuShorttermPowerLimit('CPUShorttermPowerLimit'),
+  cpuPeakPowerLimit('CPUPeakPowerLimit'),
+  cpuCrossLoadingPowerLimit('CPUCrossLoadingPowerLimit'),
+  cpuApusPptPowerLimit('CPUAPUSPPTPowerLimit'),
+  gpuCtgppPowerLimit('GPUCTGPPowerLimit'),
+  gpuPpabPowerLimit('GPUPPABPowerLimit'),
+  gpuBoostClock('GPUBoostClock'),
+  gpuTemperatureLimit('GPUTemperatureLimit');
 
-  const ControlFeature(this.serializedName, [this.minimum, this.maximum]);
+  const ControlFeature(this.serializedName);
 
   final String serializedName;
-  final int? minimum;
-  final int? maximum;
-
-  bool get isBoolean => minimum == null && this != platformProfile;
-  bool get isInteger => minimum != null;
 }
 
 enum PlatformProfile {
@@ -140,34 +134,50 @@ final class IntegerValue extends FeatureValue {
   final int value;
 }
 
-class CommandBuildResult {
-  const CommandBuildResult.success(this.arguments) : error = null;
+/// An argv value for a future caller; this prototype never executes it.
+class HelperCommand {
+  HelperCommand(List<String> arguments)
+    : arguments = List.unmodifiable(arguments);
 
-  const CommandBuildResult.failure(this.error) : arguments = null;
-
-  final List<String>? arguments;
-  final String? error;
-
-  bool get isSuccess => arguments != null;
+  final List<String> arguments;
 }
 
-CommandBuildResult buildFeatureCommand(
-  ControlFeature feature,
-  FeatureValue value,
-) {
+/// Validates a feature value and constructs the native helper's argv.
+HelperCommand buildFeatureCommand(ControlFeature feature, FeatureValue value) {
   final serializedValue = switch ((feature, value)) {
     (ControlFeature.platformProfile, ProfileValue(:final value)) =>
       value.serializedName,
-    (final feature, BooleanValue(:final value)) when feature.isBoolean =>
+    (ControlFeature.overdrive, BooleanValue(:final value)) => value ? '1' : '0',
+    (ControlFeature.winkey, BooleanValue(:final value)) => value ? '1' : '0',
+    (ControlFeature.cpuOverclock, BooleanValue(:final value)) =>
       value ? '1' : '0',
-    (final feature, IntegerValue(:final value)) when feature.isInteger =>
-      _boundedInteger(feature, value),
-    _ => null,
+    (ControlFeature.gpuOverclock, BooleanValue(:final value)) =>
+      value ? '1' : '0',
+    (ControlFeature.yLogoLight, BooleanValue(:final value)) =>
+      value ? '1' : '0',
+    (ControlFeature.ioPortLight, BooleanValue(:final value)) =>
+      value ? '1' : '0',
+    (ControlFeature.cpuLongtermPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 5, 200),
+    (ControlFeature.cpuShorttermPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 5, 200),
+    (ControlFeature.cpuPeakPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 200),
+    (ControlFeature.cpuCrossLoadingPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 100),
+    (ControlFeature.cpuApusPptPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 100),
+    (ControlFeature.gpuCtgppPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 200),
+    (ControlFeature.gpuPpabPowerLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 200),
+    (ControlFeature.gpuBoostClock, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 10000),
+    (ControlFeature.gpuTemperatureLimit, IntegerValue(:final value)) =>
+      _boundedInteger(value, 1, 120),
+    _ => throw const FormatException('unsupported feature or value'),
   };
-  if (serializedValue == null) {
-    return const CommandBuildResult.failure('unsupported feature or value');
-  }
-  return CommandBuildResult.success([
+  return HelperCommand([
     '--donotexpecthwmon',
     'set-feature',
     feature.serializedName,
@@ -175,13 +185,15 @@ CommandBuildResult buildFeatureCommand(
   ]);
 }
 
-String? _boundedInteger(ControlFeature feature, int value) {
-  if (feature.minimum == null || feature.maximum == null) return null;
-  if (value < feature.minimum! || value > feature.maximum!) return null;
+String _boundedInteger(int value, int minimum, int maximum) {
+  if (value < minimum || value > maximum) {
+    throw const FormatException('unsupported feature or value');
+  }
   return value.toString();
 }
 
-CommandBuildResult buildFeatureFromSerializedInput(
+/// Parses the strings received at the native boundary before building argv.
+HelperCommand buildFeatureFromSerializedInput(
   String featureName,
   String value,
 ) {
@@ -198,7 +210,14 @@ CommandBuildResult buildFeatureFromSerializedInput(
     );
     return buildFeatureCommand(feature, ProfileValue(profile));
   }
-  if (feature.isBoolean) {
+  if ({
+    ControlFeature.overdrive,
+    ControlFeature.winkey,
+    ControlFeature.cpuOverclock,
+    ControlFeature.gpuOverclock,
+    ControlFeature.yLogoLight,
+    ControlFeature.ioPortLight,
+  }.contains(feature)) {
     if (value != '0' && value != '1') {
       throw const FormatException('unsupported feature or value');
     }
@@ -215,11 +234,16 @@ CommandBuildResult buildFeatureFromSerializedInput(
 }
 
 void _requireBounded(String value, String label) {
-  if (value.length > helperInputLimit) {
+  if (utf8.encode(value).length > helperInputLimit) {
     throw FormatException('$label exceeds maximum length');
   }
 }
 
+/// Applies the native 128-byte text bound before an external value is parsed.
+void validateBoundedInput(String value, String label) =>
+    _requireBounded(value, label);
+
+/// Parses a serialized capability before selecting its allow-listed command.
 ControlCapability parseCapability(String value) {
   _requireBounded(value, 'toggle');
   return ControlCapability.values.firstWhere(
@@ -265,72 +289,61 @@ BootGraphicsMode parseBootGraphicsMode(String value) {
   };
 }
 
-CommandBuildResult validatePayload(List<int> bytes, int maximumSize) {
-  if (bytes.any((byte) => byte < 0 || byte > 255)) {
-    return const CommandBuildResult.failure(
-      'payload contains a non-byte value',
-    );
+/// Checks a payload before any byte scan; the native runtime owns its temp file.
+void validatePayload(List<int> bytes, int maximumSize) {
+  if (bytes.length > maximumSize) {
+    throw const FormatException('payload exceeds maximum size');
   }
   if (bytes.isEmpty) {
-    return const CommandBuildResult.failure('payload must not be empty');
+    throw const FormatException('payload must not be empty');
   }
-  if (bytes.length > maximumSize) {
-    return const CommandBuildResult.failure('payload exceeds maximum size');
+  if (bytes.any((byte) => byte < 0 || byte > 255)) {
+    throw const FormatException('payload contains a non-byte value');
   }
-  return const CommandBuildResult.success([]);
 }
 
-CommandBuildResult buildToggleCommand(ControlCapability capability, bool on) {
+/// Builds one allow-listed toggle command without invoking the backend.
+HelperCommand buildToggleCommand(ControlCapability capability, bool on) {
   final command = '${capability.commandName}-${on ? 'enable' : 'disable'}';
-  return CommandBuildResult.success([
+  return HelperCommand([
     if (capability.needsNoHardwareMonitorFlag) '--donotexpecthwmon',
     command,
   ]);
 }
 
-CommandBuildResult buildPresetCommand(FanPreset preset) =>
-    CommandBuildResult.success([
-      'fancurve-write-preset-to-hw',
-      preset.serializedName,
-    ]);
+HelperCommand buildPresetCommand(FanPreset preset) =>
+    HelperCommand(['fancurve-write-preset-to-hw', preset.serializedName]);
 
-CommandBuildResult buildCurrentPresetCommand() =>
-    const CommandBuildResult.success(['fancurve-write-current-preset-to-hw']);
+HelperCommand buildCurrentPresetCommand() =>
+    HelperCommand(['fancurve-write-current-preset-to-hw']);
 
-CommandBuildResult buildFanCurveFileCommand(File curve) =>
-    _fileCommand('fancurve-write-file-to-hw', curve);
-
-CommandBuildResult buildBootLogoCommand(File image) =>
-    _fileCommand('--donotexpecthwmon boot-logo enable', image);
-
-CommandBuildResult _fileCommand(String command, File file) {
-  final path = file.path;
-  if (path.isEmpty) {
-    return const CommandBuildResult.failure('file path must not be empty');
+String _filePath(File file) {
+  if (file.path.isEmpty) {
+    throw const FormatException('file path must not be empty');
   }
-  if (command.startsWith('--donotexpecthwmon')) {
-    return CommandBuildResult.success([
-      '--donotexpecthwmon',
-      'boot-logo',
-      'enable',
-      path,
-    ]);
-  }
-  return CommandBuildResult.success([command, path]);
+  return file.path;
 }
 
-CommandBuildResult buildRestoreBootLogoCommand() =>
-    const CommandBuildResult.success([
-      '--donotexpecthwmon',
-      'boot-logo',
-      'restore',
-    ]);
+// The path is an argv placeholder; production IPC first writes a validated
+// payload to a private native temporary file and passes that path instead.
+HelperCommand buildFanCurveFileCommand(File curve) =>
+    HelperCommand(['fancurve-write-file-to-hw', _filePath(curve)]);
 
-CommandBuildResult buildConservationCommand(int lower, int upper) {
+HelperCommand buildBootLogoCommand(File image) => HelperCommand([
+  '--donotexpecthwmon',
+  'boot-logo',
+  'enable',
+  _filePath(image),
+]);
+
+HelperCommand buildRestoreBootLogoCommand() =>
+    HelperCommand(['--donotexpecthwmon', 'boot-logo', 'restore']);
+
+HelperCommand buildConservationCommand(int lower, int upper) {
   if (lower < 0 || upper < 0 || lower > 100 || upper > 100 || lower > upper) {
-    return const CommandBuildResult.failure('invalid conservation limits');
+    throw const FormatException('invalid conservation limits');
   }
-  return CommandBuildResult.success([
+  return HelperCommand([
     '--donotexpecthwmon',
     'custom-conservation-mode-apply',
     '$lower',
@@ -338,28 +351,30 @@ CommandBuildResult buildConservationCommand(int lower, int upper) {
   ]);
 }
 
-CommandBuildResult buildServiceCommand(ServiceId service, bool on) =>
-    CommandBuildResult.success([
-      on ? 'enable' : 'disable',
-      '--now',
-      ...service.units,
-    ]);
+HelperCommand buildServiceCommand(ServiceId service, bool on) =>
+    HelperCommand([on ? 'enable' : 'disable', '--now', ...service.units]);
 
-CommandBuildResult buildGraphicsCommand(GraphicsMode mode) =>
-    CommandBuildResult.success([
-      '--donotexpecthwmon',
-      'graphics-mode',
-      'set',
-      mode.name == 'hybridIgpuOnly' ? 'hybrid-igpu-only' : mode.name,
-      '--json',
-    ]);
+HelperCommand buildGraphicsCommand(GraphicsMode mode) => HelperCommand([
+  '--donotexpecthwmon',
+  'graphics-mode',
+  'set',
+  switch (mode) {
+    GraphicsMode.hybrid => 'hybrid',
+    GraphicsMode.hybridIgpuOnly => 'hybrid-igpu-only',
+    GraphicsMode.discrete => 'discrete',
+  },
+  '--json',
+]);
 
-CommandBuildResult buildBootGraphicsCommand(BootGraphicsMode mode) =>
-    CommandBuildResult.success(['request', _bootGraphicsName(mode)]);
+HelperCommand buildBootGraphicsCommand(BootGraphicsMode mode) =>
+    HelperCommand(['request', _bootGraphicsName(mode)]);
 
-String _bootGraphicsName(BootGraphicsMode mode) =>
-    mode == BootGraphicsMode.hybridIgpuOnly ? 'hybrid-igpu-only' : 'hybrid';
+String _bootGraphicsName(BootGraphicsMode mode) => switch (mode) {
+  BootGraphicsMode.hybrid => 'hybrid',
+  BootGraphicsMode.hybridIgpuOnly => 'hybrid-igpu-only',
+};
 
+/// Applies PR30's exit meanings only within the selected backend category.
 BackendOutcome classifyBackendExit(BackendCategory backend, int exitCode) {
   if (exitCode == 0) return BackendOutcome.success;
   if (backend == BackendCategory.cli) {
@@ -378,6 +393,3 @@ BackendOutcome classifyBackendExit(BackendCategory backend, int exitCode) {
   }
   return BackendOutcome.commandFailed;
 }
-
-BackendOutcome classifyCliExit(int exitCode) =>
-    classifyBackendExit(BackendCategory.cli, exitCode);

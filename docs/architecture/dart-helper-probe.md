@@ -73,16 +73,24 @@ descriptor passing, and systemd/Polkit integration.
 `experiments/dart_helper_commands.dart` is the next isolated slice. It ports
 the allow-listed feature, toggle, preset, conservation, file, graphics,
 service, payload, and exit-classification logic as typed operations. It builds
-argument lists only; it never executes a command, opens a file, connects to
+immutable `HelperCommand.arguments` lists and uses `FormatException` for every
+invalid-input path; it never executes a command, opens a file, connects to
 D-Bus, or starts a helper. For example,
-`buildBootLogoCommand(File('/tmp/logo.bmp'))` returns
+`buildBootLogoCommand(File('/tmp/logo.bmp')).arguments` returns
 `['--donotexpecthwmon', 'boot-logo', 'enable', '/tmp/logo.bmp']`.
+That path is only an argv value in this prototype. Production IPC writes a
+validated payload to a native private temporary file before passing its path.
 
-`test/tool/dart_helper_commands_test.dart` checks accepted and rejected bounds,
-serialized-input parsing, argument order, payload limits, and the distinct
-generic CLI, graphics, systemctl, and boot-helper exit meanings. The parity
-source was PR30 head `e44b39f537f627f5580255ae9eb28a1734a58fd5`, inspected
-read-only on 2026-11-18. This is pure-logic evidence, not a replacement
+`test/tool/dart_helper_commands_test.dart` checks all nine integer feature
+ranges and adjacent failures, the profile and boolean allow-lists, every
+toggle spelling and flag, presets, services, graphics rejection, malformed
+decimal forms, 128-byte UTF-8 boundaries, both payload maxima and max-plus-one,
+conservation ordering, file paths with spaces, and every backend category for
+exit statuses 0, 1, 2, 3, and an unknown status. The parity source was PR30
+head `e44b39f537f627f5580255ae9eb28a1734a58fd5`, inspected read-only on
+2026-11-18. This scope does not test D-Bus IPC, backend failure details,
+process-status or cleanup precedence, interactive allow-list/startup behavior,
+or deployed helper qualification. It is pure-logic evidence, not a replacement
 helper or an IPC migration.
 
 ## Required compatibility input from PR30
