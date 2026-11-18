@@ -58,6 +58,13 @@ precedence; this does not install Ponytail or add its modes and commands.
 
 ## Keep the behavior visible
 
+- For an unfamiliar flow, start with its purpose. Name the main method, who
+  calls it, and the helper that makes the next decision. Describe the actual
+  check in plain words. A helper's comment should stand on its own: say what
+  it checks and what its result means to the caller. For example, if a helper
+  returns `false` for an unsupported setting, say whether the caller skips
+  that setting or stops the whole operation. Fix stale, vague, or misleading
+  comments in older code as you encounter them in the area you're changing.
 - Read construction, callers, failure handling, and cleanup together. State the
   behavior being preserved before choosing a pattern.
 - Prefer product-language names and straightforward statements. Extract helpers
