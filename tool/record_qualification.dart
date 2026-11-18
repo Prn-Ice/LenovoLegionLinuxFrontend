@@ -33,7 +33,7 @@ void main(List<String> arguments) {
         throw const FormatException(_usage);
     }
   } catch (error) {
-    stderr.writeln('Qualification manifest: $error');
+    stderr.writeln('Could not record package test results: $error');
     exitCode = error is FormatException ? 64 : 1;
   }
 }

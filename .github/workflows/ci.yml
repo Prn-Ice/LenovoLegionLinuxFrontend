@@ -221,7 +221,7 @@ jobs:
           path: build/appimage-release
       - name: Restore the AppImage executable bit after artifact download
         run: chmod +x build/appimage-release/*.AppImage
-      - name: Set up Dart for qualification manifests
+      - name: Install Dart to record package test results
         uses: dart-lang/setup-dart@v1
         with:
           sdk: '3.14.0'
@@ -379,7 +379,7 @@ jobs:
         with:
           name: debian-build
           path: build/deb-release
-      - name: Set up Dart for qualification manifests
+      - name: Install Dart to record package test results
         uses: dart-lang/setup-dart@v1
         with:
           sdk: '3.14.0'

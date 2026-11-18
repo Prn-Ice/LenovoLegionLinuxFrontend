@@ -22,7 +22,8 @@ enum QualificationFormat {
   String get archiveName => '$name-qualification.tar.gz';
 }
 
-/// Records the source and evidence copied from a successful disposable VM run.
+/// Writes the source commit, test environment, and file checksums to JSON.
+/// The distro test runner calls this after the VM passes and its logs are copied.
 void writeDistroQualification(
   Directory directory, {
   required String commit,
@@ -53,7 +54,8 @@ void writeDistroQualification(
   writePackagingJson(File('${directory.path}/manifest.json'), manifest);
 }
 
-/// Adds the NixOS archive after its acceptance command succeeds.
+/// Adds the NixOS test archive's checksum to an existing test-results file.
+/// CI calls this after the NixOS package tests pass; other fields are preserved.
 void addNixosQualification(Directory directory) {
   final manifestFile = File('${directory.path}/manifest.json');
   final manifest = jsonDecode(manifestFile.readAsStringSync()) as Map;

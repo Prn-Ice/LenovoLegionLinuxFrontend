@@ -79,19 +79,28 @@ over the network. The runner copies native source directories into the VM and ru
 setup script there. It terminates the VM and deletes the disk overlay and
 temporary SSH key on exit. It requires an unused output directory.
 
-The output retains boot, build, test, and system logs. `manifest.json` records the
-source commit, modified source status, cloud-image checksum, source archive hash,
-and qualification archive hash. The qualification archive contains the helper,
+## Saved test results
+
+The output retains boot, build, test, and system logs. The JSON file
+`manifest.json`, called a qualification manifest in the tools, records which
+source commit and test-system image were used, whether the source had local
+edits, which checks passed, and what remains unverified.
+
+It also records checksums of the source and test-result archives. A checksum
+identifies a file's contents. The release tools compare these values to confirm
+that the saved results belong to the package being released.
+
+The test-result archive contains the helper,
 ELF headers, and exact distro package versions. CI runs this check inside AppImage
 acceptance and includes `appimage-native-qualification.tar.gz` in that job's
 AppImage evidence archive, rather than repeating it in another VM.
 
-The host writes this manifest through `tool/record_qualification.dart` after
+The host writes this JSON file through `tool/record_qualification.dart` after
 the guest succeeds and its evidence archive is retrieved. CI uses the same tool
 to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
-operations use the existing manifest format; the NixOS update preserves its
+operations use the existing JSON format; the NixOS update preserves its
 other fields. Failed qualification or evidence retrieval stops the shell runner
-before it writes a success manifest.
+before it records a successful test run.
 
 This native helper check uses the host loader cache and host libraries and
 rejects an RPATH or RUNPATH in that binary. The [AppImage check](../appimage.md)
