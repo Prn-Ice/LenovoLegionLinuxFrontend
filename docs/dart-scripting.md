@@ -125,5 +125,14 @@ helper, a non-executable helper, external links, and untracked app source. Added
 checks cover serialized build records, the static-helper rebuild recipe, CLI
 failure status, destination paths, and CI selection for the moved code.
 
+The standard command also passed on NixOS at `dd2984b`:
+
+```sh
+nix develop --command bash tool/package_release.sh \
+  --output build/release/legion-frontend-source.tar.gz
+```
+
+It built the Linux release bundle and wrote its matching source archive.
+
 These fixture checks do not qualify a newly built AppImage or Debian package.
 Hosted packaging and acceptance checks remain the release requirement.
