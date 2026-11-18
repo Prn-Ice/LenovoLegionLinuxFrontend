@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-enum RequirementStatus { pass, fail, evidence }
+enum BuildCheckStatus { pass, fail, evidence }
 
-class RequirementResult {
-  const RequirementResult(this.name, this.status, this.detail);
+class BuildCheckResult {
+  const BuildCheckResult(this.name, this.status, this.detail);
 
   final String name;
-  final RequirementStatus status;
+  final BuildCheckStatus status;
   final String detail;
 
   Map<String, String> toJson() => {
@@ -17,7 +17,7 @@ class RequirementResult {
   };
 }
 
-String outputOf(ProcessResult result) {
+String combineCommandOutput(ProcessResult result) {
   final stdoutText = result.stdout.toString().trim();
   final stderrText = result.stderr.toString().trim();
   if (stdoutText.isEmpty) {
@@ -29,101 +29,103 @@ String outputOf(ProcessResult result) {
   return '$stdoutText\n$stderrText';
 }
 
-Future<RequirementResult> inspectElfHeader(String executable) async {
+Future<BuildCheckResult> checkExecutableFormat(String executable) async {
   final result = await Process.run(
     'readelf',
     ['-hW', executable],
     environment: {'LC_ALL': 'C'},
   );
   if (result.exitCode != 0) {
-    return RequirementResult(
+    return BuildCheckResult(
       '64-bit x86 Linux executable (ELF)',
-      RequirementStatus.fail,
-      'readelf failed: ${outputOf(result)}',
+      BuildCheckStatus.fail,
+      'readelf failed: ${combineCommandOutput(result)}',
     );
   }
-  final output = outputOf(result);
+  final output = combineCommandOutput(result);
   final isElf =
       RegExp(r'Class:\s+ELF64').hasMatch(output) &&
       output.contains('Type:') &&
       RegExp(r'Machine:\s+Advanced Micro Devices X86-64').hasMatch(output);
-  return RequirementResult(
+  return BuildCheckResult(
     '64-bit x86 Linux executable (ELF)',
-    isElf ? RequirementStatus.pass : RequirementStatus.fail,
+    isElf ? BuildCheckStatus.pass : BuildCheckStatus.fail,
     output,
   );
 }
 
-Future<RequirementResult> inspectInterpreter(String executable) async {
+Future<BuildCheckResult> checkProgramLoader(String executable) async {
   final result = await Process.run(
     'readelf',
     ['-lW', executable],
     environment: {'LC_ALL': 'C'},
   );
   if (result.exitCode != 0) {
-    return RequirementResult(
+    return BuildCheckResult(
       'External program loader',
-      RequirementStatus.fail,
-      'readelf failed: ${outputOf(result)}',
+      BuildCheckStatus.fail,
+      'readelf failed: ${combineCommandOutput(result)}',
     );
   }
-  final output = outputOf(result);
-  final hasInterpreter = output
+  final output = combineCommandOutput(result);
+  final hasProgramLoader = output
       .split('\n')
       .any((line) => RegExp(r'^\s*INTERP(?:\s|$)').hasMatch(line));
   final line = output
       .split('\n')
       .firstWhere(
         (line) => line.contains('Requesting program interpreter'),
-        orElse: () => hasInterpreter
+        orElse: () => hasProgramLoader
             ? 'PT_INTERP segment present'
             : 'No PT_INTERP segment',
       );
   // PT_INTERP names an external program loader.
   // The AppImage helper must not need one.
-  return RequirementResult(
+  return BuildCheckResult(
     'No external program loader',
-    hasInterpreter ? RequirementStatus.fail : RequirementStatus.pass,
+    hasProgramLoader ? BuildCheckStatus.fail : BuildCheckStatus.pass,
     line,
   );
 }
 
-RequirementResult inspectDynamicLibraries(ProcessResult result) {
+BuildCheckResult checkRequiredLibraries(ProcessResult result) {
   if (result.exitCode != 0) {
-    return RequirementResult(
+    return BuildCheckResult(
       'Required system libraries',
-      RequirementStatus.fail,
-      'readelf failed: ${outputOf(result)}',
+      BuildCheckStatus.fail,
+      'readelf failed: ${combineCommandOutput(result)}',
     );
   }
-  final needed = outputOf(result)
+  final requiredLibraries = combineCommandOutput(result)
       .split('\n')
       .where((line) => line.contains('(NEEDED)'))
       .toList();
   // NEEDED lists separate libraries.
   // The AppImage helper must include its libraries.
-  return RequirementResult(
+  return BuildCheckResult(
     'No separate system libraries required',
-    needed.isEmpty ? RequirementStatus.pass : RequirementStatus.fail,
-    needed.isEmpty ? 'No DT_NEEDED entries' : needed.join('\n'),
+    requiredLibraries.isEmpty ? BuildCheckStatus.pass : BuildCheckStatus.fail,
+    requiredLibraries.isEmpty
+        ? 'No DT_NEEDED entries'
+        : requiredLibraries.join('\n'),
   );
 }
 
-RequirementResult inspectLoaderSearchPath(ProcessResult result) {
+BuildCheckResult checkLibrarySearchPaths(ProcessResult result) {
   if (result.exitCode != 0) {
-    return RequirementResult(
+    return BuildCheckResult(
       'No embedded library search path',
-      RequirementStatus.fail,
-      'readelf failed: ${outputOf(result)}',
+      BuildCheckStatus.fail,
+      'readelf failed: ${combineCommandOutput(result)}',
     );
   }
-  final paths = outputOf(result)
+  final paths = combineCommandOutput(result)
       .split('\n')
       .where((line) => line.contains('(RPATH)') || line.contains('(RUNPATH)'))
       .toList();
-  return RequirementResult(
+  return BuildCheckResult(
     'No embedded library search path',
-    paths.isEmpty ? RequirementStatus.pass : RequirementStatus.fail,
+    paths.isEmpty ? BuildCheckStatus.pass : BuildCheckStatus.fail,
     paths.isEmpty ? 'No DT_RPATH or DT_RUNPATH entries' : paths.join('\n'),
   );
 }
@@ -136,19 +138,19 @@ Future<void> main() async {
     ['-dW', executable],
     environment: {'LC_ALL': 'C'},
   );
-  final results = <RequirementResult>[
-    await inspectElfHeader(executable),
-    await inspectInterpreter(executable),
-    inspectDynamicLibraries(dynamicSection),
-    inspectLoaderSearchPath(dynamicSection),
-    const RequirementResult(
+  final results = <BuildCheckResult>[
+    await checkExecutableFormat(executable),
+    await checkProgramLoader(executable),
+    checkRequiredLibraries(dynamicSection),
+    checkLibrarySearchPaths(dynamicSection),
+    const BuildCheckResult(
       'Dart installation requirement',
-      RequirementStatus.evidence,
+      BuildCheckStatus.evidence,
       'dart compile exe includes the Dart runtime. The program can still need system libraries.',
     ),
-    const RequirementResult(
+    const BuildCheckResult(
       'Helper startup checks',
-      RequirementStatus.evidence,
+      BuildCheckStatus.evidence,
       'This tool inspects the compiled file. It does not start the helper or test administrator approval, messaging, process tracking, or cleanup.',
     ),
   ];
@@ -159,7 +161,7 @@ Future<void> main() async {
     'results': results.map((result) => result.toJson()).toList(),
   };
   stdout.writeln(const JsonEncoder.withIndent('  ').convert(report));
-  if (results.any((result) => result.status == RequirementStatus.fail)) {
+  if (results.any((result) => result.status == BuildCheckStatus.fail)) {
     exitCode = 1;
   }
 }

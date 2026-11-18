@@ -30,7 +30,7 @@ void main() {
         'max-power',
       ];
       for (final profile in profiles) {
-        final command = buildFeatureFromSerializedInput(
+        final command = buildFeatureCommandFromText(
           'PlatformProfileFeature',
           profile,
         );
@@ -51,7 +51,7 @@ void main() {
       ];
       for (final feature in booleans) {
         for (final value in ['0', '1']) {
-          expect(buildFeatureFromSerializedInput(feature, value).arguments, [
+          expect(buildFeatureCommandFromText(feature, value).arguments, [
             '--donotexpecthwmon',
             'set-feature',
             feature,
@@ -63,15 +63,14 @@ void main() {
 
     test('rejects unknown profiles, booleans, and mismatched typed values', () {
       expectFormatException(
-        () => buildFeatureFromSerializedInput('missing', '1'),
+        () => buildFeatureCommandFromText('missing', '1'),
         'unsupported feature or value',
       );
       expectFormatException(
-        () =>
-            buildFeatureFromSerializedInput('PlatformProfileFeature', 'turbo'),
+        () => buildFeatureCommandFromText('PlatformProfileFeature', 'turbo'),
       );
       expectFormatException(
-        () => buildFeatureFromSerializedInput('OverdriveFeature', '2'),
+        () => buildFeatureCommandFromText('OverdriveFeature', '2'),
       );
       expectFormatException(
         () => buildFeatureCommand(
@@ -123,14 +122,16 @@ void main() {
           '$maximum',
         ]);
         for (final value in [minimum, maximum]) {
-          expect(
-            buildFeatureFromSerializedInput(wireName, '$value').arguments,
-            ['--donotexpecthwmon', 'set-feature', wireName, '$value'],
-          );
+          expect(buildFeatureCommandFromText(wireName, '$value').arguments, [
+            '--donotexpecthwmon',
+            'set-feature',
+            wireName,
+            '$value',
+          ]);
         }
         for (final value in [minimum - 1, maximum + 1]) {
           expectFormatException(
-            () => buildFeatureFromSerializedInput(wireName, '$value'),
+            () => buildFeatureCommandFromText(wireName, '$value'),
           );
         }
       }
@@ -171,7 +172,7 @@ void main() {
         '999999999999999999999999',
       ]) {
         expectFormatException(
-          () => buildFeatureFromSerializedInput('GPUBoostClock', value),
+          () => buildFeatureCommandFromText('GPUBoostClock', value),
         );
       }
     });
@@ -185,11 +186,11 @@ void main() {
         'value exceeds maximum length',
       );
       expectFormatException(
-        () => buildFeatureFromSerializedInput(rejected, '1'),
+        () => buildFeatureCommandFromText(rejected, '1'),
         'feature exceeds maximum length',
       );
       expectFormatException(
-        () => buildFeatureFromSerializedInput('OverdriveFeature', rejected),
+        () => buildFeatureCommandFromText('OverdriveFeature', rejected),
         'value exceeds maximum length',
       );
       expectFormatException(
@@ -241,7 +242,7 @@ void main() {
         'balanced-performance-ac',
       ];
       for (final preset in presets) {
-        expect(buildPresetCommand(parsePreset(preset)).arguments, [
+        expect(buildPresetCommand(parseFanPreset(preset)).arguments, [
           'fancurve-write-preset-to-hw',
           preset,
         ]);
@@ -266,7 +267,7 @@ void main() {
       for (final value in ['missing', 'legiond', 'power-profiles-daemon']) {
         expectFormatException(() => parseServiceId(value));
       }
-      expectFormatException(() => parsePreset('quiet'));
+      expectFormatException(() => parseFanPreset('quiet'));
       expect(buildCurrentPresetCommand().arguments, [
         'fancurve-write-current-preset-to-hw',
       ]);
@@ -319,7 +320,7 @@ void main() {
         ('discrete', GraphicsMode.discrete),
       ]) {
         expect(parseGraphicsMode(wire), mode);
-        expect(buildGraphicsCommand(mode).arguments, [
+        expect(buildGraphicsModeCommand(mode).arguments, [
           '--donotexpecthwmon',
           'graphics-mode',
           'set',
@@ -330,7 +331,7 @@ void main() {
       expectFormatException(() => parseGraphicsMode('unknown'));
       for (final wire in ['hybrid', 'hybrid-igpu-only']) {
         expect(
-          buildBootGraphicsCommand(parseBootGraphicsMode(wire)).arguments,
+          buildNextBootGraphicsCommand(parseBootGraphicsMode(wire)).arguments,
           ['request', wire],
         );
       }

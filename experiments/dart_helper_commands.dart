@@ -193,10 +193,7 @@ String _boundedInteger(int value, int minimum, int maximum) {
 }
 
 /// Checks an incoming setting name and value before building its command.
-HelperCommand buildFeatureFromSerializedInput(
-  String featureName,
-  String value,
-) {
+HelperCommand buildFeatureCommandFromText(String featureName, String value) {
   validateBoundedInput(featureName, 'feature');
   validateBoundedInput(value, 'value');
   final feature = ControlFeature.values.firstWhere(
@@ -249,7 +246,7 @@ ControlCapability parseCapability(String value) {
   );
 }
 
-FanPreset parsePreset(String value) {
+FanPreset parseFanPreset(String value) {
   validateBoundedInput(value, 'preset');
   return FanPreset.values.firstWhere(
     (candidate) => candidate.serializedName == value,
@@ -351,7 +348,7 @@ HelperCommand buildConservationCommand(int lower, int upper) {
 HelperCommand buildServiceCommand(ServiceId service, bool on) =>
     HelperCommand([on ? 'enable' : 'disable', '--now', ...service.units]);
 
-HelperCommand buildGraphicsCommand(GraphicsMode mode) => HelperCommand([
+HelperCommand buildGraphicsModeCommand(GraphicsMode mode) => HelperCommand([
   '--donotexpecthwmon',
   'graphics-mode',
   'set',
@@ -363,7 +360,7 @@ HelperCommand buildGraphicsCommand(GraphicsMode mode) => HelperCommand([
   '--json',
 ]);
 
-HelperCommand buildBootGraphicsCommand(BootGraphicsMode mode) =>
+HelperCommand buildNextBootGraphicsCommand(BootGraphicsMode mode) =>
     HelperCommand(['request', _bootGraphicsName(mode)]);
 
 String _bootGraphicsName(BootGraphicsMode mode) => switch (mode) {

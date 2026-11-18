@@ -15,9 +15,9 @@ Use the pinned stable SDK in the repository's development shell:
 
 ```bash
 mkdir -p build
-nix develop --command dart compile exe tool/dart_helper_probe.dart \
-  -o build/dart-helper-probe
-build/dart-helper-probe
+nix develop --command dart compile exe tool/check_dart_helper_build.dart \
+  -o build/dart-helper-build-check
+build/dart-helper-build-check
 ```
 
 The tool uses `readelf` to inspect its compiled Linux executable (an ELF file).
@@ -48,7 +48,7 @@ We tested the default `dart compile exe` command. We have not tested alternate
 compiler or linker options.
 
 In the actual pinned Ubuntu 22.04 AppImage builder, using Flutter 3.50.0's
-bundled stable Dart 3.14.0 on 2026-11-18, the compiled x86-64 probe was
+bundled stable Dart 3.14.0 on 2026-11-18, the compiled x86-64 test program was
 6,749,488 bytes. It reported `/lib64/ld-linux-x86-64.so.2`, `DT_NEEDED`
 entries for `libdl.so.2`, `libpthread.so.0`, `libm.so.6`, `libc.so.6`, and
 `ld-linux-x86-64.so.2`, plus `DT_RPATH [$ORIGIN/]`. Here, `DT_NEEDED` lists
