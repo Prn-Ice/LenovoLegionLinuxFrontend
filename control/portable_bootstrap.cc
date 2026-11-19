@@ -513,7 +513,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
           },
           &launch);
       g_main_loop_run(launch.loop);
-      // Drain the callback before its stack-owned context is destroyed.
+      // Drain the callback before destroying its stack-owned context.
       while (!launch.start_finished)
         g_main_context_iteration(nullptr, TRUE);
       if (launch.reply && !launch.cancelled) {

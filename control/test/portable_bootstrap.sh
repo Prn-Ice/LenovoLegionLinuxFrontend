@@ -165,7 +165,7 @@ as_user approved legion-portable-test-client --fake-peer /home/approved/fake.soc
 wait_until 5 grep FAKE_READY /tmp/fake-peer.out
 expect_status 8 as_user approved legion-portable-test-client --intrude unix:path=/home/approved/fake.sock "${app[unit]}" "${app[helper]}" "${app[bus_name]}"
 wait_until 5 grep FAKE_CLOSED_BEFORE_AUTH /tmp/fake-peer.out
-# Other processes must fail EXTERNAL authentication before methods are exported.
+# Other processes must fail EXTERNAL authentication before the helper exports methods.
 for user in approved denied; do
   expect_status 7 as_user "$user" legion-portable-test-client --intrude "${app[address]}" "${app[unit]}" "${app[helper]}" "${app[bus_name]}"
 done
@@ -204,7 +204,7 @@ session_send second connect
 session_send second authorize
 session_send second enable io.github.prnice.LegionControl1.Error.Busy
 kill -KILL "${first[helper]}"
-# systemd retains the descriptor and lock until resistant descendants are killed.
+# systemd retains the descriptor and lock until it kills resistant descendants.
 reject flock -n /run/legion-control/operation.lock true
 session_send second enable io.github.prnice.LegionControl1.Error.Busy
 assert_gone "${first[pids]}" 5

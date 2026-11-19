@@ -97,13 +97,13 @@ void complete_operation(ControlContext::ActiveOperation *op,
   if (result.status == Status::cleanupFailed) {
     op->ctx->cleanup_failed = true;
     if (!result.error.empty())
-      g_message("Backend cleanup could not be confirmed: %s",
+      g_message("Could not confirm backend cleanup: %s",
                 result.error.c_str());
   }
   if (!op->disconnected) {
     if (result.status == Status::cleanupFailed)
       reply_error(op->invocation, "Unavailable",
-                  "backend cleanup could not be confirmed; restart the control "
+                  "could not confirm backend cleanup; restart the control "
                   "service");
     else if (result.status == Status::unavailable)
       reply_error(op->invocation, "Unavailable", result.error);

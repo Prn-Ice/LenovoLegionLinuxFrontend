@@ -43,9 +43,9 @@ public:
 // Supply a dedicated manager connection: uncertain cleanup closes it to release
 // systemd references. Do not share it with the exported control interface.
 // state_directory is the installed helper's optional systemd StateDirectory
-// name. operation_lock_path coordinates installed and portable helpers. Its
-// empty regular file is also passed to systemd as stdin, retaining the lock if
-// the helper dies while backend processes are still being stopped.
+// name. operation_lock_path coordinates installed and portable helpers. The
+// runner also passes this empty regular file to systemd as stdin, retaining the
+// lock if the helper dies while systemd is still stopping backend processes.
 std::shared_ptr<ManagedCommandRunner>
 CreateManagedCommandRunner(GDBusConnection *manager_connection,
                            const std::string &parent_unit,

@@ -341,20 +341,23 @@ void main() {
     },
   );
 
-  test('shutdown escalates to SIGKILL when SIGTERM is ignored', () async {
-    createFixture(stopTimeout: Duration.zero);
-    process.ignoreTerm = true;
-    final ready = launcher.start();
-    await process.listening.future;
-    process.ready();
-    await ready;
-    final closing = launcher.close();
-    await closing;
-    expect(process.signals, [ProcessSignal.sigterm, ProcessSignal.sigkill]);
-  });
+  test(
+    'shutdown escalates to SIGKILL when the child ignores SIGTERM',
+    () async {
+      createFixture(stopTimeout: Duration.zero);
+      process.ignoreTerm = true;
+      final ready = launcher.start();
+      await process.listening.future;
+      process.ready();
+      await ready;
+      final closing = launcher.close();
+      await closing;
+      expect(process.signals, [ProcessSignal.sigterm, ProcessSignal.sigkill]);
+    },
+  );
 
   test(
-    'a missing helper produces setup guidance and cannot be retried in that session',
+    'a missing helper produces setup guidance and blocks retry in that session',
     () async {
       launcher = PortableControlLauncher(
         executable: '/missing/helper',

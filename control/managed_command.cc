@@ -255,8 +255,8 @@ struct Operation final : ManagedCommandOperation,
                g_variant_lookup(props, "Result", "&s", &service_result) &&
                g_variant_lookup(props, "ControlGroup", "&s", &control_group);
            // systemd can enter failed after final SIGKILL with tasks still
-           // alive. It releases ControlGroup only after recursive emptiness
-           // is confirmed (service.c / cgroup.c, systemd v252).
+           // alive. It releases ControlGroup only after confirming recursive
+           // emptiness (service.c / cgroup.c, systemd v252).
            if (valid && *control_group) {
              g_variant_unref(props);
              polling = false;
@@ -360,7 +360,7 @@ struct Operation final : ManagedCommandOperation,
     property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
     property("StandardErrorFileDescriptor", g_variant_new_handle(handle));
     property("TimeoutStartUSec", g_variant_new_uint64(5000000));
-    // JobTimeoutUSec is rejected by systemd v252 and v262's transient setter.
+    // systemd v252 and v262's transient setter rejects JobTimeoutUSec.
     // Bound running jobs here; Poll bounds an acknowledged, still-queued start.
     property("JobRunningTimeoutUSec", g_variant_new_uint64(5000000));
     property("RuntimeMaxUSec",
