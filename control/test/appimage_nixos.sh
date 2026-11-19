@@ -153,10 +153,11 @@ readback() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/b
 enabled() { readback | grep -x enabled; }
 wait_until 15 enabled
 assert_protected_runtime "$helper_pid" "/run/${unit%.service}/dart"
-echo 1 >"$conservation"
-restore() { click 1142 23; click 734 667; readback | grep -x disabled; }
-wait_until 20 restore
-echo 0 >"$conservation"
+[[ $(cat "$conservation") == 1 ]]
+click 734 667
+restored() { readback | grep -x disabled; }
+wait_until 20 restored
+[[ $(cat "$conservation") == 0 ]]
 [[ $(desktop xdotool getwindowpid "$(head -n1 /home/approved/window.id)") == "$pid" ]]
 screenshot privileged-control-restored
 click 90 427

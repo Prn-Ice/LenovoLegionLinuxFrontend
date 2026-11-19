@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # All provisioning and privileged fixture commands stay inside the test VM.
 set -euo pipefail
-bash control/test/qualify_ubuntu.sh
+bash control/test/qualify_ubuntu.sh --appimage
 cp /root/native-qualification.tar.gz /home/approved/appimage-native-qualification.tar.gz
 # shellcheck source=control/test/appimage_evidence.sh
 source control/test/appimage_evidence.sh

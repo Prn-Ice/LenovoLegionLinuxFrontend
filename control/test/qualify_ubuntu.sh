@@ -12,6 +12,10 @@ if [[ $ID != ubuntu || $VERSION_ID != 22.04 ]]; then
   echo "This qualification setup requires Ubuntu 22.04." >&2
   exit 1
 fi
+if [[ $# -gt 1 || ( $# == 1 && $1 != --appimage ) ]]; then
+  echo 'Usage: bash control/test/qualify_ubuntu.sh [--appimage]' >&2
+  exit 64
+fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends cmake ninja-build g++ pkg-config \
@@ -44,9 +48,25 @@ ResultAny=auth_admin
 ResultInactive=auth_admin
 ResultActive=auth_admin
 EOF
+helper_build=ON
+helper_target=(legion_portable_control)
+helper=/tmp/native/legion-portable-control
+if [[ ${1:-} == --appimage ]]; then
+  # Exercise the shipped helper; native unit tests still build below.
+  mkdir -p /tmp/appimage-native-package
+  tar -xzf /root/appimage-release.tar.gz -C /tmp/appimage-native-package
+  images=(/tmp/appimage-native-package/*.AppImage)
+  [[ ${#images[@]} == 1 && -f ${images[0]} ]]
+  chmod +x "${images[0]}"
+  (cd /tmp/appimage-native-package && "${images[0]}" --appimage-extract >/dev/null)
+  helper=/tmp/appimage-native-package/squashfs-root/usr/lib/legion_frontend/libexec/legion-portable-control
+  test -x "$helper"
+  helper_build=OFF
+  helper_target=()
+fi
 cmake -S telemetry -B /tmp/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
-  -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_PORTABLE_CONTROL_HELPER=ON
-cmake --build /tmp/native --parallel 2 --target legion_portable_control \
+  -DBUILD_LEGION_CONTROL_SERVICE=ON "-DBUILD_PORTABLE_CONTROL_HELPER=$helper_build"
+cmake --build /tmp/native --parallel 2 --target "${helper_target[@]}" \
   package_power_sampler_test control_commands_test graphics_boot_service_test \
   managed_command_test executable_snapshot_test portable_lifetime_test \
   portable_peer_test trusted_executable_test portable_cli_test
@@ -67,13 +87,13 @@ for check in trusted_executable_test executable_snapshot_test; do
 done
 # Keep the production helper in a user-owned path, as in an extracted AppImage.
 for user in approved denied challenge; do
-  install -m755 /tmp/native/legion-portable-control "/home/$user/legion-portable-control"
+  install -m755 "$helper" "/home/$user/legion-portable-control"
   chown "$user:$user" "/home/$user/legion-portable-control"
 done
 systemctl restart polkit.service
 bash control/test/portable_distro_test.sh
 mkdir -p /root/qualification
-cp /tmp/native/legion-portable-control /root/qualification/
+cp "$helper" /root/qualification/
 cp LICENSE THIRD_PARTY_NOTICES.md /root/qualification/
 readelf -lW /root/qualification/legion-portable-control > /root/qualification/elf-program-headers.txt
 readelf -dW /root/qualification/legion-portable-control > /root/qualification/elf-dynamic.txt

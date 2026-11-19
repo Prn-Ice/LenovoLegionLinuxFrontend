@@ -192,14 +192,13 @@ desktop_main() {
   [[ $helper_pid =~ ^[0-9]+$ && $helper_pid != 0 ]]
   gui_enabled() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x enabled; }
   wait_until 15 gui_enabled
-  echo 1 >"$conservation"
+  [[ $(cat "$conservation") == 1 ]]
+  gui_click 734 667
   gui_restore() {
-    gui_click 1142 23
-    gui_click 734 667
     nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x disabled
   }
   wait_until 20 gui_restore
-  echo 0 >"$conservation"
+  [[ $(cat "$conservation") == 0 ]]
   echo "PASS: first-launch helper write/readback/restore from $label"
   gui_click 90 427
   gui_wait_text 'Hardware control' 1280x720+0+0 11

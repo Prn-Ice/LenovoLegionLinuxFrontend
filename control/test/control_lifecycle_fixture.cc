@@ -5,9 +5,11 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include <fstream>
+#include <linux/magic.h>
 #include <signal.h>
 #include <string>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -35,6 +37,21 @@ bool WriteFile(const char *name, const std::string &value) {
   if (fd < 0)
     return false;
   const bool written = WriteAll(fd, value.data(), value.size());
+  const bool closed = close(fd) == 0;
+  return written && closed;
+}
+
+// GUI readback uses a tmpfs file mounted over sysfs inside the disposable VM.
+bool WriteGuiConservation(bool enabled) {
+  const int fd = open(
+      "/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode",
+      O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0)
+    return false;
+  struct statfs filesystem {};
+  const bool written = fstatfs(fd, &filesystem) == 0 &&
+                       filesystem.f_type == TMPFS_MAGIC &&
+                       WriteAll(fd, enabled ? "1\n" : "0\n", 2);
   const bool closed = close(fd) == 0;
   return written && closed;
 }
@@ -164,6 +181,7 @@ int main(int argc, char **argv) {
   std::ifstream mode_file(std::string(directory) + "/mode");
   std::string mode;
   std::getline(mode_file, mode);
+  const bool gui = mode.empty();
   if (mode.empty()) {
     // The packaged GUI test has no fixture client to prepare PrivateTmp.
     std::ifstream gui_mode("/run/legion-gui-fixture-mode");
@@ -186,6 +204,10 @@ int main(int argc, char **argv) {
       return 0;
   }
   if (mode == "success") {
+    if (gui && toggle &&
+        !WriteGuiConservation(std::string(argv[2]) ==
+                              "batteryconservation-enable"))
+      return 65;
     if (toggle &&
         !WriteFile("battery-conservation",
                    std::string(argv[2]) == "batteryconservation-enable"
