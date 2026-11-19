@@ -1,8 +1,9 @@
 # Bundling the Dart helper's runtime
 
-The isolated startup check passed with copied Ubuntu 22.04 and Nix glibc
-libraries. This supports bundling as the next option to develop. It does not
-yet establish privileged startup through the normal AppImage launch.
+The bundled runtime passed isolated startup checks with Ubuntu 22.04 and Nix
+glibc libraries. The approved native-starter prototype also passed privileged
+startup and cleanup checks in a disposable NixOS VM. Normal AppImage launch
+with a Dart helper remains unverified.
 
 The working layout uses Dart's standard ahead-of-time snapshot format:
 
@@ -79,7 +80,7 @@ separate files when this executable format breaks. Our successful check follows
 that format. It uses the standard runtime supplied by the pinned Nix SDK; it
 does not rebuild Dart or modify SDK source.
 
-## What privileged startup still needs
+## Protected-startup prototype
 
 The current native startup protects one sealed executable before asking for
 administrator approval. `control/portable_bootstrap.cc` passes that descriptor
@@ -98,7 +99,7 @@ mount does not prevent its owner from changing the source files elsewhere.
 `control/executable_snapshot.cc` also rejects user-controlled loader and library
 search paths.
 
-The smallest candidate using our existing startup code is:
+The approved prototype uses the existing startup code:
 
 1. Include the runtime bundle in the protected bytes handed to systemd before
    approval.
@@ -106,15 +107,67 @@ The smallest candidate using our existing startup code is:
    root-controlled runtime directory and populate only the known bundle files.
 3. Start the bundled loader with explicit paths and a clean environment.
    Preserve the service PID, pinned app lifetime, and peer identity checks.
-4. Extend the existing cleanup path to remove the runtime files on failure,
+4. Use the existing cleanup path to remove the runtime files on failure,
    cancellation, and app exit, including death while approval is pending.
 
-This would retain and extend native startup and cleanup code. It is a design
-candidate, not an approved or implemented bridge. It adds protected file
-staging and cleanup, although it avoids maintaining a custom Dart runtime.
-Before implementation, agree on that scope and demonstrate it in the disposable
-systemd/Polkit VMs. A replacement implemented entirely in Dart would still need
-a way to start its runtime safely before that runtime can manage these files.
+The user approved this prototype on 2026-11-19. The implementation embeds all
+seven files in the native starter, so its sealed executable also protects the
+bundle before approval. After approval, it writes fixed filenames beneath
+`/run/<service-name>/dart`. The directories have mode `0700`; the loader and
+runtime have mode `0500`; the snapshot and other libraries have mode `0400`.
+All belong to root.
+
+The starter checks the app's PID and UID against the inherited process handles,
+then replaces itself with the bundled loader. Dart inherits the app handle on
+descriptor 0 and the launcher handle on descriptor 3. The diagnostic checks its
+loaded files, performs file and socket checks, and observes both handles until
+either process exits. The existing systemd cleanup service removes the session's
+runtime directory.
+
+The native staging code is in `control/prototype/bundled_dart_runtime.cc`; the
+Dart diagnostic is `experiments/run_bundled_helper.dart`. Both prototype launch
+paths require the disposable-VM marker. The build option
+`BUILD_BUNDLED_DART_PROTOTYPE` is off by default.
+
+Run the privileged checks in the disposable NixOS VM:
+
+```bash
+nix build .#checks.x86_64-linux.bundled-dart-bootstrap \
+  --max-jobs 2 --cores 2 --print-build-logs
+```
+
+### VM results
+
+On 2026-11-19, the check above passed with the pinned Dart 3.14.0 runtime and
+Nix glibc `2.44-57`. The starter used Nixpkgs' static musl toolchain; its ELF
+had no interpreter, required shared libraries, or runtime search paths.
+The test's Polkit rules grant, deny, or require authentication for three
+disposable users. They do not exercise a desktop password dialog.
+
+| Check | Result |
+| --- | --- |
+| Approved startup | Dart runs as root with the systemd service PID; every file-backed mapping comes from its private bundle. |
+| File and socket diagnostics | File read/write and socket peer PID/UID checks pass. |
+| Ownership and permissions | All seven files have the expected root owner and modes; the ordinary user cannot list or overwrite them. |
+| Replace the source before approval | The protected bundle still starts. |
+| Denial or missing authentication agent | Dart does not start; transient units are collected. |
+| App or launcher death | Dart exits and cleanup removes the runtime directory. |
+| Kill Dart | Cleanup removes the runtime directory. |
+| Pre-existing runtime symlink | Staging rejects it; the external sentinel survives cleanup. |
+| Launcher dies while startup is queued | Dart does not start; cleanup completes. |
+| Invalid compiled snapshot | The staged loader starts, Dart rejects the snapshot, and cleanup removes the directory. |
+
+The package build also runs release-safe native staging tests for permissions,
+ownership, existing paths, traversal, symlinks, and partial-write cleanup.
+The existing `portable-bootstrap` VM regression passed with the shared startup
+and CMake changes. The new prototype rejects execution outside the test VM;
+Dart analysis, AOT compilation, formatting, ShellCheck, and Nix formatting passed.
+The build result contains `bundled-dart-tests.log`.
+
+This prototype retains native startup and cleanup. Production adoption still
+needs normal AppImage acceptance, an Ubuntu VM run, and desktop password-prompt
+tests. The Dart program implements runtime diagnostics and lifetime observation;
+the D-Bus server and hardware operations remain migration work.
 
 The packaging work must also record library provenance, include the required
 license/source information, and track security updates. D-Bus authorization,

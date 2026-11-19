@@ -4,6 +4,9 @@
 #include "portable_cleanup_image.h"
 #endif
 #include "portable_lifetime.h"
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+#include "prototype/bundled_dart_runtime.h"
+#endif
 #ifdef LEGION_PORTABLE_TEST
 #include "test/test_vm_guard.h"
 #endif
@@ -24,6 +27,7 @@
 #include <iterator>
 #include <poll.h>
 #include <sys/prctl.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -134,6 +138,106 @@ int Helper(const char *launcher_text, const std::string &unit) {
   return result > 0 ? 0 : 1;
 }
 
+#endif
+
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+pid_t PidfdProcess(int descriptor) {
+  // Read the process pinned by a pidfd so command-line identity is checked
+  // before any bundle files are created.
+  FILE *info = fopen(("/proc/self/fdinfo/" + std::to_string(descriptor)).c_str(),
+                     "r");
+  if (!info)
+    return -1;
+  char line[128];
+  pid_t process = -1;
+  while (fgets(line, sizeof(line), info)) {
+    if (strncmp(line, "Pid:", 4) == 0)
+      process = static_cast<pid_t>(strtol(line + 4, nullptr, 10));
+  }
+  fclose(info);
+  return process;
+}
+
+bool PidfdAlive(int descriptor) {
+  // A zero-time poll matches the existing control-session liveness check.
+  pollfd state{descriptor, POLLIN, 0};
+  return poll(&state, 1, 0) == 0;
+}
+
+int RunBundledDart(const char *pid_text, const char *uid_text,
+                   const std::string &unit,
+                   legion_control::PortableLifetime *lifetime) {
+  char *pid_end = nullptr;
+  char *uid_end = nullptr;
+  errno = 0;
+  const long requested_pid = strtol(pid_text, &pid_end, 10);
+  const unsigned long requested_uid = strtoul(uid_text, &uid_end, 10);
+  if (errno != 0 || !*pid_text || *pid_end || requested_pid <= 1 ||
+      requested_pid > INT_MAX || !*uid_text || *uid_end ||
+      requested_uid == 0 || requested_uid > UINT_MAX ||
+      lifetime->owner != requested_uid ||
+      PidfdProcess(lifetime->app) != requested_pid ||
+      PidfdProcess(lifetime->launcher) <= 1 || !PidfdAlive(lifetime->app) ||
+      !PidfdAlive(lifetime->launcher))
+    return 2;
+  struct stat process {};
+  const std::string process_path = "/proc/" + std::to_string(requested_pid);
+  if (stat(process_path.c_str(), &process) != 0 ||
+      process.st_uid != requested_uid || !PidfdAlive(lifetime->app) ||
+      !PidfdAlive(lifetime->launcher))
+    return 2;
+  if (!StopStartupDeadline(unit))
+    return 1;
+
+  std::string runtime, error;
+  if (!legion_control::bundled_dart::Stage(unit, &runtime, &error)) {
+    printf("DART_BUNDLE_ERROR %s\n", error.c_str());
+    fflush(stdout);
+    return 1;
+  }
+  // Duplicate above stdio before installing the inherited API: fd 0 is the
+  // app pidfd and fd 3 is the launcher pidfd, both with CLOEXEC cleared by
+  // dup2. This avoids collisions with received descriptors.
+  const int app = fcntl(lifetime->app, F_DUPFD_CLOEXEC, 10);
+  const int launcher = fcntl(lifetime->launcher, F_DUPFD_CLOEXEC, 10);
+  if (app < 0 || launcher < 0) {
+    if (app >= 0)
+      close(app);
+    if (launcher >= 0)
+      close(launcher);
+    return 1;
+  }
+  if (dup2(app, STDIN_FILENO) < 0 || dup2(launcher, 3) < 0) {
+    close(app);
+    close(launcher);
+    return 1;
+  }
+  close(app);
+  close(launcher);
+  const std::string loader = runtime + "/lib/ld-linux-x86-64.so.2";
+  const std::string library_path = runtime + "/lib";
+  const std::string runtime_binary = runtime + "/dartaotruntime";
+  const std::string snapshot = runtime + "/helper.aot";
+  const std::string pid = std::to_string(requested_pid);
+  const std::string uid = std::to_string(requested_uid);
+  char *const arguments[] = {
+      const_cast<char *>(loader.c_str()), const_cast<char *>("--inhibit-cache"),
+      const_cast<char *>("--library-path"),
+      const_cast<char *>(library_path.c_str()),
+      const_cast<char *>(runtime_binary.c_str()), const_cast<char *>(snapshot.c_str()),
+      const_cast<char *>(unit.c_str()), const_cast<char *>(pid.c_str()),
+      const_cast<char *>(uid.c_str()), nullptr};
+  char *const environment[] = {
+      const_cast<char *>("PATH=/run/current-system/sw/bin:/usr/bin:/bin"),
+      const_cast<char *>("LC_ALL=C"), const_cast<char *>("HOME=/var/empty"),
+      nullptr};
+  if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0)
+    return 1;
+  printf("BUNDLE_READY runtime=%s\n", runtime.c_str());
+  fflush(stdout);
+  execve(loader.c_str(), arguments, environment);
+  return 1;
+}
 #endif
 
 struct Launch {
@@ -603,8 +707,12 @@ int main(int argc, char **argv) {
       return 2;
     legion_control::PortableLifetime lifetime;
     if (!ValidUnit(argv[4]) || !ReceiveLifetime(&lifetime) ||
-        lifetime.owner != uid || !StopStartupDeadline(argv[4]) ||
-        dup2(lifetime.app, STDIN_FILENO) < 0)
+        lifetime.owner != uid)
+      return 2;
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+    return RunBundledDart(argv[2], argv[3], argv[4], &lifetime);
+#else
+    if (!StopStartupDeadline(argv[4]) || dup2(lifetime.app, STDIN_FILENO) < 0)
       return 2;
     std::string cli, error;
 #ifdef LEGION_PORTABLE_TEST
@@ -621,6 +729,7 @@ int main(int argc, char **argv) {
     return RunPortableControlSession(
         static_cast<pid_t>(pid), static_cast<uid_t>(uid), argv[4],
         lifetime.launcher, cli, test_build ? 5 : 15 * 60);
+#endif
   }
   if (argc == 2 && std::string(argv[1]) == "--control")
     return Launcher(false, false, true);
@@ -631,6 +740,12 @@ int main(int argc, char **argv) {
     return Launcher(true, false);
   if (argc == 2 && std::string(argv[1]) == "--queue-behind-gate")
     return Launcher(false, true);
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+  if (argc == 2 && std::string(argv[1]) == "--wait-before-control")
+    return Launcher(true, false, true);
+  if (argc == 2 && std::string(argv[1]) == "--queue-control-behind-gate")
+    return Launcher(false, true, true);
+#endif
 #endif
   return 2;
 }

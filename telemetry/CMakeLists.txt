@@ -24,9 +24,14 @@ option(BUILD_LEGION_CONTROL_SERVICE "Build the privileged Legion control service
 option(BUILD_PORTABLE_CONTROL_HELPER "Build the privileged hardware control helper" OFF)
 option(BUILD_PORTABLE_CONTROL_PROTOTYPE "Build the hardware-free private-peer control probe" OFF)
 option(BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE "Build the VM-only administrator-startup probe" OFF)
+option(BUILD_BUNDLED_DART_PROTOTYPE
+       "Build the VM-only bundled Dart runtime startup probe" OFF)
 set(PORTABLE_CONTROL_TEST_CLI "" CACHE FILEPATH "Fixed synthetic CLI for the VM-only portable control test")
+set(BUNDLED_DART_DIRECTORY "" CACHE PATH
+    "Directory containing the bundled Dart runtime and its fixed libraries")
 
-if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_HELPER OR BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
+if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_HELPER OR
+   BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE OR BUILD_BUNDLED_DART_PROTOTYPE)
   add_library(executable_snapshot STATIC ../control/executable_snapshot.cc)
   target_compile_features(executable_snapshot PUBLIC cxx_std_14)
   target_compile_options(executable_snapshot PRIVATE -Wall -Wextra -Werror)
@@ -121,6 +126,11 @@ if(BUILD_PORTABLE_CONTROL_HELPER)
   add_portable_helper(legion_portable_control)
   if(BUILD_PORTABLE_CONTROL_STATIC)
     target_link_options(legion_portable_control PRIVATE -static -Wl,--gc-sections -Wl,-t)
+  endif()
+endif()
+if(BUILD_PORTABLE_CONTROL_STATIC AND
+   (BUILD_PORTABLE_CONTROL_HELPER OR BUILD_BUNDLED_DART_PROTOTYPE))
+  if(NOT TARGET legion_portable_cleanup)
     add_executable(legion_portable_cleanup ../control/portable_cleanup.cc)
     target_compile_features(legion_portable_cleanup PRIVATE cxx_std_14)
     target_compile_options(legion_portable_cleanup PRIVATE
@@ -134,10 +144,14 @@ if(BUILD_PORTABLE_CONTROL_HELPER)
         -P "${CMAKE_CURRENT_SOURCE_DIR}/../control/embed_cleanup.cmake"
       DEPENDS legion_portable_cleanup ../control/embed_cleanup.cmake VERBATIM)
     add_custom_target(portable_cleanup_image DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/portable_cleanup_image.h")
+  endif()
+  if(BUILD_PORTABLE_CONTROL_HELPER)
     add_dependencies(legion_portable_control portable_cleanup_image)
     target_include_directories(legion_portable_control PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
     target_compile_definitions(legion_portable_control PRIVATE LEGION_EMBEDDED_CLEANUP)
   endif()
+endif()
+if(BUILD_PORTABLE_CONTROL_HELPER)
   if(CMAKE_VERSION VERSION_LESS 3.16)
     message(FATAL_ERROR "Portable helper builds require CMake 3.16 or later.")
   endif()
@@ -160,6 +174,65 @@ endif()
 if(BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
   add_portable_helper(portable_bootstrap_probe)
   target_compile_definitions(portable_bootstrap_probe PRIVATE LEGION_PORTABLE_TEST PORTABLE_CONTROL_TEST_CLI="${PORTABLE_CONTROL_TEST_CLI}")
+endif()
+
+if(BUILD_BUNDLED_DART_PROTOTYPE)
+  if(NOT BUNDLED_DART_DIRECTORY OR
+     NOT EXISTS "${BUNDLED_DART_DIRECTORY}/dartaotruntime" OR
+     NOT EXISTS "${BUNDLED_DART_DIRECTORY}/helper.aot")
+    message(FATAL_ERROR
+      "BUNDLED_DART_DIRECTORY must contain dartaotruntime and helper.aot")
+  endif()
+  find_program(CMAKE_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
+  set(bundled_dart_inputs
+    dartaotruntime helper.aot lib/ld-linux-x86-64.so.2 lib/libc.so.6
+    lib/libm.so.6 lib/libdl.so.2 lib/libpthread.so.0)
+  set(bundled_dart_objects "")
+  foreach(relative_path IN LISTS bundled_dart_inputs)
+    get_filename_component(file_name "${relative_path}" NAME)
+    set(object "${CMAKE_CURRENT_BINARY_DIR}/bundled_dart_${file_name}.o")
+    add_custom_command(
+      OUTPUT "${object}"
+      COMMAND "${CMAKE_OBJCOPY}" -I binary -O elf64-x86-64 -B i386:x86-64
+        --rename-section .data=.rodata,alloc,load,readonly,data,contents
+        "${relative_path}" "${object}"
+      DEPENDS "${BUNDLED_DART_DIRECTORY}/${relative_path}"
+      WORKING_DIRECTORY "${BUNDLED_DART_DIRECTORY}"
+      VERBATIM)
+    list(APPEND bundled_dart_objects "${object}")
+  endforeach()
+  add_executable(bundled_dart_bootstrap_probe
+    ../control/portable_bootstrap.cc
+    ../control/prototype/bundled_dart_runtime.cc
+    ${bundled_dart_objects})
+  target_compile_features(bundled_dart_bootstrap_probe PRIVATE cxx_std_14)
+  target_compile_options(bundled_dart_bootstrap_probe PRIVATE -Wall -Wextra -Werror)
+  target_link_options(bundled_dart_bootstrap_probe PRIVATE -Wl,-z,noexecstack)
+  target_compile_definitions(bundled_dart_bootstrap_probe PRIVATE
+    LEGION_PORTABLE_TEST LEGION_BUNDLED_DART_PROTOTYPE)
+  target_include_directories(bundled_dart_bootstrap_probe PRIVATE
+    ../control "${CMAKE_CURRENT_BINARY_DIR}")
+  target_link_libraries(bundled_dart_bootstrap_probe PRIVATE
+    executable_snapshot portable_lifetime PkgConfig::GIO PkgConfig::GIO_UNIX)
+  add_executable(bundled_dart_runtime_test EXCLUDE_FROM_ALL
+    ../control/prototype/bundled_dart_runtime_test.cc
+    ../control/prototype/bundled_dart_runtime.cc
+    ${bundled_dart_objects})
+  target_compile_features(bundled_dart_runtime_test PRIVATE cxx_std_14)
+  target_compile_options(bundled_dart_runtime_test PRIVATE -Wall -Wextra -Werror)
+  target_link_options(bundled_dart_runtime_test PRIVATE -Wl,-z,noexecstack)
+  target_compile_definitions(bundled_dart_runtime_test PRIVATE
+    LEGION_BUNDLED_DART_TEST)
+  target_include_directories(bundled_dart_runtime_test PRIVATE ../control)
+  target_link_libraries(bundled_dart_runtime_test PRIVATE PkgConfig::GIO)
+  if(BUILD_PORTABLE_CONTROL_STATIC)
+    target_link_options(bundled_dart_bootstrap_probe PRIVATE -static -Wl,--gc-sections)
+    add_dependencies(bundled_dart_bootstrap_probe portable_cleanup_image)
+    target_include_directories(bundled_dart_bootstrap_probe PRIVATE
+      "${CMAKE_CURRENT_BINARY_DIR}")
+    target_compile_definitions(bundled_dart_bootstrap_probe PRIVATE
+      LEGION_EMBEDDED_CLEANUP)
+  endif()
 endif()
 
 install(TARGETS legion_telemetry_service
@@ -197,6 +270,10 @@ install(FILES
 
 include(CTest)
 if(BUILD_TESTING)
+  if(TARGET bundled_dart_runtime_test)
+    add_test(NAME bundled_dart_runtime COMMAND bundled_dart_runtime_test)
+    set_tests_properties(bundled_dart_runtime PROPERTIES TIMEOUT 10)
+  endif()
   add_executable(trusted_executable_test EXCLUDE_FROM_ALL ../control/trusted_executable_test.cc)
   target_link_libraries(trusted_executable_test PRIVATE trusted_executable PkgConfig::GIO)
   target_compile_options(trusted_executable_test PRIVATE -Wall -Wextra -Werror)

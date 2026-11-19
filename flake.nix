@@ -102,6 +102,10 @@
         portable-bootstrap = import ./control/test/portable_bootstrap.nix {
           inherit pkgs;
         };
+        bundled-dart-bootstrap = import ./control/test/bundled_dart_bootstrap.nix {
+          inherit pkgs;
+          dart = flutterSdk.dart;
+        };
       };
 
       devShells.${system}.default = pkgs.mkShell {

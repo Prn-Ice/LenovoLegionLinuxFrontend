@@ -7,8 +7,8 @@ can build the same commands and reject the same invalid values.
 
 The current result: Dart compiles and the command tests pass. A bundled Dart
 runtime and separate compiled app snapshot also pass isolated startup checks
-with copied Ubuntu and Nix libraries. Privileged startup still needs a design
-that protects every bundled code file. See the
+with copied Ubuntu and Nix libraries. An approved prototype now embeds those
+files in the existing native starter and stages them after approval. See the
 [bundling evaluation](dart-bundled-runtime-evaluation.md) and
 [static-runtime evaluation](dart-static-runtime-evaluation.md).
 
