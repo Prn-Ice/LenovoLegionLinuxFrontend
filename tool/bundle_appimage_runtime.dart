@@ -261,6 +261,7 @@ class RuntimeBundle {
         source.path,
         build.path,
         helper.path,
+        File(Platform.resolvedExecutable).parent.parent.path,
       ]);
       File('${inputs.path}/static-helper-build.log').writeAsStringSync(log);
       final cleanupElf = File('${build.path}/helper/legion_portable_cleanup');

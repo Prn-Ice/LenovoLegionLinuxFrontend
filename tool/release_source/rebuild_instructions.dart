@@ -24,19 +24,22 @@ locations with these local paths. Flutter SDK source and host libraries are
 obtained separately. Different compilers or system libraries can change the
 rebuilt binary's checksum.
 ${staticPortableHelper ? '''
-This AppImage also contains distro libraries and a statically linked helper.
+This AppImage also contains distro libraries and a static starter with an
+embedded Dart runtime and compiled helper.
 Their exact source packages and checksums are in
 release-inputs/native/native-runtime.json; the archives are beside it under
 sources/. Each .dsc and its companion archives retain the distribution patches
 and build recipes. The shipped copyright notices are under
 share/licenses/appimage-native/ in the app bundle. The source code above and
 these library sources provide the material needed to modify and relink the
-helper. Build its static dependencies on Ubuntu 22.04, then run:
+helper. Build its static dependencies on Ubuntu 22.04, then run the following
+from the archive directory. Replace /path/to/flutter with your Flutter SDK path:
 
 ```sh
 bash source/tool/build_static_helper.sh source \\
   release-inputs/native/sources/util-linux/*.dsc /tmp/legion-static-rebuild \\
-  source/build/linux/x64/release/bundle/libexec/legion-portable-control
+  source/build/linux/x64/release/bundle/libexec/legion-portable-control \\
+  /path/to/flutter/bin/cache/dart-sdk
 ```
 
 The AppImage builder Dockerfile lists the development packages and tools.
