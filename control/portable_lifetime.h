@@ -15,10 +15,11 @@ struct PortableLifetime {
 };
 
 // The returned socket owns a queued message containing the app's pidfd and a
-// pidfd for this launcher. The caller owns the socket; no PID path is used.
+// pidfd for this launcher. The caller owns the socket; it uses no PID path.
 int CreatePortableLifetimeMessage(int app_pidfd, GError **error);
 // Receives owned pidfds, validates the sending launcher, and rejects dead
-// processes even if the message was queued before authentication completed.
+// processes even if the launcher queued the message before authentication
+// completed.
 bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
                                     GError **error);
 } // namespace legion_control

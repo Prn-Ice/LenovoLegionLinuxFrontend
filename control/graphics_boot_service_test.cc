@@ -1,5 +1,5 @@
 // Use real dispatch with the ordinary-user fixture runner; never start the root
-// daemon or connect to the system bus. Authorization is faked on a private bus.
+// daemon or connect to the system bus. Fake authorization on a private bus.
 #include "control_protocol.h"
 #include "control_service_runtime.h"
 #include "test_support/direct_command_runner.h"

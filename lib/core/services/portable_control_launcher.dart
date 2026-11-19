@@ -58,7 +58,7 @@ class PortableControlLauncher {
 
   LegionControlUnavailableException
   _closedError() => const LegionControlUnavailableException(
-    'Portable control startup was closed. Start a new app session to retry.',
+    'Portable control startup closed. Start a new app session to retry.',
   );
 
   Future<PortableControlEndpoint> start() {
@@ -326,7 +326,7 @@ class PortableControlLauncher {
       if (!_ended.isCompleted) _ended.complete(_closedError());
     }
     final process = _process;
-    // Process.start cannot be cancelled. A late child is stopped in _spawnAndRead.
+    // Dart cannot cancel Process.start; _spawnAndRead stops a late child.
     return process == null ? Future.value() : (_stopping ??= _stop(process));
   }
 
@@ -341,7 +341,7 @@ class PortableControlLauncher {
       }
     } on TimeoutException {
       throw const LegionControlUnavailableException(
-        'Portable helper shutdown could not be confirmed. Restart the app before retrying.',
+        'Could not confirm portable helper shutdown. Restart the app before retrying.',
       );
     } finally {
       await Future.wait([

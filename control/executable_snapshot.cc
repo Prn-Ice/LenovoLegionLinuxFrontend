@@ -26,8 +26,8 @@ bool Range(size_t size, Elf64_Off offset, Elf64_Xword length) {
   return offset <= size && length <= size - offset;
 }
 
-// Check both the named path and its canonical target: a user-owned symlink to
-// a trusted directory could otherwise be replaced during authorization.
+// Check both the named path and its canonical target so a user cannot replace
+// a symlink to a trusted directory during authorization.
 bool RootControlled(const std::string &path, bool directory) {
   if (path.empty() || path.front() != '/' ||
       path.find('$') != std::string::npos)

@@ -1,6 +1,6 @@
 #include "managed_command.h"
-// These private-bus tests verify protocol and callback ownership. Kernel cgroup
-// containment is exercised by the separate real-systemd VM suite.
+// These private-bus tests verify protocol and callback ownership. The separate
+// real-systemd VM suite exercises kernel cgroup containment.
 #include <cerrno>
 #include <fcntl.h>
 #include <functional>
