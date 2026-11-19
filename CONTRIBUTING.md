@@ -84,6 +84,9 @@ services, or administrator access.
 
 ### Linux app integration journey
 
+See the [native coverage matrix](docs/native-journey-coverage.md) for the covered
+sections, safe I/O boundaries, quick smoke command, restart checks, and limits.
+
 From a Linux desktop session, run:
 
 ```bash

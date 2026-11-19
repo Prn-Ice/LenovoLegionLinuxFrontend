@@ -12,7 +12,20 @@ class DgpuRepositoryException extends AppFailure {
 }
 
 class DgpuRepository extends PrivilegedRepository {
-  const DgpuRepository({required super.bridgeService});
+  const DgpuRepository({
+    required super.bridgeService,
+    this.findPciAddress,
+    this.readRuntimeStatus,
+    this.queryComputeProcesses,
+    this.queryPciName,
+  });
+
+  /// Callbacks replace PCI and process reads in hardware-free tests.
+  /// Omitted callbacks use the sysfs and process readers below.
+  final Future<String?> Function()? findPciAddress;
+  final Future<bool?> Function(String path)? readRuntimeStatus;
+  final Future<List<DgpuProcess>> Function()? queryComputeProcesses;
+  final Future<String?> Function(String pciAddress)? queryPciName;
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DgpuRepositoryException(
@@ -33,7 +46,7 @@ class DgpuRepository extends PrivilegedRepository {
     bool requireGraphicsModeStatus = false,
   }) async {
     final results = await Future.wait([
-      _findNvidiaGpuPciAddress(),
+      findPciAddress?.call() ?? _findNvidiaGpuPciAddress(),
       loadGraphicsModeStatus(required: requireGraphicsModeStatus),
     ]);
     final pciAddress = results[0] as String?;
@@ -43,12 +56,17 @@ class DgpuRepository extends PrivilegedRepository {
     if (pciAddress != null) {
       final runtimePath =
           '/sys/bus/pci/devices/$pciAddress/power/runtime_status';
-      isActive = await _readRuntimeStatus(runtimePath);
+      isActive =
+          await (readRuntimeStatus?.call(runtimePath) ??
+              _readRuntimeStatus(runtimePath));
     } else {
       isActive = null;
     }
-    final processes = await _queryComputeProcesses();
-    final name = pciAddress == null ? null : await _queryPciName(pciAddress);
+    final processes =
+        await (queryComputeProcesses?.call() ?? _queryComputeProcesses());
+    final name = pciAddress == null
+        ? null
+        : await (queryPciName?.call(pciAddress) ?? _queryPciName(pciAddress));
     return DgpuSnapshot(
       isActive: isActive,
       processes: processes,
@@ -150,7 +168,9 @@ class DgpuRepository extends PrivilegedRepository {
 
   Future<void> killGpuProcesses(List<int> expectedPids) async {
     final currentPids =
-        (await _queryComputeProcesses()).map((process) => process.pid).toList()
+        (await (queryComputeProcesses?.call() ?? _queryComputeProcesses()))
+            .map((process) => process.pid)
+            .toList()
           ..sort();
     final baseline = [...expectedPids]..sort();
     if (baseline.isEmpty || !_sameValues(currentPids, baseline)) {
@@ -165,13 +185,15 @@ class DgpuRepository extends PrivilegedRepository {
   }
 
   Future<void> restartPciDevice(String expectedPciAddress) async {
-    final currentAddress = await _findNvidiaGpuPciAddress();
+    final currentAddress =
+        await (findPciAddress?.call() ?? _findNvidiaGpuPciAddress());
     if (currentAddress != expectedPciAddress) {
       throw const DgpuRepositoryException(
         'The GPU PCI target changed. Refresh before trying again.',
       );
     }
-    if ((await _queryComputeProcesses()).isNotEmpty) {
+    if ((await (queryComputeProcesses?.call() ?? _queryComputeProcesses()))
+        .isNotEmpty) {
       throw const DgpuRepositoryException(
         'GPU compute processes are still active. Stop them before restarting the PCI device.',
       );

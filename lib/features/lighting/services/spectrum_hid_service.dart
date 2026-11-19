@@ -1,20 +1,11 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:ffi/ffi.dart';
-
 import '../models/spectrum_keyboard_profile.dart';
 import '../models/spectrum_hid_discovery.dart';
+import 'spectrum_hid_io.dart';
 import 'spectrum_protocol.dart';
-
-typedef _OpenNative = Int32 Function(Pointer<Utf8>, Int32);
-typedef _OpenDart = int Function(Pointer<Utf8>, int);
-typedef _IoctlNative = Int32 Function(Int32, UnsignedLong, Pointer<Uint8>);
-typedef _IoctlDart = int Function(int, int, Pointer<Uint8>);
-typedef _CloseNative = Int32 Function(Int32);
-typedef _CloseDart = int Function(int);
 
 const int _oRdwr = 2;
 
@@ -30,20 +21,17 @@ class SpectrumHidService {
     this.productId = kSpectrumC987ProductId,
     this.sysfsHidrawRoot = '/sys/class/hidraw',
     this.devRoot = '/dev',
-  });
+    SpectrumHidIo? io,
+  }) : _io = io ?? NativeSpectrumHidIo.instance;
 
   final int vendorId;
   final int productId;
   final String sysfsHidrawRoot;
   final String devRoot;
+  final SpectrumHidIo _io;
 
   SpectrumKeyboardProfile? get keyboardProfile =>
       spectrumKeyboardProfile(vendorId, productId);
-
-  static final DynamicLibrary _libc = DynamicLibrary.process();
-  static final _open = _libc.lookupFunction<_OpenNative, _OpenDart>('open');
-  static final _ioctl = _libc.lookupFunction<_IoctlNative, _IoctlDart>('ioctl');
-  static final _close = _libc.lookupFunction<_CloseNative, _CloseDart>('close');
 
   int _fd = -1;
   bool _directEnabled = false;
@@ -213,19 +201,14 @@ class SpectrumHidService {
     if (_fd >= 0) return true;
     final path = findHidrawPath();
     if (path == null) return false;
-    final cPath = path.toNativeUtf8();
-    try {
-      _fd = _open(cPath, _oRdwr);
-    } finally {
-      malloc.free(cPath);
-    }
+    _fd = _io.open(path, _oRdwr);
     _directEnabled = false;
     return _fd >= 0;
   }
 
   void close() {
     if (_fd >= 0) {
-      _close(_fd);
+      _io.close(_fd);
       _fd = -1;
       _directEnabled = false;
     }
@@ -276,26 +259,15 @@ class SpectrumHidService {
 
   bool _setFeature(Uint8List packet) {
     if (_fd < 0) return false;
-    final pointer = malloc<Uint8>(packet.length);
-    try {
-      pointer.asTypedList(packet.length).setAll(0, packet);
-      return _ioctl(_fd, hidiocSetFeature(packet.length), pointer) >= 0;
-    } finally {
-      malloc.free(pointer);
-    }
+    return _io.ioctl(_fd, hidiocSetFeature(packet.length), packet) >= 0;
   }
 
   Uint8List? _getFeature(Uint8List request) {
     if (_fd < 0) return null;
-    final pointer = malloc<Uint8>(request.length);
-    try {
-      pointer.asTypedList(request.length).setAll(0, request);
-      if (_ioctl(_fd, hidiocGetFeature(request.length), pointer) < 0) {
-        return null;
-      }
-      return Uint8List.fromList(pointer.asTypedList(request.length));
-    } finally {
-      malloc.free(pointer);
+    final response = Uint8List.fromList(request);
+    if (_io.ioctl(_fd, hidiocGetFeature(response.length), response) < 0) {
+      return null;
     }
+    return response;
   }
 }

@@ -93,6 +93,10 @@ Wait for compatible Yaru support or an approved window migration rather than
 overriding the constraint. See the [November tooling review](tooling-review-2026-11.md#linux-window-styling-and-shutdown)
 for current stable, beta, and master findings.
 
+Native integration tests declare the same compatible version directly as a
+development dependency to resize the real GTK window for compact navigation.
+The application still uses Yaru's Linux window backend.
+
 ### AppImage runtime
 
 AppImage qualification pins the versioned type-2 runtime `20251108`, its binary
