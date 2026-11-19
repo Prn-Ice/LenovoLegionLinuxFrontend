@@ -6,6 +6,7 @@
   glib,
   polkit,
   fixtures,
+  dartHelperBundle,
 }:
 
 stdenv.mkDerivation {
@@ -33,6 +34,7 @@ stdenv.mkDerivation {
     "-DBUILD_LEGION_CONTROL_SERVICE=ON"
     "-DBUILD_PORTABLE_BOOTSTRAP_PROTOTYPE=ON"
     "-DBUILD_PORTABLE_CONTROL_HELPER=ON"
+    "-DDART_BUNDLE_DIRECTORY=${dartHelperBundle}"
     "-DPORTABLE_CONTROL_TEST_CLI=${fixtures}/bin/legion_cli"
   ];
   buildPhase = ''

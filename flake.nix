@@ -31,10 +31,15 @@
           "universal"
           "linux"
         ];
-        extraPkgConfigPackages = [ pkgs.libthai ];
+        extraPkgConfigPackages = [ pkgs.libthai pkgs.systemd ];
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
+      dartHelperBundle = import ./packaging/nix/dart-helper.nix {
+        inherit pkgs;
+        dart = flutterSdk.dart;
+        packageConfig = frontend.packageConfig;
+      };
       tag = pkgs.writeShellApplication {
         name = "legion-tag";
         runtimeInputs = with pkgs; [
@@ -51,6 +56,7 @@
         default = frontend;
         inherit frontend;
         frontend-source = frontendSource;
+        dart-helper-bundle = dartHelperBundle;
       };
       apps.${system} = {
         default = {
@@ -101,6 +107,7 @@
         };
         portable-bootstrap = import ./control/test/portable_bootstrap.nix {
           inherit pkgs;
+          inherit dartHelperBundle;
         };
         bundled-dart-bootstrap = import ./control/test/bundled_dart_bootstrap.nix {
           inherit pkgs;
@@ -123,6 +130,7 @@
           gtk3
           glib
           polkit
+          systemd
           libthai
           fribidi
           gsettings-desktop-schemas

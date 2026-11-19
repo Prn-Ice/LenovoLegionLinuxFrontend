@@ -7,6 +7,9 @@
 #ifdef LEGION_BUNDLED_DART_PROTOTYPE
 #include "prototype/bundled_dart_runtime.h"
 #endif
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+#include "prototype/bundled_dart_runtime.h"
+#endif
 #ifdef LEGION_PORTABLE_TEST
 #include "test/test_vm_guard.h"
 #endif
@@ -140,7 +143,7 @@ int Helper(const char *launcher_text, const std::string &unit) {
 
 #endif
 
-#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+#if defined(LEGION_BUNDLED_DART_PROTOTYPE) || defined(LEGION_BUNDLED_DART_RUNTIME)
 pid_t PidfdProcess(int descriptor) {
   // Read the process pinned by a pidfd so command-line identity is checked
   // before any bundle files are created.
@@ -191,7 +194,11 @@ int RunBundledDart(const char *pid_text, const char *uid_text,
 
   std::string runtime, error;
   if (!legion_control::bundled_dart::Stage(unit, &runtime, &error)) {
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
     printf("DART_BUNDLE_ERROR %s\n", error.c_str());
+#else
+    printf("CONTROL_SETUP_ERROR %s\n", error.c_str());
+#endif
     fflush(stdout);
     return 1;
   }
@@ -220,21 +227,30 @@ int RunBundledDart(const char *pid_text, const char *uid_text,
   const std::string snapshot = runtime + "/helper.aot";
   const std::string pid = std::to_string(requested_pid);
   const std::string uid = std::to_string(requested_uid);
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+  const std::string idle = "900";
+#endif
   char *const arguments[] = {
       const_cast<char *>(loader.c_str()), const_cast<char *>("--inhibit-cache"),
       const_cast<char *>("--library-path"),
       const_cast<char *>(library_path.c_str()),
       const_cast<char *>(runtime_binary.c_str()), const_cast<char *>(snapshot.c_str()),
       const_cast<char *>(unit.c_str()), const_cast<char *>(pid.c_str()),
-      const_cast<char *>(uid.c_str()), nullptr};
+      const_cast<char *>(uid.c_str()),
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+      const_cast<char *>(idle.c_str()),
+#endif
+      nullptr};
   char *const environment[] = {
       const_cast<char *>("PATH=/run/current-system/sw/bin:/usr/bin:/bin"),
       const_cast<char *>("LC_ALL=C"), const_cast<char *>("HOME=/var/empty"),
       nullptr};
   if (dup2(STDOUT_FILENO, STDERR_FILENO) < 0)
     return 1;
+#ifdef LEGION_BUNDLED_DART_PROTOTYPE
   printf("BUNDLE_READY runtime=%s\n", runtime.c_str());
   fflush(stdout);
+#endif
   execve(loader.c_str(), arguments, environment);
   return 1;
 }
@@ -709,7 +725,7 @@ int main(int argc, char **argv) {
     if (!ValidUnit(argv[4]) || !ReceiveLifetime(&lifetime) ||
         lifetime.owner != uid)
       return 2;
-#ifdef LEGION_BUNDLED_DART_PROTOTYPE
+#if defined(LEGION_BUNDLED_DART_PROTOTYPE) || defined(LEGION_BUNDLED_DART_RUNTIME)
     return RunBundledDart(argv[2], argv[3], argv[4], &lifetime);
 #else
     if (!StopStartupDeadline(argv[4]) || dup2(lifetime.app, STDIN_FILENO) < 0)

@@ -16,6 +16,10 @@ void main() {
         ..createSync(recursive: true);
       final runner = Directory('${linux.path}/runner')..createSync();
       final modules = Directory('${root.path}/modules')..createSync();
+      final dartBundle = Directory('${root.path}/dart-bundle')..createSync();
+      // Configuration checks only: the compiled Dart bundle is an external input.
+      File('${dartBundle.path}/bundle.o').writeAsBytesSync([]);
+      File('${dartBundle.path}/bundled_dart_manifest.h').writeAsStringSync('');
       for (final name in [
         'CMakeLists.txt',
         'portable_helper_install.cmake.in',
@@ -52,6 +56,7 @@ endfunction()
         '-B',
         build.path,
         '-DCMAKE_MODULE_PATH=${modules.path}',
+        '-DDART_BUNDLE_DIRECTORY=${dartBundle.path}',
         if (oldCache) ...[
           '-DBUILD_PORTABLE_CONTROL_HELPER=OFF',
           '-DBUILD_LEGION_CONTROL_SERVICE=ON',
@@ -64,6 +69,8 @@ endfunction()
         'help',
       ]);
       expect(targets, contains('legion_portable_control'));
+      expect(targets, contains('legion_portable_cleanup'));
+      expect(targets, contains('dart_helper_bundle'));
       expect(targets, isNot(contains('legion_control_service')));
       final install = File('${build.path}/cmake_install.cmake')
           .readAsStringSync();

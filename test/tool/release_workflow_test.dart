@@ -280,10 +280,39 @@ class ReleaseFixture {
         'linkage': 'static',
         'cleanup': {'size': 4096, 'sha256': 'f' * 64},
       },
+      'dart_helper': {
+        'format': 1,
+        'provenance_sha256': 'a' * 64,
+        'files': {
+          'dartaotruntime': {
+            'sha256': '1' * 64,
+            'artifact_sha256': '2' * 64,
+            'source': '/sdk/bin/dartaotruntime',
+          },
+          'lib/libsystemd.so.0': {
+            'sha256': '3' * 64,
+            'artifact_sha256': '4' * 64,
+            'source': '/usr/lib/libsystemd.so.0',
+            'package': 'systemd',
+          },
+        },
+      },
     };
     sources['release_inputs'] = {
       './native/sources/gtk/gtk.tar.xz': {'sha256': 'e' * 64},
       './native/portable-cleanup.elf': {'sha256': 'f' * 64},
+      './native/dart-helper/provenance.json': {'sha256': 'a' * 64},
+    };
+    (native['packages'] as Map)['systemd'] = {
+      'source': 'systemd',
+      'source_version': '1',
+    };
+    (native['sources'] as Map)['systemd'] = {
+      'version': '1',
+      'archives': {'systemd.tar.xz': '9' * 64},
+    };
+    sources['release_inputs']['./native/sources/systemd/systemd.tar.xz'] = {
+      'sha256': '9' * 64,
     };
     manifest['native_runtime'] = native;
     archiveJson(
@@ -461,6 +490,76 @@ void main() {
         fixture.manifest['native_runtime'],
       ),
       failsWith('exact native archive'),
+    );
+  });
+
+  test('Dart helper provenance is mandatory', () {
+    fixture.enableNativeRuntime();
+    fixture.manifest['native_runtime'].remove('dart_helper');
+    expect(
+      () => release.validateAppImageRuntime(
+        fixture.manifest,
+        fixture.sources,
+        fixture.manifest['native_runtime'],
+      ),
+      failsWith('Dart helper provenance'),
+    );
+  });
+
+  test('Dart helper provenance source file cannot be omitted', () {
+    fixture.enableNativeRuntime();
+    fixture.sources['release_inputs'].remove(
+      './native/dart-helper/provenance.json',
+    );
+    expect(
+      () => release.validateAppImageRuntime(
+        fixture.manifest,
+        fixture.sources,
+        fixture.manifest['native_runtime'],
+      ),
+      failsWith('source companion lacks Dart helper provenance'),
+    );
+  });
+
+  test('Dart helper artifact provenance cannot be tampered with', () {
+    fixture.enableNativeRuntime();
+    fixture.manifest['native_runtime']['dart_helper']['files']['dartaotruntime']
+        .remove('artifact_sha256');
+    expect(
+      () => release.validateAppImageRuntime(
+        fixture.manifest,
+        fixture.sources,
+        fixture.manifest['native_runtime'],
+      ),
+      failsWith('provenance is incomplete'),
+    );
+  });
+
+  test('Dart helper source package version must match', () {
+    fixture.enableNativeRuntime();
+    fixture.manifest['native_runtime']['packages']['systemd']['source_version'] =
+        '2';
+    expect(
+      () => release.validateAppImageRuntime(
+        fixture.manifest,
+        fixture.sources,
+        fixture.manifest['native_runtime'],
+      ),
+      failsWith('exact source version'),
+    );
+  });
+
+  test('Dart helper provenance file hash must match', () {
+    fixture.enableNativeRuntime();
+    fixture.manifest['native_runtime']['dart_helper']['provenance_sha256'] =
+        '0' * 64;
+    expect(
+      () => release.validateAppImageRuntime(
+        fixture.manifest,
+        fixture.sources,
+        fixture.manifest['native_runtime'],
+      ),
+      failsWith('source companion lacks Dart helper provenance'),
     );
   });
 

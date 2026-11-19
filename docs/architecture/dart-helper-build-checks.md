@@ -1,5 +1,8 @@
 # Testing a Dart replacement for the control helper
 
+This page records the build experiments. The implementation and current
+verification scope are in [Dart control helper](dart-control-helper.md).
+
 The control helper is the program that makes hardware changes after
 administrator approval. This experiment checks two parts of replacing it with
 Dart: which system libraries a compiled Dart program needs, and whether Dart

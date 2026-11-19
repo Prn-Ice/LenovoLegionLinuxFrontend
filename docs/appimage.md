@@ -37,12 +37,14 @@ driver interfaces; bundling older copies can prevent newer GPU drivers from
 loading. The native-runtime manifest lists the exact host library names found
 during packaging. GTK and its remaining dependencies are private to the app.
 
-The privileged control helper is a static ELF executable. It embeds a separate
-cleanup ELF below 64 KiB; newer systemd managers cannot serialize the full static helper
-as retained standard-input data. Both images use validated sealed snapshots.
-Startup, authorized root control, and cleanup need no ELF interpreter or shared
-libraries. The authorization request carries both sealed images. Root execution
-loads no libraries from the AppDir.
+The privileged starter is a static ELF executable. It embeds the Dart helper's
+compiled snapshot, standard Dart runtime, loader, and library dependencies.
+After approval it stages them in a root-owned directory beneath `/run` and
+executes the Dart helper there. The app needs no separate Dart installation.
+It also embeds a cleanup ELF below 64 KiB; newer systemd managers cannot
+serialize the full starter as retained standard-input data. The authorization
+request carries both validated sealed images. Root execution loads no libraries
+from the AppDir.
 Systemd and the host Polkit service still authorize startup.
 
 Hardware access requires the installed driver and administrator-controlled
@@ -163,8 +165,9 @@ uses the bundled helper from both locations for synthetic write/readback/restore
 Paths contain spaces. The acceptance guest has no GTK, JVM, or installed Legion
 service. Both normal launches must display the Dashboard and map GTK, GLib,
 and Pango from the AppImage. The tests press the X button and require exit status
-zero. They retain screenshots, logs, and desktop memory maps. The helper must
-load no shared libraries; the bundled directory command is also checked.
+zero. They retain screenshots, logs, and desktop memory maps. Every helper
+mapping must come from its root-owned staged runtime; the bundled directory
+command is also checked.
 The VM uses QEMU's host CPU profile with KVM, or the named 64-bit `Nehalem`
 profile with software emulation. Mesa's LLVM can misidentify the generic `max`
 profile as a 32-bit AMD processor. The evidence records the selected profile and

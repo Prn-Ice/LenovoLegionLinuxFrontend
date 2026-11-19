@@ -9,6 +9,7 @@
   gtk3,
   glib,
   polkit,
+  systemd,
   libthai,
   fribidi,
   libglvnd,
@@ -56,6 +57,7 @@ in
     gtk3
     glib
     polkit
+    systemd
     libthai
     fribidi
     jdk17

@@ -28,7 +28,12 @@ option(BUILD_BUNDLED_DART_PROTOTYPE
        "Build the VM-only bundled Dart runtime startup probe" OFF)
 set(PORTABLE_CONTROL_TEST_CLI "" CACHE FILEPATH "Fixed synthetic CLI for the VM-only portable control test")
 set(BUNDLED_DART_DIRECTORY "" CACHE PATH
-    "Directory containing the bundled Dart runtime and its fixed libraries")
+     "Directory containing the bundled Dart runtime and its fixed libraries")
+set(DART_BUNDLE_DIRECTORY "" CACHE PATH
+    "Prebuilt Dart helper bundle containing bundle.o and its manifest")
+set(DART_HELPER_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../control/dart/run_control_helper.dart"
+    CACHE FILEPATH "Dart entrypoint for the privileged control helper")
+set(DART_SDK "" CACHE PATH "Dart SDK used to compile the control helper")
 
 if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_HELPER OR
    BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE OR BUILD_BUNDLED_DART_PROTOTYPE)
@@ -68,7 +73,7 @@ target_link_libraries(legion_telemetry_service
   PRIVATE telemetry_snapshot PkgConfig::GIO
 )
 
-if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_HELPER OR BUILD_PORTABLE_CONTROL_PROTOTYPE OR BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
+if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_PROTOTYPE OR BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
   pkg_check_modules(POLKIT REQUIRED IMPORTED_TARGET polkit-gobject-1)
   add_library(control_commands STATIC ../control/control_commands.cc)
   target_compile_features(control_commands PUBLIC cxx_std_14)
@@ -107,7 +112,7 @@ if(BUILD_PORTABLE_CONTROL_PROTOTYPE)
   target_link_libraries(portable_control_probe PRIVATE control_service_runtime trusted_executable control_commands managed_command PkgConfig::GIO PkgConfig::POLKIT)
 endif()
 
-if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_CONTROL_HELPER OR BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
+if(BUILD_LEGION_CONTROL_SERVICE OR BUILD_PORTABLE_BOOTSTRAP_PROTOTYPE)
   add_library(portable_cli STATIC ../control/portable_cli.cc)
   target_compile_features(portable_cli PUBLIC cxx_std_14)
   target_compile_options(portable_cli PRIVATE -Wall -Wextra -Werror)
@@ -123,13 +128,77 @@ function(add_portable_helper target)
 endfunction()
 
 if(BUILD_PORTABLE_CONTROL_HELPER)
-  add_portable_helper(legion_portable_control)
+  add_executable(legion_portable_control ../control/portable_bootstrap.cc)
+  target_compile_features(legion_portable_control PRIVATE cxx_std_14)
+  target_compile_options(legion_portable_control PRIVATE -Wall -Wextra -Werror)
+  target_link_libraries(legion_portable_control PRIVATE
+    executable_snapshot portable_lifetime PkgConfig::GIO PkgConfig::GIO_UNIX)
+  if(DART_BUNDLE_DIRECTORY)
+    if(NOT EXISTS "${DART_BUNDLE_DIRECTORY}/bundle.o" OR
+       NOT EXISTS "${DART_BUNDLE_DIRECTORY}/bundled_dart_manifest.h")
+      message(FATAL_ERROR
+        "DART_BUNDLE_DIRECTORY must contain bundle.o and bundled_dart_manifest.h")
+    endif()
+    set(dart_bundle_dir "${DART_BUNDLE_DIRECTORY}")
+  endif()
+  if(NOT DART_BUNDLE_DIRECTORY AND NOT DART_SDK)
+    find_program(DART_EXECUTABLE dart)
+    if(DART_EXECUTABLE)
+      get_filename_component(DART_EXECUTABLE "${DART_EXECUTABLE}" REALPATH)
+      get_filename_component(DART_SDK "${DART_EXECUTABLE}" DIRECTORY)
+      get_filename_component(DART_SDK "${DART_SDK}" DIRECTORY)
+    endif()
+  endif()
+  if(NOT DART_BUNDLE_DIRECTORY AND
+     (NOT DART_SDK OR NOT EXISTS "${DART_SDK}/bin/dartaotruntime"))
+    message(FATAL_ERROR "A Dart SDK is required to build the bundled control helper")
+  endif()
+  if(NOT DART_BUNDLE_DIRECTORY AND NOT EXISTS "${DART_HELPER_SOURCE}")
+    message(FATAL_ERROR "Dart control helper source is missing: ${DART_HELPER_SOURCE}")
+  endif()
+  if(NOT DART_BUNDLE_DIRECTORY)
+    find_program(CMAKE_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
+    find_program(CMAKE_LINKER NAMES ld.lld ld REQUIRED)
+    find_program(DART_HELPER_PATCHELF patchelf REQUIRED)
+    find_program(DART_HELPER_PKG_CONFIG NAMES pkg-config REQUIRED)
+    find_program(DART_HELPER_LDD NAMES ldd REQUIRED)
+    set(dart_bundle_dir "${CMAKE_CURRENT_BINARY_DIR}/dart-helper")
+    file(GLOB_RECURSE dart_helper_sources CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/../control/dart/*.dart")
+    add_custom_command(
+    OUTPUT "${dart_bundle_dir}/bundle.o"
+           "${dart_bundle_dir}/bundled_dart_manifest.h"
+    COMMAND "${DART_SDK}/bin/dart"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../tool/build_dart_helper_bundle.dart"
+      --sdk "${DART_SDK}" --root "${CMAKE_CURRENT_SOURCE_DIR}/.."
+      --source "${DART_HELPER_SOURCE}" --output "${dart_bundle_dir}"
+      --objcopy "${CMAKE_OBJCOPY}" --linker "${CMAKE_LINKER}"
+      --patchelf "${DART_HELPER_PATCHELF}"
+      --pkg-config "${DART_HELPER_PKG_CONFIG}" --ldd "${DART_HELPER_LDD}"
+      DEPENDS "${DART_HELPER_SOURCE}"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../tool/build_dart_helper_bundle.dart"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../pubspec.yaml"
+              "${CMAKE_CURRENT_SOURCE_DIR}/../.dart_tool/package_config.json"
+              ${dart_helper_sources}
+      VERBATIM)
+  endif()
+  add_custom_target(dart_helper_bundle
+    DEPENDS "${dart_bundle_dir}/bundle.o"
+            "${dart_bundle_dir}/bundled_dart_manifest.h")
+  add_dependencies(legion_portable_control dart_helper_bundle)
+  target_sources(legion_portable_control PRIVATE
+    ../control/prototype/bundled_dart_runtime.cc
+    "${dart_bundle_dir}/bundle.o")
+  target_include_directories(legion_portable_control PRIVATE
+    "${dart_bundle_dir}")
+  target_compile_definitions(legion_portable_control PRIVATE LEGION_BUNDLED_DART_RUNTIME)
+  target_link_options(legion_portable_control PRIVATE -Wl,-z,noexecstack)
   if(BUILD_PORTABLE_CONTROL_STATIC)
     target_link_options(legion_portable_control PRIVATE -static -Wl,--gc-sections -Wl,-t)
   endif()
 endif()
-if(BUILD_PORTABLE_CONTROL_STATIC AND
-   (BUILD_PORTABLE_CONTROL_HELPER OR BUILD_BUNDLED_DART_PROTOTYPE))
+if(BUILD_PORTABLE_CONTROL_HELPER OR
+   (BUILD_PORTABLE_CONTROL_STATIC AND BUILD_BUNDLED_DART_PROTOTYPE))
   if(NOT TARGET legion_portable_cleanup)
     add_executable(legion_portable_cleanup ../control/portable_cleanup.cc)
     target_compile_features(legion_portable_cleanup PRIVATE cxx_std_14)

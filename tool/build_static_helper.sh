@@ -20,6 +20,8 @@ cmake -S "$root/telemetry" -B "$build/helper" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-12 \
   -DBUILD_TESTING=OFF -DBUILD_LEGION_CONTROL_SERVICE=OFF \
   -DBUILD_PORTABLE_CONTROL_HELPER=ON -DBUILD_PORTABLE_CONTROL_STATIC=ON \
+  -DDART_SDK="$(dirname "$(dirname "$(readlink -f "$(command -v dart)")")")" \
+  -DDART_HELPER_SOURCE="$root/control/dart/run_control_helper.dart" \
   -DCMAKE_LIBRARY_PATH="$build/util-linux/.libs"
 cmake --build "$build/helper" --parallel 2 --target legion_portable_control
 install -m755 "$build/helper/legion-portable-control" "$output"

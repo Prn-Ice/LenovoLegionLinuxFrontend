@@ -419,6 +419,37 @@ void validateAppImageRuntime(Map manifest, Map sources, Map archived) {
       }
     }
   }
+  final dart = native['dart_helper'] as Map?;
+  if (dart == null || dart['format'] != 1) {
+    throw StateError('The AppImage lacks Dart helper provenance.');
+  }
+  final provenancePath = './native/dart-helper/provenance.json';
+  if (sources['release_inputs'][provenancePath]?['sha256'] !=
+      dart['provenance_sha256']) {
+    throw StateError('The source companion lacks Dart helper provenance.');
+  }
+  for (final entry in (dart['files'] as Map).entries) {
+    final file = (entry.value as Map).cast<String, Object>();
+    if (file['sha256'] is! String ||
+        file['artifact_sha256'] is! String ||
+        file['source'] is! String) {
+      throw StateError('Dart helper provenance is incomplete.');
+    }
+    final package = file['package'];
+    if (entry.key.toString().startsWith('lib/')) {
+      if (package is! String ||
+          !(native['packages'] as Map).containsKey(package)) {
+        throw StateError(
+          'Missing source package attribution for Dart ${entry.key}',
+        );
+      }
+      final packageData = (native['packages'] as Map)[package] as Map;
+      if ((native['sources'] as Map)[packageData['source']]?['version'] !=
+          packageData['source_version']) {
+        throw StateError('Missing exact source version for Dart ${entry.key}');
+      }
+    }
+  }
 }
 
 List<String> prepareDebian(Map release, Directory inputs, Directory output) {

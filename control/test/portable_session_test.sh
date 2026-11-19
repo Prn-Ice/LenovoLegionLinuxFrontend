@@ -44,6 +44,21 @@ assert_cleanup_succeeded() {
   reject grep -E 'legion-(bootstrap-probe|portable-control)-\S+-cleanup\.service.*([Ff]ailed|203/EXEC)' /tmp/legion-cleanup-journal
 }
 
+# Every mapped file must come from the root-owned runtime staged after approval.
+assert_protected_runtime() {
+  local helper=$1 runtime=$2 path
+  [[ $(readlink "/proc/$helper/exe") == "$runtime/lib/ld-linux-x86-64.so.2" ]] ||
+    fail "Helper did not start through the protected loader."
+  [[ $(stat -c '%u:%a' "$runtime") == 0:700 ]]
+  grep -F "$runtime/helper.aot" "/proc/$helper/maps"
+  grep -F "$runtime/dartaotruntime" "/proc/$helper/maps"
+  grep -F "$runtime/lib/libsystemd.so.0" "/proc/$helper/maps"
+  while IFS= read -r path; do
+    [[ $path == "$runtime/"* ]] || fail "Mapped file outside protected runtime: $path"
+    [[ $(stat -c '%u' "$path") == 0 ]] || fail "Mapped file is not root-owned: $path"
+  done < <(sed -n 's|^[^/]*\(/.*\)$|\1|p' "/proc/$helper/maps" | sort -u)
+}
+
 wait_collected() {
   local pattern=${1:-legion-portable-control-*} seconds=${2:-15}
   wait_until "$seconds" bash -c 'test -z "$(systemctl list-units --all --plain --no-legend "$1")"' bash "$pattern"

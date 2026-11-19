@@ -246,8 +246,10 @@ int main(int argc, char **argv) {
   std::string line, address, unit, cli, bus_name;
   guint32 helper_pid = 0;
   while (ReadLine(descriptor, &line)) {
-    if (line.compare(0, 14, "CONTROL_READY ") != 0)
+    if (line.compare(0, 14, "CONTROL_READY ") != 0) {
+      fprintf(stderr, "%s\n", line.c_str());
       continue;
+    }
     std::istringstream fields(line);
     std::string field;
     while (fields >> field) {
@@ -299,6 +301,9 @@ int main(int argc, char **argv) {
     else if (line == "persistent")
       result = Call(connection, "SetServiceEnabled",
                     g_variant_new("(sb)", "legiond_stack", TRUE));
+    else if (line == "graphics")
+      result = Call(connection, "SetGraphicsMode",
+                    g_variant_new("(s)", "hybrid-igpu-only"));
     else if (line == "fan") {
       constexpr char payload[] = "synthetic fan data\n";
       auto *bytes = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE, payload,

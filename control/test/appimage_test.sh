@@ -54,7 +54,7 @@ check_helper() {
   printf 'enabled\n' | diff - <(session_value app battery-conservation)
   session_send app disable
   printf 'disabled\n' | diff - <(session_value app battery-conservation)
-  reject grep -F .so "/proc/${app[helper]}/maps"
+  assert_protected_runtime "${app[helper]}" "${app[runtime]}/dart"
   session_close app
   wait_collected
 }

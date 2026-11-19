@@ -9,6 +9,9 @@
 #include <unistd.h>
 #include <vector>
 
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+#include "bundled_dart_manifest.h"
+#else
 extern const unsigned char _binary_dartaotruntime_start[];
 extern const unsigned char _binary_dartaotruntime_end[];
 extern const unsigned char _binary_helper_aot_start[];
@@ -23,17 +26,26 @@ extern const unsigned char _binary_lib_libdl_so_2_start[];
 extern const unsigned char _binary_lib_libdl_so_2_end[];
 extern const unsigned char _binary_lib_libpthread_so_0_start[];
 extern const unsigned char _binary_lib_libpthread_so_0_end[];
+#endif
 
 namespace legion_control {
 namespace bundled_dart {
 namespace {
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+using File = LegionBundledDartFile;
+#else
 struct File {
   const char *name;
   const unsigned char *start;
   const unsigned char *end;
   mode_t mode;
 };
+#endif
 
+#ifdef LEGION_BUNDLED_DART_RUNTIME
+const File *files = legion_bundled_dart_files;
+const size_t file_count = legion_bundled_dart_file_count;
+#else
 const File files[] = {
     {"dartaotruntime", _binary_dartaotruntime_start,
      _binary_dartaotruntime_end, 0500},
@@ -49,6 +61,8 @@ const File files[] = {
     {"lib/libpthread.so.0", _binary_lib_libpthread_so_0_start,
      _binary_lib_libpthread_so_0_end, 0400},
 };
+const size_t file_count = sizeof(files) / sizeof(files[0]);
+#endif
 
 bool Fail(std::string *error, const char *message) {
   *error = message;
@@ -150,20 +164,57 @@ bool StageAt(const std::string &parent, const std::string &unit, uid_t owner,
     close(unit_directory);
     return false;
   }
-  close(library);
-
   std::vector<std::string> made;
-  for (const auto &file : files) {
-    if (!WriteFile(dart, file, &made, error)) {
-      for (const auto &name : made)
-        unlinkat(dart, name.c_str(), 0);
-      unlinkat(dart, "lib", AT_REMOVEDIR);
-      close(dart);
-      unlinkat(unit_directory, "dart", AT_REMOVEDIR);
-      close(unit_directory);
+  const auto cleanup = [&]() {
+    for (const auto &name : made)
+      unlinkat(strncmp(name.c_str(), "lib/", 4) == 0 ? library : dart,
+              strncmp(name.c_str(), "lib/", 4) == 0 ? name.c_str() + 4
+                                                    : name.c_str(),
+              0);
+    unlinkat(dart, "lib", AT_REMOVEDIR);
+    close(library);
+    close(dart);
+    unlinkat(unit_directory, "dart", AT_REMOVEDIR);
+    close(unit_directory);
+  };
+  for (size_t index = 0; index < file_count; ++index) {
+    const auto &file = files[index];
+    const char *slash = strchr(file.name, '/');
+    bool safe_library_name = slash != nullptr && slash[1] != '\0';
+    for (const char *character = slash ? slash + 1 : file.name;
+         *character != '\0'; ++character)
+      safe_library_name =
+          safe_library_name &&
+          (('A' <= *character && *character <= 'Z') ||
+           ('a' <= *character && *character <= 'z') ||
+           ('0' <= *character && *character <= '9') || *character == '.' ||
+           *character == '_' || *character == '+' || *character == '-');
+    const bool valid_name =
+        strcmp(file.name, "dartaotruntime") == 0 ||
+        strcmp(file.name, "helper.aot") == 0 ||
+        (strncmp(file.name, "lib/", 4) == 0 && slash &&
+         safe_library_name && strchr(slash + 1, '/') == nullptr &&
+         strcmp(slash + 1, ".") != 0 && strcmp(slash + 1, "..") != 0);
+    if (!valid_name) {
+      cleanup();
+      return Fail(error, "bundled runtime manifest contains an unsafe path");
+    }
+    for (size_t previous = 0; previous < index; ++previous)
+      if (strcmp(files[previous].name, file.name) == 0) {
+        cleanup();
+        return Fail(error, "bundled runtime manifest contains duplicate names");
+      }
+    File staged = file;
+    if (slash)
+      staged.name = file.name + 4;
+    if (!WriteFile(slash ? library : dart, staged, &made, error)) {
+      cleanup();
       return false;
     }
+    if (slash)
+      made.back() = file.name;
   }
+  close(library);
   close(dart);
   close(unit_directory);
   *runtime = path;

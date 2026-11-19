@@ -222,15 +222,83 @@ echo 'Checking production CLI discovery and typed writes'
 session_new app approved "$probe/bin/legion-portable-control"
 [[ ${app[unit]} == legion-portable-control-* ]]
 [[ ${app[cli]} == "$(readlink -f /run/current-system/sw/bin/legion_cli)" ]]
+assert_protected_runtime "${app[helper]}" "${app[runtime]}/dart"
 session_prepare app success
 session_send app connect
+session_send app enable org.freedesktop.DBus.Error.AccessDenied
 session_send app authorize
+session_send app invalid org.freedesktop.DBus.Error.InvalidArgs
+session_send app persistent io.github.prnice.LegionControl1.Error.NotSupported
 session_send app resume-after-idle
 session_send app enable
 printf 'enabled\n' | diff - <(session_value app battery-conservation)
 session_send app disable
 printf 'disabled\n' | diff - <(session_value app battery-conservation)
+session_send app fan
+printf 'synthetic fan data\n' | diff - <(session_value app payload-read)
+test -z "$(find "${app[runtime]}/dart" -maxdepth 1 -name 'payload-*' -print)"
+for outcome in 'generic-unavailable enable Unavailable' \
+  'generic-feature-not-found enable NotSupported' \
+  'graphics-blocked graphics GraphicsBlocked' \
+  'graphics-pending graphics GraphicsPending'; do
+  read -r mode command error <<<"$outcome"
+  session_prepare app "$mode"
+  session_send app "$command" "io.github.prnice.LegionControl1.Error.$error"
+done
 session_close app
+wait_collected 'legion-portable-control-*' 8
+echo 'Checking Dart command deadlines, output limits, and detached descendants'
+for mode in tree flood orphan-stdout; do
+  session_new app approved "$probe/bin/legion-portable-control"
+  session_prepare app "$mode"
+  session_send app connect
+  session_send app authorize
+  session_begin app enable
+  session_wait_tree app
+  if [[ $mode == orphan-stdout ]]; then
+    session_expect app enable
+  elif [[ $mode == flood ]]; then
+    session_expect app enable io.github.prnice.LegionControl1.Error.CommandFailed
+    grep -F 'backend output exceeded limit' "${app[output]}.err"
+  else
+    session_expect app enable io.github.prnice.LegionControl1.Error.Timeout
+  fi
+  assert_gone "${app[pids]}" 5
+  session_prepare app success
+  session_send app enable
+  session_close app
+  wait_collected 'legion-portable-control-*' 8
+done
+echo 'Checking Dart shutdown cancels a running backend'
+session_new app approved "$probe/bin/legion-portable-control"
+session_prepare app tree
+session_send app connect
+session_send app authorize
+session_begin app enable
+session_wait_tree app
+kill -TERM "${app[helper]}"
+assert_gone "${app[pids]}" 8
+session_close app
+wait_collected 'legion-portable-control-*' 8
+echo 'Checking Dart helper crash retains the shared lock until descendants exit'
+session_new first approved "$probe/bin/legion-portable-control"
+session_prepare first tree
+session_send first connect
+session_send first authorize
+session_begin first enable
+session_wait_tree first
+session_new second approved "$probe/bin/legion-portable-control"
+session_prepare second success
+session_send second connect
+session_send second authorize
+session_send second enable io.github.prnice.LegionControl1.Error.Busy
+kill -KILL "${first[helper]}"
+reject flock -n /run/legion-control/operation.lock true
+assert_gone "${first[pids]}" 8
+wait_until 8 flock -n /run/legion-control/operation.lock true
+session_send second enable
+session_close second
+session_close first
 wait_collected 'legion-portable-control-*' 8
 echo 'Checking production startup rejects incompatible and failed CLI help'
 for mode in missing fail flood hang; do

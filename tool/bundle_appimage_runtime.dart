@@ -103,6 +103,7 @@ class RuntimeBundle {
   };
   Map<String, Object> cleanup = {};
   Map<String, Object> staticLibraries = {};
+  Map<String, Object> dartHelper = {};
 
   String package(String name) {
     if (packages.containsKey(name)) return name;
@@ -286,10 +287,60 @@ class RuntimeBundle {
         throw StateError('The static helper link trace is incomplete');
       }
       staticLibraries = archives;
+      validateStaticElf(helper);
+      recordDartHelper(
+        File('${build.path}/helper/dart-helper/provenance.json'),
+        bundle: Directory('${build.path}/helper/dart-helper'),
+      );
     } finally {
       build.deleteSync(recursive: true);
     }
     validateStaticElf(helper);
+  }
+
+  void recordDartHelper(File provenance, {required Directory bundle}) {
+    if (!provenance.existsSync()) {
+      throw StateError('The release is missing Dart helper provenance.');
+    }
+    final data = jsonDecode(provenance.readAsStringSync()) as Map;
+    final entries = (data['files'] as List).cast<Map>();
+    final files = <String, Object>{};
+    for (final entry in entries) {
+      final name = entry['name'] as String;
+      if (name != 'dartaotruntime' &&
+          name != 'helper.aot' &&
+          !RegExp(r'^lib/[A-Za-z0-9._+-]+$').hasMatch(name)) {
+        throw StateError(
+          'Dart helper provenance contains an unsafe path: $name',
+        );
+      }
+      final source = File(entry['source'] as String);
+      final sha256 = entry['sha256'] as String;
+      if (!source.existsSync() || packagingSha256(source) != sha256) {
+        throw StateError('Dart helper provenance changed: $name');
+      }
+      final artifact = File('${bundle.path}/$name');
+      if (!artifact.existsSync()) {
+        throw StateError('Dart helper bundle is missing: $name');
+      }
+      final file = <String, Object>{
+        'sha256': sha256,
+        'artifact_sha256': packagingSha256(artifact),
+        'source': source.path,
+      };
+      if (name.startsWith('lib/')) {
+        file['package'] = owner(source);
+      }
+      files[name] = file;
+    }
+    final target = File('${inputs.path}/dart-helper/provenance.json');
+    target.parent.createSync(recursive: true);
+    provenance.copySync(target.path);
+    dartHelper = {
+      'format': 1,
+      'provenance_sha256': packagingSha256(target),
+      'files': files,
+    };
   }
 
   void finish() {
@@ -316,6 +367,7 @@ class RuntimeBundle {
         'libraries': staticLibraries,
         'cleanup': cleanup,
       },
+      'dart_helper': dartHelper,
     };
     writePackagingJson(File('${inputs.path}/native-runtime.json'), manifest);
     writePackagingJson(

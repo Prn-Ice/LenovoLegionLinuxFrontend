@@ -86,6 +86,14 @@ install(CODE "
 # The frontend uses only the bundled privileged control helper for authorization.
 set(BUILD_PORTABLE_CONTROL_HELPER ON)
 set(BUILD_LEGION_CONTROL_SERVICE OFF)
+get_directory_property(FLUTTER_SDK_DIR DIRECTORY "${FLUTTER_MANAGED_DIR}"
+  DEFINITION FLUTTER_ROOT)
+set(DART_SDK "${FLUTTER_SDK_DIR}/bin/cache/dart-sdk" CACHE PATH
+  "Dart SDK used to compile the control helper" FORCE)
+get_filename_component(DART_SDK "${DART_SDK}" REALPATH)
+set(DART_HELPER_SOURCE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../control/dart/run_control_helper.dart"
+    CACHE FILEPATH "Dart control helper entrypoint" FORCE)
 add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")

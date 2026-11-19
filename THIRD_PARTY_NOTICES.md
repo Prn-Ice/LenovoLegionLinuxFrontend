@@ -97,6 +97,16 @@ AppImage/Flatpak/package that adds libraries
 must retain their notices too. The current Settings → About section provides
 project/issue links and diagnostics, not a license viewer.
 
+The portable control helper embeds the Dart AOT runtime, the helper snapshot,
+`libsystemd`, and their GNU/Linux library dependencies. The AppImage builder
+records the exact input paths and hashes in `native-runtime.json`, attributes
+each bundled system library to its Ubuntu source package, and archives those
+source packages under `release-inputs/native/sources/`. The Dart SDK runtime
+and snapshot retain their SDK provenance in
+`release-inputs/native/dart-helper/provenance.json`; they are covered by the
+Flutter SDK provenance in `SOURCE-MANIFEST.json`, rather than by Ubuntu source
+packages.
+
 Check a built bundle without changing it:
 
 ```sh

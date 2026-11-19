@@ -152,7 +152,7 @@ helper_pid=$(systemctl show --property=MainPID --value "$unit")
 readback() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation; }
 enabled() { readback | grep -x enabled; }
 wait_until 15 enabled
-reject grep -F .so "/proc/$helper_pid/maps"
+assert_protected_runtime "$helper_pid" "/run/${unit%.service}/dart"
 echo 1 >"$conservation"
 restore() { click 1142 23; click 734 667; readback | grep -x disabled; }
 wait_until 20 restore

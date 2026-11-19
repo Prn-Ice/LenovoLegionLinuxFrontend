@@ -1,8 +1,8 @@
-{ pkgs }:
+{ pkgs, dartHelperBundle }:
 
 let
   fixtures = pkgs.callPackage ./fixtures.nix { };
-  probe = pkgs.callPackage ./bootstrap-package.nix { inherit fixtures; };
+  probe = pkgs.callPackage ./bootstrap-package.nix { inherit fixtures dartHelperBundle; };
 in
 pkgs.testers.runNixOSTest {
   name = "legion-portable-bootstrap";
