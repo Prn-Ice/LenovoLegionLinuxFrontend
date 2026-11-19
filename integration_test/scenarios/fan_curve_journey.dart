@@ -106,6 +106,25 @@ void main() {
         await tester.tap(find.text('Close'));
         await tester.pumpAndSettle();
 
+        // Refresh must read a new hardware value without replacing the draft.
+        await File(
+          '${app.directory.path}/sys/module/legion_laptop/drivers/'
+          'platform:legion/legion/hwmon/hwmon0/pwm1_auto_point1_temp',
+        ).writeAsString('38\n');
+        final refreshed = original.copyWithPoint(
+          0,
+          original.points.first.copyWith(cpuUpperTemp: 38),
+        );
+        await _tap(tester, find.byTooltip('Refresh'));
+        await waitFor(
+          tester,
+          () =>
+              !_state(tester).isLoading &&
+              _state(tester).authoritativeFanCurve == refreshed,
+          description: 'Fans Refresh reloads hardware while keeping the draft',
+        );
+        expect(_state(tester).fanCurve, expected);
+        expect(_state(tester).fanCurveDirty, isTrue);
         app.fanCurveResult = FixtureFanCurveResult.applied;
         await _apply(tester);
         await _waitForReadback(tester);

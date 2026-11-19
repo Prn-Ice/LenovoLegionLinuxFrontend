@@ -31,6 +31,7 @@ void main() {
     }
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     );
     expect(await service.readFan1Rpm(), isNull);
@@ -59,6 +60,7 @@ void main() {
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     );
 
@@ -77,6 +79,7 @@ void main() {
 
       final service = LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
       );
 
@@ -109,6 +112,7 @@ void main() {
     }
     final curve = await LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     ).readFanCurve();
     expect(curve?.fan1MaxRpm, 10000);
@@ -126,6 +130,7 @@ void main() {
       expect(
         await LegionSysfsService(
           hwmonRoot: hwmonRoot.path,
+          sysRoot: root.path,
           fanHwmonRoot: controllerRoot.path,
         ).readFanCurve(),
         isNull,
@@ -157,6 +162,7 @@ void main() {
     expect(
       await LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
       ).readFanCurve(),
       isNull,
@@ -183,6 +189,7 @@ void main() {
       }
       final curve = await LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
         legionPlatformRoots: [platform.path],
       ).readFanCurve();
@@ -210,6 +217,7 @@ void main() {
     File('${controller.path}/pwm1_auto_point1_pwm').writeAsStringSync('25');
     final curve = await LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
       legionPlatformRoots: [platform.path],
     ).readFanCurve();
@@ -234,6 +242,7 @@ void main() {
       File('${controller.path}/pwm1_auto_point1_pwm').writeAsStringSync('51');
       final service = LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
         legionPlatformRoots: [platform.path],
       );
@@ -274,6 +283,7 @@ void main() {
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
     );
 
@@ -290,6 +300,7 @@ void main() {
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
     );
 

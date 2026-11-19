@@ -10,9 +10,8 @@ void main() {
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('journey_runner_test_');
-    fixtureParent = await Directory(
-      '${directory.path}/temporary fixtures',
-    ).create();
+    fixtureParent = await Directory('${directory.path}/temporary fixtures')
+        .create();
     await File('${fixtureParent.path}/keep.txt').writeAsString('unrelated');
     callLog = File('${directory.path}/calls.log');
     flutter = File('${directory.path}/fake flutter');
@@ -24,6 +23,9 @@ for argument in "$@"; do
   case "$argument" in
     --dart-define=LLLF_GCC_RESTART_FIXTURE=*)
       fixture=${argument#--dart-define=LLLF_GCC_RESTART_FIXTURE=}
+      ;;
+    --dart-define=LLLF_SETTINGS_RESTART_FIXTURE=*)
+      fixture=${argument#--dart-define=LLLF_SETTINGS_RESTART_FIXTURE=}
       ;;
   esac
 done
@@ -38,6 +40,13 @@ case "$phase" in
     ;;
   integration_test/restart_verify.dart)
     [[ $(cat "$fixture/phase-marker") == 'saved data' ]]
+    ;;
+  integration_test/settings_restart_setup.dart)
+    [[ -d "$fixture" ]]
+    printf 'saved settings' > "$fixture/phase-marker"
+    ;;
+  integration_test/settings_restart_verify.dart)
+    [[ $(cat "$fixture/phase-marker") == 'saved settings' ]]
     ;;
   *) exit 91 ;;
 esac
@@ -87,11 +96,21 @@ fi
         'integration_test/app_test.dart',
         'integration_test/restart_setup.dart',
         'integration_test/restart_verify.dart',
+        'integration_test/settings_restart_setup.dart',
+        'integration_test/settings_restart_verify.dart',
       ]);
       expect(calls[0][1], isEmpty);
       final root = calls[1][1];
       expect(root, startsWith('${fixtureParent.path}/lllf-gcc-restart.'));
       expect(calls[2][1], root);
+      final settingsRoot = calls[3][1];
+      expect(
+        settingsRoot,
+        startsWith('${fixtureParent.path}/lllf-settings-restart.'),
+      );
+      expect(settingsRoot, isNot(root));
+      expect(calls[4][1], settingsRoot);
+      expect(await Directory(settingsRoot).exists(), isFalse);
       expect(await Directory(root).exists(), isFalse);
       await expectCleanup();
     },
@@ -101,6 +120,8 @@ fi
     'integration_test/app_test.dart',
     'integration_test/restart_setup.dart',
     'integration_test/restart_verify.dart',
+    'integration_test/settings_restart_setup.dart',
+    'integration_test/settings_restart_verify.dart',
   ]) {
     test('stops and cleans up when $phase fails', () async {
       final result = await run(failPhase: phase);

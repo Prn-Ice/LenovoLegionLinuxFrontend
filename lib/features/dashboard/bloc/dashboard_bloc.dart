@@ -41,8 +41,14 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     _started = true;
     await _loadStatus(emit, showLoading: true);
 
+    if (isClosed || emit.isDone) {
+      return;
+    }
+
     _pollTimer = Timer.periodic(_pollInterval, (_) {
-      add(const DashboardTicked());
+      if (!isClosed) {
+        add(const DashboardTicked());
+      }
     });
   }
 
@@ -118,6 +124,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     _refreshInFlight = true;
 
     if (showLoading) {
+      if (isClosed || emit.isDone) {
+        _refreshInFlight = false;
+        return;
+      }
+
       emit(
         state.copyWith(
           isLoading: true,
@@ -129,6 +140,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
 
     try {
       final snapshot = await _repository.loadSnapshot();
+      if (isClosed || emit.isDone) {
+        return;
+      }
+
       emit(
         state.copyWith(
           snapshot: snapshot,
@@ -138,6 +153,10 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         ),
       );
     } catch (error) {
+      if (isClosed || emit.isDone) {
+        return;
+      }
+
       emit(
         state.copyWith(
           isLoading: false,
@@ -162,15 +181,31 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       return;
     }
 
+    if (isClosed || emit.isDone) {
+      return;
+    }
+
     emit(
       state.copyWith(isApplying: true, errorMessage: null, noticeMessage: null),
     );
 
     try {
       await action();
+      if (isClosed || emit.isDone) {
+        return;
+      }
+
       await _loadStatus(emit, showLoading: false);
+      if (isClosed || emit.isDone) {
+        return;
+      }
+
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
+      if (isClosed || emit.isDone) {
+        return;
+      }
+
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }
   }

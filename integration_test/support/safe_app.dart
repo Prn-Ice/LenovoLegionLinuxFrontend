@@ -34,6 +34,8 @@ enum FixturePlatformProfile { quiet, balanced, performance, maxPower, custom }
 
 enum FixtureFanCurveResult { applied, unchanged }
 
+enum FixtureRapidChargingResult { applied, unchanged, readbackUnavailable }
+
 /// Synthetic values chosen to distinguish edits and rollback from initial state.
 enum FixturePowerLimit {
   sustained(
@@ -74,6 +76,8 @@ class SafeApp {
   final requests = <bool>[];
   final rapidChargingRequests = <bool>[];
   final rapidChargingWrites = <bool>[];
+  FixtureRapidChargingResult rapidChargingResult =
+      FixtureRapidChargingResult.applied;
   File get rapidChargingFile => File(
     '${directory.path}/sys/module/legion_laptop/drivers/'
     'platform:legion/legion/rapidcharge',
@@ -388,8 +392,14 @@ class _FixtureControl extends LegionControlTransport {
         );
       }
       await app.writeCompletion?.future;
-      await app.rapidChargingFile.writeAsString(enabled ? '1\n' : '0\n');
-      app.rapidChargingWrites.add(enabled);
+      if (app.rapidChargingResult != FixtureRapidChargingResult.unchanged) {
+        await app.rapidChargingFile.writeAsString(enabled ? '1\n' : '0\n');
+        app.rapidChargingWrites.add(enabled);
+      }
+      if (app.rapidChargingResult ==
+          FixtureRapidChargingResult.readbackUnavailable) {
+        await app.rapidChargingFile.delete();
+      }
       return;
     }
     if (method == 'SetFeature' &&

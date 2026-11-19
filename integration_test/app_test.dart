@@ -14,6 +14,11 @@ import 'scenarios/power_limits_journey.dart' as power_limits;
 import 'scenarios/rapid_charging_journey.dart' as rapid_charging;
 import 'scenarios/portable_channel_journey.dart' as portable_channel;
 import 'scenarios/hardware_access_journey.dart' as hardware_access;
+import 'scenarios/control_write_safety_journey.dart' as write_safety;
+import 'scenarios/graphics_journey.dart' as graphics;
+import 'scenarios/settings_diagnostics_journey.dart' as settings_diagnostics;
+import 'scenarios/spectrum_lifecycle_journey.dart' as spectrum;
+import 'scenarios/navigation_smoke_journey.dart' as navigation_smoke;
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -31,4 +36,9 @@ void main() {
   keyboard_recovery.main();
   portable_channel.main();
   hardware_access.main();
+  write_safety.main();
+  graphics.main();
+  settings_diagnostics.main();
+  spectrum.main();
+  navigation_smoke.main();
 }
