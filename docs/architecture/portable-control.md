@@ -340,7 +340,7 @@ private `legion-graphics-boot` state directory used by the installed helper.
 The portable administrator helper also runs as a transient service.
 These units are created at runtime and require no installed unit files.
 
-The startup experiment creates a five-second transient timer before the helper
+The launcher creates a five-second transient timer before the helper
 can start. Its cleanup service cancels a start still waiting on ordering
 dependencies, even after launcher death. Once the helper receives live process
 handles, it stops this startup timer and observes those handles directly.
