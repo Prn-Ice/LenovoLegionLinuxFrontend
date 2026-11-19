@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
-# Select expensive checks from their app, native, and packaging inputs.
+# Select build, VM, and tooling checks from their changed inputs.
 set -euo pipefail
 
 base=''
 head=HEAD
+head_given=false
+worktree=false
+usage='Usage: bash tool/ci_build_changes.sh [--base COMMIT] [--head COMMIT | --worktree]'
 while (($#)); do
   case "$1" in
     --base|--head)
       (($# >= 2)) || { echo "Missing value for $1" >&2; exit 2; }
-      if [[ "$1" == --base ]]; then base=$2; else head=$2; fi
+      if [[ "$1" == --base ]]; then base=$2; else head=$2; head_given=true; fi
       shift 2
       ;;
-    *) echo "Usage: bash tool/ci_build_changes.sh [--base COMMIT] [--head COMMIT]" >&2; exit 2 ;;
+    --worktree) worktree=true; shift ;;
+    *) echo "$usage" >&2; exit 2 ;;
   esac
 done
+if [[ $worktree == true && $head_given == true ]]; then
+  echo "$usage" >&2
+  exit 2
+fi
 
 all=true
 integration=true
@@ -21,18 +29,28 @@ lifecycle=true
 nix=true
 appimage=true
 debian=true
+tooling=true
 if [[ -n "$base" ]]; then
   paths=$(mktemp)
   trap 'rm -f "$paths"' EXIT
   # Include both sides of renames, including code moved into documentation.
-  git diff --name-only --no-renames -z "$base" "$head" -- >"$paths"
+  if [[ $worktree == true ]]; then
+    git diff --name-only --no-renames -z "$base" -- >"$paths"
+    git ls-files --others --exclude-standard -z >>"$paths"
+  else
+    git diff --name-only --no-renames -z "$base" "$head" -- >"$paths"
+  fi
   all=false
   integration=false
   lifecycle=false
   nix=false
   appimage=false
   debian=false
+  tooling=false
   while IFS= read -r -d '' path; do
+    case "$path" in
+      .githooks/*|.github/*|tool/*|test/tool/*|test/support/*|test/fixtures/*|test/helpers/*|test/flutter_test_config.dart|flutter_test_config.dart|packaging/*|control/*|telemetry/*|linux/*|flake.nix|flake.lock|pubspec.yaml|pubspec.lock|dart_test.yaml|analysis_options.yaml|LICENSE|THIRD_PARTY_NOTICES.md) tooling=true ;;
+    esac
     case "$path" in
       .github/*|.metadata|pubspec.yaml|pubspec.lock) all=true ;;
       assets/*|lib/*|linux/*) integration=true; nix=true; appimage=true; debian=true ;;
@@ -52,7 +70,7 @@ if [[ -n "$base" ]]; then
   done <"$paths"
 fi
 if [[ $all == true ]]; then
-  integration=true; lifecycle=true; nix=true; appimage=true; debian=true
+  integration=true; lifecycle=true; nix=true; appimage=true; debian=true; tooling=true
 fi
 emit() {
   printf '%s=%s\n' "$1" "$2"
@@ -65,3 +83,4 @@ emit lifecycle "$lifecycle"
 emit nix "$nix"
 emit appimage "$appimage"
 emit debian "$debian"
+emit tooling "$tooling"

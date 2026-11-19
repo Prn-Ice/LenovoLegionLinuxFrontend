@@ -1,0 +1,3 @@
+tags:
+  # Tooling tests still run with plain flutter test and in CI.
+  tooling:

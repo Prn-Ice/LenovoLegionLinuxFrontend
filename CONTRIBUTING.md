@@ -12,6 +12,7 @@ services.
 - GLib/GIO development files for native service tests
 - Polkit development files for the bundled helper and control-service tests
 - Bash, GNU coreutils, and jq for tooling tests and packaging scripts
+- Git and OpenSSH (`ssh-keygen`) for isolated Git fixtures
 - `dpkg-deb` and SquashFS tools for package-payload tests
 
 Linux builds include the privileged control helper. Nix development builds also
@@ -21,7 +22,7 @@ Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integra
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools git openssh-client
 ```
 
 Package names vary by distribution. You do not need the Android SDK.
@@ -34,8 +35,14 @@ flutter pub get
 git config --local core.hooksPath .githooks
 ```
 
-The pre-push hook runs generation, analysis and the Flutter suite in the current
-worktree. Work in a clean worktree so these checks reflect the commit you push.
+The pre-push hook runs generation, analysis, and app tests in the current
+worktree. It also runs tooling tests when the branch or local edits change
+tooling, packaging, native code, dependencies, or test infrastructure. It compares
+the worktree with the branch point on `origin/main`, including staged, unstaged,
+and untracked files. Release tags and worktrees without a usable `origin/main`
+run every test. Work in a clean worktree so these checks reflect the commit you
+push.
+
 A failed command stops the push. Enable the hook in every clone; Git does not
 install repository hooks when cloning. Some tests require Linux.
 
@@ -75,6 +82,20 @@ flutter analyze
 
 Use fake services and sample data so tests run without hardware, installed
 services, or administrator access.
+
+Tooling tests exercise Git, release scripts, and package formats. Git fixtures
+use disposable repositories, isolated user configuration, empty hook/template
+directories, and unsigned commits. The tag test uses its own temporary signing
+key and local remote.
+
+For an unrelated app change, run only app tests:
+
+```bash
+flutter test --exclude-tags tooling
+```
+
+To check tooling changes, run `flutter test --tags tooling`. Plain `flutter test`
+and CI still run both groups.
 
 ### Linux app integration journey
 

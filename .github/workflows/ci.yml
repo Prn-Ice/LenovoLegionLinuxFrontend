@@ -74,7 +74,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          packages=(cmake g++ make dpkg squashfs-tools)
+          packages=(cmake g++ make dpkg squashfs-tools git openssh-client)
           if ! dpkg-query -W -f='${db:Status-Status}\n' "${packages[@]}" > "$RUNNER_TEMP/package-status" 2>/dev/null ||
               grep -qvx installed "$RUNNER_TEMP/package-status"; then
             sudo apt-get update

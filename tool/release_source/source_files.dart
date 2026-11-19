@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../git_environment.dart';
 import 'build_record.dart';
 
 bool excludedPackageEntry(String name) =>
@@ -117,11 +118,13 @@ Future<void> extractApplicationSource(
   String commit,
 ) async {
   await destination.create();
-  final git = await Process.start('git', [
-    'archive',
-    '--format=tar',
-    commit,
-  ], workingDirectory: root.path);
+  final git = await Process.start(
+    'git',
+    ['archive', '--format=tar', commit],
+    workingDirectory: root.path,
+    environment: gitRepositoryEnvironment(),
+    includeParentEnvironment: false,
+  );
   final tar = await Process.start('tar', ['-xf', '-', '-C', destination.path]);
   final gitError = git.stderr.transform(utf8.decoder).join();
   final tarError = tar.stderr.transform(utf8.decoder).join();

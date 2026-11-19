@@ -1,32 +1,37 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/git_fixture.dart';
+
 void main() {
   final script = File('tool/ci_build_changes.sh').absolute.path;
   late Directory root;
+  late GitFixture repository;
   late String base;
 
-  String git(List<String> arguments) {
-    final result = Process.runSync(
-      'git',
-      arguments,
-      workingDirectory: root.path,
-    );
-    expect(result.exitCode, 0, reason: '${result.stderr}');
-    return '${result.stdout}'.trim();
-  }
+  String git(List<String> arguments) => repository.git(arguments);
 
-  ProcessResult select({bool withBase = true, String? output}) =>
-      Process.runSync(
-        'bash',
-        [
-          script,
-          if (withBase) ...['--base', base],
-        ],
-        workingDirectory: root.path,
-        environment: {'GITHUB_OUTPUT': ?output},
-      );
+  ProcessResult select({
+    bool withBase = true,
+    String? output,
+    bool worktree = false,
+    String? head,
+  }) => Process.runSync(
+    'bash',
+    [
+      script,
+      if (withBase) ...['--base', base],
+      if (worktree) '--worktree',
+      if (head != null) ...['--head', head],
+    ],
+    workingDirectory: root.path,
+    environment: {...repository.environment, 'GITHUB_OUTPUT': output ?? ''},
+    includeParentEnvironment: false,
+  );
 
   void commit() {
     git(['add', '-A']);
@@ -35,13 +40,13 @@ void main() {
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('ci-changes-');
-    git(['init']);
-    git(['config', 'user.name', 'CI test']);
-    git(['config', 'user.email', 'test@example.invalid']);
+    addTearDown(() => root.deleteSync(recursive: true));
+    repository = GitFixture(root);
+    addTearDown(repository.dispose);
+    repository.initialize(name: 'CI test');
     commit();
     base = git(['rev-parse', 'HEAD']);
   });
-  tearDown(() => root.deleteSync(recursive: true));
 
   const all = {'integration', 'lifecycle', 'nix', 'appimage', 'debian'};
 
@@ -51,7 +56,7 @@ void main() {
     return (result.stdout as String)
         .trim()
         .split('\n')
-        .where((line) => line.endsWith('=true'))
+        .where((line) => line.endsWith('=true') && !line.startsWith('tooling='))
         .map((line) => line.split('=').first)
         .toSet();
   }
@@ -154,5 +159,80 @@ void main() {
   test('invalid refs fail instead of skipping checks', () {
     base = 'missing-commit';
     expect(select().exitCode, isNot(0));
+  });
+
+  test('app and documentation changes do not select tooling tests', () {
+    for (final name in [
+      'lib/features/fans/fans_page.dart',
+      'test/features/fans/fans_page_test.dart',
+      'assets/icon.svg',
+      'README.md',
+      'docs/nix.md',
+    ]) {
+      base = git(['rev-parse', 'HEAD']);
+      change(name);
+      expect(select().stdout, contains('tooling=false\n'), reason: name);
+    }
+  });
+
+  test('tooling tests follow their scripts, fixtures, and shared inputs', () {
+    for (final name in [
+      'tool/check_commits.dart',
+      'test/tool/check_commits_test.dart',
+      'test/support/git_fixture.dart',
+      'test/fixtures/git_fixture_probe.dart',
+      'linux/CMakeLists.txt',
+      '.githooks/pre-push',
+      '.github/workflows/ci.yml',
+      'packaging/nix/frontend.nix',
+      'control/commands.cpp',
+      'telemetry/CMakeLists.txt',
+      'pubspec.lock',
+      'flake.lock',
+      'dart_test.yaml',
+      'test/flutter_test_config.dart',
+      'analysis_options.yaml',
+    ]) {
+      base = git(['rev-parse', 'HEAD']);
+      change(name);
+      expect(select().stdout, contains('tooling=true\n'), reason: name);
+    }
+  });
+
+  test('renaming a tool into documentation still selects tooling tests', () {
+    change('tool/old.dart');
+    base = git(['rev-parse', 'HEAD']);
+    Directory('${root.path}/docs').createSync();
+    File('${root.path}/tool/old.dart').renameSync('${root.path}/docs/old.md');
+    commit();
+    expect(select().stdout, contains('tooling=true\n'));
+  });
+
+  test('worktree mode includes staged, unstaged, and untracked tooling', () {
+    change('tool/existing.dart');
+    base = git(['rev-parse', 'HEAD']);
+    final existing = File('${root.path}/tool/existing.dart')
+      ..writeAsStringSync('unstaged\n');
+    expect(select().stdout, contains('tooling=false\n'));
+    expect(select(worktree: true).stdout, contains('tooling=true\n'));
+    git(['add', 'tool/existing.dart']);
+    expect(select(worktree: true).stdout, contains('tooling=true\n'));
+    commit();
+    base = git(['rev-parse', 'HEAD']);
+    existing.deleteSync();
+    expect(select(worktree: true).stdout, contains('tooling=true\n'));
+    git(['restore', 'tool/existing.dart']);
+    File('${root.path}/tool/new.dart').writeAsStringSync('untracked\n');
+    expect(select(worktree: true).stdout, contains('tooling=true\n'));
+  });
+
+  test('worktree mode leaves untracked app changes outside tooling', () {
+    Directory('${root.path}/lib').createSync();
+    File('${root.path}/lib/new.dart').writeAsStringSync('app\n');
+    expect(select(worktree: true).stdout, contains('tooling=false\n'));
+  });
+
+  test('worktree mode rejects a conflicting head option', () {
+    expect(select(worktree: true, head: base).exitCode, 2);
   });
 }

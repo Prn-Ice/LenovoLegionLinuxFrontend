@@ -115,6 +115,7 @@
           dpkg
           squashfsTools
           git
+          openssh
           nix.out
           gtk3
           glib

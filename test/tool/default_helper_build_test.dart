@@ -1,4 +1,7 @@
 // Configure the real frontend targets without building Flutter or host libraries.
+@Tags(['tooling'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
