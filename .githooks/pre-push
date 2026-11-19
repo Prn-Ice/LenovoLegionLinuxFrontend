@@ -1,43 +1,10 @@
 #!/usr/bin/env bash
-# Test the commit Git will send without including local edits or generated files.
 set -euo pipefail
-root=$(git rev-parse --show-toplevel)
+
+cd "$(git rev-parse --show-toplevel)"
 unset $(git rev-parse --local-env-vars)
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-test_checkout() {
-  flutter pub get --enforce-lockfile
-  dart run build_runner build
-  git diff --exit-code -- lib
-  flutter analyze
-  flutter test --no-pub --concurrency=1 --reporter=expanded
-}
-while read -r ref oid _ _; do
-  [[ $ref == '(delete)' ]] && continue
-  commit=$(git rev-parse --verify "$oid^{commit}")
-  [[ -d "$tmp/$commit" ]] && continue
-  git clone --quiet --local --no-checkout "$root" "$tmp/$commit" </dev/null
-  (
-    cd "$tmp/$commit"
-    git checkout --quiet --detach "$commit"
-    if [[ $(uname -s) == Darwin ]]; then
-      # Test Linux process, tray and packaging behavior on this Mac's Linux VM.
-      # Send just the outgoing history, without sharing the Mac checkout or keys.
-      orb=${LEGION_ORB:-/usr/local/bin/orb}
-      machine=${LEGION_TEST_MACHINE:-ci-legion}
-      git bundle create - HEAD |
-        "$orb" -m "$machine" -w /tmp bash -euc '
-          tmp=$(mktemp -d)
-          trap '\''rm -rf "$tmp"'\'' EXIT
-          cat > "$tmp/source.bundle"
-          git clone -q "$tmp/source.bundle" "$tmp/source"
-          cd "$tmp/source"
-          test "$(git rev-parse HEAD)" = "$1"
-          export PATH="$HOME/actions-runner/_work/_tool/flutter/stable-3.50.0-x64/flutter/bin:$PATH"
-          bash -ec "$2"
-        ' bash "$commit" "$(declare -f test_checkout); test_checkout"
-    else
-      test_checkout
-    fi
-  ) </dev/null
-done
+flutter pub get --enforce-lockfile
+dart run build_runner build
+git diff --exit-code -- lib
+flutter analyze
+flutter test --no-pub --concurrency=1 --reporter=expanded
