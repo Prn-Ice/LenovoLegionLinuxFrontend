@@ -1,11 +1,11 @@
 # Architecture overview
 
 The app uses Flutter on Linux. It reads hardware data through sysfs and D-Bus.
-Privileged hardware changes go through the C++ `legion-control` service
+Privileged hardware changes go through the bundled C++ control helper
 (`io.github.prnice.LegionControl1`), which checks permissions with Polkit and
 accepts only approved operations. Optional automation runs as the current user.
 
-Keyboard lighting uses native Spectrum HID or OpenRGB, not `legion-control`.
+Keyboard lighting uses native Spectrum HID or OpenRGB, not the control helper.
 
 ## Code layout
 
@@ -24,9 +24,9 @@ creates and disposes dependencies.
 
 **Reads:** service → repository → Bloc/Cubit state → UI.
 
-**Changes:** UI → Bloc/Cubit → repository → `LegionControlClient` → native
-service. The service checks and applies the change. The feature then reloads its
-state or reports an error.
+**Changes:** UI → Bloc/Cubit → repository → `LegionControlClient` → bundled
+control helper. The helper checks and applies the change. The feature then
+reloads its state or reports an error.
 
 Most feature repositories pass typed `LegionControlClient` calls to
 `LegionFrontendBridgeService.runControlOperation`. Commands use the enums in
@@ -35,13 +35,12 @@ The client converts them to the D-Bus names. The bridge owns serialization,
 duplicate detection, timeouts, history, and control-error translation. Its
 method/argument metadata is for history and duplicate keys, not CLI execution.
 `PrivilegedRepository` preserves failure kinds and details in feature exceptions.
-Settings calls the typed client directly for service changes.
-Fan curves and boot logos cross D-Bus as bytes; only the native service maps
-approved operations to backend commands. Read-only CLI queries still use
+Fan curves and boot logos cross D-Bus as bytes; only the native control helper
+maps approved operations to backend commands. Read-only CLI queries still use
 `runCommand`.
 
-Opt-in [next-boot graphics requests](next-boot-graphics.md) also use the control
-service to save the requested mode for the next boot.
+Opt-in [next-boot graphics requests](next-boot-graphics.md) use the installed
+control service to save the requested mode for the next boot.
 
 For contributor workflow and safe hardware testing, see
 [Contributing](../../CONTRIBUTING.md) and the [model-support guide](../model-support.md).

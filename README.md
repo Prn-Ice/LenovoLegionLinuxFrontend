@@ -76,7 +76,7 @@ complete across Lenovo Legion models.
 | Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
 | [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented; hardware-free native app journeys cover persistence and restart | The app must stay open. These journeys do not verify physical keyboard behavior; visual polish remains. |
 | Keyboard lighting through Spectrum HID or OpenRGB | Both backends implemented | Native Spectrum currently targets USB `048d:c987` with the Gen 7/8 protocol. Other keyboards need device-specific verification; OpenRGB depends on its device support and setup. |
-| Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device, not a multi-model test matrix. |
+| Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device. Other models have not been tested. |
 
 See the **[public backlog](BACKLOG.md)** for work in progress, known gaps, and
 ways to help.
@@ -199,7 +199,7 @@ flutter analyze
 ## Architecture
 
 The app reads hardware data through sysfs and D-Bus. Privileged changes go through
-the `legion-control` service, which checks permissions with Polkit.
+the bundled privileged control helper, which checks permissions with Polkit.
 
 See the [architecture overview](docs/architecture/overview.md).
 
