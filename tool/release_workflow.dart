@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'git_environment.dart';
 import 'packaging_files.dart';
 import 'packaging_versions.dart';
 import 'package_test_results.dart'
@@ -250,8 +251,11 @@ void archiveEvidence(File output, Map<String, File> files) {
   }
 }
 
-String releaseGit(Directory root, List<String> arguments) =>
-    packagingCommand('git', ['-C', root.path, ...arguments]).trim();
+String releaseGit(Directory root, List<String> arguments) => packagingCommand(
+  'git',
+  ['-C', root.path, ...arguments],
+  environment: gitRepositoryEnvironment(),
+).trim();
 
 String releaseNotes(Directory root, String tag) {
   if (releaseGit(root, ['rev-parse', '--is-shallow-repository']) == 'true') {

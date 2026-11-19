@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../git_environment.dart';
 import '../nix_flutter_provenance.dart';
 import 'build_record.dart';
 import 'source_files.dart';
@@ -87,7 +88,13 @@ void requireCleanSourceTree(Directory root) {
 }
 
 String _runGit(Directory root, List<String> arguments) {
-  final result = Process.runSync('git', arguments, workingDirectory: root.path);
+  final result = Process.runSync(
+    'git',
+    arguments,
+    workingDirectory: root.path,
+    environment: gitRepositoryEnvironment(),
+    includeParentEnvironment: false,
+  );
   if (result.exitCode != 0) throw StateError(result.stderr.toString());
   return result.stdout as String;
 }

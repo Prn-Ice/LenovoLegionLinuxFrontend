@@ -1,3 +1,6 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +11,7 @@ import '../../tool/release_source/build_record.dart';
 import '../../tool/release_source/linux_build.dart';
 import '../../tool/release_source/source_archive.dart';
 import '../../tool/release_source/source_inputs.dart';
+import '../support/git_fixture.dart';
 
 void main() {
   late Directory workspace;
@@ -15,6 +19,7 @@ void main() {
   late Directory dependency;
   late Directory bundle;
   late ReleaseBuildRecord stamp;
+  late GitFixture repository;
 
   void write(String path, String content) {
     File(path)
@@ -75,12 +80,12 @@ void main() {
     write('${root.path}/.beads/credentials', 'private');
     Directory('${root.path}/.agent').createSync();
     Link('${root.path}/.agent/local-skill').createSync('/private/home/skill');
-    await _run(root, 'git', ['init', '-q']);
-    await _run(root, 'git', ['config', 'user.email', 'test@example.invalid']);
-    await _run(root, 'git', ['config', 'user.name', 'Test']);
-    await _run(root, 'git', ['add', '.']);
-    await _run(root, 'git', ['add', '-f', '.env', '.beads/credentials']);
-    await _run(root, 'git', ['commit', '-qm', 'fixture']);
+    repository = GitFixture(root);
+    addTearDown(repository.dispose);
+    repository.initialize();
+    repository.git(['add', '.']);
+    repository.git(['add', '-f', '.env', '.beads/credentials']);
+    repository.git(['commit', '-qm', 'fixture']);
     stamp = await recordBuild();
   });
 
