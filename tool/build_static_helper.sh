@@ -16,7 +16,7 @@ autoreconf -fi
 ./configure --disable-all-programs --enable-libmount --enable-libblkid \
   --enable-static --disable-shared --without-selinux --without-udev
 make -j2 libmount.la libblkid.la
-cmake -S "$root/telemetry" -B "$build/helper" -G Ninja \
+cmake -S "$root/control" -B "$build/helper" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-12 \
   -DBUILD_TESTING=OFF -DBUILD_LEGION_CONTROL_SERVICE=OFF \
   -DBUILD_PORTABLE_CONTROL_HELPER=ON -DBUILD_PORTABLE_CONTROL_STATIC=ON \

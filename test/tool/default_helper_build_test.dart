@@ -25,7 +25,7 @@ void main() {
       ]) {
         File('${project.path}/linux/$name').copySync('${linux.path}/$name');
       }
-      for (final name in ['telemetry', 'control', 'packaging']) {
+      for (final name in ['control', 'packaging']) {
         Link('${root.path}/$name').createSync('${project.path}/$name');
       }
       // Stub only external dependencies; use real native target/install rules.

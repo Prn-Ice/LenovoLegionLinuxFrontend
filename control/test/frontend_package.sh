@@ -23,6 +23,7 @@ reject systemctl cat legion-control.service
 reject systemctl cat legion-telemetry.service
 echo 'Checking first-launch administrator access and normal window close'
 bash "$support/desktop_test_support.sh" legion_frontend gui.log 'Nix frontend' "$bundle/legion_frontend"
+bash "$support/desktop_test_support.sh" legion_frontend power.log "Nix CPU power" "$bundle/legion_frontend" false allow
 echo 'Checking synthetic helper write, readback, restore, and cleanup'
 session_new app approved "$bundle/libexec/legion-portable-control" false
 [[ ${app[cli]} == "$(readlink -f /run/current-system/sw/bin/legion_cli)" ]]

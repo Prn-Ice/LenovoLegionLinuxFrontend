@@ -95,6 +95,9 @@ start_gui() {
   wait_until 90 test -s /home/approved/app.pid
   pid=$(cat /home/approved/app.pid)
   [[ $pid =~ ^[0-9]+$ ]]
+  desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
+  wait_text 'Show CPU power usage' 1280x720+0+0 11
+  desktop xdotool key Escape
 }
 close_gui() {
   # Xvfb may disconnect xdotool as it finishes the click. Check the app's status.
@@ -111,7 +114,6 @@ wait_text() { wait_until 30 ocr "$@"; }
 echo 'Checking fresh first-launch administrator access without a mode choice'
 start_gui
 wait_text Dashboard 380x32+288+7
-desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
 wait_text 'Battery health' 1280x720+0+0 11
 wait_until 10 test -f "$gui_home/preferences.hive"
 icon=$(desktop xprop -id "$(head -n1 /home/approved/window.id)" _NET_WM_ICON)
@@ -176,7 +178,6 @@ echo 'Checking ten more normal X11 closes through official appimage-run'
 for ((attempt=1; attempt<=10; attempt++)); do
   start_gui
   wait_text Dashboard 380x32+288+7
-  desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
   close_gui
 done
 reject grep -E 'Pango-CRITICAL|GLib-CRITICAL|GLib-GObject-CRITICAL' /home/approved/gui.log

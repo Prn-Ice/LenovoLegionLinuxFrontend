@@ -32,6 +32,7 @@
 #include <glib-unix.h>
 #include <initializer_list>
 #include <iterator>
+#include <linux/capability.h>
 #include <poll.h>
 #include <sys/prctl.h>
 #include <sys/syscall.h>
@@ -249,7 +250,9 @@ gboolean ObserveControlUnit(gpointer data) {
 // Run the launcher. `wait_before_start` holds startup until the app sends 's'
 // on stdin; `queued` places the unit behind a test gate; `control` starts the
 // long-lived control helper instead of the short startup probe.
-int Launcher(bool wait_before_start, bool queued, bool control = false) {
+int Launcher(bool wait_before_start, bool queued, bool control = false,
+             SessionPurpose purpose = SessionPurpose::control) {
+  const bool power = purpose == SessionPurpose::package_power;
   // The launcher must run as the ordinary app user, must not be dumpable, and
   // must be able to pin its parent with a pidfd so parent death is observed
   // without race-prone signal handling.
@@ -345,6 +348,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     };
     property("Description",
              g_variant_new_string(test_build ? "Legion portable startup test"
+                                  : power    ? "Read CPU package power"
                                              : "Legion app control session"));
     property("Type", g_variant_new_string("exec"));
     property("CollectMode", g_variant_new_string("inactive-or-failed"));
@@ -437,8 +441,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       const char *arguments[] = {executable.c_str(), "--helper", pid.c_str(),
                                  launch.unit.c_str(), nullptr};
       const char *control_arguments[] = {
-          executable.c_str(), "--control-helper",  app_pid.c_str(),
-          app_uid.c_str(),    launch.unit.c_str(), nullptr};
+          executable.c_str(),  power ? "--power-helper" : "--control-helper",
+          app_pid.c_str(),     app_uid.c_str(),
+          launch.unit.c_str(), nullptr};
       const std::string runtime_directory =
           launch.unit.substr(0, launch.unit.size() - 8);
       // The control helper gets a narrower sandbox than the startup probe:
@@ -449,6 +454,12 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
              {"ProtectHostname", "ProtectClock", "ProtectControlGroups",
               "ProtectKernelLogs", "ProtectKernelModules"})
           property(name, g_variant_new_boolean(TRUE));
+        if (power) {
+          property("CapabilityBoundingSet",
+                   g_variant_new_uint64(guint64{1} << CAP_DAC_READ_SEARCH));
+          property("PrivateDevices", g_variant_new_boolean(TRUE));
+          property("ProtectKernelTunables", g_variant_new_boolean(TRUE));
+        }
         property("RestrictNamespaces", g_variant_new_uint64(0));
         const char *families[] = {"AF_UNIX", nullptr};
         property("RestrictAddressFamilies",
@@ -652,12 +663,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
 }
 }  // namespace
 
-// Entry point. The same sealed program runs in several roles, chosen by its
-// arguments:
-//   --control        launcher started by the app (systemd runs this as root)
-//   --control-helper the long-lived helper started by the launcher
-//   --cleanup        one-shot cleanup unit
-//   --helper         test-only root probe
+// The app starts the launcher as the desktop user. After approval, systemd
+// runs the sealed helper with the selected control or CPU power role.
 int main(int argc, char **argv) {
   // Test builds refuse to run outside the disposable VM, so a test cannot
   // touch the host's systemd.
@@ -680,7 +687,8 @@ int main(int argc, char **argv) {
   }
   // The control helper receives the app pid, app uid, and its unit name from
   // systemd. It validates all three before it reads the lifetime pipe.
-  if (argc == 5 && std::string(argv[1]) == "--control-helper") {
+  if (argc == 5 && (std::string(argv[1]) == "--control-helper" ||
+                    std::string(argv[1]) == "--power-helper")) {
     char *pid_end, *uid_end;
     const long pid = strtol(argv[2], &pid_end, 10);
     const unsigned long uid = strtoul(argv[3], &uid_end, 10);
@@ -692,6 +700,9 @@ int main(int argc, char **argv) {
         lifetime.owner != uid || !StopStartupDeadline(argv[4]) ||
         dup2(lifetime.app, STDIN_FILENO) < 0)
       return 2;
+    if (std::string(argv[1]) == "--power-helper")
+      return RunPortableControlSession(pid, uid, argv[4], lifetime.launcher, {},
+                                       15 * 60, SessionPurpose::package_power);
     std::string cli, error;
 #ifdef LEGION_PORTABLE_TEST
     if (!legion_control::TrustedExecutable(PORTABLE_CONTROL_TEST_CLI, &cli))
@@ -706,11 +717,14 @@ int main(int argc, char **argv) {
     }
     return RunPortableControlSession(
         static_cast<pid_t>(pid), static_cast<uid_t>(uid), argv[4],
-        lifetime.launcher, cli, test_build ? 5 : 15 * 60);
+        lifetime.launcher, cli, test_build ? 5 : 15 * 60,
+        SessionPurpose::control);
   }
+  if (argc == 2 && std::string(argv[1]) == "--package-power")
+    return Launcher(false, false, true, SessionPurpose::package_power);
   if (argc == 2 && std::string(argv[1]) == "--control")
     return Launcher(false, false, true);
-  // Test-only launcher modes. The normal app always uses --control.
+  // The VM tests also exercise startup without opening an app session.
 #ifdef LEGION_PORTABLE_TEST
   if (argc == 1)
     return Launcher(false, false);

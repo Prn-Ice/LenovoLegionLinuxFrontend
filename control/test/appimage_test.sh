@@ -67,6 +67,7 @@ check_helper "$mountpoint"
 echo 'PASS: bundled helper from FUSE with synthetic write/readback/restore'
 cleanup
 timeout 420 bash "$support/desktop_test_support.sh" "$image" appimage-gui-fuse.log fuse '' true
+timeout 420 bash "$support/desktop_test_support.sh" "$image" appimage-power.log power "" true allow
 extraction='/home/approved/Extracted app with spaces'
 as_user approved mkdir -p "$extraction"
 as_user approved bash -c 'cd "$1"; "$2" --appimage-extract >/dev/null' bash "$extraction" "$image"

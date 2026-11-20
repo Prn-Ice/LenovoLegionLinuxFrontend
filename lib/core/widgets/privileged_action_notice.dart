@@ -35,9 +35,8 @@ class PrivilegedActionNotice extends StatelessWidget {
             child: Text(
               message,
               style: compact
-                  ? Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: foreground)
+                  ? Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: foreground)
                   : TextStyle(color: foreground, fontWeight: FontWeight.w600),
             ),
           ),
@@ -52,6 +51,7 @@ Future<bool> confirmPrivilegedAction(
   required String title,
   required String message,
   String confirmLabel = 'Continue',
+  String cancelLabel = 'Cancel',
 }) async {
   final approved = await showDialog<bool>(
     context: context,
@@ -71,7 +71,7 @@ Future<bool> confirmPrivilegedAction(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Cancel'),
+          child: Text(cancelLabel),
         ),
         FilledButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),

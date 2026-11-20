@@ -1,14 +1,14 @@
 { pkgs }:
 
 let
-  service = pkgs.callPackage ../../telemetry/package.nix { };
+  service = pkgs.callPackage ../../control/package.nix { };
   fixtures = pkgs.callPackage ./fixtures.nix { };
   probe = pkgs.callPackage ./bootstrap-package.nix { inherit fixtures; };
 in
 pkgs.testers.runNixOSTest {
   name = "legion-control-lifecycle";
   nodes.machine = {
-    imports = [ ../../packaging/nixos/legion-telemetry.nix ];
+    imports = [ ../../packaging/nixos/legion-control.nix ];
     services.legionControl = {
       enable = true;
       package = service;

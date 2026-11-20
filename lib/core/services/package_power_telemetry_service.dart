@@ -1,59 +1,61 @@
-import 'package:dbus/dbus.dart';
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+
+import 'native_portable_control_transport.dart';
+import 'portable_control_launcher.dart';
 
 abstract interface class PackagePowerTelemetryClient {
+  Future<void> enable();
   Future<double?> readPackagePowerWatts();
 }
 
-class DBusPackagePowerTelemetryClient implements PackagePowerTelemetryClient {
-  DBusPackagePowerTelemetryClient({DBusClient? client})
-    : _client = client ?? DBusClient.system() {
-    _object = DBusRemoteObject(
-      _client,
-      name: _busName,
-      path: DBusObjectPath(_objectPath),
-    );
+/// Starts a read-only session after the user chooses Allow. Polling sensors
+/// never starts a helper or prompts for permission.
+class SessionPackagePowerClient implements PackagePowerTelemetryClient {
+  SessionPackagePowerClient({PortableControlLauncher? launcher})
+    : _launcher =
+          launcher ??
+          PortableControlLauncher(
+            executable:
+                '${File(Platform.resolvedExecutable).parent.path}/libexec/legion-portable-control',
+            session: HelperSession.packagePower,
+          );
+
+  final PortableControlLauncher _launcher;
+  NativePortableControlTransport? _peer;
+  bool _closed = false;
+
+  @override
+  Future<void> enable() async {
+    try {
+      final endpoint = await _launcher.start();
+      if (_closed) return;
+      final peer = _peer = NativePortableControlTransport(
+        endpoint: endpoint,
+        channel: const MethodChannel('io.github.prnice.legion/package_power'),
+      );
+      await peer.prepare();
+    } catch (_) {
+      await close();
+      rethrow;
+    }
   }
-
-  static const _busName = 'io.github.prnice.LegionTelemetry1';
-  static const _objectPath = '/io/github/prnice/LegionTelemetry1';
-  static const _interface = 'io.github.prnice.LegionTelemetry1';
-
-  final DBusClient _client;
-  late final DBusRemoteObject _object;
 
   @override
   Future<double?> readPackagePowerWatts() async {
     try {
-      final response = await _object
-          .callMethod(
-            _interface,
-            'GetSnapshot',
-            const [],
-            replySignature: DBusSignature('a{sv}'),
-          )
-          .timeout(const Duration(seconds: 2));
-      if (response.returnValues.length != 1) return null;
-      return parseSnapshot(response.returnValues.single.asStringVariantDict());
-    } catch (_) {
+      return await _peer?.readPackagePower();
+    } on Exception {
       return null;
     }
   }
 
-  static double? parseSnapshot(Map<String, DBusValue> values) {
-    final available = values['Available'];
-    final watts = values['PackagePowerWatts'];
-    final version = values['Version'];
-    if (available is! DBusBoolean ||
-        !available.value ||
-        watts is! DBusDouble ||
-        version is! DBusString ||
-        version.value != '1' ||
-        !watts.value.isFinite ||
-        watts.value < 0) {
-      return null;
-    }
-    return watts.value;
+  Future<void> close() async {
+    _closed = true;
+    final peer = _peer;
+    _peer = null;
+    await Future.wait([if (peer != null) peer.close(), _launcher.close()]);
   }
-
-  Future<void> close() => _client.close();
 }

@@ -4,6 +4,8 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:yaru/yaru.dart';
 
 import 'app/app.dart';
+import 'app/view/package_power_prompt.dart';
+import 'features/navigation/view/navigation_shell.dart';
 import 'features/analytics/models/sensor_record.dart';
 import 'features/dashboard/providers/dashboard_readings_provider.dart';
 import 'features/dashboard/repository/dashboard_readings_store.dart';
@@ -26,7 +28,9 @@ Future<void> main() async {
           DashboardReadingsStore(preferences),
         ),
       ],
-      child: const LegionFrontendApp(),
+      child: const LegionFrontendApp(
+        home: PackagePowerPrompt(child: NavigationShell()),
+      ),
     ),
   );
 }

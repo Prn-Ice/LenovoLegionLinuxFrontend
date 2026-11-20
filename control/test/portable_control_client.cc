@@ -251,12 +251,14 @@ int main(int argc, char **argv) {
     g_object_unref(connection);
     return 0;
   }
-  if (argc != 2)
+  const bool power = argc == 3 && std::string(argv[2]) == "--package-power";
+  if (argc != 2 && !power)
     return 2;
   // Start the real launcher and read the details from its handshake line.
   GError *error = nullptr;
-  auto *launcher = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
-                                    argv[1], "--control", nullptr);
+  auto *launcher =
+      g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error, argv[1],
+                       power ? "--package-power" : "--control", nullptr);
   if (!launcher) {
     g_clear_error(&error);
     return 1;
@@ -303,9 +305,12 @@ int main(int argc, char **argv) {
       GError *error = nullptr;
       connection = ConnectAsync({address, unit, helper_pid, bus_name}, &error);
       g_clear_error(&error);
-      result = connection ? Call(connection, "GetCapabilities", nullptr,
-                                 G_VARIANT_TYPE("(uas)"))
-                          : "authentication-failed";
+      result =
+          connection
+              ? Call(connection, power ? "ReadPackagePower" : "GetCapabilities",
+                     nullptr,
+                     power ? G_VARIANT_TYPE("(bd)") : G_VARIANT_TYPE("(uas)"))
+              : "authentication-failed";
     } else if (!connection)
       result = "not-connected";
     else if (line == "authorize")

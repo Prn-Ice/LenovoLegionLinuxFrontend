@@ -1,4 +1,4 @@
-# Formatting for the native control helper, telemetry service, and Linux runner.
+# Formatting for the native helpers and Linux runner.
 # Run: clang-format -i <files>
 ---
 Language: Cpp
