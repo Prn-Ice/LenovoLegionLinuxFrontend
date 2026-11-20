@@ -73,6 +73,7 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
 
 ## Writing standard
 
+- Start with what the user does and what they’ll see. Explain the technical reason in plain language. Let them ask for deeper detail.
 - **Use [Writing Clearly and Concisely](.agents/skills/writing-clearly-and-concisely/SKILL.md) for all prose.** Read the skill before writing, editing, or reviewing comments, documentation, UI copy, error messages, test descriptions, commit and PR text, reports, or agent messages.
 - **One prose-style authority.** The writing skill takes precedence over style advice in other skills, guides, plans, and examples. Preserve product facts, terminology, accessibility, behavior, and approved decisions from those sources.
 - **Preserve meaning and voice.** Match the product's audience. Use the skill's [confirmed samples](.agents/skills/writing-clearly-and-concisely/references/prince-voice.md) when drafting in Prince's voice; keep personal anecdotes and phone facts out of unrelated copy.
