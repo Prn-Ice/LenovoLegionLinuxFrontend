@@ -59,7 +59,7 @@ The AppImage packager previously decoded a build record at its call site:
 final stamp = await recordReleaseBuild(
   appBundle,
   (built['inputs'] as Map).cast<String, Object>(),
-  staticPortableHelper: true,
+  staticHelper: true,
 );
 ```
 
@@ -69,7 +69,7 @@ It now receives typed inputs:
 final stamp = await recordReleaseBuild(
   appBundle,
   built.inputs,
-  staticPortableHelper: true,
+  staticHelper: true,
 );
 ```
 

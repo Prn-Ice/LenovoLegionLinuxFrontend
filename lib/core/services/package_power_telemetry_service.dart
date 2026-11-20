@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-import 'native_portable_control_transport.dart';
-import 'portable_control_launcher.dart';
+import 'native_control_connection.dart';
+import 'control_launcher.dart';
 
 abstract interface class PackagePowerTelemetryClient {
   Future<void> enable();
@@ -14,17 +13,12 @@ abstract interface class PackagePowerTelemetryClient {
 /// Starts a read-only session after the user chooses Allow. Polling sensors
 /// never starts a helper or prompts for permission.
 class SessionPackagePowerClient implements PackagePowerTelemetryClient {
-  SessionPackagePowerClient({PortableControlLauncher? launcher})
+  SessionPackagePowerClient({ControlLauncher? launcher})
     : _launcher =
-          launcher ??
-          PortableControlLauncher(
-            executable:
-                '${File(Platform.resolvedExecutable).parent.path}/libexec/legion-portable-control',
-            session: HelperSession.packagePower,
-          );
+          launcher ?? ControlLauncher(session: HelperSession.packagePower);
 
-  final PortableControlLauncher _launcher;
-  NativePortableControlTransport? _peer;
+  final ControlLauncher _launcher;
+  NativeControlConnection? _peer;
   bool _closed = false;
 
   @override
@@ -32,7 +26,7 @@ class SessionPackagePowerClient implements PackagePowerTelemetryClient {
     try {
       final endpoint = await _launcher.start();
       if (_closed) return;
-      final peer = _peer = NativePortableControlTransport(
+      final peer = _peer = NativeControlConnection(
         endpoint: endpoint,
         channel: const MethodChannel('io.github.prnice.legion/package_power'),
       );

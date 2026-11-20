@@ -3,8 +3,8 @@
 # shellcheck disable=SC2016
 set -euo pipefail
 desktop_support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$desktop_support/portable_session_test.sh"
+# shellcheck source=control/test/helper_session_test.sh
+source "$desktop_support/helper_session_test.sh"
 # shellcheck source=control/test/distro_test_support.sh
 source "$desktop_support/distro_test_support.sh"
 
@@ -76,7 +76,7 @@ desktop_wait_ready() {
   fi
   gui_wait_text 'Battery health' 1280x720+0+0 11
 }
-gui_unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'; }
+gui_unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-control-helper-*' | awk '{print $1}'; }
 gui_has_unit() { [[ -n $(gui_unit_query) ]]; }
 gui_no_unit() { [[ -z $(gui_unit_query) ]]; }
 
@@ -103,7 +103,7 @@ desktop_collect_diagnostics() {
     gui_desktop xdotool getwindowfocus || true
     gui_desktop xdotool getmouselocation --shell || true
     desktop_ocr "$gui_home/label.png" 11 || true
-    journalctl -b --no-pager -u 'legion-portable-control-*' || true
+    journalctl -b --no-pager -u 'legion-control-helper-*' || true
     journalctl -b --no-pager -k | tail -n100 || true
   } >>"$gui_diagnostics" 2>&1
   cat "$gui_diagnostics" >&2
@@ -196,7 +196,7 @@ desktop_main() {
   # Traverse user-owned FUSE paths as their mount owner, without allow_other.
   executable=$(as_user approved readlink -f "/proc/$pid/exe")
   if [[ -n $expected_executable ]]; then [[ $executable == "$expected_executable" ]]; fi
-  as_user approved test -x "${executable%/*}/libexec/legion-portable-control"
+  as_user approved test -x "${executable%/*}/libexec/legion-control-helper"
   if [[ $bundled_libraries == true ]]; then
     cat "/proc/$pid/maps" >"/home/approved/appimage-runtime-$label.txt"
     for library in libgtk-3.so.0 libglib-2.0.so.0 libpango-1.0.so.0; do
@@ -223,7 +223,7 @@ desktop_main() {
   gui_click 734 667
   wait_until 30 gui_has_unit
   unit=$(gui_unit_query)
-  [[ $unit =~ ^legion-portable-control-[0-9a-f-]+\.service$ ]]
+  [[ $unit =~ ^legion-control-helper-[0-9a-f-]+\.service$ ]]
   helper_pid=$(systemctl show --property=MainPID --value "$unit")
   [[ $helper_pid =~ ^[0-9]+$ && $helper_pid != 0 ]]
   gui_enabled() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x enabled; }

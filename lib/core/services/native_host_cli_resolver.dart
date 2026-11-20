@@ -6,19 +6,19 @@ import 'legion_control_client.dart';
 /// The root helper independently validates this selection before writes.
 Future<String> resolveNativeHostCli() async {
   try {
-    final path = await const MethodChannel(
-      'io.github.prnice.legion/portable_control',
-    ).invokeMethod<Object>('findHostCli').timeout(const Duration(seconds: 5));
+    final path = await const MethodChannel('io.github.prnice.legion/control')
+        .invokeMethod<Object>('findHostCli')
+        .timeout(const Duration(seconds: 5));
     if (path is! String || !path.startsWith('/') || path.contains('\u0000')) {
-      throw const LegionControlPortableSetupException(
+      throw const ControlHelperSetupException(
         'The host did not report a valid installed legion_cli path.',
       );
     }
     return path;
-  } on LegionControlPortableSetupException {
+  } on ControlHelperSetupException {
     rethrow;
   } catch (error) {
-    throw LegionControlPortableSetupException(
+    throw ControlHelperSetupException(
       'Could not select the installed legion_cli. Check the CLI installation and restart the app. $error',
     );
   }

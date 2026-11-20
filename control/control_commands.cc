@@ -61,13 +61,6 @@ const std::map<std::string, std::string> toggle_commands = {
     {"lock-fan-controller", "lockfancontroller"},
     {"maximum-fan-speed", "maximumfanspeed"}};
 
-// Services that the installed helper may start or stop.
-const std::map<std::string, std::vector<std::string>> service_units = {
-    {"power_profiles_daemon", {"power-profiles-daemon.service"}},
-    {"legiond_stack",
-     {"legiond.service", "legiond-onresume.service", "legiond-cpuset.service",
-      "legiond-cpuset.timer"}}};
-
 const std::set<std::string> graphics_modes = {"hybrid", "hybrid-igpu-only",
                                               "discrete"};
 
@@ -151,7 +144,7 @@ Command PresetCommand(const std::string &preset) {
   return {{"fancurve-write-preset-to-hw", preset}};
 }
 
-// Every command that portable CLI qualification expects the installed
+// Every command that host CLI qualification expects the installed
 // legion_cli --help output to advertise.
 std::vector<std::string> InteractiveCliCommands() {
   std::vector<std::string> commands = {"set-feature",
@@ -188,20 +181,6 @@ Command ConservationCommand(uint32_t lower, uint32_t upper) {
            std::to_string(lower), std::to_string(upper)}};
 }
 
-bool ValidateService(const std::string &service_id, std::string *error) {
-  if (service_units.count(service_id))
-    return true;
-  *error = "unsupported service id";
-  return false;
-}
-
-Command ServiceCommand(const std::string &service_id, bool enabled) {
-  Command command{{enabled ? "enable" : "disable", "--now"}};
-  const auto &units = service_units.at(service_id);
-  command.argv.insert(command.argv.end(), units.begin(), units.end());
-  return command;
-}
-
 bool ValidateGraphicsMode(const std::string &mode, std::string *error) {
   if (graphics_modes.count(mode))
     return true;
@@ -235,17 +214,6 @@ CliExit ClassifyCliExit(int exit_status) {
   if (exit_status == 3)
     return CliExit::kFeatureNotFound;
   return CliExit::kFailed;
-}
-
-bool ValidateBootGraphicsMode(const std::string &mode, std::string *error) {
-  if (mode == "hybrid" || mode == "hybrid-igpu-only")
-    return true;
-  *error = "only hybrid and hybrid-igpu-only can be requested for next boot";
-  return false;
-}
-
-Command BootGraphicsRequestCommand(const std::string &mode) {
-  return {{"request", mode}};
 }
 
 }  // namespace legion_control

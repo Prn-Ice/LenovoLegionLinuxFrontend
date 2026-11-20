@@ -167,27 +167,6 @@ void main() {
     expect(transport.calls, isEmpty);
   });
 
-  test(
-    'interactive helper refuses persistent writes before authorization',
-    () async {
-      final transport = _FakeTransport()
-        ..capabilities = ControlCapabilities(
-          protocolVersion: 1,
-          supported: const [ControlCapability.interactiveControl],
-        );
-      final client = LegionControlClient(transport: transport);
-      addTearDown(client.close);
-      await expectLater(
-        client.setServiceEnabled(ControlService.legiondStack, true),
-        throwsA(isA<LegionControlNotSupportedException>()),
-      );
-      expect(transport.authorizationCalls, 0);
-      expect(transport.calls, isEmpty);
-      await client.setToggle(ControlToggle.hybridMode, true);
-      expect(transport.calls.single.$1, 'SetToggle');
-    },
-  );
-
   test('failed metadata can be retried without caching its failure', () async {
     final transport = _FakeTransport()
       ..capabilityFailure = const LegionControlUnavailableException('offline');
@@ -408,15 +387,9 @@ void main() {
     );
   });
 
-  test('validates service IDs and byte payload boundaries', () async {
+  test('validates byte payload boundaries', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);
-    await client.setServiceEnabled(ControlService.powerProfilesDaemon, true);
-    await client.setServiceEnabled(ControlService.legiondStack, false);
-    expect(transport.calls.map((call) => [call.$1, ...call.$2]), [
-      ['SetServiceEnabled', 'power_profiles_daemon', true],
-      ['SetServiceEnabled', 'legiond_stack', false],
-    ]);
     await client.applyFanCurve([0, 255]);
     expect(
       () => client.applyFanCurve([-1]),
@@ -437,7 +410,7 @@ void main() {
         'io.github.prnice.LegionControl1.Error.Unavailable',
       ): LegionControlUnavailableException,
       DBusMethodErrorResponse('org.freedesktop.DBus.Error.ServiceUnknown'):
-          LegionControlPortableSetupException,
+          ControlHelperSetupException,
     };
     for (final entry in failures.entries) {
       final response = entry.key;

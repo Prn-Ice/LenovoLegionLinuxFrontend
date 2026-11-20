@@ -102,9 +102,8 @@ Future<void> _writeRebuildFiles(
       for (final name in packageNames) name: {'path': '../dependencies/$name'},
     },
   });
-  await File('${staging.path}/REBUILD.md').writeAsString(
-    rebuildInstructions(staticPortableHelper: record.staticPortableHelper),
-  );
+  await File('${staging.path}/REBUILD.md')
+      .writeAsString(rebuildInstructions(staticHelper: record.staticHelper));
 }
 
 Future<Map<String, Object>> _writeSourceManifest(

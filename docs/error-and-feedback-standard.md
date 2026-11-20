@@ -80,7 +80,7 @@ different recovery steps.
 
 ### Administrator access recovery
 
-`AppFailureKind.portableSetup` identifies setup failures in the privileged control
+`AppFailureKind.helperSetup` identifies setup failures in the privileged control
 helper. Use the shared dialog to explain the incomplete action and how to check the installed
 CLI, bundled helper, and desktop authentication agent. A denied startup can be
 retried explicitly in the same app after cleanup. Timeouts, uncertain cleanup,
@@ -90,7 +90,7 @@ and failures after startup acknowledgement require reopening the app.
 
 - A setup failure before dispatch means that command did not run. Do not claim
   that nothing changed if earlier steps in a multi-step action may have run.
-- Check that the app contains `libexec/legion-portable-control` and that systemd,
+- Check that the app contains `libexec/legion-control-helper` and that systemd,
   Polkit, and a desktop authentication agent are available.
 - Install `legion_cli` in an administrator-controlled host location. On NixOS,
   use the system profile; a user profile cannot supply the privileged backend.

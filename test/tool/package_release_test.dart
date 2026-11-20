@@ -37,10 +37,10 @@ void main() {
     dependency = Directory('${workspace.path}/dependency')..createSync();
     bundle = Directory('${root.path}/build/bundle');
     write('${bundle.path}/lib/libapp.so', 'binary');
-    write('${bundle.path}/libexec/legion-portable-control', 'helper');
+    write('${bundle.path}/libexec/legion-control-helper', 'helper');
     await _run(root, 'chmod', [
       '755',
-      '${bundle.path}/libexec/legion-portable-control',
+      '${bundle.path}/libexec/legion-control-helper',
     ]);
     write('${dependency.path}/pubspec.yaml', 'name: handy_window');
     write('${dependency.path}/linux/libhandy/src/COPYING', 'license');
@@ -125,7 +125,7 @@ void main() {
       final recorded = await recordReleaseBuild(
         bundle,
         await captureReleaseInputs(root),
-        staticPortableHelper: true,
+        staticHelper: true,
       );
       final json = jsonDecode(jsonEncode(recorded)) as Map<String, dynamic>;
       final restored = ReleaseBuildRecord.fromJson(json);
@@ -257,9 +257,9 @@ void main() {
   });
 
   test('rejects a helper replaced after the build', () async {
-    write('${bundle.path}/libexec/legion-portable-control', 'approved helper');
+    write('${bundle.path}/libexec/legion-control-helper', 'approved helper');
     stamp = await recordBuild();
-    write('${bundle.path}/libexec/legion-portable-control', 'replacement');
+    write('${bundle.path}/libexec/legion-control-helper', 'replacement');
     await expectLater(
       packageReleaseSource(
         root,
@@ -272,7 +272,7 @@ void main() {
   });
 
   test('requires an executable helper in every release build', () async {
-    final helper = File('${bundle.path}/libexec/legion-portable-control');
+    final helper = File('${bundle.path}/libexec/legion-control-helper');
     await _run(root, 'chmod', ['644', helper.path]);
     await expectLater(recordBuild(), throwsStateError);
     await _run(root, 'chmod', ['755', helper.path]);

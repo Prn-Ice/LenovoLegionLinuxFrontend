@@ -69,9 +69,9 @@ but names such as `f`, `v`, and `e` make it harder to read than it needs to be.
 Use `feature`, `value`, and `error` when revising that code. Preserve validation,
 Polkit, and process lifetime rules when simplifying the helper.
 
-Shell remains concise for command orchestration: `portable_distro_evidence.sh`
+Shell remains concise for command orchestration: `distro_evidence.sh`
 is 17 lines and retrieves logs and evidence while preserving failure status.
-The manifest-building tail of `test_portable_distro.sh` is a better Dart
+The manifest-building tail of `test_distro.sh` is a better Dart
 candidate: it builds structured data through nested shell and jq quoting.
 QEMU/SSH invocation and boot/recovery scripts have a stronger reason to remain
 shell, especially when they must run without an installed Dart SDK.

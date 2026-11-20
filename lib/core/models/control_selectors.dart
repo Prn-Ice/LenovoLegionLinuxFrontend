@@ -39,14 +39,6 @@ enum ControlFeature {
   final String wireValue;
 }
 
-enum ControlService {
-  powerProfilesDaemon('power_profiles_daemon'),
-  legiondStack('legiond_stack');
-
-  const ControlService(this.wireValue);
-  final String wireValue;
-}
-
 enum ControlFanPreset {
   quietBattery('quiet-battery'),
   balancedBattery('balanced-battery'),

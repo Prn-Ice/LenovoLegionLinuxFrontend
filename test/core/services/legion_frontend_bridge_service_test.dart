@@ -297,7 +297,7 @@ void main() {
           isA<LegionBridgeException>().having(
             (error) => error.code,
             'code',
-            LegionBridgeErrorCode.portableSetup,
+            LegionBridgeErrorCode.helperSetup,
           ),
         ),
       );
@@ -327,7 +327,7 @@ void main() {
   test('maps control errors to bridge error codes', () async {
     final cases = <Object, LegionBridgeErrorCode>{
       const LegionControlSetupException('setup'):
-          LegionBridgeErrorCode.portableSetup,
+          LegionBridgeErrorCode.helperSetup,
       const LegionControlUnavailableException('unavailable'):
           LegionBridgeErrorCode.unavailable,
       const LegionControlNotSupportedException('unsupported'):

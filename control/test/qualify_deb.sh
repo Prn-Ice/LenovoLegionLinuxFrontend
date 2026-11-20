@@ -71,18 +71,18 @@ tar -xzf /root/deb-release.tar.gz -C /root/deb-release
 manifests=(/root/deb-release/legion-frontend-*.json)
 fixtures=/root/deb-release/vm-fixtures.tar.gz
 [[ $(sha256sum "$fixtures" | cut -d' ' -f1) == "$(jq -r .vm_fixtures_sha256 "${manifests[0]}")" ]]
-diff <(printf '%s\n' legion-portable-test-client legion_cli) <(tar -tzf "$fixtures" | sort -u)
+diff <(printf '%s\n' legion-helper-test-client legion_cli) <(tar -tzf "$fixtures" | sort -u)
 # Refuse links, directories, and other archive entries before extracting bytes.
 tar -tvzf "$fixtures" | awk 'substr($0,1,1) != "-" { exit 1 }'
-for name in legion_cli legion-portable-test-client; do
+for name in legion_cli legion-helper-test-client; do
   tar -xOzf "$fixtures" "$name" >/tmp/fixtures/"$name"
   chmod 755 /tmp/fixtures/"$name"
 done
 install -m755 /tmp/fixtures/legion_cli /usr/local/bin/legion_cli
-install -m755 /tmp/fixtures/legion-portable-test-client /usr/local/bin/legion-portable-test-client
+install -m755 /tmp/fixtures/legion-helper-test-client /usr/local/bin/legion-helper-test-client
 systemctl restart polkit.service
 mkdir -p /opt/legion-vm-tests
-cp control/test/{deb_test.sh,portable_session_test.sh,distro_test_support.sh,desktop_test_support.sh} /opt/legion-vm-tests/
+cp control/test/{deb_test.sh,helper_session_test.sh,distro_test_support.sh,desktop_test_support.sh} /opt/legion-vm-tests/
 bash /opt/legion-vm-tests/deb_test.sh /root/deb-release
 dpkg-query -W systemd libc6 libgtk-3-0 libglib2.0-0 libpolkit-gobject-1-0 > /home/approved/deb-versions.txt
 cp /root/deb-release/legion-frontend-*.json /home/approved/deb-release-manifest.json

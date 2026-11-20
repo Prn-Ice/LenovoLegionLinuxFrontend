@@ -134,24 +134,6 @@ static void test_commands() {
   g_assert_cmpstr(conservation.argv[3].c_str(), ==, "80");
 }
 
-static void test_services() {
-  std::string error;
-  g_assert_true(ValidateService("power_profiles_daemon", &error));
-  g_assert_true(ValidateService("legiond_stack", &error));
-  g_assert_false(ValidateService("unknown", &error));
-  for (bool enabled : {false, true}) {
-    const auto command = ServiceCommand("legiond_stack", enabled).argv;
-    const std::vector<std::string> expected = {enabled ? "enable" : "disable",
-                                               "--now",
-                                               "legiond.service",
-                                               "legiond-onresume.service",
-                                               "legiond-cpuset.service",
-                                               "legiond-cpuset.timer"};
-    g_assert_cmpint(command.size(), ==, expected.size());
-    g_assert_true(command == expected);
-  }
-}
-
 static void test_graphics_modes() {
   const std::array<const char *, 3> allowed = {"hybrid", "hybrid-igpu-only",
                                                "discrete"};
@@ -181,19 +163,6 @@ static void test_graphics_modes() {
   g_assert_true(ClassifyCliExit(3) == CliExit::kFeatureNotFound);
 }
 
-static void test_boot_graphics_modes() {
-  for (const char *mode : {"hybrid", "hybrid-igpu-only"}) {
-    std::string error;
-    g_assert_true(ValidateBootGraphicsMode(mode, &error));
-    const std::vector<std::string> expected = {"request", mode};
-    g_assert_true(BootGraphicsRequestCommand(mode).argv == expected);
-  }
-  for (const char *mode : {"", "discrete", "hybrid-auto", "hybrid;reboot"}) {
-    std::string error;
-    g_assert_false(ValidateBootGraphicsMode(mode, &error));
-  }
-}
-
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/control/profiles", test_profiles);
@@ -201,8 +170,6 @@ int main(int argc, char **argv) {
   g_test_add_func("/control/toggles-and-presets", test_toggles_and_presets);
   g_test_add_func("/control/conservation-and-payloads", test_conservation);
   g_test_add_func("/control/commands", test_commands);
-  g_test_add_func("/control/services", test_services);
   g_test_add_func("/control/graphics-modes", test_graphics_modes);
-  g_test_add_func("/control/boot-graphics-modes", test_boot_graphics_modes);
   return g_test_run();
 }

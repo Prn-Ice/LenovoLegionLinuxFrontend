@@ -40,7 +40,7 @@ class ReleaseBuildRecord {
     required this.inputs,
     required this.binarySha256,
     required this.bundle,
-    this.staticPortableHelper = false,
+    this.staticHelper = false,
   });
 
   factory ReleaseBuildRecord.fromJson(Map<String, Object?> json) {
@@ -75,18 +75,18 @@ class ReleaseBuildRecord {
       ),
       binarySha256: json['binary_sha256'] as String,
       bundle: _readInventory(json['bundle'] as Map),
-      staticPortableHelper: configuration['static_portable_helper'] == true,
+      staticHelper: configuration['static_portable_helper'] == true,
     );
   }
 
   final ReleaseInputs inputs;
   final String binarySha256;
   final ReleaseTreeInventory bundle;
-  final bool staticPortableHelper;
+  final bool staticHelper;
 
   Map<String, Object> get buildConfiguration => {
     'portable_control': true,
-    if (staticPortableHelper) 'static_portable_helper': true,
+    if (staticHelper) 'static_portable_helper': true,
   };
 
   Map<String, Object> toJson() => {

@@ -24,14 +24,14 @@ Future<BuiltLinuxRelease> buildLinuxRelease(Directory root) async {
 Future<ReleaseBuildRecord> recordReleaseBuild(
   Directory bundle,
   ReleaseInputs inputs, {
-  bool staticPortableHelper = false,
+  bool staticHelper = false,
 }) async {
   requirePrivilegedControlHelper(bundle);
   return ReleaseBuildRecord(
     inputs: inputs,
     binarySha256: await releaseFileSha256(File('${bundle.path}/lib/libapp.so')),
     bundle: await inventoryReleaseTree(bundle),
-    staticPortableHelper: staticPortableHelper,
+    staticHelper: staticHelper,
   );
 }
 

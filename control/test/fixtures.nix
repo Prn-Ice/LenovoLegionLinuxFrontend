@@ -14,13 +14,12 @@ stdenv.mkDerivation {
     fileset = lib.fileset.unions [
       ./CMakeLists.txt
       ./test_vm_guard.h
-      ./control_lifecycle_fixture.cc
+      ./control_cli_fixture.cc
       ../test_support/cli_help_fixture.h
-      ./control_lifecycle_client.cc
-      ./portable_control_client.cc
-      ../portable_peer.cc
-      ../portable_peer.h
-      ../portable_unit.h
+      ./control_test_client.cc
+      ../control_peer.cc
+      ../control_peer.h
+      ../helper_unit.h
       ../trusted_executable.cc
       ../trusted_executable.h
       ../trusted_executable_test.cc

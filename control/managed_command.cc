@@ -39,8 +39,7 @@ constexpr guint poll_interval_ms = 100;
 struct Operation final : ManagedCommandOperation,
                          std::enable_shared_from_this<Operation> {
   GDBusConnection *bus;
-  std::string parent, state_directory, lock_path, executable, owner, unit,
-      unit_path;
+  std::string parent, lock_path, executable, owner, unit, unit_path;
   std::vector<std::string> args;
   unsigned runtime;
   ManagedCommandRunner::Completion completion;
@@ -67,12 +66,11 @@ struct Operation final : ManagedCommandOperation,
 
   // A random unit name keeps concurrent helpers from colliding. The operation
   // holds its own reference to the manager connection.
-  Operation(GDBusConnection *b, std::string p, std::string storage,
-            std::string lock, std::string e, std::vector<std::string> a,
-            unsigned r, ManagedCommandRunner::Completion cb)
+  Operation(GDBusConnection *b, std::string p, std::string lock, std::string e,
+            std::vector<std::string> a, unsigned r,
+            ManagedCommandRunner::Completion cb)
       : bus(G_DBUS_CONNECTION(g_object_ref(b))),
         parent(std::move(p)),
-        state_directory(std::move(storage)),
         lock_path(std::move(lock)),
         executable(std::move(e)),
         args(std::move(a)),
@@ -373,9 +371,9 @@ struct Operation final : ManagedCommandOperation,
   // Build and start the transient unit. This is the only place that knows the
   // systemd properties and the file descriptors passed to the backend.
   void StartUnit() {
-    // The optional lock keeps installed and portable helpers from running at
-    // once. systemd receives the locked descriptor as stdin, so the lock stays
-    // held even if this helper dies while the backend is still running.
+    // The lock serializes hardware changes across app sessions. systemd
+    // receives the locked descriptor as stdin, so the lock stays held even if
+    // this helper dies while the backend is still running.
     if (!lock_path.empty()) {
       operation_lock = open(lock_path.c_str(),
                             O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
@@ -460,13 +458,6 @@ struct Operation final : ManagedCommandOperation,
       property(name, g_variant_new_boolean(TRUE));
     property("ProtectHome", g_variant_new_string("yes"));
     property("ProtectSystem", g_variant_new_string("strict"));
-    if (!state_directory.empty()) {
-      // Preserve the installed helper's writable state directory in the new
-      // mount namespace. JoinsNamespaceOf shares only its private temporary
-      // dirs.
-      property("StateDirectory", strings({state_directory}));
-      property("StateDirectoryMode", g_variant_new_uint32(0700));
-    }
     property("RestrictNamespaces", g_variant_new_uint64(0));
     property("RestrictAddressFamilies",
              g_variant_new("(b@as)", TRUE, strings({"AF_UNIX"})));
@@ -640,13 +631,11 @@ struct Operation final : ManagedCommandOperation,
 // unit. Start returns immediately; Begin runs on the next main-loop idle.
 struct Runner final : ManagedCommandRunner {
   GDBusConnection *bus;
-  std::string parent, state_directory, lock_path;
+  std::string parent, lock_path;
 
-  Runner(GDBusConnection *b, std::string p, std::string storage,
-         std::string lock)
+  Runner(GDBusConnection *b, std::string p, std::string lock)
       : bus(G_DBUS_CONNECTION(g_object_ref(b))),
         parent(std::move(p)),
-        state_directory(std::move(storage)),
         lock_path(std::move(lock)) {}
 
   ~Runner() override {
@@ -656,9 +645,8 @@ struct Runner final : ManagedCommandRunner {
   std::shared_ptr<ManagedCommandOperation> Start(
       const std::string &exe, const std::vector<std::string> &args,
       unsigned runtime, Completion done) override {
-    auto op =
-        std::make_shared<Operation>(bus, parent, state_directory, lock_path,
-                                    exe, args, runtime, std::move(done));
+    auto op = std::make_shared<Operation>(bus, parent, lock_path, exe, args,
+                                          runtime, std::move(done));
     g_idle_add_full(
         G_PRIORITY_DEFAULT,
         [](gpointer data) -> gboolean {
@@ -677,9 +665,7 @@ struct Runner final : ManagedCommandRunner {
 
 std::shared_ptr<ManagedCommandRunner> CreateManagedCommandRunner(
     GDBusConnection *bus, const std::string &parent,
-    const std::string &state_directory,
     const std::string &operation_lock_path) {
-  return std::make_shared<Runner>(bus, parent, state_directory,
-                                  operation_lock_path);
+  return std::make_shared<Runner>(bus, parent, operation_lock_path);
 }
 }  // namespace legion_control

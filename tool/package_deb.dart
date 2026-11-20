@@ -106,7 +106,7 @@ Description: Lenovo Legion hardware frontend
         '2',
         '--target',
         'legion_cli',
-        'legion-portable-test-client',
+        'legion-helper-test-client',
       ]);
       final fixtures = File('${output.path}/vm-fixtures.tar.gz');
       await runPackagingCommand('tar', [
@@ -115,7 +115,7 @@ Description: Lenovo Legion hardware frontend
         '-C',
         fixtureDirectory,
         'legion_cli',
-        'legion-portable-test-client',
+        'legion-helper-test-client',
       ]);
       final prefix = 'legion-frontend-$version-amd64';
       final deb = File('${output.path}/${debianFileName(version)}');

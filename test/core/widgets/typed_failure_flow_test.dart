@@ -42,7 +42,7 @@ void main() {
     );
     bloc.add(const TouchpadSetRequested(true));
     final state = await failed;
-    expect(state.errorMessage?.kind, AppFailureKind.portableSetup);
+    expect(state.errorMessage?.kind, AppFailureKind.helperSetup);
     expect(
       state.errorMessage?.details,
       contains('Helper diagnostic wording changed'),

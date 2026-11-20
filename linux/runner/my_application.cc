@@ -4,7 +4,7 @@
 // method channels, and owns the optional on-screen display (OSD) popup used for
 // short hardware notifications.
 #include "my_application.h"
-#include "portable_control_channel.h"
+#include "control_channel.h"
 
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
@@ -269,7 +269,7 @@ static void my_application_activate(GApplication *application) {
   // create a native header from it, even with the empty titlebar above.
   gtk_window_set_title(window, "legion_frontend");
   osd_register(window, view);
-  RegisterPortableControlChannel(view);
+  RegisterControlChannel(view);
   gtk_widget_show(GTK_WIDGET(view));
 
   // Show the window when Flutter renders.

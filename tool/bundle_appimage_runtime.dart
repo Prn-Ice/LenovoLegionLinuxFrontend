@@ -251,7 +251,7 @@ class RuntimeBundle {
     package('libmount1');
     final source = sortedEntries(Directory('${inputs.path}/sources/util-linux'))
         .firstWhere((file) => file.path.endsWith('.dsc'));
-    final helper = File('${bundle.path}/libexec/legion-portable-control');
+    final helper = File('${bundle.path}/libexec/legion-control-helper');
     final build = Directory.systemTemp.createTempSync('static-helper-');
     try {
       final log = runtimeCommand('bash', [
@@ -262,9 +262,9 @@ class RuntimeBundle {
         helper.path,
       ]);
       File('${inputs.path}/static-helper-build.log').writeAsStringSync(log);
-      final cleanupElf = File('${build.path}/helper/legion_portable_cleanup');
+      final cleanupElf = File('${build.path}/helper/legion_helper_cleanup');
       validateStaticElf(cleanupElf, cleanup: true);
-      cleanupElf.copySync('${inputs.path}/portable-cleanup.elf');
+      cleanupElf.copySync('${inputs.path}/helper-cleanup.elf');
       cleanup = {
         'sha256': packagingSha256(cleanupElf),
         'size': cleanupElf.lengthSync(),

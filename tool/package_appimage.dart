@@ -90,7 +90,7 @@ Future<void> main(List<String> args) async {
       final stamp = await recordReleaseBuild(
         appBundle,
         built.inputs,
-        staticPortableHelper: true,
+        staticHelper: true,
       );
       await output.create(recursive: true);
       final name = 'legion-frontend-$version-x86_64';
