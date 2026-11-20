@@ -328,9 +328,8 @@ class _FanSpeedTable extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           unit == FanSpeedUnit.level
-              ? 'A level is a numbered fan speed setting. '
-                    'The RPM columns show each fan’s speed as set by the firmware. '
-                    'See current speeds above.'
+              ? 'The firmware gives each level an RPM for each fan. '
+                    'Rows that share a level list the same speeds.'
               : 'This read-only table shows the firmware’s fan speed settings. '
                     'See current fan speeds above.',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -343,7 +342,7 @@ class _FanSpeedTable extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: DataTable(
             columns: [
-              const DataColumn(label: Text('Point')),
+              const DataColumn(label: Text('Row')),
               DataColumn(label: Text(valueLabel)),
               const DataColumn(label: Text('Fan 1 RPM')),
               if (unit == FanSpeedUnit.level)
