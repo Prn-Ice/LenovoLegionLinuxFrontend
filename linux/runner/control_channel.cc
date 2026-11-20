@@ -44,12 +44,29 @@ struct Session {
 // State owned by the Flutter view. The method channel and protocol
 // description live as long as the view.
 struct Host {
-  FlMethodChannel *channel = nullptr;
+  FlEngine *engine;
+  FlMethodChannel *channel;
   GDBusNodeInfo *protocol =
       g_dbus_node_info_new_for_xml(legion_control::control_xml, nullptr);
   std::shared_ptr<Session> session;
 
+  Host(FlEngine *source, const char *name)
+      : engine(FL_ENGINE(g_object_ref(source))) {
+    g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
+    channel = fl_method_channel_new(fl_engine_get_binary_messenger(engine),
+                                    name, FL_METHOD_CODEC(codec));
+    // A hot restart discards Dart's session ID while the Linux view stays open.
+    g_signal_connect(engine, "on-pre-engine-restart",
+                     G_CALLBACK(+[](FlEngine *, Host *host) {
+                       if (host->session)
+                         host->session->Close();
+                     }),
+                     this);
+  }
+
   ~Host() {
+    g_signal_handlers_disconnect_by_data(engine, this);
+    g_object_unref(engine);
     if (session)
       session->Close();
     g_dbus_node_info_unref(protocol);
@@ -357,11 +374,7 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
 }
 
 void RegisterChannel(FlView *view, const char *channel) {
-  auto *host = new Host();
-  g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
-  host->channel = fl_method_channel_new(
-      fl_engine_get_binary_messenger(fl_view_get_engine(view)), channel,
-      FL_METHOD_CODEC(codec));
+  auto *host = new Host(fl_view_get_engine(view), channel);
   fl_method_channel_set_method_call_handler(host->channel, Handle, host,
                                             nullptr);
   // Destroy the host with the view, and clear the handler first so no late
