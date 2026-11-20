@@ -1,9 +1,8 @@
 // Carries process handles from the launcher to the root helper.
 //
-// A PID alone can be reused after a process exits. This module sends pidfds
-// instead: one for the app and one for the launcher. A pidfd stays valid only
-// while its original process is alive, so the helper can watch both without
-// race conditions.
+// This module sends a pidfd for the app and one for the launcher. Each pidfd
+// refers to its original process even if the PID is reused. The helper polls
+// the descriptors to detect when either process exits.
 #include "portable_lifetime.h"
 
 #include <cerrno>
@@ -47,9 +46,8 @@ PortableLifetime::~PortableLifetime() {
     close(launcher);
 }
 
-// Create one end of a private socket and send two handles through it:
-// the app's pidfd and this launcher's own pidfd. The receiver closes the
-// descriptors when the processes exit.
+// Send the app and launcher pidfds through a private socket pair. Return the
+// receiving socket. PortableLifetime closes the received pidfds on destruction.
 int CreatePortableLifetimeMessage(int app_pidfd, GError **error) {
   const int self = syscall(SYS_pidfd_open, getpid(), 0);
   if (self < 0) {
@@ -91,7 +89,7 @@ int CreatePortableLifetimeMessage(int app_pidfd, GError **error) {
 
 // Receive the handles and verify that they came from the expected launcher.
 // The caller passes this socket as the helper's stderr, so the socket's peer
-// PID must equal the launcher pidfd.
+// PID must match the process identified by the launcher pidfd.
 bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
                                     GError **error) {
   if (lifetime->app >= 0 || lifetime->launcher >= 0)
