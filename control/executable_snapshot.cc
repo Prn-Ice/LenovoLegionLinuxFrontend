@@ -1,3 +1,10 @@
+// Copies a helper executable into a sealed, anonymous file.
+//
+// systemd starts the sealed copy as root, so replacing the file on disk after
+// authorization cannot change what runs. Before copying, this file validates
+// the ELF layout and rejects anything that could load code from an untrusted
+// place: a non-root interpreter, a relative or `$`-expanded library search
+// path, or an ELF audit/filter object.
 #include "executable_snapshot.h"
 #include "trusted_executable.h"
 
@@ -22,12 +29,14 @@ bool Fail(std::string *error, const char *message) {
   return false;
 }
 
+// True when [offset, offset + length) fits inside `size` without overflow.
 bool Range(size_t size, Elf64_Off offset, Elf64_Xword length) {
   return offset <= size && length <= size - offset;
 }
 
 // Check both the named path and its canonical target so a user cannot replace
-// a symlink to a trusted directory during authorization.
+// a symlink to a trusted directory during authorization. `$` is rejected
+// because systemd expands environment variables in unit paths.
 bool RootControlled(const std::string &path, bool directory) {
   if (path.empty() || path.front() != '/' ||
       path.find('$') != std::string::npos)
@@ -46,6 +55,7 @@ bool RootControlled(const std::string &path, bool directory) {
                    : TrustedExecutable(path, &resolved);
 }
 
+// Every entry in a colon-separated search path must be root-controlled.
 bool SearchPath(const std::string &paths) {
   size_t start = 0;
   while (true) {
@@ -58,11 +68,15 @@ bool SearchPath(const std::string &paths) {
   }
 }
 
+// Check the ELF header, program headers, interpreter, and dynamic section.
+// This is a safety check, not a general-purpose ELF loader.
 bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
   if (bytes.size() < sizeof(Elf64_Ehdr))
     return Fail(error, "helper is not a complete ELF executable");
   Elf64_Ehdr header;
   memcpy(&header, bytes.data(), sizeof(header));
+  // Accept only little-endian x86-64 executables or shared objects with a
+  // complete program header table.
   if (memcmp(header.e_ident, ELFMAG, SELFMAG) ||
       header.e_ident[EI_CLASS] != ELFCLASS64 ||
       header.e_ident[EI_DATA] != ELFDATA2LSB ||
@@ -85,6 +99,8 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
     if (!Range(bytes.size(), segment.p_offset, segment.p_filesz))
       return Fail(error, "helper contains an incomplete ELF segment");
     if (segment.p_type == PT_LOAD) {
+      // Reject load segments that wrap the address space or overlap another
+      // load segment.
       if (segment.p_memsz < segment.p_filesz ||
           segment.p_memsz > UINT64_MAX - segment.p_vaddr)
         return Fail(error, "helper contains an invalid load segment");
@@ -98,6 +114,8 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
         executable_segment = true;
     }
     if (segment.p_type == PT_INTERP) {
+      // There must be exactly one interpreter, it must be NUL-terminated, and
+      // its path must be root-controlled.
       if (interpreter || !segment.p_filesz ||
           bytes[segment.p_offset + segment.p_filesz - 1] != 0)
         return Fail(error, "helper contains an invalid ELF interpreter");
@@ -113,10 +131,14 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
       dynamic = &segment;
     }
   }
+  // A static executable has no interpreter and no dynamic section; a dynamic
+  // one needs both.
   if (!executable_segment || interpreter != bool(dynamic))
     return Fail(error, "helper executable layout is unsupported");
   if (!dynamic)
     return true;
+  // The dynamic section must lie inside a load segment, so the loader can
+  // reach it at runtime.
   bool mapped_dynamic = false;
   for (const auto &segment : segments) {
     if (segment.p_type != PT_LOAD || dynamic->p_vaddr < segment.p_vaddr)
@@ -153,6 +175,7 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
         return Fail(error, "helper contains duplicate dynamic string sizes");
       strings_size = entry.d_un.d_val;
     }
+    // These tags make the loader open extra objects. None are needed here.
     if (entry.d_tag == DT_CONFIG || entry.d_tag == DT_AUDIT ||
         entry.d_tag == DT_DEPAUDIT || entry.d_tag == DT_FILTER ||
         entry.d_tag == DT_AUXILIARY)
@@ -163,6 +186,7 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
   }
   if (!terminated || !strings_address || !strings_size)
     return Fail(error, "helper dynamic string table is incomplete");
+  // Locate the string table inside a load segment.
   const char *strings = nullptr;
   for (const auto &segment : segments) {
     if (segment.p_type == PT_LOAD && strings_address >= segment.p_vaddr) {
@@ -176,6 +200,8 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
   if (!strings)
     return Fail(error,
                 "helper dynamic string table is outside its load segments");
+  // Dependencies must be plain library names resolved from trusted system
+  // paths. RPATH/RUNPATH entries must themselves be root-controlled.
   for (const auto &entry : entries) {
     if (entry.d_tag != DT_NEEDED && entry.d_tag != DT_RPATH &&
         entry.d_tag != DT_RUNPATH)
@@ -194,8 +220,9 @@ bool Validate(const std::vector<unsigned char> &bytes, std::string *error) {
   }
   return true;
 }
-} // namespace
+}  // namespace
 
+// Read the whole source file, then validate and snapshot it.
 int CreateExecutableSnapshot(int source_fd, std::string *error) {
   struct stat info{};
   if (fstat(source_fd, &info) != 0 || !S_ISREG(info.st_mode) ||
@@ -219,6 +246,8 @@ int CreateExecutableSnapshot(int source_fd, std::string *error) {
   return CreateExecutableSnapshot(bytes, error);
 }
 
+// Validate the bytes, copy them into a memfd, and seal the result. Sealing
+// prevents writes, resizing, and adding more seals after setup.
 int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
                              std::string *error) {
   if (bytes.empty() || bytes.size() > maximum_size) {
@@ -234,6 +263,7 @@ int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
 #endif
   int snapshot = syscall(SYS_memfd_create, "legion-portable-helper", flags);
 #ifdef MFD_EXEC
+  // Kernels before MFD_EXEC reject the flag; retry with the older flags.
   if (snapshot < 0 && errno == EINVAL)
     snapshot = syscall(SYS_memfd_create, "legion-portable-helper",
                        MFD_CLOEXEC | MFD_ALLOW_SEALING);
@@ -264,4 +294,4 @@ int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
   }
   return snapshot;
 }
-} // namespace legion_control
+}  // namespace legion_control

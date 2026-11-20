@@ -1,3 +1,6 @@
+// Tests for the pidfd lifetime channel. They check that both processes stay
+// pinned, that a dead process cannot be replayed, and that malformed messages
+// are rejected.
 #include "portable_lifetime.h"
 
 #include <cstring>
@@ -113,6 +116,7 @@ void test_rejects_non_pidfd_and_malformed_message() {
   close(sockets[0]);
   close(sockets[1]);
 }
+
 void test_dead_app_cannot_replay_queued_handles() {
   int release[2];
   g_assert_cmpint(pipe(release), ==, 0);
@@ -144,7 +148,7 @@ void test_dead_app_cannot_replay_queued_handles() {
   g_clear_error(&error);
   close(channel);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

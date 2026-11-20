@@ -1,3 +1,7 @@
+// Builds the D-Bus reply dictionary for GetSnapshot.
+//
+// Keys are stable names the app reads. "Available" tells the app whether the
+// other fields describe real hardware; "Error" explains why they do not.
 #include "telemetry_snapshot.h"
 
 namespace {
@@ -6,7 +10,7 @@ constexpr char kProtocolVersion[] = "1";
 
 }  // namespace
 
-GVariant* BuildTelemetrySnapshot(const PackagePowerReading& reading) {
+GVariant *BuildTelemetrySnapshot(const PackagePowerReading &reading) {
   GVariantBuilder builder;
   g_variant_builder_init(&builder, G_VARIANT_TYPE("a{sv}"));
   g_variant_builder_add(&builder, "{sv}", "Available",

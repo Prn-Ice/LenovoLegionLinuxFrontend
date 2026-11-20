@@ -1,5 +1,9 @@
 #pragma once
 
+// The typed D-Bus contract shared by the control service, the portable helper,
+// and the Flutter runner. The XML lets the client reject unknown methods and
+// check argument types before sending them to the privileged side.
+
 namespace legion_control {
 constexpr char control_bus_name[] = "io.github.prnice.LegionControl1";
 constexpr char control_object_path[] = "/io/github/prnice/LegionControl1";
@@ -21,4 +25,4 @@ constexpr char control_xml[] =
       <method name="RestoreBootLogo"/>
       <method name="SetServiceEnabled"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
     </interface></node>)";
-} // namespace legion_control
+}  // namespace legion_control

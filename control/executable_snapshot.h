@@ -10,4 +10,4 @@ namespace legion_control {
 int CreateExecutableSnapshot(int source_fd, std::string *error);
 int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
                              std::string *error);
-} // namespace legion_control
+}  // namespace legion_control

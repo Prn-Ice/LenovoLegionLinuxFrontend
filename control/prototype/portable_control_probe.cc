@@ -137,17 +137,17 @@ gboolean new_connection(GDBusServer *, GDBusConnection *connection,
 
   probe->accepted = true;
   probe->peer_verified = true;
-  g_set_object(&probe->control.conn, connection);
+  g_set_object(&probe->control.connection, connection);
   if (probe->timeout_source != 0) {
     g_source_remove(probe->timeout_source);
     probe->timeout_source = 0;
   }
   g_signal_connect(connection, "closed", G_CALLBACK(peer_closed), probe);
   GError *error = nullptr;
-  probe->control.reg = g_dbus_connection_register_object(
+  probe->control.registration_id = g_dbus_connection_register_object(
       connection, path, probe->control.info->interfaces[0], &probe_vtable,
       probe, nullptr, &error);
-  if (probe->control.reg == 0) {
+  if (probe->control.registration_id == 0) {
     g_printerr("could not export LegionControl1: %s\n",
                error ? error->message : "unknown error");
     g_clear_error(&error);
@@ -257,9 +257,9 @@ void cleanup(Probe *probe) {
     g_source_remove(probe->interrupt_source);
   if (probe->timeout_source != 0)
     g_source_remove(probe->timeout_source);
-  if (probe->control.reg != 0 && probe->control.conn)
-    g_dbus_connection_unregister_object(probe->control.conn,
-                                        probe->control.reg);
+  if (probe->control.registration_id != 0 && probe->control.connection)
+    g_dbus_connection_unregister_object(probe->control.connection,
+                                        probe->control.registration_id);
   if (probe->control.active) {
     probe->control.active->disconnected = true;
     probe->control.active->command->Cancel();
@@ -268,9 +268,10 @@ void cleanup(Probe *probe) {
   }
   if (probe->server)
     g_dbus_server_stop(probe->server);
-  if (probe->control.conn && !g_dbus_connection_is_closed(probe->control.conn))
-    g_dbus_connection_close_sync(probe->control.conn, nullptr, nullptr);
-  g_clear_object(&probe->control.conn);
+  if (probe->control.connection &&
+      !g_dbus_connection_is_closed(probe->control.connection))
+    g_dbus_connection_close_sync(probe->control.connection, nullptr, nullptr);
+  g_clear_object(&probe->control.connection);
   g_clear_object(&probe->server);
   g_clear_object(&probe->observer);
   g_clear_pointer(&probe->control.info, g_dbus_node_info_unref);
@@ -286,7 +287,7 @@ void cleanup(Probe *probe) {
   if (probe->control.loop)
     g_main_loop_unref(probe->control.loop);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   long client_pid = -1;
@@ -345,8 +346,8 @@ int main(int argc, char **argv) {
     cleanup(&probe);
     return 1;
   }
-  probe.control.cli = probe.fake_helper_path;
-  probe.control.systemctl = probe.fake_helper_path;
+  probe.control.cli_path = probe.fake_helper_path;
+  probe.control.systemctl_path = probe.fake_helper_path;
 
   probe.control.info = g_dbus_node_info_new_for_xml(xml, &error);
   if (!probe.control.info) {

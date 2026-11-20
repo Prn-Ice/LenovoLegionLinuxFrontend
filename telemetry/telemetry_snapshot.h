@@ -4,4 +4,4 @@
 
 #include "package_power_sampler.h"
 
-GVariant* BuildTelemetrySnapshot(const PackagePowerReading& reading);
+GVariant *BuildTelemetrySnapshot(const PackagePowerReading &reading);

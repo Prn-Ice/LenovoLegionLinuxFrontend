@@ -16,6 +16,7 @@ enum class ManagedCommandStatus {
   outputLimit,
   cleanupFailed
 };
+
 struct ManagedCommandResult {
   std::string output;
   std::string error;
@@ -24,18 +25,18 @@ struct ManagedCommandResult {
 };
 
 class ManagedCommandOperation {
-public:
+ public:
   virtual ~ManagedCommandOperation() = default;
   virtual void Cancel() = 0;
 };
 
 class ManagedCommandRunner {
-public:
+ public:
   using Completion = std::function<void(ManagedCommandResult)>;
   virtual ~ManagedCommandRunner() = default;
-  virtual std::shared_ptr<ManagedCommandOperation>
-  Start(const std::string &executable, const std::vector<std::string> &argv,
-        unsigned runtime_seconds, Completion completion) = 0;
+  virtual std::shared_ptr<ManagedCommandOperation> Start(
+      const std::string &executable, const std::vector<std::string> &argv,
+      unsigned runtime_seconds, Completion completion) = 0;
 };
 
 // Start and completion use the owning GLib context; completion is asynchronous.
@@ -46,9 +47,8 @@ public:
 // name. operation_lock_path coordinates installed and portable helpers. The
 // runner also passes this empty regular file to systemd as stdin, retaining the
 // lock if the helper dies while systemd is still stopping backend processes.
-std::shared_ptr<ManagedCommandRunner>
-CreateManagedCommandRunner(GDBusConnection *manager_connection,
-                           const std::string &parent_unit,
-                           const std::string &state_directory = {},
-                           const std::string &operation_lock_path = {});
-} // namespace legion_control
+std::shared_ptr<ManagedCommandRunner> CreateManagedCommandRunner(
+    GDBusConnection *manager_connection, const std::string &parent_unit,
+    const std::string &state_directory = {},
+    const std::string &operation_lock_path = {});
+}  // namespace legion_control

@@ -1,3 +1,5 @@
+// Tests for trusted path resolution. They cover user-controlled selectors,
+// root-owned links and permissions, and read-only CLI discovery.
 #include "test/test_vm_guard.h"
 #include "trusted_executable.h"
 
@@ -92,7 +94,7 @@ void test_read_only_discovery() {
   g_assert_cmpint(access(cli.c_str(), X_OK), ==, 0);
   g_test_message("READ_CLI %s", cli.c_str());
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

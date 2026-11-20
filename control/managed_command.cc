@@ -1,3 +1,14 @@
+// Run one fixed backend command as a transient systemd service.
+//
+// A helper process must not leave hardware writes behind when the app exits,
+// so systemd owns the command and its process tree. The operation:
+//   1. creates a transient unit with stdout/stderr connected to a pipe,
+//   2. drains the pipe and watches the unit until it stops,
+//   3. reads the service result and releases the unit's AddRef reference.
+// The completion callback runs after every GLib callback has finished. If the
+// service cannot prove cleanup, it reports cleanupFailed and the caller closes
+// its private manager connection to drop any remaining AddRef references.
+
 #include "managed_command.h"
 #include <algorithm>
 #include <cerrno>
@@ -13,6 +24,18 @@ namespace {
 constexpr char manager_path[] = "/org/freedesktop/systemd1";
 constexpr char manager_interface[] = "org.freedesktop.systemd1.Manager";
 constexpr gsize output_limit = 64 * 1024;
+constexpr gint64 microseconds_per_second = 1000000;
+constexpr gint64 stop_grace = 6 * microseconds_per_second;
+constexpr gint64 drain_grace = 2 * microseconds_per_second;
+constexpr gint64 startup_limit = 5 * microseconds_per_second;
+// Extra time beyond the requested runtime for systemd startup and shutdown.
+constexpr gint64 runtime_margin_seconds = 5;
+constexpr gint64 overall_margin_seconds = 16;
+constexpr guint call_timeout_ms = 3000;
+constexpr guint poll_interval_ms = 100;
+
+// One transient unit and its pending GLib callbacks. shared_from_this keeps the
+// operation alive until the last callback releases it.
 struct Operation final : ManagedCommandOperation,
                          std::enable_shared_from_this<Operation> {
   GDBusConnection *bus;
@@ -22,28 +45,44 @@ struct Operation final : ManagedCommandOperation,
   unsigned runtime;
   ManagedCommandRunner::Completion completion;
   ManagedCommandResult result;
+
+  // Output pipe and the callbacks that may still use it.
   GInputStream *stream = nullptr;
   GCancellable *read_cancel = g_cancellable_new();
   guint timer = 0, watch = 0;
   gulong closed = 0;
   int pending = 0;
   int operation_lock = -1;
+
+  // Lifecycle flags. `ending` means no new work may start; `delivered` means
+  // the completion callback has run exactly once.
   bool ending = false, delivered = false, reading = false, eof = false;
   bool cancelled = false, started = false, stopping = false, polling = false;
   bool unreferenced = false;
+
+  // Monotonic deadlines in microseconds. The overall deadline is a safety net
+  // for the whole operation; the others bound individual phases.
   gint64 deadline = 0, startup_deadline = 0, runtime_deadline = 0,
          drain_deadline = 0;
+
+  // A random unit name keeps concurrent helpers from colliding. The operation
+  // holds its own reference to the manager connection.
   Operation(GDBusConnection *b, std::string p, std::string storage,
             std::string lock, std::string e, std::vector<std::string> a,
             unsigned r, ManagedCommandRunner::Completion cb)
-      : bus(G_DBUS_CONNECTION(g_object_ref(b))), parent(std::move(p)),
-        state_directory(std::move(storage)), lock_path(std::move(lock)),
-        executable(std::move(e)), args(std::move(a)), runtime(r),
+      : bus(G_DBUS_CONNECTION(g_object_ref(b))),
+        parent(std::move(p)),
+        state_directory(std::move(storage)),
+        lock_path(std::move(lock)),
+        executable(std::move(e)),
+        args(std::move(a)),
+        runtime(r),
         completion(std::move(cb)) {
     gchar *uuid = g_uuid_string_random();
     unit = std::string("legion-control-op-") + uuid + ".service";
     g_free(uuid);
   }
+
   ~Operation() override {
     if (operation_lock >= 0)
       close(operation_lock);
@@ -51,18 +90,23 @@ struct Operation final : ManagedCommandOperation,
     g_clear_object(&read_cancel);
     g_object_unref(bus);
   }
+
   using Reply = std::function<void(GVariant *, GError *)>;
+
   struct CallData {
     std::shared_ptr<Operation> op;
     Reply reply;
   };
+
+  // Start an asynchronous D-Bus call. `pending` keeps Deliver from running
+  // before this callback has finished.
   void Call(const char *destination, const char *path, const char *interface,
             const char *method, GVariant *parameters, const GVariantType *type,
             Reply reply, GUnixFDList *fds = nullptr) {
     ++pending;
     g_dbus_connection_call_with_unix_fd_list(
         bus, destination, path, interface, method, parameters, type,
-        G_DBUS_CALL_FLAGS_NO_AUTO_START, 3000, fds, nullptr,
+        G_DBUS_CALL_FLAGS_NO_AUTO_START, call_timeout_ms, fds, nullptr,
         [](GObject *source, GAsyncResult *res, gpointer data) {
           std::unique_ptr<CallData> call(static_cast<CallData *>(data));
           auto op = call->op;
@@ -79,11 +123,17 @@ struct Operation final : ManagedCommandOperation,
         },
         new CallData{shared_from_this(), std::move(reply)});
   }
+
+  // Call the systemd manager on the bus name found in Begin.
   void Manager(const char *method, GVariant *parameters,
                const GVariantType *type, Reply reply) {
     Call(owner.c_str(), manager_path, manager_interface, method, parameters,
          type, std::move(reply));
   }
+
+  // Run the completion exactly once, after the operation ended and every
+  // callback and read has finished. Closing the lock here keeps it held until
+  // systemd has stopped the command's process tree.
   void Deliver() {
     if (!ending || delivered || pending || reading)
       return;
@@ -95,6 +145,9 @@ struct Operation final : ManagedCommandOperation,
     auto cb = std::move(completion);
     cb(std::move(result));
   }
+
+  // Mark the operation finished once. Stop timers and reads, then let pending
+  // callbacks release their references before Deliver runs.
   void End(ManagedCommandStatus status, const std::string &error = {}) {
     if (ending)
       return;
@@ -136,25 +189,37 @@ struct Operation final : ManagedCommandOperation,
     }
     Deliver();
   }
+
+  // We cannot prove that the backend stopped. The service refuses new work
+  // until it restarts, because a leftover process could still touch hardware.
   void Uncertain(const std::string &message) {
     End(ManagedCommandStatus::cleanupFailed, message);
   }
+
+  // The caller no longer needs the result. Stop a unit that already started;
+  // a unit that never started has nothing to clean up.
   void Cancel() override {
     cancelled = true;
     if (started && !ending && !unreferenced)
       Stop();
   }
+
+  // Ask systemd to stop the unit and shorten the deadline so cleanup cannot
+  // hang forever.
   void Stop() {
     if (stopping)
       return;
     stopping = true;
-    deadline = std::min(deadline, g_get_monotonic_time() + gint64(6000000));
+    deadline = std::min(deadline, g_get_monotonic_time() + stop_grace);
     Manager("StopUnit", g_variant_new("(ss)", unit.c_str(), "replace"),
             G_VARIANT_TYPE("(o)"), [this](GVariant *v, GError *) {
               if (!v)
                 Uncertain("could not confirm stop request");
             });
   }
+
+  // Drain stdout/stderr in 4 KiB chunks. Stop reading once the output limit is
+  // reached; the caller receives outputLimit instead of unbounded data.
   void Read() {
     reading = true;
     g_input_stream_read_bytes_async(
@@ -196,6 +261,10 @@ struct Operation final : ManagedCommandOperation,
         },
         new std::shared_ptr<Operation>(shared_from_this()));
   }
+
+  // Ask systemd whether the unit has stopped. An inactive unit with no job is
+  // terminal; an inactive unit with a queued job may still be waiting for its
+  // ordering dependencies.
   void Poll() {
     if (polling || unreferenced)
       return;
@@ -236,6 +305,10 @@ struct Operation final : ManagedCommandOperation,
            }
          });
   }
+
+  // Read the final service result. systemd may report `failed` after sending
+  // SIGKILL while tasks are still alive, so wait until ControlGroup is empty
+  // before releasing the unit.
   void Status() {
     polling = true;
     Call(owner.c_str(), unit_path.c_str(), "org.freedesktop.DBus.Properties",
@@ -263,7 +336,9 @@ struct Operation final : ManagedCommandOperation,
              return;
            }
            if (valid) {
-             result.exit_status = code == 1 ? status : -1; // CLD_EXITED
+             // ExecMainCode 1 means the main process exited normally; any
+             // other code (signal, dump) has no useful exit status.
+             result.exit_status = code == 1 ? status : -1;
              if (g_str_equal(service_result, "timeout") &&
                  result.status != ManagedCommandStatus::outputLimit)
                result.status = ManagedCommandStatus::timeout;
@@ -288,13 +363,19 @@ struct Operation final : ManagedCommandOperation,
                        return;
                      }
                      unreferenced = true;
-                     drain_deadline = g_get_monotonic_time() + 2000000;
+                     drain_deadline = g_get_monotonic_time() + drain_grace;
                      if (eof)
                        End(result.status);
                    });
          });
   }
+
+  // Build and start the transient unit. This is the only place that knows the
+  // systemd properties and the file descriptors passed to the backend.
   void StartUnit() {
+    // The optional lock keeps installed and portable helpers from running at
+    // once. systemd receives the locked descriptor as stdin, so the lock stays
+    // held even if this helper dies while the backend is still running.
     if (!lock_path.empty()) {
       operation_lock = open(lock_path.c_str(),
                             O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
@@ -314,6 +395,7 @@ struct Operation final : ManagedCommandOperation,
         return;
       }
     }
+    // The unit writes both output streams to this pipe; Read drains it.
     int pipe_fds[2];
     if (pipe2(pipe_fds, O_CLOEXEC) != 0) {
       End(ManagedCommandStatus::unavailable, "could not create output pipe");
@@ -340,6 +422,8 @@ struct Operation final : ManagedCommandOperation,
         g_variant_builder_add(&b, "s", value.c_str());
       return g_variant_builder_end(&b);
     };
+    // Run one command, keep the unit after it exits so Status can read the
+    // result, and stop the whole cgroup rather than only the main process.
     property("Type", g_variant_new_string("exec"));
     property("CollectMode", g_variant_new_string("inactive-or-failed"));
     property("KillMode", g_variant_new_string("control-group"));
@@ -359,13 +443,16 @@ struct Operation final : ManagedCommandOperation,
       property("StandardInput", g_variant_new_string("null"));
     property("StandardOutputFileDescriptor", g_variant_new_handle(handle));
     property("StandardErrorFileDescriptor", g_variant_new_handle(handle));
-    property("TimeoutStartUSec", g_variant_new_uint64(5000000));
+    // Bound each phase so a stuck backend cannot hold the session forever.
+    property("TimeoutStartUSec", g_variant_new_uint64(startup_limit));
     // systemd v252 and v262's transient setter rejects JobTimeoutUSec.
     // Bound running jobs here; Poll bounds an acknowledged, still-queued start.
-    property("JobRunningTimeoutUSec", g_variant_new_uint64(5000000));
+    property("JobRunningTimeoutUSec", g_variant_new_uint64(startup_limit));
     property("RuntimeMaxUSec",
-             g_variant_new_uint64(guint64(runtime) * 1000000));
-    property("TimeoutStopUSec", g_variant_new_uint64(2000000));
+             g_variant_new_uint64(guint64(runtime) * microseconds_per_second));
+    property("TimeoutStopUSec", g_variant_new_uint64(drain_grace));
+    // Keep the unit referenced and give the backend the same containment
+    // settings as the helper.
     for (const char *name :
          {"AddRef", "SendSIGKILL", "NoNewPrivileges", "PrivateTmp",
           "ProtectHostname", "ProtectClock", "ProtectControlGroups",
@@ -389,13 +476,15 @@ struct Operation final : ManagedCommandOperation,
              g_variant_new("(b@as)", TRUE, strings({"@system-service"})));
     for (const char *name : {"BindsTo", "After", "JoinsNamespaceOf"})
       property(name, strings({parent}));
+    // The backend gets a fixed working directory and a minimal environment.
+    // It must not depend on the helper's shell or Python settings.
     const char *path = g_getenv("PATH");
     property("WorkingDirectory", g_variant_new_string("/"));
     property("Environment",
              strings({std::string("PATH=") +
                           (path ? path : "/usr/sbin:/usr/bin:/sbin:/bin"),
-                      "LC_ALL=C", "HOME=/var/empty",
-                      "PYTHONNOUSERSITE=1", "PYTHONSAFEPATH=1"}));
+                      "LC_ALL=C", "HOME=/var/empty", "PYTHONNOUSERSITE=1",
+                      "PYTHONSAFEPATH=1"}));
     std::vector<std::string> argv{executable};
     argv.insert(argv.end(), args.begin(), args.end());
     GVariantBuilder commands;
@@ -403,7 +492,7 @@ struct Operation final : ManagedCommandOperation,
     g_variant_builder_add(&commands, "(s@as@as)", executable.c_str(),
                           strings(argv), strings({"no-env-expand"}));
     property("ExecStartEx", g_variant_builder_end(&commands));
-    startup_deadline = g_get_monotonic_time() + 5000000;
+    startup_deadline = g_get_monotonic_time() + startup_limit;
     Read();
     Call(
         owner.c_str(), manager_path, manager_interface, "StartTransientUnit",
@@ -459,8 +548,9 @@ struct Operation final : ManagedCommandOperation,
             return;
           }
           started = true;
-          runtime_deadline =
-              g_get_monotonic_time() + (gint64(runtime) + 5) * 1000000;
+          runtime_deadline = g_get_monotonic_time() +
+                             (gint64(runtime) + runtime_margin_seconds) *
+                                 microseconds_per_second;
           if (cancelled)
             Stop();
           Manager("GetUnit", g_variant_new("(s)", unit.c_str()),
@@ -478,10 +568,18 @@ struct Operation final : ManagedCommandOperation,
         fds);
     g_object_unref(fds);
   }
+
+  // First step: resolve the systemd bus name, watch for it changing, then
+  // start the unit. The overall deadline includes the start, run, and cleanup
+  // phases so no single phase can hang the operation.
   void Begin() {
-    deadline = g_get_monotonic_time() + (gint64(runtime) + 16) * 1000000;
+    deadline =
+        g_get_monotonic_time() +
+        (gint64(runtime) + overall_margin_seconds) * microseconds_per_second;
+    // One timer drives every deadline check. It removes itself when the
+    // operation ends.
     timer = g_timeout_add_full(
-        G_PRIORITY_DEFAULT, 100,
+        G_PRIORITY_DEFAULT, poll_interval_ms,
         [](gpointer data) -> gboolean {
           auto op = *static_cast<std::shared_ptr<Operation> *>(data);
           const auto now = g_get_monotonic_time();
@@ -537,17 +635,27 @@ struct Operation final : ManagedCommandOperation,
         });
   }
 };
+
+// Creates operations that share the service's manager connection and parent
+// unit. Start returns immediately; Begin runs on the next main-loop idle.
 struct Runner final : ManagedCommandRunner {
   GDBusConnection *bus;
   std::string parent, state_directory, lock_path;
+
   Runner(GDBusConnection *b, std::string p, std::string storage,
          std::string lock)
-      : bus(G_DBUS_CONNECTION(g_object_ref(b))), parent(std::move(p)),
-        state_directory(std::move(storage)), lock_path(std::move(lock)) {}
-  ~Runner() override { g_object_unref(bus); }
-  std::shared_ptr<ManagedCommandOperation>
-  Start(const std::string &exe, const std::vector<std::string> &args,
-        unsigned runtime, Completion done) override {
+      : bus(G_DBUS_CONNECTION(g_object_ref(b))),
+        parent(std::move(p)),
+        state_directory(std::move(storage)),
+        lock_path(std::move(lock)) {}
+
+  ~Runner() override {
+    g_object_unref(bus);
+  }
+
+  std::shared_ptr<ManagedCommandOperation> Start(
+      const std::string &exe, const std::vector<std::string> &args,
+      unsigned runtime, Completion done) override {
     auto op =
         std::make_shared<Operation>(bus, parent, state_directory, lock_path,
                                     exe, args, runtime, std::move(done));
@@ -565,12 +673,13 @@ struct Runner final : ManagedCommandRunner {
     return op;
   }
 };
-} // namespace
-std::shared_ptr<ManagedCommandRunner>
-CreateManagedCommandRunner(GDBusConnection *bus, const std::string &parent,
-                           const std::string &state_directory,
-                           const std::string &operation_lock_path) {
+}  // namespace
+
+std::shared_ptr<ManagedCommandRunner> CreateManagedCommandRunner(
+    GDBusConnection *bus, const std::string &parent,
+    const std::string &state_directory,
+    const std::string &operation_lock_path) {
   return std::make_shared<Runner>(bus, parent, state_directory,
                                   operation_lock_path);
 }
-} // namespace legion_control
+}  // namespace legion_control

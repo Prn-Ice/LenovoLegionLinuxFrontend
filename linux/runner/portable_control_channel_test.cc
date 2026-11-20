@@ -75,7 +75,7 @@ void test_session_close_cancels_once() {
   g_assert_true(session.closed);
   g_assert_true(g_cancellable_is_cancelled(session.cancel));
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

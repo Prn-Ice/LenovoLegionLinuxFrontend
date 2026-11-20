@@ -1,11 +1,14 @@
+// Tests for portable endpoint validation and connection setup. Invalid or
+// cancelled endpoints must fail before any host bus or socket is used.
 #include "portable_peer.h"
 
 namespace {
 legion_control::PortableEndpoint Endpoint() {
-  return {"unix:path=/run/legion-example/"
-          "control.sock,guid=0123456789abcdef0123456789abcdef",
-          "legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service",
-          123, ":1.23"};
+  return {
+      "unix:path=/run/legion-example/"
+      "control.sock,guid=0123456789abcdef0123456789abcdef",
+      "legion-bootstrap-probe-01234567-89ab-4cde-8fab-0123456789ab.service",
+      123, ":1.23"};
 }
 
 void test_endpoint_validation() {
@@ -79,7 +82,7 @@ void test_async_connect_rejects_invalid_endpoint() {
   g_object_unref(cancel);
   g_main_loop_unref(loop);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

@@ -1,3 +1,8 @@
+// Carries process handles from the launcher to the root helper.
+//
+// This module sends a pidfd for the app and one for the launcher. Each pidfd
+// refers to its original process even if the PID is reused. The helper polls
+// the descriptors to detect when either process exits.
 #include "portable_lifetime.h"
 
 #include <cerrno>
@@ -16,6 +21,9 @@ bool Failure(GError **error, const char *message) {
   g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, message);
   return false;
 }
+
+// Read the PID that a pidfd refers to. `/proc/self/fdinfo` shows it as `Pid:`,
+// and poll reports whether the process is still alive.
 pid_t PidfdProcess(int descriptor) {
   std::ifstream info("/proc/self/fdinfo/" + std::to_string(descriptor));
   std::string line;
@@ -29,7 +37,7 @@ pid_t PidfdProcess(int descriptor) {
   pollfd state{descriptor, POLLIN, 0};
   return process > 1 && poll(&state, 1, 0) == 0 ? process : -1;
 }
-} // namespace
+}  // namespace
 
 PortableLifetime::~PortableLifetime() {
   if (app >= 0)
@@ -38,12 +46,16 @@ PortableLifetime::~PortableLifetime() {
     close(launcher);
 }
 
+// Send the app and launcher pidfds through a private socket pair. Return the
+// receiving socket. PortableLifetime closes the received pidfds on destruction.
 int CreatePortableLifetimeMessage(int app_pidfd, GError **error) {
   const int self = syscall(SYS_pidfd_open, getpid(), 0);
   if (self < 0) {
     Failure(error, "could not pin launcher lifetime");
     return -1;
   }
+  // SOCK_SEQPACKET keeps the one-byte marker and its file descriptors in one
+  // message. SOCK_CLOEXEC prevents accidental inheritance by other programs.
   int channel[2];
   if (socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, channel) != 0) {
     close(self);
@@ -75,10 +87,14 @@ int CreatePortableLifetimeMessage(int app_pidfd, GError **error) {
   return channel[1];
 }
 
+// Receive the handles and verify that they came from the expected launcher.
+// The caller passes this socket as the helper's stderr, so the socket's peer
+// PID must match the process identified by the launcher pidfd.
 bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
                                     GError **error) {
   if (lifetime->app >= 0 || lifetime->launcher >= 0)
     return Failure(error, "process handles were already received");
+  // Reject pipes, stream sockets, and sockets without peer credentials.
   int type = 0;
   socklen_t size = sizeof(type);
   ucred sender{};
@@ -100,6 +116,8 @@ bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
   message.msg_control = control;
   message.msg_controllen = sizeof(control);
   const auto count = recvmsg(socket, &message, MSG_CMSG_CLOEXEC | MSG_DONTWAIT);
+  // Walk every control message and collect file descriptors. Reject truncated
+  // messages and anything that is not SCM_RIGHTS.
   std::vector<int> handles;
   bool valid = count == 1 && marker == 'L' &&
                !(message.msg_flags & (MSG_CTRUNC | MSG_TRUNC));
@@ -120,6 +138,7 @@ bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
       handles.push_back(descriptor);
     }
   }
+  // Exactly two live handles are required: the app and the sender.
   valid = valid && handles.size() == 2;
   if (valid)
     valid =
@@ -135,4 +154,4 @@ bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
   lifetime->owner = sender.uid;
   return true;
 }
-} // namespace legion_control
+}  // namespace legion_control

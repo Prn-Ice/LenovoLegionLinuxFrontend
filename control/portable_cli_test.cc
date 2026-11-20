@@ -1,3 +1,5 @@
+// Tests for portable CLI qualification. They check the help parser and that
+// session death cancels an in-flight qualification command.
 #include "portable_cli.h"
 #include "test_support/cli_help_fixture.h"
 #include <gio/gio.h>
@@ -7,6 +9,7 @@ namespace {
 struct PendingOperation final : legion_control::ManagedCommandOperation {
   legion_control::ManagedCommandRunner::Completion completion;
   unsigned cancels = 0, completions = 0;
+
   void Cancel() override {
     ++cancels;
     g_idle_add(
@@ -21,15 +24,17 @@ struct PendingOperation final : legion_control::ManagedCommandOperation {
         this);
   }
 };
+
 struct PendingRunner final : legion_control::ManagedCommandRunner {
   int signal;
   unsigned starts = 0;
   std::shared_ptr<PendingOperation> pending;
+
   explicit PendingRunner(int descriptor) : signal(descriptor) {}
-  std::shared_ptr<legion_control::ManagedCommandOperation>
-  Start(const std::string &executable,
-        const std::vector<std::string> &arguments, unsigned runtime,
-        Completion completion) override {
+
+  std::shared_ptr<legion_control::ManagedCommandOperation> Start(
+      const std::string &executable, const std::vector<std::string> &arguments,
+      unsigned runtime, Completion completion) override {
     ++starts;
     g_assert_cmpstr(executable.c_str(), ==, "/trusted/legion_cli");
     g_assert_cmpuint(arguments.size(), ==, 1);
@@ -47,6 +52,7 @@ struct PendingRunner final : legion_control::ManagedCommandRunner {
     return pending;
   }
 };
+
 void test_lifetime_cancels_and_drains() {
   for (const bool app_exits : {true, false}) {
     int app[2], launcher[2];
@@ -68,6 +74,7 @@ void test_lifetime_cancels_and_drains() {
     close(launcher[1]);
   }
 };
+
 void test_dead_session_never_starts_cli() {
   auto runner = std::make_shared<PendingRunner>(-1);
   GError *error = nullptr;
@@ -77,12 +84,14 @@ void test_dead_session_never_starts_cli() {
   g_clear_error(&error);
   g_assert_cmpuint(runner->starts, ==, 0);
 };
+
 void test_supported_help() {
   std::string error;
   g_assert_true(
       legion_control::ValidatePortableCliHelp(cli_help_fixture, &error));
   g_assert_true(error.empty());
 }
+
 void test_missing_command() {
   std::string help(cli_help_fixture), error;
   const auto position = help.find("graphics-mode");
@@ -90,6 +99,7 @@ void test_missing_command() {
   g_assert_false(legion_control::ValidatePortableCliHelp(help, &error));
   g_assert_nonnull(strstr(error.c_str(), "graphics-mode"));
 }
+
 void test_missing_flag_and_choices() {
   std::string help(cli_help_fixture), error;
   help.replace(help.find("--donotexpecthwmon"), strlen("--donotexpecthwmon"),
@@ -100,7 +110,7 @@ void test_missing_flag_and_choices() {
   g_assert_false(
       legion_control::ValidatePortableCliHelp(std::string(65537, 'x'), &error));
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

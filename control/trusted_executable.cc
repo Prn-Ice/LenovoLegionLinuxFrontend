@@ -1,3 +1,10 @@
+// Resolves host paths without trusting symlinks or directory ownership.
+//
+// The check opens "/" and then every path component with O_NOFOLLOW. Each
+// directory must be owned by root and must not be writable by group or other
+// users (a sticky group-writable directory such as /tmp is allowed). A
+// symlink is read explicitly and its target is walked the same way. The final
+// executable must be a regular file that is not group- or world-writable.
 #include "trusted_executable.h"
 
 #include <cerrno>
@@ -11,16 +18,22 @@
 
 namespace legion_control {
 namespace {
+// Close a file descriptor automatically when it goes out of scope.
 struct Descriptor {
   int value;
+
   explicit Descriptor(int fd) : value(fd) {}
+
   Descriptor(const Descriptor &) = delete;
+
   ~Descriptor() {
     if (value >= 0)
       close(value);
   }
 };
 
+// Split a path into components and put them before any pending components.
+// Empty parts and "." are ignored; ".." is left for the kernel to resolve.
 void Prepend(const std::string &path, std::deque<std::string> *parts) {
   std::deque<std::string> prefix;
   std::istringstream input(path);
@@ -31,11 +44,16 @@ void Prepend(const std::string &path, std::deque<std::string> *parts) {
   parts->insert(parts->begin(), prefix.begin(), prefix.end());
 }
 
+// A directory is safe when root owns it and ordinary users cannot replace its
+// entries. Group-writable directories are allowed only with the sticky bit,
+// as in /tmp.
 bool SafeDirectory(const struct stat &info) {
   return info.st_uid == 0 && S_ISDIR(info.st_mode) &&
          !(info.st_mode & S_IWOTH) &&
          (!(info.st_mode & S_IWGRP) || (info.st_mode & S_ISVTX));
 }
+
+// Ask the kernel for the real path behind an open descriptor.
 bool CanonicalPath(int descriptor, std::string *resolved) {
   char canonical[PATH_MAX];
   const std::string path = "/proc/self/fd/" + std::to_string(descriptor);
@@ -47,6 +65,8 @@ bool CanonicalPath(int descriptor, std::string *resolved) {
 }
 enum class PathKind { executable, directory };
 
+// Walk `input` one component at a time and return its canonical path. Every
+// component must stay under a root-owned, non-user-writable directory.
 bool TrustedPath(const std::string &input, std::string *resolved,
                  PathKind kind) {
   const std::string requested = input;
@@ -65,11 +85,14 @@ bool TrustedPath(const std::string &input, std::string *resolved,
   while (!parts.empty()) {
     const std::string part = parts.front();
     parts.pop_front();
+    // O_NOFOLLOW makes a symlink open as the link itself, so the check below
+    // can read its target instead of silently following it.
     Descriptor next(
         openat(directory.value, part.c_str(), O_PATH | O_NOFOLLOW | O_CLOEXEC));
     if (next.value < 0 || fstat(next.value, &info) != 0 || info.st_uid != 0)
       return false;
     if (S_ISLNK(info.st_mode)) {
+      // Bound link expansion so a cycle cannot run forever.
       if (++links > 40)
         return false;
       char target[PATH_MAX];
@@ -89,6 +112,8 @@ bool TrustedPath(const std::string &input, std::string *resolved,
         return false;
       std::swap(directory.value, next.value);
     } else {
+      // An executable must be the last component, a regular file, linked at
+      // least once, not group/world-writable, and executable.
       if (kind != PathKind::executable || !parts.empty() ||
           !S_ISREG(info.st_mode) || !info.st_nlink ||
           (info.st_mode & (S_IWGRP | S_IWOTH)) ||
@@ -104,15 +129,19 @@ bool TrustedPath(const std::string &input, std::string *resolved,
   return kind == PathKind::directory &&
          CanonicalPath(directory.value, resolved);
 }
-} // namespace
+}  // namespace
 
 bool TrustedExecutable(const std::string &input, std::string *resolved) {
   return TrustedPath(input, resolved, PathKind::executable);
 }
+
 bool TrustedDirectory(const std::string &input, std::string *resolved) {
   return TrustedPath(input, resolved, PathKind::directory);
 }
 
+// Try the fixed install locations in order. A missing candidate is skipped;
+// the first existing but unsafe candidate stops the search, because it may
+// shadow a later good one.
 std::string FindHostLegionCli(std::string *error, CliAccess access) {
   error->clear();
   for (const char *candidate :
@@ -124,6 +153,8 @@ std::string FindHostLegionCli(std::string *error, CliAccess access) {
       continue;
     std::string resolved;
     if (access == CliAccess::readOnly) {
+      // Read-only discovery only checks that the file is an executable. The
+      // privileged helper repeats the full trust check before any write.
       Descriptor executable(open(candidate, O_PATH | O_CLOEXEC));
       if (executable.value >= 0 && fstat(executable.value, &info) == 0 &&
           S_ISREG(info.st_mode) && CanonicalPath(executable.value, &resolved) &&
@@ -138,4 +169,4 @@ std::string FindHostLegionCli(std::string *error, CliAccess access) {
   *error = "Install legion_cli in an administrator-controlled host location.";
   return {};
 }
-} // namespace legion_control
+}  // namespace legion_control

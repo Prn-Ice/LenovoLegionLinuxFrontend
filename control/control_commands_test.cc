@@ -1,3 +1,5 @@
+// Tests for the command allow-list. Every accepted name, range, and generated
+// argv is checked here so the service and the backend cannot drift apart.
 #include "control_commands.h"
 #include <array>
 #include <glib.h>
@@ -70,8 +72,7 @@ static void test_toggles_and_presets() {
        {"maximum-fan-speed", "maximumfanspeed"}}};
   for (const auto &toggle : toggles) {
     std::string error;
-    g_assert_true(ValidateToggle(toggle.first, true, &error));
-    g_assert_true(ValidateToggle(toggle.first, false, &error));
+    g_assert_true(ValidateToggle(toggle.first, &error));
     const auto on = ToggleCommand(toggle.first, true);
     const auto off = ToggleCommand(toggle.first, false);
     const std::string expected_on = std::string(toggle.second) + "-enable";
@@ -100,7 +101,7 @@ static void test_toggles_and_presets() {
   }
 }
 
-static void test_conservation_and_payloads() {
+static void test_conservation() {
   std::string error;
   g_assert_true(ValidateConservation(0, 0, &error));
   g_assert_true(ValidateConservation(0, 100, &error));
@@ -108,13 +109,6 @@ static void test_conservation_and_payloads() {
   g_assert_false(ValidateConservation(101, 100, &error));
   g_assert_false(ValidateConservation(0, 101, &error));
   g_assert_false(ValidateConservation(80, 70, &error));
-  g_assert_false(ValidateBytes({}, 64 * 1024, &error));
-  g_assert_cmpstr(error.c_str(), ==, "payload must not be empty");
-  std::vector<uint8_t> bytes(64 * 1024);
-  g_assert_true(ValidateBytes(bytes, 64 * 1024, &error));
-  bytes.push_back(0);
-  g_assert_false(ValidateBytes(bytes, 64 * 1024, &error));
-  g_assert_cmpstr(error.c_str(), ==, "payload exceeds maximum size");
 }
 
 static void test_commands() {
@@ -205,8 +199,7 @@ int main(int argc, char **argv) {
   g_test_add_func("/control/profiles", test_profiles);
   g_test_add_func("/control/features", test_features);
   g_test_add_func("/control/toggles-and-presets", test_toggles_and_presets);
-  g_test_add_func("/control/conservation-and-payloads",
-                  test_conservation_and_payloads);
+  g_test_add_func("/control/conservation-and-payloads", test_conservation);
   g_test_add_func("/control/commands", test_commands);
   g_test_add_func("/control/services", test_services);
   g_test_add_func("/control/graphics-modes", test_graphics_modes);

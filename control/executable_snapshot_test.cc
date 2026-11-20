@@ -1,3 +1,5 @@
+// Tests for ELF validation and sealed snapshots. Each case builds a small,
+// controlled image and checks whether the snapshot code accepts or rejects it.
 #include "executable_snapshot.h"
 #include "test/test_vm_guard.h"
 
@@ -13,6 +15,7 @@
 
 namespace {
 enum class SnapshotInput { file, embedded };
+
 template <typename T>
 void Put(std::vector<unsigned char> &bytes, size_t offset, const T &value) {
   memcpy(bytes.data() + offset, &value, sizeof(value));
@@ -164,8 +167,9 @@ void test_dynamic_paths() {
   struct stat root{};
   g_assert_cmpint(stat("/", &root), ==, 0);
   if (root.st_uid != 0) {
-    g_test_skip("Root ownership is remapped here; this check also runs inside "
-                "the disposable VM.");
+    g_test_skip(
+        "Root ownership is remapped here; this check also runs inside "
+        "the disposable VM.");
     return;
   }
   // Validate a safe dynamic layout before checking its unsafe variants. This
@@ -203,8 +207,9 @@ void test_dynamic_strings() {
   struct stat root{};
   g_assert_cmpint(stat("/", &root), ==, 0);
   if (root.st_uid != 0) {
-    g_test_skip("Root ownership is remapped here; this check also runs inside "
-                "the disposable VM.");
+    g_test_skip(
+        "Root ownership is remapped here; this check also runs inside "
+        "the disposable VM.");
     return;
   }
   auto bytes = Executable(true);
@@ -244,6 +249,7 @@ void test_root_alias_crossing_user_directory() {
   rmdir(user.c_str());
   rmdir(directory);
 }
+
 void test_nonregular_source() {
   int descriptors[2];
   g_assert_cmpint(pipe(descriptors), ==, 0);
@@ -253,7 +259,7 @@ void test_nonregular_source() {
   close(descriptors[0]);
   close(descriptors[1]);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

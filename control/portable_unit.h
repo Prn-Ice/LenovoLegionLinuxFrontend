@@ -17,4 +17,4 @@ inline bool ValidPortableUnit(const std::string &unit) {
   }
   return false;
 }
-} // namespace legion_control
+}  // namespace legion_control
