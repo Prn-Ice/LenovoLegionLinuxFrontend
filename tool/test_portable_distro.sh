@@ -111,8 +111,8 @@ done
 remote() { ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1 "$@"; }
 wait_for_cloud_init 180 ssh "${ssh_options[@]}" -p "$port" root@127.0.0.1
 LLLF_QUALIFICATION_COMMIT="$(git -C "$root" rev-parse HEAD)"
-LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control telemetry packaging tool LICENSE THIRD_PARTY_NOTICES.md)"
-tar -czf "$output/native-source.tar.gz" -C "$root" control telemetry packaging LICENSE THIRD_PARTY_NOTICES.md
+LLLF_QUALIFICATION_MODIFIED="$(git -C "$root" status --porcelain -- control packaging tool LICENSE THIRD_PARTY_NOTICES.md)"
+tar -czf "$output/native-source.tar.gz" -C "$root" control packaging LICENSE THIRD_PARTY_NOTICES.md
 scp "${ssh_options[@]}" -P "$port" "$output/native-source.tar.gz" root@127.0.0.1:/root/source.tar.gz
 guest_check=qualify_ubuntu.sh
 guest_timeout=900

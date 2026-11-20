@@ -87,7 +87,7 @@ void main() {
   test('shared native inputs and workflows select every expensive check', () {
     for (final name in [
       'control/test/fixtures.nix',
-      'telemetry/package.nix',
+      'control/package.nix',
       'pubspec.lock',
       '.github/workflows/ci.yml',
       'tool/new_build_tool.sh',
@@ -186,7 +186,7 @@ void main() {
       '.github/workflows/ci.yml',
       'packaging/nix/frontend.nix',
       'control/commands.cpp',
-      'telemetry/CMakeLists.txt',
+      'control/CMakeLists.txt',
       'pubspec.lock',
       'flake.lock',
       'dart_test.yaml',

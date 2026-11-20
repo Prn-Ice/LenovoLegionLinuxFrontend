@@ -14,11 +14,20 @@ typedef PortableProcessStarter = Future<Process> Function(
   required bool includeParentEnvironment,
 });
 
+enum HelperSession {
+  hardwareControl('--control'),
+  packagePower('--package-power');
+
+  const HelperSession(this.argument);
+  final String argument;
+}
+
 /// Owns the ordinary-user launcher and its bounded readiness exchange.
 /// The native launcher obtains host approval and supervises the root helper.
 class PortableControlLauncher {
   PortableControlLauncher({
     required this.executable,
+    this.session = HelperSession.hardwareControl,
     PortableProcessStarter? startProcess,
     Map<String, String>? environment,
     this.startupTimeout = const Duration(seconds: 70),
@@ -30,6 +39,7 @@ class PortableControlLauncher {
        );
 
   final String executable;
+  final HelperSession session;
   final Duration startupTimeout;
   final Duration stopTimeout;
   final Duration killTimeout;
@@ -56,10 +66,10 @@ class PortableControlLauncher {
   /// Completes with the reason the session ended, including explicit close.
   Future<LegionControlException> get ended => _ended.future;
 
-  LegionControlUnavailableException
-  _closedError() => const LegionControlUnavailableException(
-    'Portable control startup closed. Start a new app session to retry.',
-  );
+  LegionControlUnavailableException _closedError() =>
+      const LegionControlUnavailableException(
+        'Portable control startup closed. Start a new app session to retry.',
+      );
 
   Future<PortableControlEndpoint> start() {
     if (_closed) return Future.error(_closedError());
@@ -93,7 +103,7 @@ class PortableControlLauncher {
     try {
       process = await _startProcess(
         executable,
-        const ['--control'],
+        [session.argument],
         environment: _environment,
         workingDirectory: '/',
         includeParentEnvironment: false,
@@ -222,7 +232,9 @@ class PortableControlLauncher {
       final cliPath = control[5] == null
           ? null
           : Uri.decodeComponent(control[5]!);
-      if ((control[2]!.startsWith('legion-portable-control-') &&
+      if ((session == HelperSession.packagePower && cliPath != null) ||
+          (session == HelperSession.hardwareControl &&
+              control[2]!.startsWith('legion-portable-control-') &&
               cliPath == null) ||
           (cliPath != null &&
               (!cliPath.startsWith('/') || cliPath.contains('\u0000')))) {

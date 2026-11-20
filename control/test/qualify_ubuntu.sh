@@ -44,7 +44,7 @@ ResultAny=auth_admin
 ResultInactive=auth_admin
 ResultActive=auth_admin
 EOF
-cmake -S telemetry -B /tmp/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+cmake -S control -B /tmp/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
   -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_PORTABLE_CONTROL_HELPER=ON
 cmake --build /tmp/native --parallel 2 --target legion_portable_control \
   package_power_sampler_test control_commands_test graphics_boot_service_test \

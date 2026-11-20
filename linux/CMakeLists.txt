@@ -81,12 +81,10 @@ install(CODE "
   file(REMOVE_RECURSE \"${BUILD_BUNDLE_DIR}/\")
   " COMPONENT Runtime)
 
-# Build and bundle the root-owned, read-only package power service. System
-# packages install its unit and D-Bus policy from the bundle into /usr.
-# The frontend uses only the bundled privileged control helper for authorization.
+# The bundled helper starts either a hardware-control or read-only power session.
 set(BUILD_PORTABLE_CONTROL_HELPER ON)
 set(BUILD_LEGION_CONTROL_SERVICE OFF)
-add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
+add_subdirectory("../control" "${CMAKE_BINARY_DIR}/control")
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")

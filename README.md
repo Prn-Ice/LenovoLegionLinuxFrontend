@@ -116,7 +116,9 @@ environment.systemPackages = [ pkgs.lenovo-legion ];
 Hardware controls discover `legion_cli` in fixed host locations. The privileged
 control helper checks root ownership before executing privileged commands.
 Persistent service management and next-boot graphics changes are unavailable through the
-helper. Optional power telemetry and keyboard access need their own host setup.
+helper. Choose **Allow** at startup to show CPU power in watts on supported
+hardware. **Skip** opens the dashboard without that reading. Keyboard access
+requires separate host setup.
 On NixOS, use the [native Nix package](docs/nix.md):
 
 ```bash

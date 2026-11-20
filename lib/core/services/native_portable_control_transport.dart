@@ -137,6 +137,8 @@ class NativePortableControlTransport extends LegionControlTransport {
   @override
   Future<void> authorize() => _invoke<void>('authorize');
 
+  Future<double?> readPackagePower() => _invoke<double>("readPackagePower");
+
   Object _encodeArgument(Object value) {
     if (value is! List<int>) return value;
     if (value.any((byte) => byte < 0 || byte > 255)) {

@@ -49,12 +49,12 @@ if [[ -n "$base" ]]; then
   tooling=false
   while IFS= read -r -d '' path; do
     case "$path" in
-      .githooks/*|.github/*|tool/*|test/tool/*|test/support/*|test/fixtures/*|test/helpers/*|test/flutter_test_config.dart|flutter_test_config.dart|packaging/*|control/*|telemetry/*|linux/*|flake.nix|flake.lock|pubspec.yaml|pubspec.lock|dart_test.yaml|analysis_options.yaml|LICENSE|THIRD_PARTY_NOTICES.md) tooling=true ;;
+      .githooks/*|.github/*|tool/*|test/tool/*|test/support/*|test/fixtures/*|test/helpers/*|test/flutter_test_config.dart|flutter_test_config.dart|packaging/*|control/*|linux/*|flake.nix|flake.lock|pubspec.yaml|pubspec.lock|dart_test.yaml|analysis_options.yaml|LICENSE|THIRD_PARTY_NOTICES.md) tooling=true ;;
     esac
     case "$path" in
       .github/*|.metadata|pubspec.yaml|pubspec.lock) all=true ;;
       assets/*|lib/*|linux/*) integration=true; nix=true; appimage=true; debian=true ;;
-      control/*|telemetry/*) all=true ;;
+      control/*) all=true ;;
       integration_test/*|tool/test_linux_journeys.sh) integration=true ;;
       flake.nix|flake.lock|packaging/nix/*) nix=true; lifecycle=true; appimage=true ;;
       packaging/debian/*|tool/build_deb.sh|tool/package_deb.dart|tool/fetch_debian_test_image.sh) debian=true ;;

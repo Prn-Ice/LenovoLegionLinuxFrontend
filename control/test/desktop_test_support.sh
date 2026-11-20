@@ -56,9 +56,24 @@ gui_recognize() {
 }
 
 gui_wait_text() { wait_until 30 gui_recognize "$@"; }
+gui_allow_power() {
+  gui_recognize 'Show CPU power usage' 1280x720+0+0 11 || return 1
+  local x y
+  read -r x y < <(gui_desktop env OMP_THREAD_LIMIT=1 tesseract "$gui_home/label.png" stdout --psm 11 tsv 2>/dev/null |
+    awk '$12 == "Allow" && $11 >= 0 { x=$7+int($9/2); y=$8+int($10/2) } END { if (x) print x,y }') || return 1
+  gui_desktop xdotool mousemove "$x" "$y" click 1
+}
 desktop_wait_ready() {
-  gui_wait_text Dashboard 380x32+288+7
+  gui_wait_text 'Show CPU power usage' 1280x720+0+0 11
   gui_desktop xdotool windowfocus --sync "$(head -n1 "$gui_home/window")"
+  if [[ ${1:-skip} == allow ]]; then
+    # Locate the button on the captured screen so font metrics can vary by distro.
+    wait_until 30 gui_allow_power
+    # The dashboard renders this label only when it receives a watt reading.
+    gui_wait_text 'CPU package' 1280x720+0+0 11
+  else
+    gui_desktop xdotool key Escape
+  fi
   gui_wait_text 'Battery health' 1280x720+0+0 11
 }
 gui_unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'; }
@@ -139,6 +154,16 @@ desktop_main() {
   local image=$1 log_name=$2 label=$3 expected_executable=${4:-} bundled_libraries=${5:-false}
   local conservation=/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode
   local pid executable helper_pid unit
+  if [[ ${6:-skip} == allow ]]; then
+    # Only the helper can read this constant counter. Two samples yield 0.0 W.
+    [[ -d /sys/class/powercap ]] || modprobe intel_rapl_common
+    mount -t tmpfs tmpfs /sys/class/powercap
+    mkdir /sys/class/powercap/test-package
+    echo package-0 >/sys/class/powercap/test-package/name
+    echo 500 >/sys/class/powercap/test-package/energy_uj
+    echo 1000000 >/sys/class/powercap/test-package/max_energy_range_uj
+    chmod 400 /sys/class/powercap/test-package/energy_uj
+  fi
   mountpoint -q /sys/bus/platform/drivers || mount -t tmpfs tmpfs /sys/bus/platform/drivers
   mkdir -p "$(dirname "$conservation")"
   echo 0 >"$conservation"
@@ -164,7 +189,7 @@ desktop_main() {
     bash "$desktop_support/desktop_test_support.sh" --launch "$gui_home" "$image" "$gui_log" &
   gui_wrapper=$!
   wait_until 120 test -s "$gui_home/pid"
-  desktop_wait_ready
+  desktop_wait_ready "${6:-skip}"
   wait_until 10 test -f "$gui_home/preferences.hive"
   pid=$(cat "$gui_home/pid")
   [[ $pid =~ ^[0-9]+$ ]]
@@ -178,7 +203,18 @@ desktop_main() {
       grep -F "/usr/lib/legion_frontend/lib/$library" "/proc/$pid/maps"
     done
   fi
-  gui_no_unit || fail 'Read-only startup launched a helper.'
+  if [[ ${6:-skip} == allow ]]; then
+    unit=$(gui_unit_query)
+    helper_pid=$(systemctl show --property=MainPID --value "$unit")
+    gui_click 1258 23 || true
+    wait_until 15 test -s "$gui_home/exit"
+    desktop_check_exit "$(cat "$gui_home/exit")" "$gui_log"
+    desktop_verify_cleanup "$pid" "$helper_pid" "$unit"
+    umount /sys/class/powercap
+    echo "PASS: approved CPU watts and helper cleanup from $label"
+    return
+  fi
+  gui_no_unit || fail 'Skipping CPU power launched a helper.'
   gui_click 90 228
   gui_wait_text 'Collect history' 1280x720+0+0 11
   gui_desktop xdotool mousemove --sync --window "$(head -n1 "$gui_home/window")" \
@@ -192,14 +228,14 @@ desktop_main() {
   [[ $helper_pid =~ ^[0-9]+$ && $helper_pid != 0 ]]
   gui_enabled() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x enabled; }
   wait_until 15 gui_enabled
-  echo 1 >"$conservation"
+  grep -qx 1 "$conservation"
   gui_restore() {
     gui_click 1142 23
     gui_click 734 667
     nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x disabled
   }
   wait_until 20 gui_restore
-  echo 0 >"$conservation"
+  grep -qx 0 "$conservation"
   echo "PASS: first-launch helper write/readback/restore from $label"
   gui_click 90 427
   gui_wait_text 'Hardware control' 1280x720+0+0 11

@@ -136,29 +136,35 @@ GVariant *Arguments(GDBusInterfaceInfo *protocol, const char *method,
   return g_variant_ref_sink(g_variant_builder_end(&arguments));
 }
 
-// Data for one in-flight D-Bus call. It keeps the Flutter call and the
-// session alive until the reply arrives.
+enum class Reply { empty, capabilities, watts };
+
+// Keep the Flutter call and session alive until the D-Bus reply arrives.
 struct Invocation {
   std::shared_ptr<Session> session;
   FlMethodCall *call;
-  bool metadata;
+  Reply reply;
 
   ~Invocation() {
     g_object_unref(call);
   }
 };
 
-// Forward one method call. `metadata` selects GetCapabilities, whose reply is
-// a version and capability list instead of an empty tuple.
+// Check the reply type before decoding it for Flutter.
 void Invoke(const std::shared_ptr<Session> &session, FlMethodCall *call,
-            const char *method, GVariant *arguments, bool metadata = false) {
+            const char *method, GVariant *arguments,
+            Reply reply = Reply::empty) {
   auto *pending =
-      new Invocation{session, FL_METHOD_CALL(g_object_ref(call)), metadata};
+      new Invocation{session, FL_METHOD_CALL(g_object_ref(call)), reply};
+  const GVariantType *type = G_VARIANT_TYPE("()");
+  if (reply == Reply::capabilities)
+    type = G_VARIANT_TYPE("(uas)");
+  if (reply == Reply::watts)
+    type = G_VARIANT_TYPE("(bd)");
   g_dbus_connection_call(
       session->peer, nullptr, legion_control::control_object_path,
-      legion_control::control_bus_name, method, arguments,
-      metadata ? G_VARIANT_TYPE("(uas)") : G_VARIANT_TYPE("()"),
-      G_DBUS_CALL_FLAGS_NONE, metadata ? 5000 : 45000, session->cancel,
+      legion_control::control_bus_name, method, arguments, type,
+      G_DBUS_CALL_FLAGS_NONE, reply == Reply::empty ? 45000 : 5000,
+      session->cancel,
       [](GObject *source, GAsyncResult *result, gpointer data) {
         std::unique_ptr<Invocation> pending(static_cast<Invocation *>(data));
         GError *error = nullptr;
@@ -171,11 +177,18 @@ void Invoke(const std::shared_ptr<Session> &session, FlMethodCall *call,
           return;
         }
         if (!reply) {
-          ConnectionError(pending->call, error, pending->metadata);
+          ConnectionError(pending->call, error,
+                          pending->reply == Reply::capabilities);
           return;
         }
         g_autoptr(FlValue) value = nullptr;
-        if (pending->metadata) {
+        if (pending->reply == Reply::watts) {
+          gboolean available;
+          double watts;
+          g_variant_get(reply, "(bd)", &available, &watts);
+          if (available)
+            value = fl_value_new_float(watts);
+        } else if (pending->reply == Reply::capabilities) {
           guint32 version;
           GVariant *supported;
           g_variant_get(reply, "(u@as)", &version, &supported);
@@ -320,7 +333,9 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
     return;
   }
   if (g_str_equal(method, "getCapabilities"))
-    Invoke(session, call, "GetCapabilities", nullptr, true);
+    Invoke(session, call, "GetCapabilities", nullptr, Reply::capabilities);
+  else if (g_str_equal(method, "readPackagePower"))
+    Invoke(session, call, "ReadPackagePower", nullptr, Reply::watts);
   else if (g_str_equal(method, "authorize"))
     Invoke(session, call, "Authorize", nullptr);
   else if (g_str_equal(method, "call")) {
@@ -340,28 +355,33 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
   } else
     fl_method_call_respond_not_implemented(call, nullptr);
 }
-}  // namespace
 
-void RegisterPortableControlChannel(FlView *view) {
+void RegisterChannel(FlView *view, const char *channel) {
   auto *host = new Host();
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   host->channel = fl_method_channel_new(
-      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
-      "io.github.prnice.legion/portable_control", FL_METHOD_CODEC(codec));
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)), channel,
+      FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(host->channel, Handle, host,
                                             nullptr);
   // Destroy the host with the view, and clear the handler first so no late
   // Dart call can reach freed state.
-  g_object_set_data_full(G_OBJECT(view), "legion-portable-control", host,
-                         [](gpointer data) {
-                           auto *host = static_cast<Host *>(data);
-                           fl_method_channel_set_method_call_handler(
-                               host->channel, nullptr, nullptr, nullptr);
-                           delete host;
-                         });
-  g_signal_connect(
-      view, "destroy", G_CALLBACK(+[](GtkWidget *widget, gpointer) {
-        g_object_set_data(G_OBJECT(widget), "legion-portable-control", nullptr);
-      }),
-      nullptr);
+  g_object_set_data_full(G_OBJECT(view), channel, host, [](gpointer data) {
+    auto *host = static_cast<Host *>(data);
+    fl_method_channel_set_method_call_handler(host->channel, nullptr, nullptr,
+                                              nullptr);
+    delete host;
+  });
+  g_signal_connect(view, "destroy",
+                   G_CALLBACK(+[](GtkWidget *widget, gpointer key) {
+                     g_object_set_data(G_OBJECT(widget),
+                                       static_cast<const char *>(key), nullptr);
+                   }),
+                   const_cast<char *>(channel));
+}
+}  // namespace
+
+void RegisterPortableControlChannel(FlView *view) {
+  RegisterChannel(view, "io.github.prnice.legion/portable_control");
+  RegisterChannel(view, "io.github.prnice.legion/package_power");
 }

@@ -13,8 +13,9 @@ Keyboard lighting uses native Spectrum HID or OpenRGB, not the control helper.
 - `lib/features/<feature>/` contains each feature's models, repositories, blocs,
   providers, and views.
 - `lib/features/navigation/` connects pages to the application shell.
-- `telemetry/` and `control/` contain native C++ D-Bus services and control
-  command validation. Packaging files define service, bus, and Polkit setup.
+- `control/` contains the bundled helper, CPU power sampler, and optional
+  system control service. The helper serves each approved app session over a
+  private D-Bus connection.
 - `test/` contains tests that run without hardware, including widget tests.
 
 Repositories access services. Bloc/Cubit manages feature behavior. Riverpod

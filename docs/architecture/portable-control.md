@@ -51,8 +51,9 @@ A denied request, incompatible helper, or failed backend command must not
 trigger a second privilege mechanism automatically.
 
 Boot-time graphics reconciliation requires persistent system integration.
-Optional power telemetry and direct keyboard HID access also need explicit
-host setup; the privileged control helper does not supply those permissions.
+For CPU watts, the app asks permission to start a read-only helper session.
+The helper samples the kernel energy counter once per second. Direct keyboard
+HID access requires separate host setup.
 
 ## Shared control implementation
 
@@ -289,7 +290,7 @@ its initial authorization deadline no longer ends an active session.
 Build the helper separately for native qualification with:
 
 ```bash
-cmake -S telemetry -B build/portable-helper -G Ninja \
+cmake -S control -B build/portable-helper -G Ninja \
   -DBUILD_PORTABLE_CONTROL_HELPER=ON
 cmake --build build/portable-helper --target legion_portable_control
 ```
@@ -309,11 +310,11 @@ require `patchelf`. The Nix development build retains store dependencies and
 still needs a separate portable distribution build.
 
 Settings shows helper availability without an authorization selector. Opening
-the app or Settings requests no administrator approval; the first privileged
-operation starts the helper. A missing helper produces setup guidance. A denied
+Settings requires no administrator approval. Choosing **Allow** at startup
+starts a CPU power session. The first hardware change starts its own control
+session. A missing helper produces setup guidance. A denied
 startup can be retried explicitly after cleanup in the same app; uncertain
-cleanup requires reopening it. Keyboard permissions and optional power telemetry
-remain host integration choices.
+cleanup requires reopening it.
 
 Helper setup failures have typed recovery guidance. Distribution checks and
 desktop trials are recorded in the [AppImage](../appimage.md),
@@ -397,7 +398,7 @@ cancellation still need testing.
 Build the opt-in native probe and run the Dart client from the repository root:
 
 ```bash
-cmake -S telemetry -B build/portable-control -G Ninja \
+cmake -S control -B build/portable-control -G Ninja \
   -DBUILD_LEGION_CONTROL_SERVICE=ON \
   -DBUILD_PORTABLE_CONTROL_PROTOTYPE=ON
 cmake --build build/portable-control --target portable_control_probe
