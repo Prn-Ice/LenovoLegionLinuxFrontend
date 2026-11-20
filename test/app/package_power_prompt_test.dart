@@ -24,11 +24,17 @@ void main() {
           overrides: [
             packagePowerTelemetryClientProvider.overrideWithValue(client),
           ],
-          child: const MaterialApp(
-            home: PackagePowerPrompt(child: Text('Dashboard')),
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, _) => TextButton(
+                onPressed: () => requestPackagePowerAccess(context, ref),
+                child: const Text('Dashboard'),
+              ),
+            ),
           ),
         ),
       );
+      await tester.tap(find.text('Dashboard'));
       await tester.pumpAndSettle();
       expect(find.text('Show CPU power usage?'), findsOneWidget);
       expect(client.requests, 0);

@@ -29,7 +29,7 @@ Future<void> main() async {
         ),
       ],
       child: const LegionFrontendApp(
-        home: PackagePowerPrompt(child: NavigationShell()),
+        home: NavigationShell(onReady: requestPackagePowerAccess),
       ),
     ),
   );
