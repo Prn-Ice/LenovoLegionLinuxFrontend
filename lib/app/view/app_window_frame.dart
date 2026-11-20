@@ -20,10 +20,9 @@ class _AppWindowFrameState extends State<AppWindowFrame> {
     stream: widget.windowStates ?? _windowStates,
     builder: (context, snapshot) {
       final state = snapshot.data;
-      final rounded =
-          state != null &&
-          state.isMaximized != true &&
-          state.isFullscreen != true;
+      // Clip before the first YaruWindowState arrives so startup frames do not
+      // flash square corners before Wayland applies the window state.
+      final rounded = state?.isMaximized != true && state?.isFullscreen != true;
       // Match the bundled libhandy Adwaita window mask, not a card radius.
       return ClipRRect(
         borderRadius: BorderRadius.circular(rounded ? 8 : 0),
