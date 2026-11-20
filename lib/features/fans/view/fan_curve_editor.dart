@@ -304,15 +304,17 @@ class _FanSpeedTable extends StatelessWidget {
           : '$pwm';
     }
 
+    final steps = _groupRepeatedLevels(curve.points);
+    final stepCount = curve.points.length;
     final table = <DataRow>[
-      for (var i = 0; i < curve.points.length; i++)
+      for (final step in steps)
         DataRow(
           cells: [
-            DataCell(Text('${i + 1}')),
-            DataCell(Text(speedValue(curve.points[i]))),
-            DataCell(Text(curve.points[i].fan1Rpm?.toString() ?? '—')),
+            DataCell(Text(step.label)),
+            DataCell(Text(speedValue(step.point))),
+            DataCell(Text(step.point.fan1Rpm?.toString() ?? '—')),
             if (unit == FanSpeedUnit.level)
-              DataCell(Text(curve.points[i].fan2Rpm?.toString() ?? '—')),
+              DataCell(Text(step.point.fan2Rpm?.toString() ?? '—')),
           ],
         ),
     ];
@@ -320,16 +322,17 @@ class _FanSpeedTable extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          curve.speedUnit == FanSpeedUnit.level
-              ? 'Fan speed levels'
-              : 'Fan speed values',
+          unit == FanSpeedUnit.level ? 'Fan speed levels' : 'Fan speed values',
           style: theme.textTheme.titleSmall,
         ),
         const SizedBox(height: 4),
         Text(
           unit == FanSpeedUnit.level
-              ? 'The firmware gives each level an RPM for each fan. '
-                    'Rows that share a level list the same speeds.'
+              ? 'The firmware sets fan speed in numbered levels. '
+                    'Each level has a fixed RPM for each fan. '
+                    'The fan curve has $stepCount '
+                    '${stepCount == 1 ? 'step' : 'steps'}, and the table '
+                    'groups steps that share a level.'
               : 'This read-only table shows the firmware’s fan speed settings. '
                     'See current fan speeds above.',
           style: theme.textTheme.bodySmall?.copyWith(
@@ -342,7 +345,9 @@ class _FanSpeedTable extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: DataTable(
             columns: [
-              const DataColumn(label: Text('Row')),
+              DataColumn(
+                label: Text(unit == FanSpeedUnit.level ? 'Steps' : 'Row'),
+              ),
               DataColumn(label: Text(valueLabel)),
               const DataColumn(label: Text('Fan 1 RPM')),
               if (unit == FanSpeedUnit.level)
@@ -354,6 +359,47 @@ class _FanSpeedTable extends StatelessWidget {
       ],
     );
   }
+}
+
+/// One table row for one or more curve steps that share a level.
+class _FanSpeedStepGroup {
+  const _FanSpeedStepGroup({
+    required this.firstIndex,
+    required this.lastIndex,
+    required this.point,
+  });
+
+  final int firstIndex;
+  final int lastIndex;
+  final FanCurvePoint point;
+
+  String get label => firstIndex == lastIndex
+      ? '${firstIndex + 1}'
+      : '${firstIndex + 1}–${lastIndex + 1}';
+}
+
+/// Merges consecutive curve steps that have the same level and RPM readings,
+/// so the table shows one row for the repeated speed instead of duplicates.
+List<_FanSpeedStepGroup> _groupRepeatedLevels(List<FanCurvePoint> points) {
+  final steps = <_FanSpeedStepGroup>[];
+  for (var i = 0; i < points.length; i++) {
+    final point = points[i];
+    final previous = steps.isEmpty ? null : steps.last;
+    if (previous != null &&
+        point.fan1Level != null &&
+        previous.point.fan1Level == point.fan1Level &&
+        previous.point.fan1Rpm == point.fan1Rpm &&
+        previous.point.fan2Rpm == point.fan2Rpm) {
+      steps[steps.length - 1] = _FanSpeedStepGroup(
+        firstIndex: previous.firstIndex,
+        lastIndex: i,
+        point: point,
+      );
+    } else {
+      steps.add(_FanSpeedStepGroup(firstIndex: i, lastIndex: i, point: point));
+    }
+  }
+  return steps;
 }
 
 class _FanCurveChart extends StatefulWidget {
