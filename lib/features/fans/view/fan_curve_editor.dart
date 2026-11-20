@@ -287,6 +287,101 @@ class _FanSpeedTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return curve.speedUnit == FanSpeedUnit.level
+        ? _FanLevelTable(curve: curve)
+        : _FanValueTable(curve: curve);
+  }
+}
+
+/// Read-only ladder of every level the firmware reports, including levels the
+/// current curve does not use.
+class _FanLevelTable extends StatelessWidget {
+  const _FanLevelTable({required this.curve});
+
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final rows = _fanLevelRows(curve);
+    final unusedCount = rows.where((row) => !row.used).length;
+    final mutedStyle = TextStyle(
+      color: scheme.onSurface.withValues(alpha: 0.45),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Fan speed levels', style: theme.textTheme.titleSmall),
+        const SizedBox(height: 4),
+        Text(
+          'The firmware sets fan speed in numbered levels. '
+          'Each level has a fixed RPM for each fan. '
+          'The Curve steps column shows which steps use each level'
+          '${unusedCount == 0 ? '.' : '; unused levels are greyed out.'}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          key: const ValueKey('fan-speed-table'),
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('Level')),
+              DataColumn(label: Text('Curve steps')),
+              DataColumn(label: Text('Fan 1 RPM')),
+              DataColumn(label: Text('Fan 2 RPM')),
+            ],
+            rows: [
+              for (final row in rows)
+                DataRow(
+                  cells: [
+                    DataCell(
+                      Text('${row.level}', style: row.used ? null : mutedStyle),
+                    ),
+                    DataCell(
+                      Text(row.steps, style: row.used ? null : mutedStyle),
+                    ),
+                    DataCell(
+                      Text(
+                        row.fan1Rpm?.toString() ?? '—',
+                        style: row.used ? null : mutedStyle,
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        row.fan2Rpm?.toString() ?? '—',
+                        style: row.used ? null : mutedStyle,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Read-only: the app cannot change this table, and the driver '
+          'does not report the temperatures that trigger each step.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface.withValues(alpha: 0.56),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FanValueTable extends StatelessWidget {
+  const _FanValueTable({required this.curve});
+
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final unit = curve.speedUnit;
@@ -296,7 +391,6 @@ class _FanSpeedTable extends StatelessWidget {
       FanSpeedUnit.rpm || FanSpeedUnit.unknown => 'PWM (0–255)',
     };
     String speedValue(FanCurvePoint point) {
-      if (unit == FanSpeedUnit.level) return '${point.fan1Level ?? '—'}';
       final pwm = point.fan1Pwm;
       if (pwm == null) return '—';
       return unit == FanSpeedUnit.percent
@@ -304,37 +398,14 @@ class _FanSpeedTable extends StatelessWidget {
           : '$pwm';
     }
 
-    final steps = _groupRepeatedLevels(curve.points);
-    final stepCount = curve.points.length;
-    final table = <DataRow>[
-      for (final step in steps)
-        DataRow(
-          cells: [
-            DataCell(Text(step.label)),
-            DataCell(Text(speedValue(step.point))),
-            DataCell(Text(step.point.fan1Rpm?.toString() ?? '—')),
-            if (unit == FanSpeedUnit.level)
-              DataCell(Text(step.point.fan2Rpm?.toString() ?? '—')),
-          ],
-        ),
-    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          unit == FanSpeedUnit.level ? 'Fan speed levels' : 'Fan speed values',
-          style: theme.textTheme.titleSmall,
-        ),
+        Text('Fan speed values', style: theme.textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
-          unit == FanSpeedUnit.level
-              ? 'The firmware sets fan speed in numbered levels. '
-                    'Each level has a fixed RPM for each fan. '
-                    'The fan curve has $stepCount '
-                    '${stepCount == 1 ? 'step' : 'steps'}, and the table '
-                    'groups steps that share a level.'
-              : 'This read-only table shows the firmware’s fan speed settings. '
-                    'See current fan speeds above.',
+          'This read-only table shows the firmware’s fan speed settings. '
+          'See current fan speeds above.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurface.withValues(alpha: 0.7),
           ),
@@ -345,15 +416,20 @@ class _FanSpeedTable extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           child: DataTable(
             columns: [
-              DataColumn(
-                label: Text(unit == FanSpeedUnit.level ? 'Steps' : 'Row'),
-              ),
+              const DataColumn(label: Text('Row')),
               DataColumn(label: Text(valueLabel)),
               const DataColumn(label: Text('Fan 1 RPM')),
-              if (unit == FanSpeedUnit.level)
-                const DataColumn(label: Text('Fan 2 RPM')),
             ],
-            rows: table,
+            rows: [
+              for (var i = 0; i < curve.points.length; i++)
+                DataRow(
+                  cells: [
+                    DataCell(Text('${i + 1}')),
+                    DataCell(Text(speedValue(curve.points[i]))),
+                    DataCell(Text(curve.points[i].fan1Rpm?.toString() ?? '—')),
+                  ],
+                ),
+            ],
           ),
         ),
       ],
@@ -361,46 +437,99 @@ class _FanSpeedTable extends StatelessWidget {
   }
 }
 
-/// One table row for one or more curve steps that share a level.
-class _FanSpeedStepGroup {
-  const _FanSpeedStepGroup({
-    required this.firstIndex,
-    required this.lastIndex,
-    required this.point,
+/// One row of the level table. Unused levels come from the firmware ladder.
+class _FanLevelRow {
+  const _FanLevelRow({
+    required this.level,
+    required this.steps,
+    required this.fan1Rpm,
+    required this.fan2Rpm,
+    required this.used,
   });
 
-  final int firstIndex;
-  final int lastIndex;
-  final FanCurvePoint point;
-
-  String get label => firstIndex == lastIndex
-      ? '${firstIndex + 1}'
-      : '${firstIndex + 1}–${lastIndex + 1}';
+  final int level;
+  final String steps;
+  final int? fan1Rpm;
+  final int? fan2Rpm;
+  final bool used;
 }
 
-/// Merges consecutive curve steps that have the same level and RPM readings,
-/// so the table shows one row for the repeated speed instead of duplicates.
-List<_FanSpeedStepGroup> _groupRepeatedLevels(List<FanCurvePoint> points) {
-  final steps = <_FanSpeedStepGroup>[];
-  for (var i = 0; i < points.length; i++) {
-    final point = points[i];
-    final previous = steps.isEmpty ? null : steps.last;
-    if (previous != null &&
-        point.fan1Level != null &&
-        previous.point.fan1Level == point.fan1Level &&
-        previous.point.fan1Rpm == point.fan1Rpm &&
-        previous.point.fan2Rpm == point.fan2Rpm) {
-      steps[steps.length - 1] = _FanSpeedStepGroup(
-        firstIndex: previous.firstIndex,
-        lastIndex: i,
-        point: point,
-      );
-    } else {
-      steps.add(_FanSpeedStepGroup(firstIndex: i, lastIndex: i, point: point));
-    }
+/// Builds one row for every firmware level, including levels the current curve
+/// does not use. Falls back to the levels in the curve when the ladder is
+/// unavailable.
+List<_FanLevelRow> _fanLevelRows(FanCurve curve) {
+  final stepIndicesByLevel = <int, List<int>>{};
+  for (var i = 0; i < curve.points.length; i++) {
+    final level = curve.points[i].fan1Level;
+    if (level == null) continue;
+    (stepIndicesByLevel[level] ??= []).add(i);
   }
-  return steps;
+
+  final fan1Ladder = curve.fan1LevelRpmTable;
+  final fan2Ladder = curve.fan2LevelRpmTable;
+  var levelCount = 0;
+  for (final level in stepIndicesByLevel.keys) {
+    if (level > levelCount) levelCount = level;
+  }
+  if (fan1Ladder != null && fan1Ladder.length > levelCount) {
+    levelCount = fan1Ladder.length;
+  }
+  if (fan2Ladder != null && fan2Ladder.length > levelCount) {
+    levelCount = fan2Ladder.length;
+  }
+
+  return [
+    for (var level = 1; level <= levelCount; level++)
+      _fanLevelRow(
+        level: level,
+        stepIndices: stepIndicesByLevel[level] ?? const [],
+        curve: curve,
+        fan1Ladder: fan1Ladder,
+        fan2Ladder: fan2Ladder,
+      ),
+  ];
 }
+
+_FanLevelRow _fanLevelRow({
+  required int level,
+  required List<int> stepIndices,
+  required FanCurve curve,
+  required List<int>? fan1Ladder,
+  required List<int>? fan2Ladder,
+}) {
+  final point = stepIndices.isEmpty ? null : curve.points[stepIndices.first];
+  return _FanLevelRow(
+    level: level,
+    steps: point == null ? 'Not used' : _formatStepRanges(stepIndices),
+    fan1Rpm: point?.fan1Rpm ?? _ladderRpm(fan1Ladder, level),
+    fan2Rpm: point?.fan2Rpm ?? _ladderRpm(fan2Ladder, level),
+    used: point != null,
+  );
+}
+
+int? _ladderRpm(List<int>? ladder, int level) =>
+    ladder != null && level <= ladder.length ? ladder[level - 1] : null;
+
+String _formatStepRanges(List<int> indices) {
+  final sorted = [...indices]..sort();
+  final ranges = <String>[];
+  var first = sorted.first;
+  var last = first;
+  for (final index in sorted.skip(1)) {
+    if (index == last + 1) {
+      last = index;
+      continue;
+    }
+    ranges.add(_stepRange(first, last));
+    first = index;
+    last = index;
+  }
+  ranges.add(_stepRange(first, last));
+  return ranges.join(', ');
+}
+
+String _stepRange(int first, int last) =>
+    first == last ? '${first + 1}' : '${first + 1}–${last + 1}';
 
 class _FanCurveChart extends StatefulWidget {
   const _FanCurveChart({
