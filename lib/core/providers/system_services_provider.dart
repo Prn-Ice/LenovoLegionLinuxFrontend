@@ -76,7 +76,7 @@ final powerProfileServiceProvider = Provider<PowerProfileService>((ref) {
 
 final packagePowerTelemetryClientProvider =
     Provider<PackagePowerTelemetryClient>((ref) {
-      final client = DBusPackagePowerTelemetryClient();
+      final client = SessionPackagePowerClient();
       ref.onDispose(() => unawaited(client.close()));
       return client;
     });

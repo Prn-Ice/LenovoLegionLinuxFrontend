@@ -30,7 +30,6 @@ in
       ../../assets
       ../../linux
       ../../control
-      ../../telemetry
       ../../packaging
       ../../tool
       ../../pubspec.yaml

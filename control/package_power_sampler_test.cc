@@ -1,7 +1,6 @@
 // Tests for the package power sampler. A temporary sysfs tree supplies known
 // energy values, including a counter wrap and a changed range.
 #include "package_power_sampler.h"
-#include "telemetry_snapshot.h"
 
 #include <ftw.h>
 #include <glib.h>
@@ -108,31 +107,6 @@ void TestRangeChangeResetsBaseline() {
   RemoveTree(root);
 }
 
-void TestTelemetrySnapshotContract() {
-  PackagePowerReading reading;
-  reading.available = true;
-  reading.watts = 24.75;
-  reading.domain = "package-0";
-  GVariant *snapshot = g_variant_ref_sink(BuildTelemetrySnapshot(reading));
-
-  gboolean available = FALSE;
-  gdouble watts = 0;
-  const gchar *domain = nullptr;
-  const gchar *version = nullptr;
-  g_assert_true(g_variant_lookup(snapshot, "Available", "b", &available));
-  g_assert_true(g_variant_lookup(snapshot, "PackagePowerWatts", "d", &watts));
-  g_assert_true(g_variant_lookup(snapshot, "Domain", "&s", &domain));
-  g_assert_true(g_variant_lookup(snapshot, "Version", "&s", &version));
-  g_assert_true(available);
-  g_assert_cmpfloat_with_epsilon(watts, 24.75, 0.0001);
-  g_assert_cmpstr(domain, ==, "package-0");
-  g_assert_cmpstr(version, ==, "1");
-  GVariant *error = g_variant_lookup_value(snapshot, "Error", nullptr);
-  g_assert_null(error);
-
-  g_variant_unref(snapshot);
-}
-
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -141,7 +115,5 @@ int main(int argc, char **argv) {
   g_test_add_func("/package-power/counter-wrap", TestCounterWrap);
   g_test_add_func("/package-power/missing-interface", TestMissingInterface);
   g_test_add_func("/package-power/range-change", TestRangeChangeResetsBaseline);
-  g_test_add_func("/package-power/dbus-contract",
-                  TestTelemetrySnapshotContract);
   return g_test_run();
 }

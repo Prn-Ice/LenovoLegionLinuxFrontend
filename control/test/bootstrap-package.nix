@@ -15,7 +15,6 @@ stdenv.mkDerivation {
     root = ../..;
     fileset = lib.fileset.unions [
       ../../control
-      ../../telemetry
       ../../packaging
     ];
   };
@@ -27,7 +26,7 @@ stdenv.mkDerivation {
     glib
     polkit
   ];
-  preConfigure = "cd telemetry";
+  preConfigure = "cd control";
   cmakeFlags = [
     "-DBUILD_TESTING=ON"
     "-DBUILD_LEGION_CONTROL_SERVICE=ON"

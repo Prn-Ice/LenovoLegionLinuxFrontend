@@ -1,13 +1,10 @@
-// One private control session for a portable app.
-//
-// The portable helper starts this session after systemd approves the app. The
-// session serves the same typed D-Bus API as the installed service, but only
-// to the pinned app process over a socket in a root-owned runtime directory.
-// The app cannot choose the backend CLI or run arbitrary commands.
+// After host approval, serve the pinned app over a private socket. The
+// launcher chooses either hardware control or read-only CPU power at startup.
 
 #include "portable_control_session.h"
 #include "control_protocol.h"
 #include "control_service_runtime.h"
+#include "package_power_sampler.h"
 #include "portable_cli.h"
 #include "portable_unit.h"
 #include "trusted_executable.h"
@@ -77,6 +74,8 @@ struct PeerIdentity {
 
 struct Session {
   ControlContext control{};
+  SessionPurpose purpose = SessionPurpose::control;
+  PackagePowerSampler sampler{"/sys/class/powercap"};
   GDBusServer *server = nullptr;
   GDBusAuthObserver *observer = nullptr;
   PeerIdentity *peer = nullptr;
@@ -122,6 +121,18 @@ void HandlePeerMethod(GDBusConnection *, const gchar *, const gchar *,
   }
 
   session->activity = g_get_monotonic_time();
+
+  if (session->purpose == SessionPurpose::package_power) {
+    if (g_str_equal(method, "ReadPackagePower")) {
+      const auto &reading = session->sampler.reading();
+      g_dbus_method_invocation_return_value(
+          invocation, g_variant_new("(bd)", reading.available, reading.watts));
+    } else {
+      reply_error(invocation, "NotSupported",
+                  "This session only reads CPU power");
+    }
+    return;
+  }
 
   if (g_str_equal(method, "GetCapabilities")) {
     reply_capabilities(&session->control, invocation);
@@ -185,7 +196,7 @@ gboolean AcceptPeer(GDBusServer *, GDBusConnection *connection, gpointer data) {
 int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
                               const std::string &parent_unit,
                               int launcher_pidfd, const std::string &cli,
-                              unsigned idle_seconds) {
+                              unsigned idle_seconds, SessionPurpose purpose) {
   if (!legion_control::ValidPortableUnit(parent_unit))
     return 2;
   if (getuid() != 0 || geteuid() != 0 || client_uid == 0 ||
@@ -203,12 +214,15 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
   Session session{};
   session.idle_seconds = idle_seconds;
   session.control.mode = ControlConnectionMode::portable;
-  if (!legion_control::TrustedExecutable(cli, &session.control.cli_path))
+  session.purpose = purpose;
+  if (purpose == SessionPurpose::control &&
+      !legion_control::TrustedExecutable(cli, &session.control.cli_path))
     return 2;
   session.control.loop = g_main_loop_new(nullptr, FALSE);
 
   GError *error = nullptr;
-  GDBusConnection *manager = g_dbus_connection_new_for_address_sync(
+  // The app verifies this connection's bus name when it opens the peer socket.
+  g_autoptr(GDBusConnection) manager = g_dbus_connection_new_for_address_sync(
       "unix:path=/run/dbus/system_bus_socket",
       static_cast<GDBusConnectionFlags>(
           G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
@@ -222,29 +236,34 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
 
   // Qualification runs --help in the same contained environment as a real
   // write. It does not take the shared operation lock.
-  session.control.runner =
-      legion_control::CreateManagedCommandRunner(manager, parent_unit);
-  if (!legion_control::QualifyPortableCli(
-          session.control.runner, session.control.cli_path, STDIN_FILENO,
-          launcher_pidfd, &error)) {
-    printf("CONTROL_SETUP_ERROR %s\n",
-           error ? error->message : "CLI qualification failed");
-    fflush(stdout);
-    g_clear_error(&error);
-    g_object_unref(manager);
-    g_main_loop_unref(session.control.loop);
-    return 1;
+  if (purpose == SessionPurpose::control) {
+    session.control.runner =
+        legion_control::CreateManagedCommandRunner(manager, parent_unit);
+    if (!legion_control::QualifyPortableCli(
+            session.control.runner, session.control.cli_path, STDIN_FILENO,
+            launcher_pidfd, &error)) {
+      printf("CONTROL_SETUP_ERROR %s\n",
+             error ? error->message : "CLI qualification failed");
+      fflush(stdout);
+      g_clear_error(&error);
+      g_main_loop_unref(session.control.loop);
+      return 1;
+    }
+
+    // The real runner takes the operation lock shared with the installed
+    // helper, so two control sessions cannot change hardware at the same time.
+    session.control.runner = legion_control::CreateManagedCommandRunner(
+        manager, parent_unit, {}, "/run/legion-control/operation.lock");
   }
-
-  // The real runner takes the operation lock shared with the installed helper,
-  // so two control sessions cannot change hardware at the same time.
-  session.control.runner = legion_control::CreateManagedCommandRunner(
-      manager, parent_unit, {}, "/run/legion-control/operation.lock");
   const std::string bus_name = g_dbus_connection_get_unique_name(manager);
-  g_object_unref(manager);
 
-  session.control.info =
-      g_dbus_node_info_new_for_xml(introspection_xml, &error);
+  constexpr char power_xml[] =
+      "<node><interface name='io.github.prnice.LegionControl1'>"
+      "<method name='ReadPackagePower'><arg type='b' direction='out'/>"
+      "<arg type='d' direction='out'/></method></interface></node>";
+  session.control.info = g_dbus_node_info_new_for_xml(
+      purpose == SessionPurpose::package_power ? power_xml : introspection_xml,
+      &error);
   if (!session.control.info) {
     g_clear_error(&error);
     g_main_loop_unref(session.control.loop);
@@ -323,9 +342,10 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
 
   g_autofree char *selected_cli =
       g_uri_escape_string(session.control.cli_path.c_str(), nullptr, FALSE);
-  printf("CONTROL_READY helper=%d unit=%s address=%s bus=%s cli=%s\n", getpid(),
+  printf("CONTROL_READY helper=%d unit=%s address=%s bus=%s%s%s\n", getpid(),
          parent_unit.c_str(), g_dbus_server_get_client_address(session.server),
-         bus_name.c_str(), selected_cli);
+         bus_name.c_str(), purpose == SessionPurpose::control ? " cli=" : "",
+         selected_cli);
   fflush(stdout);
 
   const guint app_watch = g_unix_fd_add(
@@ -336,12 +356,15 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
       },
       &session);
 
-  // Before the app connects, allow ten seconds for setup. After it connects,
-  // use the idle limit supplied by the caller.
+  // Allow ten seconds to connect. Idle hardware control expires. CPU sampling
+  // continues while the app visits pages that do not poll the counter.
   const guint timer = g_timeout_add(
       100,
       [](gpointer data) -> gboolean {
         auto *session = static_cast<Session *>(data);
+        if (session->accepted &&
+            session->purpose == SessionPurpose::package_power)
+          return G_SOURCE_CONTINUE;
         const auto now = g_get_monotonic_time();
         if (session->control.active)
           session->activity = now;
@@ -361,7 +384,20 @@ int RunPortableControlSession(pid_t client_pid, uid_t client_uid,
       },
       &session);
 
+  guint sample_timer = 0;
+  if (purpose == SessionPurpose::package_power) {
+    session.sampler.Sample(g_get_monotonic_time());
+    sample_timer = g_timeout_add_seconds(
+        1,
+        [](gpointer data) -> gboolean {
+          static_cast<Session *>(data)->sampler.Sample(g_get_monotonic_time());
+          return G_SOURCE_CONTINUE;
+        },
+        &session);
+  }
   g_main_loop_run(session.control.loop);
+  if (sample_timer)
+    g_source_remove(sample_timer);
 
   g_source_remove(app_watch);
   g_source_remove(launcher_watch);

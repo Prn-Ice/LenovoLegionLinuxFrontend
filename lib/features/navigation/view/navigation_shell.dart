@@ -45,7 +45,9 @@ import '../providers/navigation_provider.dart';
 const _pageColor = Color(0xffFAF9F8);
 
 class NavigationShell extends ConsumerStatefulWidget {
-  const NavigationShell({super.key});
+  const NavigationShell({super.key, this.onReady});
+
+  final void Function(BuildContext, WidgetRef)? onReady;
 
   @override
   ConsumerState<NavigationShell> createState() => _NavigationShellState();
@@ -69,6 +71,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       length: NavShellEntries.sections.length,
       initialIndex: initialIndex,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady?.call(context, ref);
+    });
   }
 
   @override

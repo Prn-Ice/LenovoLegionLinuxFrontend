@@ -64,7 +64,7 @@ session_new() {
     as_user "$user" chmod 700 "$binary"
   fi
   as_user "$user" mkfifo "${ref[input]}"
-  as_user "$user" bash -c 'exec legion-portable-test-client "$1" <>"$2"' bash "$binary" "${ref[input]}" >"${ref[output]}" 2>"${ref[output]}.err" &
+  as_user "$user" bash -c 'input=$1; shift; exec legion-portable-test-client "$@" <>"$input"' bash "${ref[input]}" "$binary" "${@:5}" >"${ref[output]}" 2>"${ref[output]}.err" &
   if ! wait_until 20 grep CLIENT_READY "${ref[output]}"; then
     cat "${ref[output]}" "${ref[output]}.err" >&2
     return 1

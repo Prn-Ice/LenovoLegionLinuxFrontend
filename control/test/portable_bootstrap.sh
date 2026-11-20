@@ -6,7 +6,7 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/portable_session_test.sh"
 # Session helpers access these maps by name.
 # shellcheck disable=SC2034
-declare -A app=() first=() second=()
+declare -A app=() first=() second=() power=()
 probe=$1 fixtures=$2
 # Keep diagnostics visible when a rejected command redirects its own stderr.
 exec 3>&2
@@ -232,6 +232,16 @@ session_send app disable
 printf 'disabled\n' | diff - <(session_value app battery-conservation)
 session_close app
 wait_collected 'legion-portable-control-*' 8
+echo 'Checking read-only power approval with an incompatible host CLI'
+echo missing >/run/legion-cli-help-mode
+session_new power approved "$probe/bin/legion-portable-control" false --package-power
+[[ -z ${power[cli]} ]]
+session_send power connect
+session_send power authorize org.freedesktop.DBus.Error.UnknownMethod
+session_send power enable org.freedesktop.DBus.Error.UnknownMethod
+session_close power
+wait_collected 'legion-portable-control-*' 8
+rm -f /run/legion-cli-help-mode
 echo 'Checking production startup rejects incompatible and failed CLI help'
 for mode in missing fail flood hang; do
   printf '%s\n' "$mode" >/run/legion-cli-help-mode
