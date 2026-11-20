@@ -1,3 +1,8 @@
+// Test client for the portable control helper in the disposable test VM.
+//
+// It starts the launcher, reads the connection details it prints, then sends
+// requests over the verified peer connection. Some modes imitate a wrong or
+// stalled peer so authentication failures can be tested.
 #include "portable_peer.h"
 #include "test_vm_guard.h"
 
@@ -22,6 +27,8 @@ namespace {
 constexpr char interface[] = "io.github.prnice.LegionControl1";
 constexpr char path[] = "/io/github/prnice/LegionControl1";
 
+// Listen on the given path but do not behave like the helper. The real client
+// must reject it because its PID is not the approved systemd service.
 int FakePeer(const char *path, bool stall = false) {
   sockaddr_un address{};
   address.sun_family = AF_UNIX;
@@ -64,6 +71,7 @@ int FakePeer(const char *path, bool stall = false) {
   return refused ? 0 : 1;
 }
 
+// Read one newline-terminated line, with a 20-second overall limit.
 bool ReadLine(int descriptor, std::string *line) {
   const auto deadline = g_get_monotonic_time() + 20000000;
   line->clear();
@@ -84,6 +92,7 @@ bool ReadLine(int descriptor, std::string *line) {
   return false;
 }
 
+// Connect synchronously and report a distinct code for "not verified".
 GDBusConnection *Connect(const std::string &address, const std::string &unit,
                          guint32 expected_pid, const std::string &bus_name,
                          int *failure) {
@@ -96,6 +105,8 @@ GDBusConnection *Connect(const std::string &address, const std::string &unit,
   return connection;
 }
 
+// Run the async connect on a main loop. A signal can cancel it to test the
+// cancellation path.
 GDBusConnection *ConnectAsync(const legion_control::PortableEndpoint &endpoint,
                               GError **error, bool cancel_by_signal = false) {
   auto *loop = g_main_loop_new(nullptr, FALSE);
@@ -129,6 +140,8 @@ GDBusConnection *ConnectAsync(const legion_control::PortableEndpoint &endpoint,
   return peer;
 }
 
+// Make one D-Bus call. On success returns an empty string; otherwise returns
+// the remote error name or "transport-error".
 std::string Call(GDBusConnection *connection, const char *method,
                  GVariant *arguments,
                  const GVariantType *reply_type = G_VARIANT_TYPE("()")) {
@@ -167,6 +180,7 @@ std::string Call(GDBusConnection *connection, const char *method,
   return {};
 }
 
+// Wait for the helper to close an idle connection, bounded at eight seconds.
 bool IdleClosed(GDBusConnection *connection) {
   if (g_dbus_connection_is_closed(connection))
     return true;
@@ -190,15 +204,20 @@ bool IdleClosed(GDBusConnection *connection) {
   g_main_loop_unref(loop);
   return g_dbus_connection_is_closed(connection);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
+  // Every mode runs only in the disposable VM: some start privileged helpers
+  // or leave a fake peer behind.
   if (!InControlTestVm())
     return 2;
+  // Root-only fake peer modes. The client must reject these as not the
+  // approved systemd service.
   if (argc == 3 && std::string(argv[1]) == "--stall-peer" && getuid() == 0)
     return FakePeer(argv[2], true);
   if (getuid() == 0 || getuid() != geteuid())
     return 2;
+  // Check that connect timeouts and cancellation stay bounded.
   if (argc == 6 && (std::string(argv[1]) == "--connection-timeout" ||
                     std::string(argv[1]) == "--connection-cancel")) {
     const bool cancel = std::string(argv[1]) == "--connection-cancel";
@@ -234,6 +253,7 @@ int main(int argc, char **argv) {
   }
   if (argc != 2)
     return 2;
+  // Start the real launcher and read the details from its handshake line.
   GError *error = nullptr;
   auto *launcher = g_subprocess_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
                                     argv[1], "--control", nullptr);
@@ -276,6 +296,7 @@ int main(int argc, char **argv) {
          bus_name.c_str());
   fflush(stdout);
   GDBusConnection *connection = nullptr;
+  // The outer test harness sends one command per line on stdin.
   while (std::getline(std::cin, line)) {
     std::string result;
     if (line == "connect") {

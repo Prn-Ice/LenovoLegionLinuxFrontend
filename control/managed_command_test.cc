@@ -65,6 +65,7 @@ struct Manager {
   bool hold_start = false, reject_start = false, reject_unref = false;
   const char *start_error = "org.freedesktop.DBus.Error.InvalidArgs";
   bool keep_output = false, ignore_stop = false, status_read = false;
+
   static void method(GDBusConnection *, const gchar *, const gchar *,
                      const gchar *, const gchar *name, GVariant *params,
                      GDBusMethodInvocation *i, gpointer data) {
@@ -74,6 +75,7 @@ struct Manager {
         ==, g_dbus_connection_get_unique_name(manager->server));
     manager->Call(name, params, i);
   }
+
   explicit Manager(const std::string &state_directory = {},
                    const std::string &lock_path = {}) {
     g_test_dbus_up(test_bus);
@@ -108,6 +110,7 @@ struct Manager {
     runner = legion_control::CreateManagedCommandRunner(
         client, "legion-control.service", state_directory, lock_path);
   }
+
   ~Manager() {
     g_assert_cmpint(calls, ==, 1);
     if (writer)
@@ -136,6 +139,7 @@ struct Manager {
     g_test_dbus_down(test_bus);
     g_object_unref(test_bus);
   }
+
   void Start(unsigned runtime = 10) {
     operation = runner->Start(
         "/trusted/backend", {"literal $HOME", "${PATH}", "a b", ""}, runtime,
@@ -145,22 +149,26 @@ struct Manager {
         });
     g_assert_cmpint(calls, ==, 0);
   }
+
   void Finish() {
     until([this] { return calls != 0; });
     g_assert_cmpint(calls, ==, 1);
   }
+
   void ReleaseStart() {
     g_assert_nonnull(start_reply);
     g_dbus_method_invocation_return_value(start_reply,
                                           g_variant_new("(o)", "/job/1"));
     g_clear_object(&start_reply);
   }
+
   GVariant *Property(const char *name, const char *type) {
     g_assert_true(properties.count(name) != 0);
     GVariant *value = properties.at(name);
     g_assert_cmpstr(g_variant_get_type_string(value), ==, type);
     return value;
   }
+
   void Call(const char *name, GVariant *params, GDBusMethodInvocation *i) {
     if (g_str_equal(name, "StartTransientUnit")) {
       const char *n, *m;
@@ -372,6 +380,7 @@ void test_success_properties() {
   g_variant_unref(argv);
   g_variant_unref(flags);
 }
+
 void test_persistent_state_directory() {
   Manager m("legion-graphics-boot");
   m.Start();
@@ -385,6 +394,7 @@ void test_persistent_state_directory() {
   g_assert_cmpuint(g_variant_get_uint32(m.Property("StateDirectoryMode", "u")),
                    ==, 0700);
 }
+
 void test_helpers_share_operation_lock() {
   char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
   g_assert_nonnull(directory);
@@ -410,6 +420,7 @@ void test_helpers_share_operation_lock() {
   rmdir(directory);
   g_free(directory);
 }
+
 void test_manager_retains_operation_lock() {
   char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
   g_assert_nonnull(directory);
@@ -434,6 +445,7 @@ void test_manager_retains_operation_lock() {
   rmdir(directory);
   g_free(directory);
 }
+
 void test_unsafe_operation_lock() {
   char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
   g_assert_nonnull(directory);
@@ -450,6 +462,7 @@ void test_unsafe_operation_lock() {
   rmdir(directory);
   g_free(directory);
 }
+
 void test_exit(gconstpointer data) {
   Manager m;
   m.exit_status = GPOINTER_TO_INT(data);
@@ -461,6 +474,7 @@ void test_exit(gconstpointer data) {
   g_assert_cmpuint(g_variant_get_uint64(m.Property("RuntimeMaxUSec", "t")), ==,
                    35000000);
 }
+
 void test_pending_cancel() {
   Manager m;
   m.hold_start = true;
@@ -477,6 +491,7 @@ void test_pending_cancel() {
   g_assert_cmpint(m.unrefs, ==, 1);
   g_assert_true(m.result.status == ManagedCommandStatus::commandFailed);
 }
+
 void test_early_cancel_owned_callbacks() {
   Manager m;
   m.state = "active";
@@ -489,6 +504,7 @@ void test_early_cancel_owned_callbacks() {
   g_assert_cmpint(m.stops, ==, 1);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_manager_unavailable() {
   Manager m;
   GError *error = nullptr;
@@ -504,6 +520,7 @@ void test_manager_unavailable() {
   g_assert_true(m.result.status == ManagedCommandStatus::unavailable);
   g_assert_true(m.properties.empty());
 }
+
 void test_start_rejection(gconstpointer data) {
   Manager m;
   m.reject_start = true;
@@ -514,6 +531,7 @@ void test_start_rejection(gconstpointer data) {
   g_assert_cmpint(m.stops, ==, 0);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_uncertain_start() {
   Manager m;
   m.hold_start = true;
@@ -521,8 +539,9 @@ void test_uncertain_start() {
   m.Finish();
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
   g_assert_cmpint(m.stops, ==, 0);
-  m.ReleaseStart(); // Late replies cannot produce a second completion.
+  m.ReleaseStart();  // Late replies cannot produce a second completion.
 }
+
 void test_timeout() {
   Manager m;
   m.state = "active";
@@ -532,6 +551,7 @@ void test_timeout() {
   g_assert_cmpint(m.unrefs, ==, 1);
   g_assert_true(m.result.status == ManagedCommandStatus::timeout);
 }
+
 void test_manager_timeout() {
   Manager m;
   m.service_result = "timeout";
@@ -540,6 +560,7 @@ void test_manager_timeout() {
   m.Finish();
   g_assert_true(m.result.status == ManagedCommandStatus::timeout);
 }
+
 void test_overflow() {
   Manager m;
   m.state = "active";
@@ -551,6 +572,7 @@ void test_overflow() {
   g_assert_cmpint(m.stops, ==, 1);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_overflow_stop_timeout() {
   Manager m;
   m.state = "active";
@@ -563,6 +585,7 @@ void test_overflow_stop_timeout() {
   g_assert_cmpint(m.stops, ==, 1);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_lost_manager() {
   Manager m;
   m.state = "active";
@@ -572,6 +595,7 @@ void test_lost_manager() {
   m.Finish();
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
 }
+
 void test_unref_failure() {
   Manager m;
   m.reject_unref = true;
@@ -579,6 +603,7 @@ void test_unref_failure() {
   m.Finish();
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
 }
+
 void test_drain_deadline() {
   Manager m;
   m.keep_output = true;
@@ -587,6 +612,7 @@ void test_drain_deadline() {
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_stop_deadline() {
   Manager m;
   m.state = "active";
@@ -598,6 +624,7 @@ void test_stop_deadline() {
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
   g_assert_cmpint(m.unrefs, ==, 0);
 }
+
 void test_inactive_pending_job() {
   Manager m;
   m.job = 1;
@@ -617,6 +644,7 @@ void test_inactive_pending_job() {
   g_assert_true(m.result.status == ManagedCommandStatus::success);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_failed_cgroup_drains() {
   Manager m;
   m.state = "failed";
@@ -633,6 +661,7 @@ void test_failed_cgroup_drains() {
   g_assert_cmpint(m.result.exit_status, ==, 3);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_queued_start_deadline() {
   Manager m;
   m.job = 1;
@@ -642,6 +671,7 @@ void test_queued_start_deadline() {
   g_assert_cmpint(m.stops, ==, 1);
   g_assert_cmpint(m.unrefs, ==, 1);
 }
+
 void test_failed_cgroup_deadline() {
   Manager m;
   m.state = "failed";
@@ -659,6 +689,7 @@ void test_failed_cgroup_deadline() {
   // publishes the connection's closed state.
   until([&] { return g_dbus_connection_is_closed(m.client); });
 }
+
 void test_missing_cleanup_property(gconstpointer data) {
   Manager m;
   m.omit_job = GPOINTER_TO_INT(data) == 0;
@@ -668,7 +699,8 @@ void test_missing_cleanup_property(gconstpointer data) {
   g_assert_true(m.result.status == ManagedCommandStatus::cleanupFailed);
   g_assert_cmpint(m.unrefs, ==, 0);
 }
-} // namespace
+}  // namespace
+
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/managed/success-properties-literal-argv",

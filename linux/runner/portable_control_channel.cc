@@ -1,3 +1,10 @@
+// Flutter method channel between Dart and the portable control helper.
+//
+// Dart sends method names and arguments as Flutter values. This file checks
+// them against the D-Bus protocol description, builds a GVariant tuple, and
+// forwards the call over the verified peer connection from portable_peer.cc.
+// Replies are converted back into Flutter values. Only methods declared in
+// control_xml can pass through.
 #include "portable_control_channel.h"
 
 #include "control_protocol.h"
@@ -10,11 +17,14 @@
 #include <string>
 
 namespace {
+// One connection to the root helper. Dart gets a session ID and must send it
+// with every later call; closing the session cancels pending calls.
 struct Session {
   std::string id;
   GDBusConnection *peer = nullptr;
   GCancellable *cancel = g_cancellable_new();
   bool closed = false;
+
   void Close() {
     if (closed)
       return;
@@ -23,6 +33,7 @@ struct Session {
     if (peer && !g_dbus_connection_is_closed(peer))
       g_dbus_connection_close(peer, nullptr, nullptr, nullptr);
   }
+
   ~Session() {
     Close();
     g_clear_object(&peer);
@@ -30,11 +41,14 @@ struct Session {
   }
 };
 
+// State owned by the Flutter view. The method channel and protocol
+// description live as long as the view.
 struct Host {
   FlMethodChannel *channel = nullptr;
   GDBusNodeInfo *protocol =
       g_dbus_node_info_new_for_xml(legion_control::control_xml, nullptr);
   std::shared_ptr<Session> session;
+
   ~Host() {
     if (session)
       session->Close();
@@ -43,6 +57,7 @@ struct Host {
   }
 };
 
+// Read a named field from a Flutter map, checking its type.
 FlValue *Field(FlValue *map, const char *name, FlValueType type) {
   if (!map || fl_value_get_type(map) != FL_VALUE_TYPE_MAP)
     return nullptr;
@@ -54,6 +69,9 @@ void Error(FlMethodCall *call, const char *code, const char *message) {
   fl_method_call_respond_error(call, code, message, nullptr, nullptr);
 }
 
+// Turn a failed D-Bus or connection attempt into a Flutter error code. Remote
+// D-Bus error names pass through; local failures map to setup, timeout,
+// cancelled, or unavailable.
 void ConnectionError(FlMethodCall *call, GError *error, bool connecting) {
   char *remote = error ? g_dbus_error_get_remote_error(error) : nullptr;
   const char *code = remote ? remote : (connecting ? "setup" : "unavailable");
@@ -66,6 +84,9 @@ void ConnectionError(FlMethodCall *call, GError *error, bool connecting) {
   g_clear_error(&error);
 }
 
+// Build a D-Bus argument tuple from a Flutter list, guided by the protocol
+// description. Returns nullptr when the method is unknown, has a reply value,
+// or the values do not match the declared signatures.
 GVariant *Arguments(GDBusInterfaceInfo *protocol, const char *method,
                     FlValue *values) {
   auto *info = g_dbus_interface_info_lookup_method(protocol, method);
@@ -85,6 +106,7 @@ GVariant *Arguments(GDBusInterfaceInfo *protocol, const char *method,
     auto *value = fl_value_get_list_value(values, index);
     const char *signature = info->in_args[index]->signature;
     const auto type = fl_value_get_type(value);
+    // Strings are capped to keep a malformed call from allocating freely.
     if (!strcmp(signature, "s") && type == FL_VALUE_TYPE_STRING &&
         strlen(fl_value_get_string(value)) <= 128)
       g_variant_builder_add(&arguments, "s", fl_value_get_string(value));
@@ -94,6 +116,8 @@ GVariant *Arguments(GDBusInterfaceInfo *protocol, const char *method,
              fl_value_get_int(value) >= 0 &&
              fl_value_get_int(value) <= UINT_MAX)
       g_variant_builder_add(&arguments, "u", guint32(fl_value_get_int(value)));
+    // Byte arrays have per-method limits: fan curves are small, firmware
+    // images can be larger.
     else if (!strcmp(signature, "ay") && type == FL_VALUE_TYPE_UINT8_LIST &&
              fl_value_get_length(value) <= (g_str_equal(method, "ApplyFanCurve")
                                                 ? 64 * 1024
@@ -112,13 +136,20 @@ GVariant *Arguments(GDBusInterfaceInfo *protocol, const char *method,
   return g_variant_ref_sink(g_variant_builder_end(&arguments));
 }
 
+// Data for one in-flight D-Bus call. It keeps the Flutter call and the
+// session alive until the reply arrives.
 struct Invocation {
   std::shared_ptr<Session> session;
   FlMethodCall *call;
   bool metadata;
-  ~Invocation() { g_object_unref(call); }
+
+  ~Invocation() {
+    g_object_unref(call);
+  }
 };
 
+// Forward one method call. `metadata` selects GetCapabilities, whose reply is
+// a version and capability list instead of an empty tuple.
 void Invoke(const std::shared_ptr<Session> &session, FlMethodCall *call,
             const char *method, GVariant *arguments, bool metadata = false) {
   auto *pending =
@@ -166,6 +197,8 @@ void Invoke(const std::shared_ptr<Session> &session, FlMethodCall *call,
       pending);
 }
 
+// Find the installed CLI on a worker thread. This is read-only discovery; the
+// privileged helper repeats the full trust check before running it.
 void FindHostCli(FlMethodCall *call) {
   auto *task = g_task_new(
       nullptr, nullptr,
@@ -200,6 +233,12 @@ void FindHostCli(FlMethodCall *call) {
       });
   g_object_unref(task);
 }
+
+// Entry point for every Dart method call. The flow is:
+//   1. `findHostCli` has no session;
+//   2. `connect` opens a session and returns its ID;
+//   3. other calls must carry that ID;
+//   4. `close` ends the session.
 void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
   auto *host = static_cast<Host *>(data);
   const char *method = fl_method_call_get_name(call);
@@ -273,6 +312,7 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
         });
     return;
   }
+  // Every remaining method needs an open session with this exact ID.
   auto session = host->session;
   if (!session || session->id != token || session->closed || !session->peer ||
       g_dbus_connection_is_closed(session->peer)) {
@@ -300,7 +340,7 @@ void Handle(FlMethodChannel *, FlMethodCall *call, gpointer data) {
   } else
     fl_method_call_respond_not_implemented(call, nullptr);
 }
-} // namespace
+}  // namespace
 
 void RegisterPortableControlChannel(FlView *view) {
   auto *host = new Host();
@@ -310,6 +350,8 @@ void RegisterPortableControlChannel(FlView *view) {
       "io.github.prnice.legion/portable_control", FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(host->channel, Handle, host,
                                             nullptr);
+  // Destroy the host with the view, and clear the handler first so no late
+  // Dart call can reach freed state.
   g_object_set_data_full(G_OBJECT(view), "legion-portable-control", host,
                          [](gpointer data) {
                            auto *host = static_cast<Host *>(data);

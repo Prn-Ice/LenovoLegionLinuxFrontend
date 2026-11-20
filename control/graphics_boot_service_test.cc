@@ -23,20 +23,26 @@ const auto &vt = legion_control::control_vtable;
 
 struct ControlledOperation final : legion_control::ManagedCommandOperation {
   bool cancelled = false;
-  void Cancel() override { cancelled = true; }
+
+  void Cancel() override {
+    cancelled = true;
+  }
 };
+
 struct ControlledRunner final : legion_control::ManagedCommandRunner {
   Completion completion;
   unsigned starts = 0;
   std::shared_ptr<ControlledOperation> operation;
-  std::shared_ptr<legion_control::ManagedCommandOperation>
-  Start(const std::string &, const std::vector<std::string> &, unsigned,
-        Completion done) override {
+
+  std::shared_ptr<legion_control::ManagedCommandOperation> Start(
+      const std::string &, const std::vector<std::string> &, unsigned,
+      Completion done) override {
     ++starts;
     completion = std::move(done);
     operation = std::make_shared<ControlledOperation>();
     return operation;
   }
+
   void Finish(legion_control::ManagedCommandStatus status,
               int exit_status = -1) {
     legion_control::ManagedCommandResult result;
@@ -46,6 +52,7 @@ struct ControlledRunner final : legion_control::ManagedCommandRunner {
     done(std::move(result));
   }
 };
+
 struct Reply {
   GMainLoop *loop;
   GVariant *value = nullptr;
@@ -122,7 +129,7 @@ void test_boot_dispatch() {
   g_assert_nonnull(error);
   g_assert_nonnull(strstr(error->message, "Authorize must be called first"));
   g_clear_error(&error);
-  context.auth[g_dbus_connection_get_unique_name(client)] = true;
+  context.authorized_senders[g_dbus_connection_get_unique_name(client)] = true;
 
   reply = request(client, server, "GetGraphicsBootRequest", nullptr, &error);
   g_assert_null(reply);
@@ -144,7 +151,7 @@ void test_boot_dispatch() {
       g_file_set_contents(helper.c_str(), script.c_str(), -1, &error));
   g_assert_no_error(error);
   g_assert_cmpint(chmod(helper.c_str(), 0700), ==, 0);
-  context.graphics_boot = helper;
+  context.graphics_boot_path = helper;
   check_capabilities(
       {"interactive-control", "persistent-services", "next-boot-graphics"});
   context.mode = ControlConnectionMode::portable;
@@ -190,11 +197,13 @@ void test_boot_dispatch() {
   // Polkit authorization; dispatch its subsequent request through production
   // code.
   g_dbus_connection_unregister_object(server, registration);
+
   struct ClientContext {
     ControlContext *service;
     std::string authorized_sender;
     bool same_sender = false;
   } client_context{&context, "", false};
+
   const GDBusInterfaceVTable client_vt = {
       [](GDBusConnection *connection, const gchar *sender, const gchar *object,
          const gchar *interface, const gchar *method, GVariant *parameters,
@@ -202,7 +211,7 @@ void test_boot_dispatch() {
         auto *test = static_cast<ClientContext *>(data);
         if (g_str_equal(method, "Authorize")) {
           test->authorized_sender = sender;
-          test->service->auth[sender] = true;
+          test->service->authorized_senders[sender] = true;
           done(invocation);
         } else {
           test->same_sender = test->authorized_sender == sender;
@@ -258,7 +267,7 @@ void test_boot_dispatch() {
   // the permanent no-further-writes latch independently of process timing.
   auto controlled = std::make_shared<ControlledRunner>();
   context.runner = controlled;
-  context.cli = helper;
+  context.cli_path = helper;
   auto begin_graphics = [&](Reply *pending_reply) {
     g_dbus_connection_call(
         client, g_dbus_connection_get_unique_name(server), path, iface,
@@ -305,8 +314,8 @@ void test_boot_dispatch() {
   g_main_loop_run(failed_graphics_reply.loop);
   g_assert_null(failed_graphics_reply.value);
   g_assert_nonnull(failed_graphics_reply.error);
-  g_assert_nonnull(strstr(failed_graphics_reply.error->message,
-                          "CommandFailed"));
+  g_assert_nonnull(
+      strstr(failed_graphics_reply.error->message, "CommandFailed"));
   g_clear_error(&failed_graphics_reply.error);
   g_main_loop_unref(failed_graphics_reply.loop);
 
@@ -337,7 +346,7 @@ void test_boot_dispatch() {
     g_assert_false(expired);
   };
 
-  context.systemctl = helper;
+  context.systemctl_path = helper;
   for (int status : {2, 3}) {
     Reply service_reply{g_main_loop_new(nullptr, FALSE)};
     begin_backend_call("SetServiceEnabled",
@@ -353,12 +362,11 @@ void test_boot_dispatch() {
     g_main_loop_unref(service_reply.loop);
   }
 
-  context.graphics_boot = helper;
+  context.graphics_boot_path = helper;
   for (int status : {2, 3}) {
     Reply boot_reply{g_main_loop_new(nullptr, FALSE)};
     begin_backend_call("RequestGraphicsModeAtBoot",
-                       g_variant_new("(s)", "hybrid-igpu-only"),
-                       &boot_reply);
+                       g_variant_new("(s)", "hybrid-igpu-only"), &boot_reply);
     controlled->Finish(legion_control::ManagedCommandStatus::commandFailed,
                        status);
     g_main_loop_run(boot_reply.loop);
@@ -409,7 +417,7 @@ void test_boot_dispatch() {
   g_test_dbus_down(test_bus);
   g_object_unref(test_bus);
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);

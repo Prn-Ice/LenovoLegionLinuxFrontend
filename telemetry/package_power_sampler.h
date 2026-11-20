@@ -15,15 +15,15 @@ class PackagePowerSampler {
   explicit PackagePowerSampler(std::string powercap_root);
 
   void Sample(std::int64_t monotonic_microseconds);
-  const PackagePowerReading& reading() const;
+  const PackagePowerReading &reading() const;
 
  private:
   bool DiscoverPackageDomain();
   void ResetBaseline();
-  void SetUnavailable(const std::string& error);
+  void SetUnavailable(const std::string &error);
 
-  static bool ReadText(const std::string& path, std::string* value);
-  static bool ReadUint64(const std::string& path, std::uint64_t* value);
+  static bool ReadText(const std::string &path, std::string *value);
+  static bool ReadUint64(const std::string &path, std::uint64_t *value);
 
   std::string powercap_root_;
   std::string domain_path_;

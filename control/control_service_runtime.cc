@@ -1,3 +1,7 @@
+// The D-Bus dispatcher shared by the installed control service and the
+// portable helper. It checks authorization, validates request arguments, and
+// starts one managed backend command at a time.
+
 #include "control_service_runtime.h"
 #include "control_commands.h"
 #include "control_protocol.h"
@@ -10,22 +14,45 @@
 
 namespace legion_control {
 namespace {
-constexpr const char *iface = control_bus_name;
+constexpr const char *interface_name = control_bus_name;
 constexpr size_t input_limit = 128;
-} // namespace
-void reply_error(GDBusMethodInvocation *i, const char *name,
-                 const std::string &s) {
+
+// Owned by the polkit callback. The callback removes it when the check ends.
+struct AuthorizationRequest {
+  ControlContext *context;
+  GDBusMethodInvocation *invocation;
+};
+
+// Methods that only make sense when the installed service manages system units
+// and next-boot graphics policy.
+bool RequiresInstalledIntegration(const char *method) {
+  return g_str_equal(method, "SetServiceEnabled") ||
+         g_str_equal(method, "RequestGraphicsModeAtBoot") ||
+         g_str_equal(method, "CancelGraphicsModeAtBoot") ||
+         g_str_equal(method, "GetGraphicsBootRequest");
+}
+}  // namespace
+
+void reply_error(GDBusMethodInvocation *invocation, const char *name,
+                 const std::string &message) {
   if (g_str_equal(name, "InvalidArgs")) {
-    g_dbus_method_invocation_return_error(
-        i, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS, "%s", s.c_str());
+    g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
+                                          G_DBUS_ERROR_INVALID_ARGS, "%s",
+                                          message.c_str());
     return;
   }
+
+  // Other errors use the control interface prefix so clients can tell them
+  // apart from generic D-Bus failures.
   g_dbus_method_invocation_return_dbus_error(
-      i, (std::string(iface) + ".Error." + name).c_str(), s.c_str());
+      invocation, (std::string(interface_name) + ".Error." + name).c_str(),
+      message.c_str());
 }
-void done(GDBusMethodInvocation *i) {
-  g_dbus_method_invocation_return_value(i, nullptr);
+
+void done(GDBusMethodInvocation *invocation) {
+  g_dbus_method_invocation_return_value(invocation, nullptr);
 }
+
 void reply_capabilities(ControlContext *context,
                         GDBusMethodInvocation *invocation) {
   GVariantBuilder capabilities;
@@ -34,400 +61,496 @@ void reply_capabilities(ControlContext *context,
   if (context->mode == ControlConnectionMode::installed)
     g_variant_builder_add(&capabilities, "s", "persistent-services");
   if (context->mode == ControlConnectionMode::installed &&
-      !context->graphics_boot.empty())
+      !context->graphics_boot_path.empty())
     g_variant_builder_add(&capabilities, "s", "next-boot-graphics");
+
   g_dbus_method_invocation_return_value(
       invocation, g_variant_new("(uas)", 1u, &capabilities));
 }
+
 namespace {
-void auth_done(GObject *source, GAsyncResult *result, gpointer data) {
-  auto *p =
-      static_cast<std::pair<ControlContext *, GDBusMethodInvocation *> *>(data);
-  --p->first->authorization_callbacks;
-  GError *e = nullptr;
-  PolkitAuthorizationResult *r = polkit_authority_check_authorization_finish(
-      POLKIT_AUTHORITY(source), result, &e);
-  const std::string sender = g_dbus_method_invocation_get_sender(p->second);
-  auto pending = p->first->pending.find(sender);
-  if (pending == p->first->pending.end()) {
-    if (e)
-      g_clear_error(&e);
-    if (r)
-      g_object_unref(r);
-    g_object_unref(p->second);
-    delete p;
+void authorization_done(GObject *source, GAsyncResult *result, gpointer data) {
+  std::unique_ptr<AuthorizationRequest> request(
+      static_cast<AuthorizationRequest *>(data));
+  ControlContext *context = request->context;
+  --context->authorization_callbacks;
+
+  GError *error = nullptr;
+  PolkitAuthorizationResult *authorization =
+      polkit_authority_check_authorization_finish(POLKIT_AUTHORITY(source),
+                                                  result, &error);
+
+  const std::string sender =
+      g_dbus_method_invocation_get_sender(request->invocation);
+  auto pending = context->pending_authorizations.find(sender);
+  if (pending == context->pending_authorizations.end()) {
+    // The client disconnected while polkit was asking. There is no one left
+    // to answer, so drop the result.
+    g_clear_error(&error);
+    if (authorization)
+      g_object_unref(authorization);
+    g_object_unref(request->invocation);
     return;
   }
   g_object_unref(pending->second);
-  p->first->pending.erase(pending);
-  if (e || !r) {
+  context->pending_authorizations.erase(pending);
+
+  if (error || !authorization) {
     g_dbus_method_invocation_return_error(
-        p->second, G_IO_ERROR, G_IO_ERROR_FAILED, "Authorization failed: %s",
-        e ? e->message : "no authorization result");
-    g_clear_error(&e);
-  } else if (!polkit_authorization_result_get_is_authorized(r)) {
+        request->invocation, G_IO_ERROR, G_IO_ERROR_FAILED,
+        "Authorization failed: %s",
+        error ? error->message : "no authorization result");
+    g_clear_error(&error);
+  } else if (!polkit_authorization_result_get_is_authorized(authorization)) {
     g_dbus_method_invocation_return_dbus_error(
-        p->second, "org.freedesktop.DBus.Error.AccessDenied",
+        request->invocation, "org.freedesktop.DBus.Error.AccessDenied",
         "Authorization denied");
   } else {
-    p->first->auth[sender] = true;
-    done(p->second);
+    context->authorized_senders[sender] = true;
+    done(request->invocation);
   }
-  if (r)
-    g_object_unref(r);
-  g_object_unref(p->second);
-  delete p;
+
+  if (authorization)
+    g_object_unref(authorization);
+  g_object_unref(request->invocation);
 }
-void finish_operation(ControlContext::ActiveOperation *op) {
-  ControlContext *c = op->ctx;
-  if (!op->temp_path.empty())
-    unlink(op->temp_path.c_str());
-  g_clear_object(&op->invocation);
-  c->active.reset();
+
+void finish_operation(ControlContext::ActiveOperation *operation) {
+  ControlContext *context = operation->context;
+  if (!operation->temp_path.empty())
+    unlink(operation->temp_path.c_str());
+  g_clear_object(&operation->invocation);
+
+  // Destroying the active operation releases its runner handle and any
+  // captured shared state.
+  context->active.reset();
 }
-std::string valid_utf8(const std::string &value) {
+
+std::string make_valid_utf8(const std::string &value) {
   gchar *text = g_utf8_make_valid(value.data(), value.size());
   std::string result(text);
   g_free(text);
   return result;
 }
-void complete_operation(ControlContext::ActiveOperation *op,
-                        legion_control::ManagedCommandResult result) {
-  using Status = legion_control::ManagedCommandStatus;
+
+void complete_operation(ControlContext::ActiveOperation *operation,
+                        ManagedCommandResult result) {
+  using Status = ManagedCommandStatus;
+
+  // A cleanup failure means the service cannot prove that the backend stopped.
+  // Refuse later operations until the service restarts.
   if (result.status == Status::cleanupFailed) {
-    op->ctx->cleanup_failed = true;
+    operation->context->cleanup_failed = true;
     if (!result.error.empty())
-      g_message("Could not confirm backend cleanup: %s",
-                result.error.c_str());
+      g_message("Could not confirm backend cleanup: %s", result.error.c_str());
   }
-  if (!op->disconnected) {
+
+  if (!operation->disconnected) {
     if (result.status == Status::cleanupFailed)
-      reply_error(op->invocation, "Unavailable",
+      reply_error(operation->invocation, "Unavailable",
                   "could not confirm backend cleanup; restart the control "
                   "service");
     else if (result.status == Status::unavailable)
-      reply_error(op->invocation, "Unavailable", result.error);
+      reply_error(operation->invocation, "Unavailable", result.error);
     else if (result.status == Status::busy)
-      reply_error(op->invocation, "Busy", result.error);
+      reply_error(operation->invocation, "Busy", result.error);
     else if (result.status == Status::timeout)
-      reply_error(op->invocation, "Timeout", "control operation timed out");
+      reply_error(operation->invocation, "Timeout",
+                  "control operation timed out");
     else if (result.status == Status::outputLimit)
-      reply_error(op->invocation, "CommandFailed",
+      reply_error(operation->invocation, "CommandFailed",
                   "backend output exceeded limit");
     else if (result.status != Status::success) {
-      const std::string output = valid_utf8(result.output);
-      const auto graphics_exit =
-          legion_control::ClassifyGraphicsExit(result.exit_status);
-      if (op->graphics_operation &&
-          graphics_exit == legion_control::GraphicsExit::kBlocked)
-        reply_error(op->invocation, "GraphicsBlocked",
+      const std::string output = make_valid_utf8(result.output);
+      const auto graphics_exit = ClassifyGraphicsExit(result.exit_status);
+
+      if (operation->graphics_operation &&
+          graphics_exit == GraphicsExit::kBlocked) {
+        reply_error(operation->invocation, "GraphicsBlocked",
                     output.empty() ? "graphics change was blocked before write"
                                    : output);
-      else if (op->graphics_operation &&
-               graphics_exit == legion_control::GraphicsExit::kPending)
-        reply_error(op->invocation, "GraphicsPending",
+      } else if (operation->graphics_operation &&
+                 graphics_exit == GraphicsExit::kPending) {
+        reply_error(operation->invocation, "GraphicsPending",
                     output.empty()
                         ? "graphics policy changed but topology did not settle"
                         : output);
-      else if (op->cli_exit_contract) {
-        const auto cli_exit = legion_control::ClassifyCliExit(result.exit_status);
-        if (cli_exit == legion_control::CliExit::kUnavailable)
-          reply_error(op->invocation, "Unavailable",
-                      output.empty() ? "backend capability is unavailable"
-                                     : "backend capability is unavailable: " +
-                                           output);
-        else if (cli_exit == legion_control::CliExit::kFeatureNotFound)
-          reply_error(op->invocation, "NotSupported",
-                      output.empty() ? "backend feature is not supported"
-                                     : "backend feature is not supported: " +
-                                           output);
-        else
-          reply_error(op->invocation, "CommandFailed",
+      } else if (operation->cli_exit_contract) {
+        const auto cli_exit = ClassifyCliExit(result.exit_status);
+        if (cli_exit == CliExit::kUnavailable) {
+          reply_error(operation->invocation, "Unavailable",
+                      output.empty()
+                          ? "backend capability is unavailable"
+                          : "backend capability is unavailable: " + output);
+        } else if (cli_exit == CliExit::kFeatureNotFound) {
+          reply_error(operation->invocation, "NotSupported",
+                      output.empty()
+                          ? "backend feature is not supported"
+                          : "backend feature is not supported: " + output);
+        } else {
+          reply_error(operation->invocation, "CommandFailed",
                       output.empty() ? "backend command failed"
                                      : "backend command failed: " + output);
-      } else
-        reply_error(op->invocation, "CommandFailed",
+        }
+      } else {
+        reply_error(operation->invocation, "CommandFailed",
                     output.empty() ? "backend command failed"
                                    : "backend command failed: " + output);
-    } else if (op->return_output)
+      }
+    } else if (operation->return_output) {
       g_dbus_method_invocation_return_value(
-          op->invocation,
-          g_variant_new("(s)", valid_utf8(result.output).c_str()));
-    else
-      done(op->invocation);
+          operation->invocation,
+          g_variant_new("(s)", make_valid_utf8(result.output).c_str()));
+    } else {
+      done(operation->invocation);
+    }
   }
-  finish_operation(op);
+
+  finish_operation(operation);
 }
+
 enum class CommandBackend { kCli, kSystemctl, kGraphicsBoot };
-void invoke(ControlContext *c, GDBusMethodInvocation *i,
-            const legion_control::Command &command,
-            CommandBackend backend = CommandBackend::kCli,
-            const std::string &temp_path = {}, bool graphics = false,
-            bool return_output = false) {
-  if (c->active) {
+
+// Start one managed command. The completion callback runs on this GLib
+// context and owns the reply until the operation ends.
+void start_operation(ControlContext *context, GDBusMethodInvocation *invocation,
+                     const Command &command,
+                     CommandBackend backend = CommandBackend::kCli,
+                     const std::string &temp_path = {}, bool graphics = false,
+                     bool return_output = false) {
+  if (context->active) {
     if (!temp_path.empty())
       unlink(temp_path.c_str());
-    reply_error(i, "Busy", "another control operation is running");
+    reply_error(invocation, "Busy", "another control operation is running");
     return;
   }
-  if (c->cleanup_failed || !c->runner) {
+  if (context->cleanup_failed || !context->runner) {
     if (!temp_path.empty())
       unlink(temp_path.c_str());
-    reply_error(i, "Unavailable",
+    reply_error(invocation, "Unavailable",
                 "command runner unavailable; restart the control service");
     return;
   }
-  const std::string *executable = &c->cli;
+
+  const std::string *executable = &context->cli_path;
   if (backend == CommandBackend::kGraphicsBoot)
-    executable = &c->graphics_boot;
+    executable = &context->graphics_boot_path;
   else if (backend == CommandBackend::kSystemctl)
-    executable = &c->systemctl;
-  auto operation = std::unique_ptr<ControlContext::ActiveOperation>(
-      new ControlContext::ActiveOperation{});
-  operation->ctx = c;
-  operation->invocation = G_DBUS_METHOD_INVOCATION(g_object_ref(i));
+    executable = &context->systemctl_path;
+
+  auto operation = std::make_unique<ControlContext::ActiveOperation>();
+  operation->context = context;
+  operation->invocation = G_DBUS_METHOD_INVOCATION(g_object_ref(invocation));
   operation->temp_path = temp_path;
-  const char *sender = g_dbus_method_invocation_get_sender(i);
+  const char *sender = g_dbus_method_invocation_get_sender(invocation);
   operation->sender = sender ? sender : "";
   operation->graphics_operation = graphics;
   operation->cli_exit_contract = backend == CommandBackend::kCli;
   operation->return_output = return_output;
-  ControlContext::ActiveOperation *q = operation.get();
-  c->active = std::move(operation);
-  q->command =
-      c->runner->Start(*executable, command.argv, graphics ? 35 : 10,
-                       [q](legion_control::ManagedCommandResult result) {
-                         complete_operation(q, std::move(result));
-                       });
+
+  ControlContext::ActiveOperation *operation_ptr = operation.get();
+  context->active = std::move(operation);
+
+  // Graphics changes may wait for a display-manager transition, so they get a
+  // longer runtime than ordinary feature writes.
+  const unsigned runtime_seconds = graphics ? 35 : 10;
+  operation_ptr->command = context->runner->Start(
+      *executable, command.argv, runtime_seconds,
+      [operation_ptr](ManagedCommandResult result) {
+        complete_operation(operation_ptr, std::move(result));
+      });
 }
-bool authorized(ControlContext *c, GDBusMethodInvocation *i) {
-  if (c->auth.count(g_dbus_method_invocation_get_sender(i)))
+
+bool is_authorized(ControlContext *context, GDBusMethodInvocation *invocation) {
+  if (context->authorized_senders.count(
+          g_dbus_method_invocation_get_sender(invocation)))
     return true;
   g_dbus_method_invocation_return_dbus_error(
-      i, "org.freedesktop.DBus.Error.AccessDenied",
+      invocation, "org.freedesktop.DBus.Error.AccessDenied",
       "Authorize must be called first");
   return false;
 }
-bool bounded(const char *value, const char *label, std::string *error) {
+
+bool within_limit(const char *value, const char *label, std::string *error) {
   if (strnlen(value, input_limit + 1) <= input_limit)
     return true;
   *error = std::string(label) + " exceeds maximum length";
   return false;
 }
-} // namespace
 
-void dispatch(ControlContext *c, const gchar *m, GVariant *v,
-              GDBusMethodInvocation *i) {
-  if (c->mode == ControlConnectionMode::portable &&
-      (!g_strcmp0(m, "SetServiceEnabled") ||
-       !g_strcmp0(m, "RequestGraphicsModeAtBoot") ||
-       !g_strcmp0(m, "CancelGraphicsModeAtBoot") ||
-       !g_strcmp0(m, "GetGraphicsBootRequest"))) {
-    reply_error(i, "NotSupported",
+// Write a validated payload to a private temporary file for legion_cli. The
+// caller unlinks the file after the command ends.
+bool write_payload(const std::vector<uint8_t> &bytes, std::string *path,
+                   const char **error_name, std::string *error) {
+  char temporary[] = "/tmp/legion-control-XXXXXX";
+  const int descriptor = mkstemp(temporary);
+  if (descriptor < 0) {
+    *error_name = "Backend";
+    *error = "cannot create private temporary file";
+    return false;
+  }
+  fchmod(descriptor, 0600);
+
+  size_t written = 0;
+  while (written < bytes.size()) {
+    const ssize_t count =
+        write(descriptor, bytes.data() + written, bytes.size() - written);
+    if (count < 0 && errno == EINTR)
+      continue;
+    if (count <= 0) {
+      close(descriptor);
+      unlink(temporary);
+      *error_name = "Unavailable";
+      *error = "could not write payload";
+      return false;
+    }
+    written += static_cast<size_t>(count);
+  }
+  close(descriptor);
+  *path = temporary;
+  return true;
+}
+}  // namespace
+
+void dispatch(ControlContext *context, const gchar *method,
+              GVariant *parameters, GDBusMethodInvocation *invocation) {
+  if (context->mode == ControlConnectionMode::portable &&
+      RequiresInstalledIntegration(method)) {
+    reply_error(invocation, "NotSupported",
                 "this operation requires installed system integration");
     return;
   }
-  std::string err;
-  const gchar *f_raw = nullptr;
-  const gchar *val_raw = nullptr;
-  const gchar *cap_raw = nullptr;
-  const gchar *pre_raw = nullptr;
-  const gchar *sid_raw = nullptr;
-  const gchar *mode_raw = nullptr;
-  std::string f, val, cap, pre, sid, mode;
-  gboolean en;
-  if (!g_strcmp0(m, "SetFeature")) {
-    g_variant_get(v, "(&s&s)", &f_raw, &val_raw);
-    if (!bounded(f_raw, "feature", &err) || !bounded(val_raw, "value", &err)) {
-      reply_error(i, "InvalidArgs", err);
+
+  std::string error;
+
+  if (g_strcmp0(method, "SetFeature") == 0) {
+    const gchar *feature_raw = nullptr;
+    const gchar *value_raw = nullptr;
+    g_variant_get(parameters, "(&s&s)", &feature_raw, &value_raw);
+    if (!within_limit(feature_raw, "feature", &error) ||
+        !within_limit(value_raw, "value", &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    f = f_raw;
-    val = val_raw;
-    if (!legion_control::ValidateFeature(f, val, &err)) {
-      reply_error(i, "InvalidArgs", err);
+    const std::string feature = feature_raw;
+    const std::string value = value_raw;
+    if (!ValidateFeature(feature, value, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    invoke(c, i, legion_control::FeatureCommand(f, val));
-  } else if (!g_strcmp0(m, "SetToggle")) {
-    g_variant_get(v, "(&sb)", &cap_raw, &en);
-    if (!bounded(cap_raw, "toggle", &err)) {
-      reply_error(i, "InvalidArgs", err);
+    start_operation(context, invocation, FeatureCommand(feature, value));
+    return;
+  }
+
+  if (g_strcmp0(method, "SetToggle") == 0) {
+    const gchar *capability_raw = nullptr;
+    gboolean enabled = FALSE;
+    g_variant_get(parameters, "(&sb)", &capability_raw, &enabled);
+    if (!within_limit(capability_raw, "toggle", &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    cap = cap_raw;
-    if (!legion_control::ValidateToggle(cap, en, &err)) {
-      reply_error(i, "InvalidArgs", err);
+    const std::string capability = capability_raw;
+    if (!ValidateToggle(capability, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    invoke(c, i, legion_control::ToggleCommand(cap, en));
-  } else if (!g_strcmp0(m, "SetGraphicsMode")) {
-    g_variant_get(v, "(&s)", &mode_raw);
-    if (!bounded(mode_raw, "graphics mode", &err)) {
-      reply_error(i, "InvalidArgs", err);
+    start_operation(context, invocation, ToggleCommand(capability, enabled));
+    return;
+  }
+
+  if (g_strcmp0(method, "SetGraphicsMode") == 0) {
+    const gchar *mode_raw = nullptr;
+    g_variant_get(parameters, "(&s)", &mode_raw);
+    if (!within_limit(mode_raw, "graphics mode", &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    mode = mode_raw;
-    if (!legion_control::ValidateGraphicsMode(mode, &err)) {
-      reply_error(i, "InvalidArgs", err);
+    const std::string mode = mode_raw;
+    if (!ValidateGraphicsMode(mode, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    invoke(c, i, legion_control::GraphicsModeCommand(mode),
-           CommandBackend::kCli, {}, true);
-  } else if (!g_strcmp0(m, "RequestGraphicsModeAtBoot") ||
-             !g_strcmp0(m, "CancelGraphicsModeAtBoot") ||
-             !g_strcmp0(m, "GetGraphicsBootRequest")) {
-    if (c->graphics_boot.empty()) {
-      reply_error(i, "Unavailable",
+    start_operation(context, invocation, GraphicsModeCommand(mode),
+                    CommandBackend::kCli, {}, true);
+    return;
+  }
+
+  if (g_strcmp0(method, "RequestGraphicsModeAtBoot") == 0 ||
+      g_strcmp0(method, "CancelGraphicsModeAtBoot") == 0 ||
+      g_strcmp0(method, "GetGraphicsBootRequest") == 0) {
+    if (context->graphics_boot_path.empty()) {
+      reply_error(invocation, "Unavailable",
                   "next-boot graphics switching is not enabled");
       return;
     }
-    legion_control::Command command;
-    if (!g_strcmp0(m, "RequestGraphicsModeAtBoot")) {
-      g_variant_get(v, "(&s)", &mode_raw);
-      if (!bounded(mode_raw, "graphics mode", &err) ||
-          !legion_control::ValidateBootGraphicsMode(mode_raw, &err)) {
-        reply_error(i, "InvalidArgs", err);
+
+    Command command;
+    if (g_strcmp0(method, "RequestGraphicsModeAtBoot") == 0) {
+      const gchar *mode_raw = nullptr;
+      g_variant_get(parameters, "(&s)", &mode_raw);
+      if (!within_limit(mode_raw, "graphics mode", &error) ||
+          !ValidateBootGraphicsMode(mode_raw, &error)) {
+        reply_error(invocation, "InvalidArgs", error);
         return;
       }
-      command = legion_control::BootGraphicsRequestCommand(mode_raw);
+      command = BootGraphicsRequestCommand(mode_raw);
     } else {
-      command.argv = {!g_strcmp0(m, "CancelGraphicsModeAtBoot") ? "cancel"
-                                                                : "status"};
+      command.argv = {g_strcmp0(method, "CancelGraphicsModeAtBoot") == 0
+                          ? "cancel"
+                          : "status"};
     }
-    invoke(c, i, command, CommandBackend::kGraphicsBoot, {}, false, true);
-  } else if (!g_strcmp0(m, "ApplyFanPreset")) {
-    g_variant_get(v, "(&s)", &pre_raw);
-    if (!bounded(pre_raw, "preset", &err)) {
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    pre = pre_raw;
-    if (!legion_control::ValidatePreset(pre, &err)) {
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    invoke(c, i, legion_control::PresetCommand(pre));
-  } else if (!g_strcmp0(m, "ApplyCurrentFanPreset"))
-    invoke(c, i, legion_control::CurrentPresetCommand());
-  else if (!g_strcmp0(m, "ApplyCustomConservation")) {
-    guint l, u;
-    g_variant_get(v, "(uu)", &l, &u);
-    if (!legion_control::ValidateConservation(l, u, &err)) {
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    invoke(c, i, legion_control::ConservationCommand(l, u));
-  } else if (!g_strcmp0(m, "ApplyFanCurve") || !g_strcmp0(m, "SetBootLogo")) {
-    GVariant *b = nullptr;
-    g_variant_get(v, "(@ay)", &b);
-    gsize n = 0;
-    const guint8 *p = static_cast<const guint8 *>(
-        g_variant_get_fixed_array(b, &n, sizeof(guint8)));
-    size_t max = !g_strcmp0(m, "ApplyFanCurve") ? 64 * 1024 : 16 * 1024 * 1024;
-    if (n == 0 || n > max) {
-      g_variant_unref(b);
-      reply_error(i, "InvalidArgs",
-                  n == 0 ? "payload must not be empty"
-                         : "payload exceeds maximum size");
-      return;
-    }
-    std::vector<uint8_t> bytes(p, p + n);
-    if (!legion_control::ValidateBytes(bytes, max, &err)) {
-      g_variant_unref(b);
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    char t[] = "/tmp/legion-control-XXXXXX";
-    int fd = mkstemp(t);
-    if (fd < 0) {
-      g_variant_unref(b);
-      reply_error(i, "Backend", "cannot create private temporary file");
-      return;
-    }
-    fchmod(fd, 0600);
-    size_t written = 0;
-    while (written < n) {
-      const ssize_t result = write(fd, p + written, n - written);
-      if (result < 0 && errno == EINTR)
-        continue;
-      if (result <= 0) {
-        close(fd);
-        unlink(t);
-        g_variant_unref(b);
-        reply_error(i, "Unavailable", "could not write payload");
-        return;
-      }
-      written += static_cast<size_t>(result);
-    }
-    close(fd);
-    invoke(c, i,
-           !g_strcmp0(m, "ApplyFanCurve") ? legion_control::FileCommand(t)
-                                          : legion_control::BootLogoCommand(t),
-           CommandBackend::kCli, t);
-    g_variant_unref(b);
-  } else if (!g_strcmp0(m, "RestoreBootLogo"))
-    invoke(c, i, legion_control::RestoreBootLogoCommand());
-  else if (!g_strcmp0(m, "SetServiceEnabled")) {
-    g_variant_get(v, "(&sb)", &sid_raw, &en);
-    if (!bounded(sid_raw, "service id", &err)) {
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    sid = sid_raw;
-    if (!legion_control::ValidateService(sid, &err)) {
-      reply_error(i, "InvalidArgs", err);
-      return;
-    }
-    invoke(c, i, legion_control::ServiceCommand(sid, en),
-           CommandBackend::kSystemctl);
-  } else
-    reply_error(i, "InvalidArgs", "unknown method");
-}
-namespace {
-void call(GDBusConnection *, const gchar *, const gchar *, const gchar *,
-          const gchar *m, GVariant *v, GDBusMethodInvocation *i, gpointer d) {
-  auto *c = static_cast<ControlContext *>(d);
-  if (!g_strcmp0(m, "GetCapabilities")) {
-    reply_capabilities(c, i);
+    start_operation(context, invocation, command, CommandBackend::kGraphicsBoot,
+                    {}, false, true);
     return;
   }
-  if (!g_strcmp0(m, "Authorize")) {
-    const std::string sender = g_dbus_method_invocation_get_sender(i);
-    if (c->auth.count(sender)) {
-      done(i);
+
+  if (g_strcmp0(method, "ApplyFanPreset") == 0) {
+    const gchar *preset_raw = nullptr;
+    g_variant_get(parameters, "(&s)", &preset_raw);
+    if (!within_limit(preset_raw, "preset", &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    if (!c->authority) {
-      reply_error(i, "Authorization", "polkit unavailable");
+    const std::string preset = preset_raw;
+    if (!ValidatePreset(preset, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    if (c->pending.count(sender)) {
-      reply_error(i, "Busy", "authorization is already pending");
+    start_operation(context, invocation, PresetCommand(preset));
+    return;
+  }
+
+  if (g_strcmp0(method, "ApplyCurrentFanPreset") == 0) {
+    start_operation(context, invocation, CurrentPresetCommand());
+    return;
+  }
+
+  if (g_strcmp0(method, "ApplyCustomConservation") == 0) {
+    guint lower = 0;
+    guint upper = 0;
+    g_variant_get(parameters, "(uu)", &lower, &upper);
+    if (!ValidateConservation(lower, upper, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    PolkitSubject *s =
-        polkit_system_bus_name_new(g_dbus_method_invocation_get_sender(i));
-    PolkitDetails *x = polkit_details_new();
+    start_operation(context, invocation, ConservationCommand(lower, upper));
+    return;
+  }
+
+  if (g_strcmp0(method, "ApplyFanCurve") == 0 ||
+      g_strcmp0(method, "SetBootLogo") == 0) {
+    const bool fan_curve = g_strcmp0(method, "ApplyFanCurve") == 0;
+    const gsize maximum_size = fan_curve ? 64 * 1024 : 16 * 1024 * 1024;
+
+    g_autoptr(GVariant) payload = nullptr;
+    g_variant_get(parameters, "(@ay)", &payload);
+    gsize length = 0;
+    const guint8 *data = static_cast<const guint8 *>(
+        g_variant_get_fixed_array(payload, &length, sizeof(guint8)));
+    if (length == 0) {
+      reply_error(invocation, "InvalidArgs", "payload must not be empty");
+      return;
+    }
+    if (length > maximum_size) {
+      reply_error(invocation, "InvalidArgs", "payload exceeds maximum size");
+      return;
+    }
+
+    std::vector<uint8_t> bytes(data, data + length);
+    std::string path;
+    const char *error_name = nullptr;
+    if (!write_payload(bytes, &path, &error_name, &error)) {
+      reply_error(invocation, error_name, error);
+      return;
+    }
+    start_operation(context, invocation,
+                    fan_curve ? FileCommand(path) : BootLogoCommand(path),
+                    CommandBackend::kCli, path);
+    return;
+  }
+
+  if (g_strcmp0(method, "RestoreBootLogo") == 0) {
+    start_operation(context, invocation, RestoreBootLogoCommand());
+    return;
+  }
+
+  if (g_strcmp0(method, "SetServiceEnabled") == 0) {
+    const gchar *service_raw = nullptr;
+    gboolean enabled = FALSE;
+    g_variant_get(parameters, "(&sb)", &service_raw, &enabled);
+    if (!within_limit(service_raw, "service id", &error)) {
+      reply_error(invocation, "InvalidArgs", error);
+      return;
+    }
+    const std::string service_id = service_raw;
+    if (!ValidateService(service_id, &error)) {
+      reply_error(invocation, "InvalidArgs", error);
+      return;
+    }
+    start_operation(context, invocation, ServiceCommand(service_id, enabled),
+                    CommandBackend::kSystemctl);
+    return;
+  }
+
+  reply_error(invocation, "InvalidArgs", "unknown method");
+}
+
+namespace {
+void handle_method_call(GDBusConnection *, const gchar *, const gchar *,
+                        const gchar *, const gchar *method,
+                        GVariant *parameters, GDBusMethodInvocation *invocation,
+                        gpointer data) {
+  auto *context = static_cast<ControlContext *>(data);
+
+  if (g_strcmp0(method, "GetCapabilities") == 0) {
+    reply_capabilities(context, invocation);
+    return;
+  }
+
+  if (g_strcmp0(method, "Authorize") == 0) {
+    const std::string sender = g_dbus_method_invocation_get_sender(invocation);
+    if (context->authorized_senders.count(sender)) {
+      done(invocation);
+      return;
+    }
+    if (!context->polkit_authority) {
+      reply_error(invocation, "Authorization", "polkit unavailable");
+      return;
+    }
+    if (context->pending_authorizations.count(sender)) {
+      reply_error(invocation, "Busy", "authorization is already pending");
+      return;
+    }
+
+    PolkitSubject *subject = polkit_system_bus_name_new(sender.c_str());
+    PolkitDetails *details = polkit_details_new();
     auto *cancel = g_cancellable_new();
-    c->pending.emplace(sender, G_CANCELLABLE(g_object_ref(cancel)));
-    auto *q = new std::pair<ControlContext *, GDBusMethodInvocation *>(
-        c, g_object_ref(i));
-    ++c->authorization_callbacks;
+    context->pending_authorizations.emplace(
+        sender, G_CANCELLABLE(g_object_ref(cancel)));
+
+    auto *request = new AuthorizationRequest{
+        context, G_DBUS_METHOD_INVOCATION(g_object_ref(invocation))};
+    ++context->authorization_callbacks;
     polkit_authority_check_authorization(
-        c->authority, s, "io.github.prnice.legion-control.manage", x,
+        context->polkit_authority, subject,
+        "io.github.prnice.legion-control.manage", details,
         POLKIT_CHECK_AUTHORIZATION_FLAGS_ALLOW_USER_INTERACTION, cancel,
-        auth_done, q);
-    g_object_unref(x);
-    g_object_unref(s);
+        authorization_done, request);
+
+    g_object_unref(details);
+    g_object_unref(subject);
     g_object_unref(cancel);
     return;
   }
-  if (!authorized(c, i))
-    return;
-  dispatch(c, m, v, i);
-}
-} // namespace
 
-const GDBusInterfaceVTable control_vtable = {call, nullptr, nullptr, {nullptr}};
-} // namespace legion_control
+  if (!is_authorized(context, invocation))
+    return;
+
+  dispatch(context, method, parameters, invocation);
+}
+}  // namespace
+
+const GDBusInterfaceVTable control_vtable = {
+    handle_method_call, nullptr, nullptr, {nullptr}};
+}  // namespace legion_control

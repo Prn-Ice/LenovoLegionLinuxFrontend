@@ -12,4 +12,4 @@ bool ValidatePortableCliHelp(const std::string &help, std::string *error);
 bool QualifyPortableCli(std::shared_ptr<ManagedCommandRunner> runner,
                         const std::string &cli, int app, int launcher,
                         GError **error);
-} // namespace legion_control
+}  // namespace legion_control

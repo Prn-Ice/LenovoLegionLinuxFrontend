@@ -1,25 +1,33 @@
+// Command-line front end for a graphics-mode change at the next boot.
+//
+// It authorizes once, then sends one request over the same D-Bus connection.
+// Authorization is tied to that connection's unique bus name, so splitting
+// the calls across connections would lose it. This command never changes
+// hardware or reboots; it only queues a request for the service to apply.
 #include "control_commands.h"
 #include <cstdio>
 #include <gio/gio.h>
 #include <string>
 
-// Keep authorization and the request on one connection: authorization is bound
-// to its unique bus name and is revoked when this process disconnects.
 int main(int argc, char **argv) {
   const std::string action = argc == 2 ? argv[1] : "";
   std::string error;
   if (action == "--help" || action == "-h") {
-    std::puts("Usage: legion-graphics-next-boot "
-              "hybrid-igpu-only|hybrid|status|cancel\n"
-              "Queues a later-boot change only. Does not change hardware or "
-              "reboot now.");
+    std::puts(
+        "Usage: legion-graphics-next-boot "
+        "hybrid-igpu-only|hybrid|status|cancel\n"
+        "Queues a later-boot change only. Does not change hardware or "
+        "reboot now.");
     return 0;
   }
+  // Reject unknown actions before touching the bus. `status` and `cancel`
+  // need no mode name.
   if (action != "status" && action != "cancel" &&
       !legion_control::ValidateBootGraphicsMode(action, &error)) {
-    std::fputs("Usage: legion-graphics-next-boot "
-               "hybrid-igpu-only|hybrid|status|cancel\n",
-               stderr);
+    std::fputs(
+        "Usage: legion-graphics-next-boot "
+        "hybrid-igpu-only|hybrid|status|cancel\n",
+        stderr);
     return 2;
   }
   GError *failure = nullptr;
@@ -31,6 +39,8 @@ int main(int argc, char **argv) {
     g_clear_error(&failure);
     return 1;
   }
+  // `call` reuses one connection and one error slot. Interactive
+  // authorization lets polkit prompt for approval when needed.
   auto call = [&](const char *method, GVariant *parameters,
                   const GVariantType *reply) {
     return g_dbus_connection_call_sync(

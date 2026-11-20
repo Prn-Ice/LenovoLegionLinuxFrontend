@@ -1,3 +1,11 @@
+// Connects to the root control helper through a private Unix socket.
+//
+// A socket path alone is not proof of identity: another process could listen
+// on it. Before connecting, this file checks that:
+//   1. systemd reports the expected unit's MainPID,
+//   2. the helper's D-Bus name belongs to that PID and runs as root,
+//   3. the socket peer's credentials name the same PID.
+// Only then does it open a D-Bus connection that uses EXTERNAL authentication.
 #include "portable_peer.h"
 #include "portable_unit.h"
 
@@ -11,11 +19,16 @@
 
 namespace legion_control {
 namespace {
+
+// Set a plain GIO error and return false, so callers can `return Fail(...)`.
 bool Fail(GError **error, GIOErrorEnum code, const char *message) {
   g_set_error_literal(error, G_IO_ERROR, code, message);
   return false;
 }
 
+// Extract the filesystem path from a D-Bus address such as
+// `unix:path=/run/...`. The address must name one path and may end with a
+// GUID. Returns an empty string when the address is not acceptable.
 std::string SocketPath(const std::string &address) {
   constexpr char prefix[] = "unix:path=";
   if (address.compare(0, strlen(prefix), prefix) != 0 ||
@@ -39,19 +52,21 @@ std::string SocketPath(const std::string &address) {
   return !path.empty() && path[0] == '/' && path.size() < 108 ? path : "";
 }
 
+// State shared by the async connect call and its five-second deadline.
 struct ConnectTask {
   PortableEndpoint endpoint;
   PortablePeerCompletion completion;
   GSource *deadline;
   GCancellable *cancel;
   bool timed_out = false;
+
   ~ConnectTask() {
     g_source_destroy(deadline);
     g_source_unref(deadline);
     g_object_unref(cancel);
   }
 };
-} // namespace
+}  // namespace
 
 bool ValidatePortableEndpoint(const PortableEndpoint &endpoint,
                               GError **error) {
@@ -63,6 +78,8 @@ bool ValidatePortableEndpoint(const PortableEndpoint &endpoint,
   return true;
 }
 
+// Perform the checks and connect. This runs on a worker thread in the async
+// wrapper below; all calls are the blocking variants for that reason.
 GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
                                          GCancellable *cancel, GError **error,
                                          bool *server_verified) {
@@ -72,20 +89,29 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
     return nullptr;
   if (g_cancellable_set_error_if_cancelled(cancel, error))
     return nullptr;
+  // Pin the helper process. If the PID is reused after the helper exits, this
+  // pidfd still refers to the old process, so Alive() stays correct.
   const int process = syscall(SYS_pidfd_open, endpoint.helper_pid, 0);
   if (process < 0) {
     Fail(error, G_IO_ERROR_PERMISSION_DENIED,
          "could not pin the portable helper process");
     return nullptr;
   }
+
   struct PinnedProcess {
     int descriptor;
-    ~PinnedProcess() { close(descriptor); }
+
+    ~PinnedProcess() {
+      close(descriptor);
+    }
+
     bool Alive() const {
       pollfd state{descriptor, POLLIN, 0};
       return poll(&state, 1, 0) == 0;
     }
   } pinned{process};
+
+  // Ask the system bus for the systemd manager's current unique name.
   auto *manager = g_dbus_connection_new_for_address_sync(
       "unix:path=/run/dbus/system_bus_socket",
       static_cast<GDBusConnectionFlags>(
@@ -102,6 +128,7 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
   const char *manager_owner = nullptr;
   if (owner)
     g_variant_get(owner, "(&s)", &manager_owner);
+  // Find the unit and read its MainPID.
   auto *location =
       owner ? g_dbus_connection_call_sync(
                   manager, manager_owner, "/org/freedesktop/systemd1",
@@ -131,6 +158,7 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
     g_variant_unref(value);
     g_variant_unref(pid_reply);
   }
+  // The helper's D-Bus name must belong to the same PID and UID 0.
   auto *identity =
       actual_pid == endpoint.helper_pid
           ? g_dbus_connection_call_sync(
@@ -165,22 +193,24 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
            "portable helper does not match a host root systemd service");
     return nullptr;
   }
+  // The endpoint passed the process checks. Connect to its private socket.
+  const std::string socket_path = SocketPath(endpoint.address);
   auto *socket_client = g_socket_client_new();
   g_socket_client_set_timeout(socket_client, 5);
-  auto *socket_address =
-      g_unix_socket_address_new(SocketPath(endpoint.address).c_str());
+  auto *socket_address = g_unix_socket_address_new(socket_path.c_str());
   auto *stream = g_socket_client_connect(
       socket_client, G_SOCKET_CONNECTABLE(socket_address), cancel, error);
   g_object_unref(socket_address);
   g_object_unref(socket_client);
   if (!stream)
     return nullptr;
+  // Finally, bind the socket connection to the pinned PID. The host bus
+  // supplies the UID; socket credentials alone are ambiguous inside a user
+  // namespace.
   auto *credentials =
       g_socket_get_credentials(g_socket_connection_get_socket(stream), error);
   bool verified = false;
   if (credentials) {
-    // The host bus supplies the UID. Socket credentials bind its process to
-    // this connection; the socket UID is ambiguous inside a user namespace.
     const auto pid = g_credentials_get_unix_pid(credentials, error);
     verified = (!error || !*error) &&
                pid == static_cast<pid_t>(endpoint.helper_pid) && pinned.Alive();
@@ -195,6 +225,8 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
   }
   if (server_verified)
     *server_verified = true;
+  // D-Bus EXTERNAL authentication uses the socket's peer credentials. The
+  // observer rejects every other mechanism.
   auto *observer = g_dbus_auth_observer_new();
   g_signal_connect(observer, "allow-mechanism",
                    G_CALLBACK(+[](GDBusAuthObserver *, const gchar *mechanism,
@@ -224,6 +256,8 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &endpoint,
   return connection;
 }
 
+// Run ConnectPortablePeerSync on a worker thread so the UI stays responsive.
+// A five-second deadline cancels the work and reports a timeout.
 void ConnectPortablePeer(const PortableEndpoint &endpoint, GCancellable *cancel,
                          PortablePeerCompletion completion) {
   auto *deadline = g_timeout_source_new(5000);
@@ -277,4 +311,4 @@ void ConnectPortablePeer(const PortableEndpoint &endpoint, GCancellable *cancel,
       });
   g_object_unref(task);
 }
-} // namespace legion_control
+}  // namespace legion_control

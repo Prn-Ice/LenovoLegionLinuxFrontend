@@ -1,3 +1,8 @@
+// Small D-Bus service that reports CPU package power.
+//
+// It samples the powercap energy counter once per second and answers
+// GetSnapshot with the latest reading. The sampler also exposes why a reading
+// is unavailable, so the app can explain missing hardware support.
 #include <gio/gio.h>
 
 #include <cstdint>
@@ -23,48 +28,54 @@ constexpr char kIntrospectionXml[] = R"XML(
 </node>
 )XML";
 
+// Everything the GLib callbacks need. The object lives in main for the whole
+// service lifetime.
 struct ServiceContext {
   explicit ServiceContext(std::string powercap_root)
       : sampler(std::move(powercap_root)) {}
 
   PackagePowerSampler sampler;
-  GMainLoop* loop = nullptr;
-  GDBusNodeInfo* introspection = nullptr;
+  GMainLoop *loop = nullptr;
+  GDBusNodeInfo *introspection = nullptr;
   guint registration_id = 0;
   bool name_acquired = false;
 };
 
+// Timer callback: take one sample and keep the timer running.
 gboolean SamplePower(gpointer user_data) {
-  auto* context = static_cast<ServiceContext*>(user_data);
+  auto *context = static_cast<ServiceContext *>(user_data);
   context->sampler.Sample(g_get_monotonic_time());
   return G_SOURCE_CONTINUE;
 }
 
-void HandleMethodCall(GDBusConnection*, const gchar*, const gchar*,
-                      const gchar* interface_name, const gchar* method_name,
-                      GVariant*, GDBusMethodInvocation* invocation,
+// Answer GetSnapshot. Unknown methods get a D-Bus error instead of a reply.
+void HandleMethodCall(GDBusConnection *, const gchar *, const gchar *,
+                      const gchar *interface_name, const gchar *method_name,
+                      GVariant *, GDBusMethodInvocation *invocation,
                       gpointer user_data) {
-  auto* context = static_cast<ServiceContext*>(user_data);
+  auto *context = static_cast<ServiceContext *>(user_data);
   if (g_strcmp0(interface_name, kInterfaceName) != 0 ||
       g_strcmp0(method_name, "GetSnapshot") != 0) {
-    g_dbus_method_invocation_return_error(
-        invocation, G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_METHOD,
-        "Unknown telemetry method");
+    g_dbus_method_invocation_return_error(invocation, G_DBUS_ERROR,
+                                          G_DBUS_ERROR_UNKNOWN_METHOD,
+                                          "Unknown telemetry method");
     return;
   }
 
-  const auto& reading = context->sampler.reading();
+  const auto &reading = context->sampler.reading();
   g_dbus_method_invocation_return_value(
       invocation, g_variant_new("(@a{sv})", BuildTelemetrySnapshot(reading)));
 }
 
-const GDBusInterfaceVTable kInterfaceVTable = {HandleMethodCall, nullptr,
-                                               nullptr, {nullptr}};
+const GDBusInterfaceVTable kInterfaceVTable = {
+    HandleMethodCall, nullptr, nullptr, {nullptr}};
 
-void OnBusAcquired(GDBusConnection* connection, const gchar*,
+// Register the object as soon as the bus connection exists. If registration
+// fails, stop the loop so main can exit with an error.
+void OnBusAcquired(GDBusConnection *connection, const gchar *,
                    gpointer user_data) {
-  auto* context = static_cast<ServiceContext*>(user_data);
-  GError* error = nullptr;
+  auto *context = static_cast<ServiceContext *>(user_data);
+  GError *error = nullptr;
   context->registration_id = g_dbus_connection_register_object(
       connection, kObjectPath, context->introspection->interfaces[0],
       &kInterfaceVTable, context, nullptr, &error);
@@ -75,20 +86,24 @@ void OnBusAcquired(GDBusConnection* connection, const gchar*,
   }
 }
 
-void OnNameAcquired(GDBusConnection*, const gchar*, gpointer user_data) {
-  auto* context = static_cast<ServiceContext*>(user_data);
+void OnNameAcquired(GDBusConnection *, const gchar *, gpointer user_data) {
+  auto *context = static_cast<ServiceContext *>(user_data);
   context->name_acquired = true;
 }
 
-void OnNameLost(GDBusConnection*, const gchar*, gpointer user_data) {
-  auto* context = static_cast<ServiceContext*>(user_data);
+// Losing the well-known name means another service instance owns it. Exit
+// instead of running without a reachable name.
+void OnNameLost(GDBusConnection *, const gchar *, gpointer user_data) {
+  auto *context = static_cast<ServiceContext *>(user_data);
   g_printerr("Failed to own D-Bus name %s\n", kBusName);
   g_main_loop_quit(context->loop);
 }
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
+  // Tests and development builds can point at a fixture directory instead of
+  // the real /sys/class/powercap.
   std::string powercap_root = "/sys/class/powercap";
   if (argc == 3 && std::string(argv[1]) == "--sysfs-root") {
     powercap_root = argv[2];
@@ -100,7 +115,7 @@ int main(int argc, char** argv) {
   ServiceContext context(powercap_root);
   context.loop = g_main_loop_new(nullptr, FALSE);
 
-  GError* error = nullptr;
+  GError *error = nullptr;
   context.introspection =
       g_dbus_node_info_new_for_xml(kIntrospectionXml, &error);
   if (context.introspection == nullptr) {
@@ -110,6 +125,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // Take one reading before the first timer tick, then own the bus name. The
+  // callbacks above run on this main loop.
   SamplePower(&context);
   const guint timer_id = g_timeout_add_seconds(1, SamplePower, &context);
   const guint owner_id = g_bus_own_name(

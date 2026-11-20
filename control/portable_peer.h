@@ -27,4 +27,4 @@ GDBusConnection *ConnectPortablePeerSync(const PortableEndpoint &,
 using PortablePeerCompletion = std::function<void(GDBusConnection *, GError *)>;
 void ConnectPortablePeer(const PortableEndpoint &, GCancellable *,
                          PortablePeerCompletion);
-} // namespace legion_control
+}  // namespace legion_control

@@ -1,3 +1,8 @@
+// Checks that the installed `legion_cli` supports the commands the app uses.
+//
+// Qualification runs `legion_cli --help` through the same managed-command
+// runner as real operations. That proves the binary starts in the helper's
+// sandbox and that its help text lists every command in our allow-list.
 #include "portable_cli.h"
 #include "control_commands.h"
 
@@ -7,10 +12,15 @@
 
 namespace legion_control {
 namespace {
+// A pidfd is readable when its process has exited. This helper treats a
+// missing descriptor as dead too.
 bool Alive(int fd) {
   pollfd process{fd, POLLIN, 0};
   return fd >= 0 && poll(&process, 1, 0) == 0;
 }
+
+// Split text into words made of letters, digits, '-' and '_'. Help output uses
+// punctuation such as commas and braces, which this drops.
 std::set<std::string> Tokens(const std::string &text) {
   std::set<std::string> result;
   std::string token;
@@ -26,7 +36,7 @@ std::set<std::string> Tokens(const std::string &text) {
     result.insert(token);
   return result;
 }
-} // namespace
+}  // namespace
 
 bool ValidatePortableCliHelp(const std::string &help, std::string *error) {
   error->clear();
@@ -62,6 +72,9 @@ bool ValidatePortableCliHelp(const std::string &help, std::string *error) {
   return false;
 }
 
+// Run one bounded `--help` command and stop early if the app or launcher
+// exits. The result is reported through `error` so the caller can surface a
+// single clear message.
 bool QualifyPortableCli(std::shared_ptr<ManagedCommandRunner> runner,
                         const std::string &cli, int app, int launcher,
                         GError **error) {
@@ -70,6 +83,7 @@ bool QualifyPortableCli(std::shared_ptr<ManagedCommandRunner> runner,
                         "The app session ended before CLI qualification.");
     return false;
   }
+
   struct Qualification {
     GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
     std::shared_ptr<ManagedCommandOperation> operation;
@@ -77,11 +91,14 @@ bool QualifyPortableCli(std::shared_ptr<ManagedCommandRunner> runner,
     bool ended = false;
     guint app_watch = 0, launcher_watch = 0;
   } check;
+
+  // Three seconds is enough for --help and keeps startup responsive.
   check.operation =
       runner->Start(cli, {"--help"}, 3, [&check](ManagedCommandResult result) {
         check.result = std::move(result);
         g_main_loop_quit(check.loop);
       });
+  // Cancel the command if either pinned process exits, then end the loop.
   auto cancel = [](gint, GIOCondition, gpointer data) -> gboolean {
     auto *check = static_cast<Qualification *>(data);
     check->ended = true;
@@ -116,4 +133,4 @@ bool QualifyPortableCli(std::shared_ptr<ManagedCommandRunner> runner,
   g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, reason.c_str());
   return false;
 }
-} // namespace legion_control
+}  // namespace legion_control

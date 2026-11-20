@@ -1,4 +1,14 @@
 // Starts one approved sealed helper and supervises its app session.
+//
+// The app is not privileged, so it asks systemd to run this program as root.
+// This program then:
+//   1. checks that it runs from a sealed executable with no loader overrides,
+//   2. snapshots the executable and passes the sealed copy to systemd,
+//   3. starts the helper as a transient service with its own cleanup units,
+//   4. keeps watching until the helper ends, this process is cancelled, or the
+//      parent app exits.
+// The helper reads its input from file descriptors supplied by systemd. It
+// never trusts a path from the app.
 #include "executable_snapshot.h"
 #ifdef LEGION_EMBEDDED_CLEANUP
 #include "portable_cleanup_image.h"
@@ -35,13 +45,21 @@ constexpr char unit_prefix[] = "legion-bootstrap-probe-";
 constexpr bool test_build = false;
 constexpr char unit_prefix[] = "legion-portable-control-";
 #endif
+
+// Only units created by this program may be stopped or released. The name
+// check prevents a malformed argument from naming another systemd unit.
 bool ValidUnit(const std::string &unit) {
   return legion_control::ValidPortableUnit(unit) &&
          unit.compare(0, strlen(unit_prefix), unit_prefix) == 0;
 }
+
 constexpr char manager_path[] = "/org/freedesktop/systemd1";
 constexpr char manager_interface[] = "org.freedesktop.systemd1.Manager";
 
+// The privileged path is safe only when all three checks pass:
+//   - we are root (systemd started us with the expected identity),
+//   - no environment variable can redirect library or module loading,
+//   - /proc/self/exe is a sealed memfd, so its bytes cannot change.
 bool ApprovedSnapshot() {
   if (getuid() != 0 || geteuid() != 0)
     return false;
@@ -62,6 +80,8 @@ bool ApprovedSnapshot() {
   return sealed;
 }
 
+// Stop the cleanup timer that would otherwise start while the helper is still
+// queued behind its gate. The timer is named after the helper unit.
 bool StopStartupDeadline(const std::string &unit) {
   if (!ValidUnit(unit))
     return false;
@@ -95,6 +115,9 @@ bool StopStartupDeadline(const std::string &unit) {
   return stopped;
 }
 
+// Read the launcher and app identities from the inherited stderr pipe, then
+// replace stderr with /dev/null. The helper must not keep the pipe open,
+// because the app reads until end-of-file to learn that setup finished.
 bool ReceiveLifetime(legion_control::PortableLifetime *lifetime) {
   GError *error = nullptr;
   const bool received = legion_control::ReceivePortableLifetimeMessage(
@@ -111,6 +134,8 @@ bool ReceiveLifetime(legion_control::PortableLifetime *lifetime) {
 }
 
 #ifdef LEGION_PORTABLE_TEST
+// Minimal root helper used by the test VM. It proves that sealed bytes run as
+// root and that the helper notices when the launcher exits.
 int Helper(const char *launcher_text, const std::string &unit) {
   if (!ApprovedSnapshot())
     return 2;
@@ -136,6 +161,8 @@ int Helper(const char *launcher_text, const std::string &unit) {
 
 #endif
 
+// State for one launcher run. The main loop waits for the start reply and,
+// for the control helper, keeps watching the unit until it ends.
 struct Launch {
   GMainLoop *loop = g_main_loop_new(nullptr, FALSE);
   GCancellable *cancel = g_cancellable_new();
@@ -148,6 +175,8 @@ struct Launch {
   guint unit_watch = 0;
 };
 
+// Signal or parent-death handler: stop waiting and let the normal cleanup path
+// run.
 gboolean Cancel(gpointer data) {
   auto *launch = static_cast<Launch *>(data);
   launch->cancelled = true;
@@ -156,6 +185,8 @@ gboolean Cancel(gpointer data) {
   return G_SOURCE_CONTINUE;
 }
 
+// Call a method on the systemd manager once its bus name is known. The caller
+// owns the returned variant.
 GVariant *Manager(Launch *launch, const char *method, GVariant *parameters,
                   const GVariantType *type) {
   if (launch->owner.empty()) {
@@ -168,6 +199,8 @@ GVariant *Manager(Launch *launch, const char *method, GVariant *parameters,
       G_DBUS_CALL_FLAGS_NO_AUTO_START, 2000, nullptr, &launch->error);
 }
 
+// Watch the control unit while the session runs. A failed unit ends the loop
+// with an error; an inactive unit without a queued job ends it normally.
 gboolean ObserveControlUnit(gpointer data) {
   auto *launch = static_cast<Launch *>(data);
   if (launch->observing)
@@ -213,7 +246,13 @@ gboolean ObserveControlUnit(gpointer data) {
   return G_SOURCE_CONTINUE;
 }
 
+// Run the launcher. `wait_before_start` holds startup until the app sends 's'
+// on stdin; `queued` places the unit behind a test gate; `control` starts the
+// long-lived control helper instead of the short startup probe.
 int Launcher(bool wait_before_start, bool queued, bool control = false) {
+  // The launcher must run as the ordinary app user, must not be dumpable, and
+  // must be able to pin its parent with a pidfd so parent death is observed
+  // without race-prone signal handling.
   if (getuid() == 0 || geteuid() != getuid() || prctl(PR_SET_DUMPABLE, 0) != 0)
     return 2;
   const pid_t parent_pid = getppid();
@@ -223,6 +262,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       close(parent);
     return 1;
   }
+  // Copy this executable into a sealed, anonymous file. systemd runs the
+  // sealed copy, so replacing the file on disk cannot change what runs as
+  // root.
   const int source = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
   std::string error;
   const int snapshot = legion_control::CreateExecutableSnapshot(source, &error);
@@ -239,6 +281,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
   g_free(uuid);
   printf("SNAPSHOT_READY launcher=%d unit=%s\n", getpid(), launch.unit.c_str());
   fflush(stdout);
+  // Test mode can hold the start until the app is ready. Watching the parent
+  // pidfd here means a dead app never leaves a queued start behind.
   if (wait_before_start) {
     pollfd descriptors[] = {{STDIN_FILENO, POLLIN, 0}, {parent, POLLIN, 0}};
     const int ready = poll(descriptors, 2, 10000);
@@ -269,6 +313,7 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     g_main_loop_unref(launch.loop);
     return 1;
   }
+  // End the wait on SIGTERM, SIGINT, parent exit, or an overall deadline.
   const guint terminate = g_unix_signal_add(SIGTERM, Cancel, &launch);
   const guint interrupt = g_unix_signal_add(SIGINT, Cancel, &launch);
   const guint parent_watch = g_unix_fd_add(
@@ -279,6 +324,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       &launch);
   guint deadline = g_timeout_add(control ? 60000 : 20000, Cancel, &launch);
 
+  // Resolve the manager's unique bus name. Calling the well-known name is not
+  // enough: an owner change must cancel the operation.
   GVariant *owner = g_dbus_connection_call_sync(
       launch.connection, "org.freedesktop.DBus", "/org/freedesktop/DBus",
       "org.freedesktop.DBus", "GetNameOwner",
@@ -289,6 +336,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     g_variant_get(owner, "(&s)", &name);
     launch.owner = name;
     g_variant_unref(owner);
+    // Build the transient unit. The properties below define identity,
+    // containment, time limits, and the file descriptors passed to the helper.
     GVariantBuilder properties;
     g_variant_builder_init(&properties, G_VARIANT_TYPE("a(sv)"));
     auto property = [&properties](const char *name, GVariant *value) {
@@ -303,10 +352,10 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     property("TimeoutStartUSec", g_variant_new_uint64(3000000));
     property("JobRunningTimeoutUSec", g_variant_new_uint64(3000000));
     property("TimeoutStopUSec", g_variant_new_uint64(1000000));
-    property("RuntimeMaxUSec",
-             g_variant_new_uint64(test_build
-                                      ? (control ? 60000000 : 15000000)
-                                      : guint64(12 * 60 * 60) * 1000000));
+    property(
+        "RuntimeMaxUSec",
+        g_variant_new_uint64(test_build ? (control ? 60000000 : 15000000)
+                                        : guint64(12 * 60 * 60) * 1000000));
     for (const char *name :
          {"AddRef", "NoNewPrivileges", "PrivateTmp", "SendSIGKILL"})
       property(name, g_variant_new_boolean(TRUE));
@@ -321,6 +370,10 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
     property("WorkingDirectory", g_variant_new_string("/"));
     property("ProtectHome", g_variant_new_string("yes"));
     property("ProtectSystem", g_variant_new_string("strict"));
+    // The helper receives three descriptors:
+    //   0: the sealed executable, so /proc/self/fd/0 is the program to run,
+    //   1: our stdout, which the app reads for progress messages,
+    //   2: a lifetime pipe that ties the helper to this launcher and app.
     GUnixFDList *fds = g_unix_fd_list_new();
     const int handle = g_unix_fd_list_append(fds, STDOUT_FILENO, &launch.error);
     const int image_handle =
@@ -334,6 +387,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                       : -1;
     if (lifetime >= 0)
       close(lifetime);
+    // The cleanup unit needs the same sealed executable. Static builds carry a
+    // small cleanup image; dynamic builds reuse the main snapshot.
     GVariant *cleanup_image = nullptr;
     int cleanup_handle = image_handle;
     if (lifetime_handle >= 0) {
@@ -386,6 +441,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
           app_uid.c_str(),    launch.unit.c_str(), nullptr};
       const std::string runtime_directory =
           launch.unit.substr(0, launch.unit.size() - 8);
+      // The control helper gets a narrower sandbox than the startup probe:
+      // no extra namespaces, no network, and only the system-service syscall
+      // group. It also gets a private runtime directory for its socket.
       if (control) {
         for (const char *name :
              {"ProtectHostname", "ProtectClock", "ProtectControlGroups",
@@ -413,6 +471,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       g_variant_builder_add(&commands, "(s^as^as)", executable.c_str(),
                             control ? control_arguments : arguments, flags);
       property("ExecStartEx", g_variant_builder_end(&commands));
+      // The cleanup timer fires after five seconds if startup is still queued.
+      // On success or failure the helper starts a one-shot cleanup service.
       const std::string base = launch.unit.substr(0, launch.unit.size() - 8);
       const std::string timer_unit = base + "-cleanup.timer";
       const std::string cleanup = base + "-cleanup.service";
@@ -429,6 +489,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
         property("Requires", g_variant_new_strv(gate, -1));
         property("After", g_variant_new_strv(gate, -1));
       }
+      // The timer is an auxiliary unit in the same transaction. It stops a
+      // helper that never starts, for example because authorization is never
+      // granted.
       GVariantBuilder timer_properties, auxiliaries;
       g_variant_builder_init(&timer_properties, G_VARIANT_TYPE("a(sv)"));
       GVariantBuilder deadlines;
@@ -446,6 +509,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       g_variant_builder_init(&auxiliaries, G_VARIANT_TYPE("a(sa(sv))"));
       g_variant_builder_add(&auxiliaries, "(s@a(sv))", timer_unit.c_str(),
                             g_variant_builder_end(&timer_properties));
+      // The cleanup service runs once the helper stops. It conflicts with the
+      // helper and the timer, so systemd never keeps more than one of them.
       GVariantBuilder cleanup_properties;
       g_variant_builder_init(&cleanup_properties, G_VARIANT_TYPE("a(sv)"));
       const char *helper_units[] = {launch.unit.c_str(), nullptr};
@@ -493,6 +558,9 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
                             g_variant_builder_end(&cleanup_commands));
       g_variant_builder_add(&auxiliaries, "(s@a(sv))", cleanup.c_str(),
                             g_variant_builder_end(&cleanup_properties));
+      // Start the main unit, timer, and cleanup service in one transaction.
+      // `fail` makes the whole request fail if any unit cannot be created.
+      // Interactive authorization lets polkit ask the user for approval.
       g_dbus_connection_call_with_unix_fd_list(
           launch.connection, launch.owner.c_str(), manager_path,
           manager_interface, "StartTransientUnit",
@@ -512,10 +580,14 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
             g_main_loop_quit(launch->loop);
           },
           &launch);
+      // Wait for the asynchronous start reply. The callback quits this loop.
       g_main_loop_run(launch.loop);
       // Drain the callback before destroying its stack-owned context.
       while (!launch.start_finished)
         g_main_context_iteration(nullptr, TRUE);
+      // A reply without cancellation means systemd accepted the start. The
+      // control helper runs for the whole session, so find its unit and watch
+      // it; the startup probe exits on its own.
       if (launch.reply && !launch.cancelled) {
         g_variant_unref(launch.reply);
         launch.reply = nullptr;
@@ -546,6 +618,8 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
       g_variant_builder_clear(&properties);
     g_object_unref(fds);
   }
+  // Every exit path runs this cleanup: stop pending callbacks, release the
+  // unit, close the bus, and drop the parent pidfd.
   launch.cancelled = true;
   g_cancellable_cancel(launch.cancel);
   if (launch.unit_watch)
@@ -576,9 +650,17 @@ int Launcher(bool wait_before_start, bool queued, bool control = false) {
   g_main_loop_unref(launch.loop);
   return failed ? 1 : 0;
 }
-} // namespace
+}  // namespace
 
+// Entry point. The same sealed program runs in several roles, chosen by its
+// arguments:
+//   --control        launcher started by the app (systemd runs this as root)
+//   --control-helper the long-lived helper started by the launcher
+//   --cleanup        one-shot cleanup unit
+//   --helper         test-only root probe
 int main(int argc, char **argv) {
+  // Test builds refuse to run outside the disposable VM, so a test cannot
+  // touch the host's systemd.
 #ifdef LEGION_PORTABLE_TEST
   if (!InControlTestVm()) {
     fprintf(stderr,
@@ -588,12 +670,16 @@ int main(int argc, char **argv) {
   if (argc == 4 && std::string(argv[1]) == "--helper")
     return Helper(argv[2], argv[3]);
 #endif
+  // The cleanup unit only proves that the sealed image can run; its real work
+  // is done by systemd stopping the helper and its process tree.
   if (argc == 2 && std::string(argv[1]) == "--cleanup") {
     if (!ApprovedSnapshot())
       return 2;
     puts("Legion control cleanup complete.");
     return 0;
   }
+  // The control helper receives the app pid, app uid, and its unit name from
+  // systemd. It validates all three before it reads the lifetime pipe.
   if (argc == 5 && std::string(argv[1]) == "--control-helper") {
     char *pid_end, *uid_end;
     const long pid = strtol(argv[2], &pid_end, 10);
@@ -624,6 +710,7 @@ int main(int argc, char **argv) {
   }
   if (argc == 2 && std::string(argv[1]) == "--control")
     return Launcher(false, false, true);
+  // Test-only launcher modes. The normal app always uses --control.
 #ifdef LEGION_PORTABLE_TEST
   if (argc == 1)
     return Launcher(false, false);

@@ -1,3 +1,8 @@
+// Test runner that starts a command directly with GSubprocess.
+//
+// Production uses managed_command.cc, which asks systemd to contain the
+// process tree. This version keeps the same completion contract but is easier
+// to observe in unit tests.
 #include "direct_command_runner.h"
 #include <algorithm>
 #include <unistd.h>
@@ -12,15 +17,20 @@ struct DirectOperation final : ManagedCommandOperation,
   ManagedCommandResult result;
   bool waited = false, drained = false, cancelled = false;
   guint timer = 0;
+
   ~DirectOperation() override {
     g_clear_object(&process);
     g_object_unref(cancel);
   }
+
   void Cancel() override {
     cancelled = true;
     if (process)
       g_subprocess_force_exit(process);
   }
+
+  // The callback runs only after the process has exited and its output pipe
+  // has reached end-of-file.
   void Finish() {
     if (!waited || !drained)
       return;
@@ -32,6 +42,8 @@ struct DirectOperation final : ManagedCommandOperation,
     if (cb)
       cb(std::move(result));
   }
+
+  // Read stdout in 4 KiB chunks and keep at most 64 KiB.
   void Read() {
     g_input_stream_read_bytes_async(
         g_subprocess_get_stdout_pipe(process), 4096, G_PRIORITY_DEFAULT, cancel,
@@ -63,6 +75,9 @@ struct DirectOperation final : ManagedCommandOperation,
         },
         new std::shared_ptr<DirectOperation>(shared_from_this()));
   }
+
+  // Start the process on the main loop. The timeout is a wall-clock limit in
+  // seconds, matching the production runner's runtime argument.
   void Begin(const std::string &exe, const std::vector<std::string> &args,
              unsigned runtime) {
     if (getuid() == 0 || geteuid() != getuid()) {
@@ -128,16 +143,19 @@ struct DirectOperation final : ManagedCommandOperation,
         new std::shared_ptr<DirectOperation>(shared_from_this()));
   }
 };
+
 struct DirectRunner final : ManagedCommandRunner {
+  // Keep the arguments alive until the idle callback starts the process.
   struct StartData {
     std::shared_ptr<DirectOperation> op;
     std::string exe;
     std::vector<std::string> args;
     unsigned runtime;
   };
-  std::shared_ptr<ManagedCommandOperation>
-  Start(const std::string &exe, const std::vector<std::string> &args,
-        unsigned runtime, Completion done) override {
+
+  std::shared_ptr<ManagedCommandOperation> Start(
+      const std::string &exe, const std::vector<std::string> &args,
+      unsigned runtime, Completion done) override {
     auto op = std::make_shared<DirectOperation>();
     op->completion = std::move(done);
     g_idle_add_full(
@@ -152,8 +170,9 @@ struct DirectRunner final : ManagedCommandRunner {
     return op;
   }
 };
-} // namespace
+}  // namespace
+
 std::shared_ptr<ManagedCommandRunner> CreateDirectCommandRunner() {
   return std::make_shared<DirectRunner>();
 }
-} // namespace legion_control
+}  // namespace legion_control

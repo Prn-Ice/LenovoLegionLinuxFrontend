@@ -22,4 +22,4 @@ int CreatePortableLifetimeMessage(int app_pidfd, GError **error);
 // completed.
 bool ReceivePortableLifetimeMessage(int socket, PortableLifetime *lifetime,
                                     GError **error);
-} // namespace legion_control
+}  // namespace legion_control

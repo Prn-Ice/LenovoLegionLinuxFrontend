@@ -1,3 +1,9 @@
+// Fake backend used by the lifecycle tests in the disposable test VM.
+//
+// It verifies the sandbox the control service provides (working directory,
+// locale, safe environment) and then imitates a legion_cli command. Special
+// modes make the command hang, flood output, fail with known exit codes, or
+// leave detached descendants so cleanup can be tested.
 #include "../test_support/cli_help_fixture.h"
 #include "test_vm_guard.h"
 #include <cerrno>
@@ -14,6 +20,7 @@
 namespace {
 constexpr char directory[] = "/tmp/legion-fixture";
 
+// Write all bytes, retrying after EINTR. Returns false on any other error.
 bool WriteAll(int fd, const void *data, size_t size) {
   const auto *bytes = static_cast<const char *>(data);
   size_t written = 0;
@@ -28,6 +35,7 @@ bool WriteAll(int fd, const void *data, size_t size) {
   return true;
 }
 
+// Create a 0600 file under the fixture directory.
 bool WriteFile(const char *name, const std::string &value) {
   const std::string path = std::string(directory) + "/" + name;
   const int fd =
@@ -46,6 +54,7 @@ bool WriteFile(const char *name, const std::string &value) {
 
 // Both surviving descendants leave the original process group. The immediate
 // child exits, so the grandchildren are also reparented away from the backend.
+// The parent reports the two descendant PIDs through a pipe.
 bool StartDetachedTree(bool resist_termination) {
   int ready[2];
   if (pipe2(ready, O_CLOEXEC) != 0)
@@ -101,14 +110,18 @@ bool StartDetachedTree(bool resist_termination) {
                            std::to_string(descendants[1]) + "\n";
   return WriteFile("pids", pids) && WriteFile("ready", "ready\n");
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
+  // The fixture can hang or leave processes behind, so it must never run on a
+  // real host.
   if (!InControlTestVm()) {
     fprintf(stderr,
             "This backend runs only in the disposable control test VM.\n");
     return 2;
   }
+  // `--help` proves the service launched the backend with the intended
+  // sandbox before the test goes on to exercise a write.
   if (argc == 2 && std::string(argv[1]) == "--help") {
     char working_directory[4096];
     if (!getcwd(working_directory, sizeof(working_directory)) ||
@@ -161,6 +174,8 @@ int main(int argc, char **argv) {
   if (!toggle && !graphics && !fan)
     return 64;
 
+  // The test writes the desired behavior into the fixture directory. The GUI
+  // test uses a different marker because PrivateTmp hides this directory.
   std::ifstream mode_file(std::string(directory) + "/mode");
   std::string mode;
   std::getline(mode_file, mode);
@@ -172,6 +187,8 @@ int main(int argc, char **argv) {
       return 65;
   }
   if (fan) {
+    // The payload file is created by the service with mode 0600 and owned by
+    // root. Record its contents so the test can confirm they arrived intact.
     struct stat info{};
     if (stat(argv[2], &info) != 0 || info.st_uid != 0 ||
         (info.st_mode & 0777) != 0600)
@@ -195,6 +212,7 @@ int main(int argc, char **argv) {
     puts("synthetic backend completed");
     return 0;
   }
+  // Known legion_cli failure contracts, used to check error mapping.
   if (mode == "graphics-blocked")
     return 2;
   if (mode == "graphics-pending")
@@ -203,6 +221,8 @@ int main(int argc, char **argv) {
     return 2;
   if (mode == "generic-feature-not-found")
     return 3;
+  // These modes start a process tree that outlives the immediate child, then
+  // wait for systemd cleanup.
   if (mode != "tree" && mode != "orphan-stdout" && mode != "flood")
     return 64;
   if (!StartDetachedTree(mode != "orphan-stdout"))

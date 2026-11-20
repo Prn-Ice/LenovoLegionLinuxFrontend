@@ -1,9 +1,15 @@
 // A bounded cleanup image: no loader, libraries, backend commands, or file
 // writes.
+//
+// This program is deliberately built without libc. It uses raw system calls
+// so the embedded cleanup ELF stays small and has no dependencies that could
+// change after the image is sealed.
 #include <fcntl.h>
 #include <sys/syscall.h>
 
 namespace {
+// Invoke one Linux system call with up to three arguments. The register
+// constraints match the x86-64 calling convention for syscall.
 long Call(long number, long first = 0, long second = 0, long third = 0) {
   long result;
   asm volatile("syscall"
@@ -12,10 +18,12 @@ long Call(long number, long first = 0, long second = 0, long third = 0) {
                : "rcx", "r11", "cc", "memory");
   return result;
 }
-} // namespace
+}  // namespace
 
 extern "C" [[noreturn]] void CleanupMain() {
   int status = 2;
+  // Run only as root, and only when /proc/self/exe is the sealed image. This
+  // proves systemd started the bytes we supplied, not a replaced file.
   if (Call(SYS_getuid) == 0 && Call(SYS_geteuid) == 0) {
     constexpr char executable[] = "/proc/self/exe";
     const long fd = Call(SYS_openat, AT_FDCWD,
@@ -38,6 +46,8 @@ extern "C" [[noreturn]] void CleanupMain() {
   __builtin_unreachable();
 }
 
+// A minimal entry point. The kernel may leave the stack unaligned, so align
+// it before calling C++ code; ud2 stops execution if CleanupMain ever returns.
 extern "C" __attribute__((naked, noreturn)) void _start() {
   asm volatile("andq $-16, %rsp\n\tcall CleanupMain\n\tud2");
 }

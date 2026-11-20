@@ -1,0 +1,21 @@
+# Formatting for the native control helper, telemetry service, and Linux runner.
+# Run: clang-format -i <files>
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 80
+PointerAlignment: Right
+ReferenceAlignment: Right
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+BreakBeforeBraces: Attach
+# Put a blank line between functions and methods so definitions stay readable.
+SeparateDefinitionBlocks: Always
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: true
+SpacesBeforeTrailingComments: 2

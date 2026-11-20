@@ -1,3 +1,7 @@
+// Minimal client for the installed control service in the test VM.
+//
+// It authorizes, performs one requested operation, and exits. The outer test
+// checks the exit status and, for next-boot calls, the printed status.
 #include "test_vm_guard.h"
 #include <cstdio>
 #include <gio/gio.h>
@@ -7,6 +11,8 @@ namespace {
 constexpr char bus[] = "io.github.prnice.LegionControl1";
 constexpr char path[] = "/io/github/prnice/LegionControl1";
 
+// Make one call. On failure print the remote or transport error and return
+// false. If `returns_output` is set, print the string reply.
 bool Call(GDBusConnection *connection, const char *method, GVariant *arguments,
           bool returns_output = false) {
   GError *error = nullptr;
@@ -30,7 +36,7 @@ bool Call(GDBusConnection *connection, const char *method, GVariant *arguments,
   g_variant_unref(reply);
   return true;
 }
-} // namespace
+}  // namespace
 
 int main(int argc, char **argv) {
   if (!InControlTestVm()) {
@@ -41,6 +47,8 @@ int main(int argc, char **argv) {
   if (argc != 2)
     return 2;
   const std::string operation = argv[1];
+  // The boot commands return a status string. The other operations return no
+  // value.
   const bool boot_operation = operation == "boot-request" ||
                               operation == "boot-status" ||
                               operation == "boot-cancel";
@@ -56,6 +64,7 @@ int main(int argc, char **argv) {
     g_clear_error(&error);
     return 1;
   }
+  // Authorization applies to this connection, so keep using it below.
   bool success = Call(connection, "Authorize", nullptr);
   if (success) {
     if (operation == "toggle")
