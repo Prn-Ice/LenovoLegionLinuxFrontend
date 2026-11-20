@@ -169,7 +169,7 @@ with:
 ```bash
 flutter build linux --debug --no-pub
 cmake --build build/linux/x64/debug --target control_channel_test
-build/linux/x64/debug/runner/control_channel_test
+xvfb-run -a build/linux/x64/debug/runner/control_channel_test
 ```
 
 To run only the journeys in the first app process:

@@ -1,4 +1,4 @@
-// Exercise the actual channel codec without starting a Flutter engine.
+// Test the Linux control channel and the lifetime of its helper sessions.
 #include "control_channel.cc"
 #include <vector>
 
@@ -75,6 +75,23 @@ void test_session_close_cancels_once() {
   g_assert_true(session.closed);
   g_assert_true(g_cancellable_is_cancelled(session.cancel));
 }
+
+void test_hot_restart_closes_sessions() {
+  gtk_init(nullptr, nullptr);
+  g_autoptr(FlDartProject) project = fl_dart_project_new();
+  g_autoptr(FlEngine) engine = fl_engine_new_headless(project);
+  Host control(engine, "io.github.prnice.legion/control");
+  Host power(engine, "io.github.prnice.legion/package_power");
+  for (int restart = 0; restart < 2; ++restart) {
+    for (auto *host : {&control, &power})
+      host->session = std::make_shared<Session>();
+    g_signal_emit_by_name(engine, "on-pre-engine-restart");
+    for (auto *host : {&control, &power}) {
+      g_assert_true(host->session->closed);
+      g_assert_true(g_cancellable_is_cancelled(host->session->cancel));
+    }
+  }
+}
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -86,6 +103,8 @@ int main(int argc, char **argv) {
   g_test_add_func("/control-channel/payload-bounds", test_payload_bounds);
   g_test_add_func("/control-channel/session-close",
                   test_session_close_cancels_once);
+  g_test_add_func("/control-channel/hot-restart",
+                  test_hot_restart_closes_sessions);
   const int result = g_test_run();
   g_dbus_node_info_unref(protocol);
   return result;
