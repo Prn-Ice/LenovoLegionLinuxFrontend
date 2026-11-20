@@ -33,8 +33,7 @@ void main() {
       ),
     );
 
-    Future<void> checkCorners(YaruWindowState state, int alpha) async {
-      states.add(state);
+    Future<void> expectCornerAlpha(int alpha) async {
       await tester.pumpAndSettle();
       final boundary =
           boundaryKey.currentContext!.findRenderObject()!
@@ -52,6 +51,13 @@ void main() {
       });
     }
 
+    Future<void> checkCorners(YaruWindowState state, int alpha) async {
+      states.add(state);
+      await expectCornerAlpha(alpha);
+    }
+
+    // Before the first window-state event arrives, corners start rounded.
+    await expectCornerAlpha(0);
     await checkCorners(const YaruWindowState(isMaximized: false), 0);
     await checkCorners(const YaruWindowState(isMaximized: true), 255);
     await checkCorners(const YaruWindowState(isFullscreen: true), 255);
