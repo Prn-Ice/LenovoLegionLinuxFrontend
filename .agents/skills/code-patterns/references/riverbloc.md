@@ -36,10 +36,12 @@ permission to rewrite every existing Bloc.
 
 ## Keep effects and prerequisites explicit
 
-Declare `ref.listen` visibly in a Consumer's `build` for a real presentation
-effect; Riverpod owns that subscription's lifetime. Put a substantial handler in
-a focused feature-local function when it helps, but do not hide registration in
-a hook-like helper, add a listener registry, or create a second DI tree.
+Register widget effects near the top of `build` with `ref.listen`. Keep the
+provider and trigger visible there. Put the effect logic in a named function
+in the feature’s `*_listeners.dart` file. Name it for what changes on screen.
+For example, the navigation shell owns its tab controllers. A navigation
+listener can bring those controllers to the selected section when it changes.
+Riverpod manages the subscription for the lifetime of the widget.
 
 Keep callbacks focused and guard meaningful transitions. Equality may suppress
 identical states: repeated actions are not automatically distinct occurrences.
