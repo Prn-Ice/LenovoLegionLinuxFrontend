@@ -155,10 +155,10 @@ readback() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/b
 enabled() { readback | grep -x enabled; }
 wait_until 15 enabled
 reject grep -F .so "/proc/$helper_pid/maps"
-echo 1 >"$conservation"
+grep -qx 1 "$conservation"
 restore() { click 1142 23; click 734 667; readback | grep -x disabled; }
 wait_until 20 restore
-echo 0 >"$conservation"
+grep -qx 0 "$conservation"
 [[ $(desktop xdotool getwindowpid "$(head -n1 /home/approved/window.id)") == "$pid" ]]
 screenshot privileged-control-restored
 click 90 427

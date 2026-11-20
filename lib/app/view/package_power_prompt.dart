@@ -25,7 +25,7 @@ class _PackagePowerPromptState extends ConsumerState<PackagePowerPrompt> {
     final approved = await confirmPrivilegedAction(
       context,
       title: 'Show CPU power usage?',
-      message: 'The app needs permission to read your CPU’s energy counter. Choose Allow to see how many watts your CPU uses.',
+      message: 'The app needs permission to read your CPU’s energy counter and show its power use in watts.',
       confirmLabel: 'Allow',
       cancelLabel: 'Skip',
     );

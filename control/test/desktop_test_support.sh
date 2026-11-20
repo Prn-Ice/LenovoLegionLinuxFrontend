@@ -56,16 +56,21 @@ gui_recognize() {
 }
 
 gui_wait_text() { wait_until 30 gui_recognize "$@"; }
+gui_allow_power() {
+  gui_recognize 'Show CPU power usage' 1280x720+0+0 11 || return 1
+  local x y
+  read -r x y < <(gui_desktop env OMP_THREAD_LIMIT=1 tesseract "$gui_home/label.png" stdout --psm 11 tsv 2>/dev/null |
+    awk '$12 == "Allow" && $11 >= 0 { x=$7+int($9/2); y=$8+int($10/2) } END { if (x) print x,y }') || return 1
+  gui_desktop xdotool mousemove "$x" "$y" click 1
+}
 desktop_wait_ready() {
   gui_wait_text 'Show CPU power usage' 1280x720+0+0 11
   gui_desktop xdotool windowfocus --sync "$(head -n1 "$gui_home/window")"
   if [[ ${1:-skip} == allow ]]; then
     # Locate the button on the captured screen so font metrics can vary by distro.
-    local x y
-    read -r x y < <(gui_desktop tesseract "$gui_frame" stdout --psm 11 tsv 2>/dev/null |
-      awk '$12 == "Allow" && $11 >= 0 { x=$7+int($9/2); y=$8+int($10/2) } END { if (x) print x,y }')
-    gui_desktop xdotool mousemove --sync "$x" "$y" click 1
-    gui_wait_text 'CPU package 0.0 W' 1280x720+0+0 11
+    wait_until 30 gui_allow_power
+    # The dashboard renders this label only when it receives a watt reading.
+    gui_wait_text 'CPU package' 1280x720+0+0 11
   else
     gui_desktop xdotool key Escape
   fi
@@ -223,14 +228,14 @@ desktop_main() {
   [[ $helper_pid =~ ^[0-9]+$ && $helper_pid != 0 ]]
   gui_enabled() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x enabled; }
   wait_until 15 gui_enabled
-  echo 1 >"$conservation"
+  grep -qx 1 "$conservation"
   gui_restore() {
     gui_click 1142 23
     gui_click 734 667
     nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation | grep -x disabled
   }
   wait_until 20 gui_restore
-  echo 0 >"$conservation"
+  grep -qx 0 "$conservation"
   echo "PASS: first-launch helper write/readback/restore from $label"
   gui_click 90 427
   gui_wait_text 'Hardware control' 1280x720+0+0 11

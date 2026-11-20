@@ -11,9 +11,11 @@
 #include <cstdlib>
 #include <fcntl.h>
 #include <fstream>
+#include <linux/magic.h>
 #include <signal.h>
 #include <string>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -179,7 +181,8 @@ int main(int argc, char **argv) {
   std::ifstream mode_file(std::string(directory) + "/mode");
   std::string mode;
   std::getline(mode_file, mode);
-  if (mode.empty()) {
+  const bool gui = mode.empty();
+  if (gui) {
     // The packaged GUI test has no fixture client to prepare PrivateTmp.
     std::ifstream gui_mode("/run/legion-gui-fixture-mode");
     std::getline(gui_mode, mode);
@@ -203,6 +206,17 @@ int main(int argc, char **argv) {
       return 0;
   }
   if (mode == "success") {
+    if (gui && toggle) {
+      // Publish the simulated hardware state before the app checks the write.
+      const int fd = open(
+          "/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode",
+          O_WRONLY | O_NOFOLLOW | O_CLOEXEC);
+      struct statfs fs{};
+      const bool enabled = std::string(argv[2]) == "batteryconservation-enable";
+      if (fd < 0 || fstatfs(fd, &fs) != 0 || fs.f_type != TMPFS_MAGIC ||
+          !WriteAll(fd, enabled ? "1\n" : "0\n", 2) || close(fd) != 0)
+        return 65;
+    }
     if (toggle &&
         !WriteFile("battery-conservation",
                    std::string(argv[2]) == "batteryconservation-enable"
