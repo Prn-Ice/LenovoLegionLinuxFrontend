@@ -328,8 +328,9 @@ class _FanSpeedTable extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           unit == FanSpeedUnit.level
-              ? 'The firmware defines a speed for each fan at every level. '
-                    'See current fan speeds above.'
+              ? 'A level is a numbered fan speed setting. '
+                    'The RPM columns show each fan’s speed as set by the firmware. '
+                    'See current speeds above.'
               : 'This read-only table shows the firmware’s fan speed settings. '
                     'See current fan speeds above.',
           style: theme.textTheme.bodySmall?.copyWith(
