@@ -14,7 +14,7 @@ directory=$1
 images=("$directory"/*.AppImage)
 manifests=("$directory"/legion-frontend-*.json)
 image=${images[0]} manifest=${manifests[0]}
-jq -e '.control and .default_control_mode == "privilegedControlHelper" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
+jq -e '.portable_control and .default_control_mode == "privilegedControlHelper" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
 ldconfig -p >/tmp/legion-ldconfig
 reject grep -F libgtk-3.so.0 /tmp/legion-ldconfig
 echo "ARTIFACT_SHA256 $(jq -r --arg name "$(basename "$image")" '.files[$name]' "$manifest") $(basename "$image")"

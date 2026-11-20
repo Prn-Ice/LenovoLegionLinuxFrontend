@@ -16,7 +16,7 @@ manifests=("$release"/legion-frontend-*.json)
 packages=("$release"/*.deb)
 manifest=${manifests[0]} package=${packages[0]}
 [[ $(sha256sum "$package" | cut -d' ' -f1) == "$(jq -r --arg name "$(basename "$package")" '.files[$name]' "$manifest")" ]]
-jq -e '.control == true and .default_control_mode == "privilegedControlHelper"' "$manifest"
+jq -e '.portable_control == true and .default_control_mode == "privilegedControlHelper"' "$manifest"
 test ! -e /usr/lib/jvm
 before=$(mktemp)
 persistent_files >"$before"
