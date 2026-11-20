@@ -6,8 +6,10 @@ merge `baafe12ccb4bea628aecccfb0e53309fa9c6be00`. The target laptop is Lenovo
 checklist and linked follow-ups.
 
 Source support, fixture tests, and hardware validation are separate evidence.
-The upgraded backend has been built, but its module has not been activated as
-part of this work.
+On 2026-11-19, we ran read-only verification on the activated Kernel `7.3.4`
+system running `lenovo-legion-module-0.1.8-unstable-2026-11-17` and
+`legion_cli` (`baafe12`). Hardware writes, graphics transitions, and sleep
+re-verification remain open (`lllf-5kk`).
 
 ## Compatibility changes
 
@@ -25,8 +27,8 @@ part of this work.
   Graphics commands use those codes for blocked and pending. Classify them in
   their command context and retain the backend's error details.
 
-Implementation work is tracked in `lllf-o1w` (fans), `lllf-hjj` (power), and
-`lllf-qkv` (command outcomes).
+PR #30 implemented `lllf-o1w` (fans), `lllf-hjj` (power), and `lllf-qkv`
+(command outcomes).
 
 Implemented changes also include optional third-fan telemetry (`lllf-9eq`) and
 charging-setting readback after success or partial failure (`lllf-i14`). Power
@@ -96,14 +98,20 @@ contain needed behavior. The full seven-commit matrix remains in `lllf-qaf`.
 
 ## Hardware and firmware blockers
 
-- `lllf-5kk`: activate the upgraded system separately and verify probe, sensors,
-  controls, graphics, and sleep behavior on the laptop.
+- `lllf-5kk`: the upgraded system is active on Kernel `7.3.4`; read-only
+  binding, sensor, fan-table, power-limit, and `graphics-mode status --json`
+  checks passed on 2026-11-19, while write controls, live graphics transitions,
+  and sleep remain open for hardware verification.
 - `lllf-dok`: establish complete firmware-default provenance and resolve the
-  M1CN PPAB discrepancy. New per-mode CPU PL1/PL2 defaults are partial evidence,
-  not a complete factory-restore contract.
-- `lllf-cqn.8`: qualify the fan table against actual hardware state. Historical
-  captures can contain firmware initializer data rather than the programmed
-  curve. Preserve the kernel's unvalidated-write guard.
+  M1CN PPAB discrepancy. On Kernel `7.3.4` (`baafe12`), `gpu_ppab_powerlimit`
+  read `20` W and `cpu_*_powerlimit_defaults` exposed per-mode PL1/PL2 values,
+  which remain partial evidence rather than a complete factory-restore contract.
+- `lllf-cqn.8`: live read-only Kernel `7.3.4` binding, probe, `legion_hwmon`
+  level/RPM-table, and frontend `readFanCurve()` verification passed on
+  2026-11-19 without unsafe EC rebinding. Keep the kernel's unvalidated-write
+  guard because `1,2,3,4,5,6,7,8,8,8` matches the firmware `CFST` initializer;
+  level-table editing and diagnostics remain in `lllf-em2`, `lllf-vac`, and
+  `lllf-l5i`.
 - `lllf-70v`: fix upstream package license metadata and source-GUI interpreter
   compatibility through the normal packaging workflow.
 
@@ -124,9 +132,17 @@ The implementation passed these hardware-free checks:
 - `tool/test_linux_journeys.sh` under Xvfb: 18 app journeys plus both restart
   stages passed. The fan journeys cover full-curve preset readback and blocked
   writes for a speed-only table.
-- Fans/Power visual fixture run: eight passed. Light/dark captures at 1280×900
-  and 420×500 were inspected, including scroll-end views and Power references.
+- Fans/Power visual fixture run: eight passed. We inspected light/dark captures
+  at 1280×900 and 420×500, including scroll-end views and Power references.
   Narrow fan tables scroll horizontally to reach the final RPM column.
+- Live read-only verification (2026-11-19, Kernel `7.3.4`): verified `PNP0C09:00`
+  bound to `acpi-ec`, synthetic `legion` probe logs, `LegionSysfsService.readFanCurve()`
+  10-point `speedOnly`/`level` curve (`1..8,8,8` → `0..3600` RPM), absent
+  `minifancurve`/`lockfancontroller` (CLI exit `2`), readable `fan_fullspeed`
+  (`0`), `rapidcharge` (`0`), `gpu_ppab_powerlimit` (`20` W),
+  `cpu_*_powerlimit_defaults`, and `legion_cli graphics-mode status --json` exit
+  `0`. See [the Kernel 7.3.4 capture](../test/fixtures/sysfs/82y4-m1cn48ww-kernel734-readonly.json)
+  and [M1CN hardware evidence](architecture/m1cn-hardware-evidence.md).
 
 Fixtures exercise frontend behavior without changing hardware. They do not
 establish firmware acceptance, live RPM accuracy, or factory defaults. Preset
