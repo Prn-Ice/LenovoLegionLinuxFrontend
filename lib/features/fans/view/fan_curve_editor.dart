@@ -327,11 +327,11 @@ class _FanSpeedTable extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          curve.writeStatus == FanCurveWriteStatus.unvalidated
-              ? 'This laptop exposes a speed-only table, but writes have not been validated. Current readings remain available.'
-              : 'This firmware table is read-only in the app. It has no temperature or ramp settings. '
-                    'Table values describe firmware settings, not current fan speeds. '
-                    'RPM values come from the firmware ladder when available.',
+          unit == FanSpeedUnit.level
+              ? 'The firmware defines a speed for each fan at every level. '
+                    'See current fan speeds above.'
+              : 'This read-only table shows the firmware’s fan speed settings. '
+                    'See current fan speeds above.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurface.withValues(alpha: 0.7),
           ),
