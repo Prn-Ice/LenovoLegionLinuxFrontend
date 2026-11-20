@@ -43,12 +43,9 @@ class ManagedCommandRunner {
 // Operations retain the connection and drain their owned callbacks.
 // Supply a dedicated manager connection: uncertain cleanup closes it to release
 // systemd references. Do not share it with the exported control interface.
-// state_directory is the installed helper's optional systemd StateDirectory
-// name. operation_lock_path coordinates installed and portable helpers. The
-// runner also passes this empty regular file to systemd as stdin, retaining the
-// lock if the helper dies while systemd is still stopping backend processes.
+// The shared lock prevents concurrent hardware writes. The backend retains
+// the lock until systemd stops it, even if the app helper exits.
 std::shared_ptr<ManagedCommandRunner> CreateManagedCommandRunner(
     GDBusConnection *manager_connection, const std::string &parent_unit,
-    const std::string &state_directory = {},
     const std::string &operation_lock_path = {});
 }  // namespace legion_control

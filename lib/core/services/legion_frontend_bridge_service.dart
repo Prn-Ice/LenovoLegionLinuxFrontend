@@ -8,7 +8,7 @@ import 'legion_control_client.dart';
 enum LegionBridgeErrorCode {
   startupDenied,
   permissionDenied,
-  portableSetup,
+  helperSetup,
   unavailable,
   busy,
   timeout,
@@ -38,7 +38,7 @@ class LegionBridgeException implements Exception {
     return switch (code) {
       LegionBridgeErrorCode.startupDenied => 'Authentication was cancelled or denied before administrator access was granted. Try the action again to request approval.',
       LegionBridgeErrorCode.permissionDenied => 'Permission was denied or authentication was cancelled. Check that a Polkit authentication agent is running, then reopen the app before trying again.',
-      LegionBridgeErrorCode.portableSetup => 'Administrator access could not be established. Check the installed CLI and app files, then reopen the app.',
+      LegionBridgeErrorCode.helperSetup => 'Administrator access could not be established. Check the installed CLI and app files, then reopen the app.',
       LegionBridgeErrorCode.unavailable => 'The requested capability or administrator access is unavailable. Read the current settings and reopen the app before retrying.',
       LegionBridgeErrorCode.busy => 'Another privileged action is still running. Wait for it to finish, then retry.',
       LegionBridgeErrorCode.timeout =>
@@ -253,7 +253,7 @@ class LegionFrontendBridgeService {
       try {
         final client = _controlClient;
         if (client == null) {
-          throw const LegionControlPortableSetupException(
+          throw const ControlHelperSetupException(
             'The privileged control helper is not configured.',
           );
         }
@@ -292,7 +292,7 @@ class LegionFrontendBridgeService {
     LegionControlException error,
   ) {
     final code = switch (error) {
-      LegionControlSetupException() => LegionBridgeErrorCode.portableSetup,
+      LegionControlSetupException() => LegionBridgeErrorCode.helperSetup,
       LegionControlStartupDeniedException() =>
         LegionBridgeErrorCode.startupDenied,
       LegionControlPermissionDeniedException() =>
@@ -336,7 +336,7 @@ class LegionFrontendBridgeService {
     final message = switch (code) {
       LegionBridgeErrorCode.startupDenied =>
         'Administrator access was not approved for $method.',
-      LegionBridgeErrorCode.portableSetup =>
+      LegionBridgeErrorCode.helperSetup =>
         'Administrator access could not be established for $method.',
       LegionBridgeErrorCode.permissionDenied =>
         'Permission denied while running $method.',

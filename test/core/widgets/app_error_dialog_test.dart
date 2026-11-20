@@ -18,7 +18,7 @@ void main() {
           body: AppErrorDialog(
             message: AppFailure(
               'CLI selection changed',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
               details: 'Canonical CLI mismatch',
             ),
           ),
@@ -140,7 +140,7 @@ void main() {
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
               'The privileged control helper could not start.',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
               details: 'Missing helper executable',
             ),
             child: Text('Page content'),
@@ -175,7 +175,7 @@ void main() {
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
               'The privileged control helper could not start.',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
             ),
             child: Text('Page content'),
           ),

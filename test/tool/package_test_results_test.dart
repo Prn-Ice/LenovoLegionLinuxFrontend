@@ -54,7 +54,7 @@ void main() {
             '$format-qualification.tar.gz': evidenceHash,
           },
           'scope':
-              'Portable control with a synthetic CLI in a disposable distro VM',
+              'Hardware control with a synthetic CLI in a disposable distro VM',
           'hardware': 'unverified',
           'desktop_authentication': 'unverified',
           'appimage': format == 'appimage'

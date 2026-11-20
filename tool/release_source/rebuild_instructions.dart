@@ -1,4 +1,4 @@
-String rebuildInstructions({required bool staticPortableHelper}) =>
+String rebuildInstructions({required bool staticHelper}) =>
     '''# Rebuild this release
 
 Use the SDK-reported Flutter version and framework/engine revisions in
@@ -23,7 +23,7 @@ The original pubspec.lock records the hosted versions; pub get replaces their
 locations with these local paths. Flutter SDK source and host libraries are
 obtained separately. Different compilers or system libraries can change the
 rebuilt binary's checksum.
-${staticPortableHelper ? '''
+${staticHelper ? '''
 This AppImage also contains distro libraries and a statically linked helper.
 Their exact source packages and checksums are in
 release-inputs/native/native-runtime.json; the archives are beside it under
@@ -36,7 +36,7 @@ helper. Build its static dependencies on Ubuntu 22.04, then run:
 ```sh
 bash source/tool/build_static_helper.sh source \\
   release-inputs/native/sources/util-linux/*.dsc /tmp/legion-static-rebuild \\
-  source/build/linux/x64/release/bundle/libexec/legion-portable-control
+  source/build/linux/x64/release/bundle/libexec/legion-control-helper
 ```
 
 The AppImage builder Dockerfile lists the development packages and tools.

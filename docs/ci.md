@@ -107,7 +107,7 @@ container layers, and container-local pub downloads are not cached here.
 nix develop --command flutter test test/tool
 nix develop --command flutter analyze
 nix shell --inputs-from . nixpkgs#actionlint --command actionlint
-bash test/tool/portable_distro_evidence_test.sh
+bash test/tool/distro_evidence_test.sh
 ```
 
 Expect the selector fixtures, download-cache fixtures, analysis, workflow lint,

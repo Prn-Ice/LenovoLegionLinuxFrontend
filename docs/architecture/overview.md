@@ -13,8 +13,7 @@ Keyboard lighting uses native Spectrum HID or OpenRGB, not the control helper.
 - `lib/features/<feature>/` contains each feature's models, repositories, blocs,
   providers, and views.
 - `lib/features/navigation/` connects pages to the application shell.
-- `control/` contains the bundled helper, CPU power sampler, and optional
-  system control service. The helper serves each approved app session over a
+- `control/` contains the bundled helper and CPU power sampler. The helper serves each approved app session over a
   private D-Bus connection.
 - `test/` contains tests that run without hardware, including widget tests.
 
@@ -40,8 +39,6 @@ Fan curves and boot logos cross D-Bus as bytes; only the native control helper
 maps approved operations to backend commands. Read-only CLI queries still use
 `runCommand`.
 
-Opt-in [next-boot graphics requests](next-boot-graphics.md) use the installed
-control service to save the requested mode for the next boot.
 
 For contributor workflow and safe hardware testing, see
 [Contributing](../../CONTRIBUTING.md) and the [model-support guide](../model-support.md).

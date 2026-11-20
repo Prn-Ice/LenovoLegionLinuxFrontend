@@ -2,8 +2,8 @@
 # Install, upgrade, exercise, and purge the package inside a disposable VM.
 set -euo pipefail
 support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$support/portable_session_test.sh"
+# shellcheck source=control/test/helper_session_test.sh
+source "$support/helper_session_test.sh"
 # shellcheck source=control/test/distro_test_support.sh
 source "$support/distro_test_support.sh"
 # Session helpers access these maps by name.
@@ -16,7 +16,7 @@ manifests=("$release"/legion-frontend-*.json)
 packages=("$release"/*.deb)
 manifest=${manifests[0]} package=${packages[0]}
 [[ $(sha256sum "$package" | cut -d' ' -f1) == "$(jq -r --arg name "$(basename "$package")" '.files[$name]' "$manifest")" ]]
-jq -e '.portable_control == true and .default_control_mode == "privilegedControlHelper"' "$manifest"
+jq -e '.control == true and .default_control_mode == "privilegedControlHelper"' "$manifest"
 test ! -e /usr/lib/jvm
 before=$(mktemp)
 persistent_files >"$before"
@@ -52,7 +52,7 @@ verify_bundle() {
 verify_bundle
 timeout 420 bash "$support/desktop_test_support.sh" \
   /usr/bin/legion_frontend deb-gui.log 'Debian package' /usr/lib/legion_frontend/legion_frontend
-helper=/usr/lib/legion_frontend/libexec/legion-portable-control
+helper=/usr/lib/legion_frontend/libexec/legion-control-helper
 session_new app approved "$helper" false
 [[ ${app[cli]} == /usr/local/bin/legion_cli ]]
 session_prepare app success

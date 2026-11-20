@@ -81,7 +81,7 @@ void main() {
       when(() => boot.enableBootLogo('/tmp/logo.png')).thenThrow(
         const BootLogoRepositoryException(
           'Could not apply boot logo',
-          kind: AppFailureKind.portableSetup,
+          kind: AppFailureKind.helperSetup,
           details: 'Test helper unavailable',
         ),
       );
@@ -245,7 +245,7 @@ void main() {
         expect(find.text('Administrator access needs setup'), findsOneWidget);
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.kind,
-          AppFailureKind.portableSetup,
+          AppFailureKind.helperSetup,
         );
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.details,

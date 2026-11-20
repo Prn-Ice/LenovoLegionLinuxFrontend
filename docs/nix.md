@@ -22,9 +22,9 @@ Use a pinned revision or release tag for your configuration.
 
 Choose **Allow** at startup to see CPU watts on hardware with a Linux powercap
 energy counter. Both the Nix package and the AppImage include the reader.
-When upgrading a NixOS configuration, remove the old `legion-telemetry.nix`
-import and `services.legionTelemetry` settings. If you also use
-`services.legionControl`, import `packaging/nixos/legion-control.nix` for it.
+When upgrading, remove the old Legion module import and the
+`services.legionTelemetry` and `services.legionControl` settings from your
+configuration. The app starts its bundled helper when you approve a request.
 
 Install the Lenovo Legion driver and `legion_cli` on the host. The helper
 requires systemd, Polkit, and a desktop authentication agent. On NixOS,

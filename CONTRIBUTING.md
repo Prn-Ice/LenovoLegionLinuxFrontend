@@ -22,7 +22,7 @@ Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integra
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools git openssh-client
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev xvfb xauth jq dpkg-dev squashfs-tools git openssh-client
 ```
 
 Package names vary by distribution. You do not need the Android SDK.
@@ -158,7 +158,7 @@ exits. The second reopens the same temporary Hive/config data and verifies the
 assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
-The portable-control scenario uses the real Linux method channel to check that
+The control-helper scenario uses the real Linux method channel to check that
 an invalid endpoint is rejected before connection. It starts no helper. The native
 discovery scenario rejects caller-selected CLI paths before inspecting the host.
 The hardware-access journey opens fresh Settings, checks that the authorization
@@ -168,8 +168,8 @@ with:
 
 ```bash
 flutter build linux --debug --no-pub
-cmake --build build/linux/x64/debug --target portable_control_channel_test
-build/linux/x64/debug/runner/portable_control_channel_test
+cmake --build build/linux/x64/debug --target control_channel_test
+build/linux/x64/debug/runner/control_channel_test
 ```
 
 To run only the journeys in the first app process:
@@ -220,42 +220,32 @@ capture screenshots for these tests.
 
 Plain `flutter test` still runs the separate unit/widget suite under `test/`.
 
-To build and test native service code without installing it:
+To build and test the native helper without installing it:
 
 ```bash
-cmake -S control -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test portable_cli_test
+cmake -S control -B build/native -G Ninja -DBUILD_CONTROL_HELPER=ON
+cmake --build build/native --target legion_control_helper package_power_sampler_test control_commands_test managed_command_test executable_snapshot_test helper_lifetime_test control_peer_test trusted_executable_test helper_cli_test
 ctest --test-dir build/native --output-on-failure
 ```
 
 For the AppImage control experiment, run the
-[hardware-free portable-control probe](docs/architecture/portable-control.md#hardware-free-prototype).
+[hardware-free control-helper probe](docs/architecture/control-helper.md#hardware-free-prototype).
 It tests a private D-Bus connection with simulated authorization and a synthetic
 backend, using an opt-in native build.
-
-To check backend process cleanup with real systemd, run the disposable VM test:
-
-```bash
-nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
-```
-
-This uses QEMU/KVM and synthetic backend commands inside NixOS. See
-[backend process containment](docs/architecture/portable-control.md#backend-process-containment)
-for the lifecycle cases it covers.
 
 To test administrator startup from an immutable helper snapshot:
 
 ```bash
-nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+nix build .#checks.x86_64-linux.helper-bootstrap --print-build-logs
 ```
 
 This separate disposable VM uses real systemd and Polkit with deterministic test
 policies. The startup probe uses a synthetic CLI and refuses to run on the host.
-See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
+See the [startup experiment](docs/architecture/control-helper.md#administrator-startup-experiment)
 for its trust boundary and remaining checks.
 
 To build and test the production helper with Ubuntu 22.04's libraries, follow
-the [Ubuntu helper tests](docs/architecture/portable-helper-tests.md).
+the [Ubuntu helper tests](docs/architecture/control-helper-tests.md).
 It uses a synthetic CLI and records the image, source, package versions, and results.
 
 To build and test the actual AppImage through FUSE and extraction, follow

@@ -7,7 +7,7 @@
 #include <vector>
 
 namespace legion_control {
-// A command line for legion_cli, systemctl, or the next-boot graphics helper.
+// A command line for legion_cli.
 struct Command {
   std::vector<std::string> argv;
 };
@@ -34,13 +34,9 @@ Command FileCommand(const std::string &path);
 Command BootLogoCommand(const std::string &path);
 Command RestoreBootLogoCommand();
 Command ConservationCommand(uint32_t lower, uint32_t upper);
-bool ValidateService(const std::string &service_id, std::string *error);
-Command ServiceCommand(const std::string &service_id, bool enabled);
 bool ValidateGraphicsMode(const std::string &mode, std::string *error);
 Command GraphicsModeCommand(const std::string &mode);
 GraphicsExit ClassifyGraphicsExit(int exit_status);
 CliExit ClassifyCliExit(int exit_status);
-bool ValidateBootGraphicsMode(const std::string &mode, std::string *error);
-Command BootGraphicsRequestCommand(const std::string &mode);
 }  // namespace legion_control
 #endif

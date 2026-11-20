@@ -76,8 +76,7 @@ struct Manager {
     manager->Call(name, params, i);
   }
 
-  explicit Manager(const std::string &state_directory = {},
-                   const std::string &lock_path = {}) {
+  explicit Manager(const std::string &lock_path = {}) {
     g_test_dbus_up(test_bus);
     const auto flags = static_cast<GDBusConnectionFlags>(
         G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT |
@@ -108,7 +107,7 @@ struct Manager {
         server, unit_path, info->interfaces[1], &table, this, nullptr, &error);
     g_assert_no_error(error);
     runner = legion_control::CreateManagedCommandRunner(
-        client, "legion-control.service", state_directory, lock_path);
+        client, "legion-control.service", lock_path);
   }
 
   ~Manager() {
@@ -381,37 +380,23 @@ void test_success_properties() {
   g_variant_unref(flags);
 }
 
-void test_persistent_state_directory() {
-  Manager m("legion-graphics-boot");
-  m.Start();
-  m.Finish();
-  g_assert_true(m.result.status == ManagedCommandStatus::success);
-  GVariant *directories = m.Property("StateDirectory", "as");
-  g_assert_cmpuint(g_variant_n_children(directories), ==, 1);
-  const char *directory;
-  g_variant_get_child(directories, 0, "&s", &directory);
-  g_assert_cmpstr(directory, ==, "legion-graphics-boot");
-  g_assert_cmpuint(g_variant_get_uint32(m.Property("StateDirectoryMode", "u")),
-                   ==, 0700);
-}
-
 void test_helpers_share_operation_lock() {
   char *directory = g_dir_make_tmp("legion-operation-lock-XXXXXX", nullptr);
   g_assert_nonnull(directory);
   const std::string path = std::string(directory) + "/operation.lock";
   {
-    Manager first({}, path);
+    Manager first(path);
     first.state = "active";
     first.Start();
     until([&] { return first.input >= 0; });
-    Manager second({}, path);
+    Manager second(path);
     second.Start();
     second.Finish();
     g_assert_true(second.result.status == ManagedCommandStatus::busy);
     g_assert_true(second.properties.empty());
     first.operation->Cancel();
     first.Finish();
-    Manager retry({}, path);
+    Manager retry(path);
     retry.Start();
     retry.Finish();
     g_assert_true(retry.result.status == ManagedCommandStatus::success);
@@ -426,7 +411,7 @@ void test_manager_retains_operation_lock() {
   g_assert_nonnull(directory);
   const std::string path = std::string(directory) + "/operation.lock";
   {
-    Manager manager({}, path);
+    Manager manager(path);
     manager.keep_input = true;
     manager.Start();
     manager.Finish();
@@ -452,7 +437,7 @@ void test_unsafe_operation_lock() {
   const std::string path = std::string(directory) + "/operation.lock";
   g_assert_cmpint(symlink("/dev/null", path.c_str()), ==, 0);
   {
-    Manager manager({}, path);
+    Manager manager(path);
     manager.Start();
     manager.Finish();
     g_assert_true(manager.result.status == ManagedCommandStatus::unavailable);
@@ -705,8 +690,6 @@ int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/managed/success-properties-literal-argv",
                   test_success_properties);
-  g_test_add_func("/managed/persistent-state-directory",
-                  test_persistent_state_directory);
   g_test_add_func("/managed/helpers-share-operation-lock",
                   test_helpers_share_operation_lock);
   g_test_add_func("/managed/manager-retains-operation-lock",

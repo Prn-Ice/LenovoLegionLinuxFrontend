@@ -62,7 +62,7 @@ finish() {
       cat "$latest" >&2
       magick identify "${latest%-ocr.txt}-frame.png" "${latest%-ocr.txt}-header.png" >&2 || true
     fi
-    journalctl -b --no-pager -u 'legion-portable-control-*' >&2 || true
+    journalctl -b --no-pager -u 'legion-control-helper-*' >&2 || true
     journalctl -b --no-pager -k | tail -n100 >&2 || true
   fi
   if [[ -S /run/user/1000/sway.sock ]]; then wayland swaymsg exit || true; fi
@@ -122,7 +122,7 @@ echo 'Checking official appimage-run uses its bundled runtime on first launch'
 [[ $(readlink "/proc/$pid/ns/user") != "$(readlink /proc/1/ns/user)" ]]
 executable=$(as_user approved readlink "/proc/$pid/exe")
 [[ $executable == */.cache/appimage-run/* ]]
-helper=${executable%/*}/libexec/legion-portable-control
+helper=${executable%/*}/libexec/legion-control-helper
 for library in libgtk-3.so.0 libglib-2.0.so.0 libpango-1.0.so.0; do
   grep -F "/usr/lib/legion_frontend/lib/$library" "/proc/$pid/maps"
 done
@@ -131,7 +131,7 @@ click 90 228
 wait_text 'Collect history' 1280x720+0+0 11
 desktop xdotool mousemove --window "$(head -n1 /home/approved/window.id)" 1100 600 click --repeat 18 --delay 50 5
 wait_text mode 260x25+359+648
-unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'; }
+unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-control-helper-*' | awk '{print $1}'; }
 echo deny >/run/legion-gui-approval
 click 734 667
 wait_text 'Action could not be completed' 1280x720+0+0 11
@@ -149,7 +149,7 @@ click 734 667
 has_unit() { [[ -n $(unit_query) ]]; }
 wait_until 30 has_unit
 unit=$(unit_query)
-[[ $unit =~ ^legion-portable-control-[0-9a-f-]+\.service$ ]]
+[[ $unit =~ ^legion-control-helper-[0-9a-f-]+\.service$ ]]
 helper_pid=$(systemctl show --property=MainPID --value "$unit")
 readback() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation; }
 enabled() { readback | grep -x enabled; }

@@ -3,8 +3,8 @@
 # shellcheck disable=SC2016
 set -euo pipefail
 support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$support/portable_session_test.sh"
+# shellcheck source=control/test/helper_session_test.sh
+source "$support/helper_session_test.sh"
 # shellcheck source=control/test/distro_test_support.sh
 source "$support/distro_test_support.sh"
 declare -A app=()
@@ -14,7 +14,7 @@ directory=$1
 images=("$directory"/*.AppImage)
 manifests=("$directory"/legion-frontend-*.json)
 image=${images[0]} manifest=${manifests[0]}
-jq -e '.portable_control and .default_control_mode == "privilegedControlHelper" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
+jq -e '.control and .default_control_mode == "privilegedControlHelper" and .host_executables == ["/bin/sh", "dirname", "mktemp", "rm"] and .native_runtime.helper.linkage == "static"' "$manifest"
 ldconfig -p >/tmp/legion-ldconfig
 reject grep -F libgtk-3.so.0 /tmp/legion-ldconfig
 echo "ARTIFACT_SHA256 $(jq -r --arg name "$(basename "$image")" '.files[$name]' "$manifest") $(basename "$image")"
@@ -38,13 +38,13 @@ cleanup() {
 trap cleanup EXIT
 check_helper() {
   local appdir=$1 helper elf documents digest
-  helper=$appdir/usr/lib/legion_frontend/libexec/legion-portable-control
+  helper=$appdir/usr/lib/legion_frontend/libexec/legion-control-helper
   elf=$(as_user approved readelf -lW -dW "$helper")
   [[ $elf != *INTERP* && $elf != *'(NEEDED)'* ]]
   documents=$(as_user approved "$appdir/usr/bin/xdg-user-dir" DOCUMENTS)
   [[ $documents == /home/approved* ]]
   digest=$(as_user approved sha256sum "$helper")
-  [[ ${digest%% *} == "$(jq -r '.appdir["./usr/lib/legion_frontend/libexec/legion-portable-control"].sha256' "$manifest")" ]]
+  [[ ${digest%% *} == "$(jq -r '.appdir["./usr/lib/legion_frontend/libexec/legion-control-helper"].sha256' "$manifest")" ]]
   session_new app approved "$helper" false
   [[ ${app[cli]} == /usr/local/bin/legion_cli ]]
   session_prepare app success
@@ -72,7 +72,7 @@ extraction='/home/approved/Extracted app with spaces'
 as_user approved mkdir -p "$extraction"
 as_user approved bash -c 'cd "$1"; "$2" --appimage-extract >/dev/null' bash "$extraction" "$image"
 appdir=$extraction/squashfs-root
-helper=$appdir/usr/lib/legion_frontend/libexec/legion-portable-control
+helper=$appdir/usr/lib/legion_frontend/libexec/legion-control-helper
 size=$(jq -r .native_runtime.helper.cleanup.size "$manifest")
 digest=$(jq -r .native_runtime.helper.cleanup.sha256 "$manifest")
 found=false

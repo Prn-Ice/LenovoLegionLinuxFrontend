@@ -5,7 +5,7 @@ const appId = 'io.github.prnice.legion_linux_frontend';
 
 void requirePrivilegedControlHelper(Directory bundle) {
   const executePermissionBits = 0x49; // Owner, group, and other execute bits.
-  final helper = File('${bundle.path}/libexec/legion-portable-control');
+  final helper = File('${bundle.path}/libexec/legion-control-helper');
   if (FileSystemEntity.typeSync(helper.path, followLinks: false) !=
           FileSystemEntityType.file ||
       helper.lengthSync() == 0 ||
@@ -73,7 +73,7 @@ Future<Map<String, Object>> inspectDesktopPackage(Directory appdir) async {
     final relative = file.path.substring(appdir.path.length + 1);
     final elf = await runPackagingCommand('readelf', ['-lW', '-dW', file.path]);
     if (elf.contains('/nix/store/') ||
-        (relative.endsWith('/libexec/legion-portable-control') &&
+        (relative.endsWith('/libexec/legion-control-helper') &&
             RegExp(r'\((?:RPATH|RUNPATH)\)').hasMatch(elf))) {
       throw StateError('Unsafe library search paths in $relative');
     }

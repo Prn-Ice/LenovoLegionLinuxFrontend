@@ -79,7 +79,7 @@ class ReleaseFixture {
       '.': {'type': 'directory', 'mode': '755'},
       './legion_frontend': {'type': 'file', 'mode': '755', 'sha256': 'b' * 64},
       './lib/libapp.so': {'type': 'file', 'mode': '644', 'sha256': 'c' * 64},
-      './libexec/legion-portable-control': {
+      './libexec/legion-control-helper': {
         'type': 'file',
         'mode': '755',
         'sha256': hash(helper),
@@ -288,7 +288,7 @@ class ReleaseFixture {
     };
     sources['release_inputs'] = {
       './native/sources/gtk/gtk.tar.xz': {'sha256': 'e' * 64},
-      './native/portable-cleanup.elf': {'sha256': 'f' * 64},
+      './native/helper-cleanup.elf': {'sha256': 'f' * 64},
     };
     manifest['native_runtime'] = native;
     archiveJson(
@@ -514,7 +514,7 @@ void main() {
         (
           'bounded cleanup ELF',
           (manifest, sources) {
-            sources['release_inputs'].remove('./native/portable-cleanup.elf');
+            sources['release_inputs'].remove('./native/helper-cleanup.elf');
           },
         ),
       ];
@@ -826,7 +826,7 @@ void main() {
   });
 
   test('AppImage helper payload must match its source inventory', () {
-    fixture.sources['bundle']['./libexec/legion-portable-control']['sha256'] =
+    fixture.sources['bundle']['./libexec/legion-control-helper']['sha256'] =
         '0' * 64;
     archiveJson(
       File('${fixture.binary.path}/${fixture.source}'),
@@ -878,7 +878,7 @@ void main() {
       fixture.sources,
     );
     fixture.refresh();
-    expect(fixture.prepare, failsWith('describe this portable build'));
+    expect(fixture.prepare, failsWith('describe this AppImage build'));
   });
 
   test('modified Debian package is rejected', () {
@@ -919,7 +919,7 @@ void main() {
   });
 
   test('source companion must include the complete helper inventory', () {
-    fixture.sources['bundle'].remove('./libexec/legion-portable-control');
+    fixture.sources['bundle'].remove('./libexec/legion-control-helper');
     archiveJson(
       File('${fixture.binary.path}/${fixture.source}'),
       './SOURCE-MANIFEST.json',

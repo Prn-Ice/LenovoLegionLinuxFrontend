@@ -28,5 +28,5 @@ mkdir -p /home/approved/'AppImage with spaces'
 tar -xzf /root/appimage-release.tar.gz -C /home/approved/'AppImage with spaces'
 chown -R approved:approved /home/approved/'AppImage with spaces'
 mkdir -p /opt/legion-vm-tests
-cp control/test/{appimage_test.sh,portable_session_test.sh,distro_test_support.sh,desktop_test_support.sh} /opt/legion-vm-tests/
+cp control/test/{appimage_test.sh,helper_session_test.sh,distro_test_support.sh,desktop_test_support.sh} /opt/legion-vm-tests/
 bash /opt/legion-vm-tests/appimage_test.sh /home/approved/'AppImage with spaces'

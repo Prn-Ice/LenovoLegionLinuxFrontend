@@ -261,11 +261,11 @@ int CreateExecutableSnapshot(const std::vector<unsigned char> &bytes,
 #ifdef MFD_EXEC
   flags |= MFD_EXEC;
 #endif
-  int snapshot = syscall(SYS_memfd_create, "legion-portable-helper", flags);
+  int snapshot = syscall(SYS_memfd_create, "legion-control-helper", flags);
 #ifdef MFD_EXEC
   // Kernels before MFD_EXEC reject the flag; retry with the older flags.
   if (snapshot < 0 && errno == EINVAL)
-    snapshot = syscall(SYS_memfd_create, "legion-portable-helper",
+    snapshot = syscall(SYS_memfd_create, "legion-control-helper",
                        MFD_CLOEXEC | MFD_ALLOW_SEALING);
 #endif
   if (snapshot < 0) {

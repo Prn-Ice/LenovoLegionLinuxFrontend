@@ -44,7 +44,7 @@ void writeDistroTestResults(
       fileName(source): packagingSha256(source),
       fileName(testArchive): packagingSha256(testArchive),
     },
-    'scope': 'Portable control with a synthetic CLI in a disposable distro VM',
+    'scope': 'Hardware control with a synthetic CLI in a disposable distro VM',
     'hardware': 'unverified',
     'desktop_authentication': 'unverified',
     'appimage': format == PackageTestFormat.appimage

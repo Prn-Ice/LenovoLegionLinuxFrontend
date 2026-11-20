@@ -96,10 +96,7 @@
               diff -u ${./packaging/nix/pubspec.lock.json} pubspec.lock.json
               touch "$out"
             '';
-        control-lifecycle = import ./control/test/control_lifecycle.nix {
-          inherit pkgs;
-        };
-        portable-bootstrap = import ./control/test/portable_bootstrap.nix {
+        helper-bootstrap = import ./control/test/helper_bootstrap.nix {
           inherit pkgs;
         };
       };
@@ -119,7 +116,6 @@
           nix.out
           gtk3
           glib
-          polkit
           libthai
           fribidi
           gsettings-desktop-schemas

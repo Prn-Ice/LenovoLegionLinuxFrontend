@@ -81,8 +81,7 @@ Hardware test results:
   cause remains unknown. See [poweroff diagnostics](poweroff-stall-investigation.md).
 
 Not tested: external displays, X11, BIOS recovery, and sleep with newer systemd
-versions. Use the current [next-boot graphics guide](next-boot-graphics.md)
-for the implemented opt-in boot flow, not old live-transition session steps.
+versions. The [archived boot guide](https://github.com/Prn-Ice/LenovoLegionLinuxFrontend/blob/6171f46/docs/architecture/next-boot-graphics.md) describes the integration used in these tests.
 The [pinned graphics investigation][graphics] retains firmware selectors,
 driver contracts, exact generations, timelines, and validation limits.
 

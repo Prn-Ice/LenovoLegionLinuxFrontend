@@ -117,7 +117,7 @@ void main() {
     'tool/release_source/source_archive.dart': {'nix', 'appimage', 'debian'},
     'tool/record_package_test_results.dart': {'appimage', 'debian'},
     'tool/package_test_results.dart': {'appimage', 'debian'},
-    'tool/test_portable_distro.sh': {'nix', 'appimage', 'debian'},
+    'tool/test_distro.sh': {'nix', 'appimage', 'debian'},
     'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
     'tool/release_workflow.dart': {},
   };
