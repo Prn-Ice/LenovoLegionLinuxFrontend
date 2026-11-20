@@ -46,7 +46,10 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
   versions in [docs/dependencies.md](docs/dependencies.md).
 - Say what things are and what we use them for, in ordinary language. For data,
   say where it came from and why we chose it. Apply this to comments, docs, UI
-  copy, and handoffs. See the writing examples in the project code patterns.
+  copy, and handoffs. Describe what the code does now in positive terms; keep
+  old names, rejected approaches, and audit disclaimers out of code comments
+  (record them in Beads or PR notes). See the writing examples in the project
+  code patterns.
 - Separate what changed, what was tested, and what remains unverified.
 
 ## Standard workflows and simple solutions

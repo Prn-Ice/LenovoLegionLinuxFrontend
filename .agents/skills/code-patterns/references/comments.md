@@ -122,6 +122,31 @@ if (rejection != null) return rejection;
 The branch returns an error. It doesn't call a router or sign anyone out.
 The method comment already explains the result, so no replacement is needed.
 
+### 5. After a rename or fix: drop defensive sidechatter
+
+**Before (argues with a deleted name and cites an unrelated method):**
+
+```dart
+/// Sum of loaded [InviteLink.registrations] counters (not a weekly total;
+/// refreshing a link resets its server counter).
+int get totalRegistrations {
+  return links.fold(0, (sum, l) => sum + l.registrations);
+}
+```
+
+**After (states what this getter returns now):**
+
+```dart
+/// Total registrations across the loaded invite links.
+int get totalRegistrations {
+  return links.fold(0, (sum, l) => sum + l.registrations);
+}
+```
+
+Say what the code does now in positive terms. Record old names, audit disclaimers,
+and fixed bugs in Beads or PR notes, and document another method's reset
+behavior on that method or field.
+
 **Use this pattern in older code, too.** Fix unclear comments as you encounter
 them. Put a reason beside the decision it explains. If the code below only
 builds a loading screen, describe that screen there. Explain routing where
