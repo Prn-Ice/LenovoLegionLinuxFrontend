@@ -1,0 +1,19 @@
+name: legion_window_preview
+description: A Linux window preview using Flutter's experimental window API.
+publish_to: none
+version: 0.0.1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  material_ui: ^1.9.0
+  yaru: ^12.0.0
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
