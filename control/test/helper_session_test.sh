@@ -54,7 +54,7 @@ session_new() {
   declare -gA "$name"
   local -n ref=$name
   ref[user]=$user
-  directory=$(as_user "$user" mktemp -d "/home/$user/Portable app.XXXXXX")
+  directory=$(as_user "$user" mktemp -d "/home/$user/Test app.XXXXXX")
   ref[output]=$directory/client.out
   ref[input]=$directory/client.in
   binary=$launcher

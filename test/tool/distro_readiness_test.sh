@@ -122,7 +122,7 @@ hanging_ssh() {
 }
 for case in transport_reset cloud_init_failure remote_timeout nontransport_255 zero_budget hanging_ssh; do
   (
-    fixture=$(mktemp -d "${TMPDIR:-/tmp}/portable distro readiness with spaces.XXXXXXXX")
+    fixture=$(mktemp -d "${TMPDIR:-/tmp}/distro readiness with spaces.XXXXXXXX")
     trap 'rm -rf -- "$fixture"' EXIT
     export PATH="$fixture:$PATH"
     setup

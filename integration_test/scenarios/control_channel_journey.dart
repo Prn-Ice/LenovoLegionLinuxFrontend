@@ -21,7 +21,7 @@ void main() {
     );
   });
   testWidgets(
-    'native portable channel rejects invalid endpoints before connecting',
+    'native control channel rejects invalid endpoints before connecting',
     (_) async {
       final client = LegionControlClient(
         transport: NativeControlConnection(

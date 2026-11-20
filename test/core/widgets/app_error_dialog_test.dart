@@ -5,7 +5,7 @@ import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 
 void main() {
-  testWidgets('portable setup recovery avoids installed service instructions', (
+  testWidgets('helper setup explains how to restore access', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(420, 500);
