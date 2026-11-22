@@ -5,6 +5,20 @@ Apply the parent skill during implementation and review. Start with the current
 visual and feedback contract, together with the current shared components.
 Do not import Ester's themes, dialogs, mobile dashboard, routes, or component API.
 
+## Make build methods easy to scan
+
+Use a blank line when the work changes. Group related state reads, listener
+registrations, early returns, display calculations, and visible regions. Keep
+each calculation close to the UI that uses it.
+
+In the navigation shell, give state reads, controller synchronization, and the
+page layout their own paragraphs. A short comment can explain why a section
+change updates both the wide and narrow tab controllers.
+
+Explain a product rule or ordering decision where a new contributor would otherwise
+have to infer it.
+Let clear names carry the routine steps.
+
 ## Compose visible regions
 
 Read the closest current feature and shared component before adding another
