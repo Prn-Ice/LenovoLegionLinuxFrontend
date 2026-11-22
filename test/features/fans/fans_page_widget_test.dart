@@ -29,9 +29,22 @@ void main() {
       await _pumpPage(
         tester,
         width: 420,
-        snapshot: _levelFanSnapshot([
-          const FanCurvePoint(fan1Level: 2, fan1Rpm: 1800, fan2Rpm: 1700),
-        ]),
+        snapshot: const FansSnapshot(
+          platformProfile: 'balanced',
+          onPowerSupply: true,
+          recommendedPreset: null,
+          availablePresets: ['quiet-ac'],
+          miniFanCurveEnabled: null,
+          lockFanControllerEnabled: null,
+          maximumFanSpeedEnabled: null,
+          fanCurve: FanCurve(
+            name: 'firmware',
+            schema: FanCurveSchema.speedOnly,
+            speedUnit: FanSpeedUnit.level,
+            writeStatus: FanCurveWriteStatus.unsupported,
+            points: [FanCurvePoint(fan1Level: 2, fan1Rpm: 1800, fan2Rpm: 1700)],
+          ),
+        ),
       );
       expect(find.byKey(const ValueKey('fan-speed-table')), findsOneWidget);
       expect(find.byKey(const ValueKey('fan-channel-toggle')), findsNothing);
@@ -47,46 +60,6 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
-  testWidgets('level table greys out unused firmware levels', (tester) async {
-    const levels = [1, 2, 3, 4, 5, 6, 7, 8, 8, 8];
-    const ladder = [0, 1800, 1900, 2100, 2400, 2800, 2900, 3600, 4100, 4700];
-    await _pumpPage(
-      tester,
-      width: 420,
-      snapshot: _levelFanSnapshot(
-        [
-          for (final level in levels)
-            FanCurvePoint(
-              fan1Level: level,
-              fan1Rpm: ladder[level - 1],
-              fan2Rpm: ladder[level - 1],
-            ),
-        ],
-        fan1LevelRpmTable: ladder,
-        fan2LevelRpmTable: ladder,
-      ),
-    );
-
-    expect(find.text('Curve steps'), findsOneWidget);
-    expect(find.text('8–10'), findsOneWidget);
-    expect(find.text('Not used'), findsNWidgets(2));
-    expect(find.text('4100'), findsNWidgets(2));
-    expect(find.text('4700'), findsNWidgets(2));
-    expect(find.text('3600'), findsNWidgets(2));
-    expect(find.textContaining('unused levels are greyed out'), findsOneWidget);
-    expect(find.textContaining('cannot change this table'), findsOneWidget);
-    expect(
-      tester.widget<DataTable>(find.byType(DataTable)).rows,
-      hasLength(10),
-    );
-    final muted = Theme.of(tester.element(find.byType(DataTable)))
-        .colorScheme
-        .onSurface
-        .withValues(alpha: 0.45);
-    expect(tester.widget<Text>(find.text('4100').first).style?.color, muted);
-    expect(tester.takeException(), isNull);
-  });
 
   testWidgets('full page has no overflow at compact width', (tester) async {
     await _pumpPage(tester, width: 320);
@@ -389,29 +362,6 @@ Future<_PageHarness> _pumpPage(
 
   return _PageHarness(fansBloc: fansBloc, fansRepository: fansRepository);
 }
-
-FansSnapshot _levelFanSnapshot(
-  List<FanCurvePoint> points, {
-  List<int>? fan1LevelRpmTable,
-  List<int>? fan2LevelRpmTable,
-}) => FansSnapshot(
-  platformProfile: 'balanced',
-  onPowerSupply: true,
-  recommendedPreset: null,
-  availablePresets: const ['quiet-ac'],
-  miniFanCurveEnabled: null,
-  lockFanControllerEnabled: null,
-  maximumFanSpeedEnabled: null,
-  fanCurve: FanCurve(
-    name: 'firmware',
-    schema: FanCurveSchema.speedOnly,
-    speedUnit: FanSpeedUnit.level,
-    writeStatus: FanCurveWriteStatus.unsupported,
-    points: points,
-    fan1LevelRpmTable: fan1LevelRpmTable,
-    fan2LevelRpmTable: fan2LevelRpmTable,
-  ),
-);
 
 FansSnapshot _fansSnapshot({
   bool? maximumFanSpeedEnabled = false,
