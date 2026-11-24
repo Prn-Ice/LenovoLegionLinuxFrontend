@@ -189,7 +189,7 @@ bool ValidateGraphicsMode(const std::string &mode, std::string *error) {
 }
 
 Command GraphicsModeCommand(const std::string &mode) {
-  return {{"--donotexpecthwmon", "graphics-mode", "set", mode, "--json"}};
+  return {{"--donotexpecthwmon", "graphics-mode", "set", mode}};
 }
 
 // legion_cli uses these exit codes to distinguish a blocked change from a

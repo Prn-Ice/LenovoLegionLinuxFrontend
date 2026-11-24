@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:legion_frontend/core/services/igpu_sysfs_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
@@ -14,6 +15,8 @@ import 'package:mocktail/mocktail.dart';
 class MockSysfsService extends Mock implements LegionSysfsService {}
 
 class MockNvidiaSmiService extends Mock implements NvidiaSmiService {}
+
+class MockIgpuSysfsService extends Mock implements IgpuSysfsService {}
 
 /// Older wire formats: fields 0–9, or 0–10 with dGPU temperature.
 ///
@@ -260,4 +263,33 @@ void main() {
     await repo.pruneOldRecords();
     expect(box.length, 1);
   });
+
+  test(
+    'records integrated GPU usage and temperature when NVIDIA is absent',
+    () async {
+      final igpu = MockIgpuSysfsService();
+      when(() => nvidia.readSnapshot()).thenAnswer((_) async => null);
+      when(() => igpu.readSnapshot()).thenAnswer(
+        (_) async => const GpuReading(
+          name: 'AMD Integrated Graphics',
+          usagePercent: 18,
+          tempC: 44.5,
+        ),
+      );
+      final igpuRepo = AnalyticsRepository(
+        sysfsService: sysfs,
+        nvidiaSmiService: nvidia,
+        igpuSysfsService: igpu,
+        box: box,
+      );
+
+      final record = await igpuRepo.recordReading();
+
+      expect(record.dgpuTempC, isNull);
+      expect(record.gpuUtilPercent, isNull);
+      expect(record.igpuTempC, 44.5);
+      expect(record.igpuUtilPercent, 18);
+      expect(record.gpuTempC, 44.5);
+    },
+  );
 }
