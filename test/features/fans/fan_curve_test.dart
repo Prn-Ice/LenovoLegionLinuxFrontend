@@ -117,4 +117,41 @@ void main() {
       expect(requested.matchesReadback(readback), isTrue);
     });
   });
+
+  group('nearestStepIndex', () {
+    FanCurve curveWith(List<int?> fan1, List<int?> fan2) => FanCurve(
+      name: 'steps',
+      points: [
+        for (var index = 0; index < fan1.length; index++)
+          FanCurvePoint(fan1Rpm: fan1[index], fan2Rpm: fan2[index]),
+      ],
+    );
+
+    test('returns the exact matching step', () {
+      final curve = curveWith([1000, 2000, 3000], [1200, 2200, 3200]);
+
+      expect(nearestStepIndex(curve, FanChannel.cpu, 2000), 1);
+      expect(nearestStepIndex(curve, FanChannel.gpu, 3200), 2);
+    });
+
+    test('returns the closest step when the live speed sits between steps', () {
+      final curve = curveWith([1000, 2000, 3000], [1200, 2200, 3200]);
+
+      expect(nearestStepIndex(curve, FanChannel.cpu, 2600), 2);
+      expect(nearestStepIndex(curve, FanChannel.cpu, 2400), 1);
+    });
+
+    test('returns null without a live speed', () {
+      final curve = curveWith([1000, 2000], [1200, 2200]);
+
+      expect(nearestStepIndex(curve, FanChannel.cpu, null), isNull);
+    });
+
+    test('returns null when the curve stores no speed for the channel', () {
+      final curve = curveWith([null, null], [1200, 2200]);
+
+      expect(nearestStepIndex(curve, FanChannel.cpu, 1800), isNull);
+      expect(nearestStepIndex(curve, FanChannel.gpu, 1800), 1);
+    });
+  });
 }
