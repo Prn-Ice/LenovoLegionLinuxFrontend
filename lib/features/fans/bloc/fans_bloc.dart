@@ -159,6 +159,11 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       action: () => _repository.setMiniFanCurve(event.enabled),
       successMessage:
           'Mini fan curve ${event.enabled ? 'enabled' : 'disabled'}.',
+      matchesReadback: (state) => state.miniFanCurveEnabled == event.enabled,
+      readbackFailureMessage: _toggleReadbackFailure(
+        'Mini fan curve',
+        event.enabled,
+      ),
     );
   }
 
@@ -172,6 +177,12 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       action: () => _repository.setLockFanController(event.enabled),
       successMessage:
           'Lock fan controller ${event.enabled ? 'enabled' : 'disabled'}.',
+      matchesReadback: (state) =>
+          state.lockFanControllerEnabled == event.enabled,
+      readbackFailureMessage: _toggleReadbackFailure(
+        'Lock fan controller',
+        event.enabled,
+      ),
     );
   }
 
@@ -185,7 +196,19 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       action: () => _repository.setMaximumFanSpeed(event.enabled),
       successMessage:
           'Maximum fan speed ${event.enabled ? 'enabled' : 'disabled'}.',
+      matchesReadback: (state) => state.maximumFanSpeedEnabled == event.enabled,
+      readbackFailureMessage: _toggleReadbackFailure(
+        'Maximum fan speed',
+        event.enabled,
+      ),
     );
+  }
+
+  String _toggleReadbackFailure(String label, bool requested) {
+    final current = requested ? 'off' : 'on';
+    return '$label did not change. The setting is still $current. '
+        "Your laptop's firmware or driver ignored the change. Check the power "
+        'mode or refresh readings before retrying.';
   }
 
   void _onFanCurvePointUpdated(
@@ -281,6 +304,8 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit, {
     required Future<void> Function() action,
     required String successMessage,
+    bool Function(FansState state)? matchesReadback,
+    String? readbackFailureMessage,
   }) async {
     if (state.isApplying) {
       return;
@@ -296,6 +321,21 @@ class FansBloc extends Bloc<FansEvent, FansState> {
       if (_closing || emit.isDone) return;
       if (!loaded) {
         emit(state.copyWith(isApplying: false));
+        return;
+      }
+      if (matchesReadback != null && !matchesReadback(state)) {
+        final message =
+            readbackFailureMessage ??
+            'The hardware did not apply the requested change.';
+        emit(
+          state.copyWith(
+            isApplying: false,
+            errorMessage: AppFailure.from(
+              StateError('Hardware readback did not match requested state.'),
+              message: message,
+            ),
+          ),
+        );
         return;
       }
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
