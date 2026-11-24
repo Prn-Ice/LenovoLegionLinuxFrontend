@@ -34,6 +34,7 @@
         extraPkgConfigPackages = [ pkgs.libthai ];
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
+      appimage = pkgs.callPackage ./packaging/nix/appimage.nix { inherit frontend; };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
       tag = pkgs.writeShellApplication {
         name = "legion-tag";
@@ -49,7 +50,7 @@
     {
       packages.${system} = {
         default = frontend;
-        inherit frontend;
+        inherit frontend appimage;
         frontend-source = frontendSource;
       };
       nixosModules.default =
@@ -120,6 +121,29 @@
         helper-bootstrap = import ./control/test/helper_bootstrap.nix {
           inherit pkgs;
         };
+        appimage-package =
+          pkgs.runCommand "legion-appimage-check"
+            {
+              nativeBuildInputs = [ pkgs.patchelf ];
+            }
+            ''
+              ${appimage} --appimage-extract >/dev/null
+              test -x squashfs-root/AppRun
+              test -x squashfs-root/usr/lib/legion_frontend/legion_frontend
+              test -f squashfs-root/usr/share/glib-2.0/schemas/gschemas.compiled
+              status=0
+              while IFS= read -r -d "" file; do
+                rpath="$(patchelf --print-rpath "$file" 2>/dev/null)" || continue
+                case "$rpath" in
+                  *nix/store*)
+                    echo "The AppImage keeps a Nix store library path: $file" >&2
+                    status=1
+                    ;;
+                esac
+              done < <(find squashfs-root -type f -print0)
+              [ "$status" = 0 ]
+              touch "$out"
+            '';
       };
 
       devShells.${system}.default = pkgs.mkShell {
