@@ -139,13 +139,15 @@ struct Manager {
     g_object_unref(test_bus);
   }
 
-  void Start(unsigned runtime = 10) {
+  void Start(unsigned runtime = 10,
+             legion_control::ManagedCommandStorage storage =
+                 legion_control::ManagedCommandStorage::none) {
     operation = runner->Start(
         "/trusted/backend", {"literal $HOME", "${PATH}", "a b", ""}, runtime,
         [this](legion_control::ManagedCommandResult value) {
           ++calls;
           result = std::move(value);
-        });
+        }, storage);
     g_assert_cmpint(calls, ==, 0);
   }
 
@@ -308,6 +310,7 @@ void test_success_properties() {
   g_assert_cmpint(m.unrefs, ==, 1);
   g_assert_cmpint(m.stops, ==, 0);
   g_assert_false(m.properties.count("StateDirectory"));
+  g_assert_false(m.properties.count("ConfigurationDirectory"));
   g_assert_true(g_str_has_prefix(m.unit.c_str(), "legion-control-op-"));
   g_assert_true(g_str_has_suffix(m.unit.c_str(), ".service"));
   g_assert_cmpstr(m.mode.c_str(), ==, "fail");
@@ -675,6 +678,24 @@ void test_failed_cgroup_deadline() {
   until([&] { return g_dbus_connection_is_closed(m.client); });
 }
 
+void test_graphics_boot_setup_paths() {
+  Manager m;
+  m.Start(10, legion_control::ManagedCommandStorage::graphicsBootSetup);
+  m.Finish();
+  g_assert_true(m.result.status == ManagedCommandStatus::success);
+  for (const auto &entry : std::map<std::string, std::string>{
+           {"StateDirectory", "legion-graphics"},
+           {"ConfigurationDirectory", "systemd/system.attached"}}) {
+    GVariant *paths = m.Property(entry.first.c_str(), "as");
+    g_assert_cmpuint(g_variant_n_children(paths), ==, 1);
+    const char *path;
+    g_variant_get_child(paths, 0, "&s", &path);
+    g_assert_cmpstr(path, ==, entry.second.c_str());
+  }
+  g_assert_cmpstr(g_variant_get_string(m.Property("ProtectSystem", "s"), nullptr),
+                  ==, "strict");
+}
+
 void test_missing_cleanup_property(gconstpointer data) {
   Manager m;
   m.omit_job = GPOINTER_TO_INT(data) == 0;
@@ -690,6 +711,8 @@ int main(int argc, char **argv) {
   g_test_init(&argc, &argv, nullptr);
   g_test_add_func("/managed/success-properties-literal-argv",
                   test_success_properties);
+  g_test_add_func("/managed/graphics-boot-setup-paths",
+                  test_graphics_boot_setup_paths);
   g_test_add_func("/managed/helpers-share-operation-lock",
                   test_helpers_share_operation_lock);
   g_test_add_func("/managed/manager-retains-operation-lock",

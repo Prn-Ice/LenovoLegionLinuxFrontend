@@ -17,6 +17,8 @@ enum class ManagedCommandStatus {
   cleanupFailed
 };
 
+enum class ManagedCommandStorage { none, graphicsState, graphicsBootSetup };
+
 struct ManagedCommandResult {
   std::string output;
   std::string error;
@@ -36,7 +38,8 @@ class ManagedCommandRunner {
   virtual ~ManagedCommandRunner() = default;
   virtual std::shared_ptr<ManagedCommandOperation> Start(
       const std::string &executable, const std::vector<std::string> &argv,
-      unsigned runtime_seconds, Completion completion) = 0;
+      unsigned runtime_seconds, Completion completion,
+      ManagedCommandStorage storage = ManagedCommandStorage::none) = 0;
 };
 
 // Start and completion use the owning GLib context; completion is asynchronous.

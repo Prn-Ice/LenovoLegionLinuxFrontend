@@ -37,6 +37,13 @@ Future<void> main(List<String> args) async {
     try {
       final staging = Directory('${scratch.path}/package');
       await stageDesktopPackage(root, bundle, staging);
+      final units = Directory('${staging.path}/usr/lib/systemd/system');
+      final wants = Directory('${units.path}/display-manager.service.wants');
+      await wants.create(recursive: true);
+      await File('${root.path}/packaging/debian/legion-graphics.service')
+          .copy('${units.path}/legion-graphics.service');
+      await Link('${wants.path}/legion-graphics.service')
+          .create('../legion-graphics.service');
       await File('${root.path}/packaging/debian/legion_frontend')
           .copy('${staging.path}/launcher');
       await runPackagingCommand('install', [
@@ -69,6 +76,13 @@ Future<void> main(List<String> args) async {
       await File('${root.path}/LICENSE').copy('${doc.path}/copyright');
       await File('${root.path}/docs/debian.md').copy('${doc.path}/README.md');
       final control = Directory('${staging.path}/DEBIAN')..createSync();
+      for (final script in ['postinst', 'postrm']) {
+        await runPackagingCommand('install', [
+          '-m755',
+          '${root.path}/packaging/debian/$script',
+          '${control.path}/$script',
+        ]);
+      }
       final size = (await runPackagingCommand('du', [
         '-sk',
         '${staging.path}/usr',
@@ -212,5 +226,5 @@ Future<String> debianDependencies(
     throw StateError('dpkg-shlibdeps returned no dependencies.');
   }
   await debian.delete(recursive: true);
-  return '$generated, libegl1, libgles2, gsettings-desktop-schemas, xdg-user-dirs, polkitd | policykit-1, systemd';
+  return '$generated, libegl1, libgles2, gsettings-desktop-schemas, xdg-user-dirs, polkitd | policykit-1, systemd, lsof';
 }

@@ -52,6 +52,27 @@
         inherit frontend;
         frontend-source = frontendSource;
       };
+      nixosModules.default =
+        { pkgs, ... }:
+        {
+          environment.systemPackages = [ frontend ];
+          systemd.services.legion-graphics = {
+            description = "Apply Lenovo iGPU-only graphics before sign-in";
+            after = [ "systemd-modules-load.service" "systemd-udev-trigger.service" ];
+            before = [ "display-manager.service" ];
+            wantedBy = [ "display-manager.service" ];
+            path = [ pkgs.lsof ];
+            restartIfChanged = false;
+            unitConfig.ConditionPathExists = "/sys/devices/platform/legion/igpumode";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecCondition = "${pkgs.runtimeShell} -c '/run/current-system/sw/bin/legion_cli graphics-mode apply --help >/dev/null 2>&1'";
+              ExecStart = "/run/current-system/sw/bin/legion_cli graphics-mode apply";
+              TimeoutStartSec = "90s";
+            };
+          };
+        };
       apps.${system} = {
         default = {
           type = "app";

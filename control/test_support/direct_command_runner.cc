@@ -155,7 +155,7 @@ struct DirectRunner final : ManagedCommandRunner {
 
   std::shared_ptr<ManagedCommandOperation> Start(
       const std::string &exe, const std::vector<std::string> &args,
-      unsigned runtime, Completion done) override {
+      unsigned runtime, Completion done, ManagedCommandStorage) override {
     auto op = std::make_shared<DirectOperation>();
     op->completion = std::move(done);
     g_idle_add_full(

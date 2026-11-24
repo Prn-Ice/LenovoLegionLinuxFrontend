@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -55,6 +57,14 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
+    final graphicsModeCard = _GraphicsModeCard(
+      state: state,
+      isAppImage: Platform.environment['LEGION_APPIMAGE'] == '1',
+      onModeSelected: (mode) => _setGraphicsMode(context, bloc, state, mode),
+      onBootSupportChanged: (enabled) =>
+          _setGraphicsBootSupport(context, bloc, enabled),
+    );
+
     return AppPageBody(
       errorMessage:
           state.errorMessage ??
@@ -62,11 +72,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           analytics.errorMessage,
       children: [
         if (!state.isAvailable) ...[
-          _GraphicsModeCard(
-            state: state,
-            onModeSelected: (mode) =>
-                _setGraphicsMode(context, bloc, state, mode),
-          ),
+          graphicsModeCard,
           const SizedBox(height: 16),
           AppControlCard(
             icon: YaruIcons.video,
@@ -126,11 +132,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           const SizedBox(height: 16),
           _ProcessesCard(processes: state.processes),
           const SizedBox(height: 16),
-          _GraphicsModeCard(
-            state: state,
-            onModeSelected: (mode) =>
-                _setGraphicsMode(context, bloc, state, mode),
-          ),
+          graphicsModeCard,
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -187,11 +189,15 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     DgpuState state,
     GraphicsMode mode,
   ) async {
+    final bootSupport = state.graphicsModeStatus?.bootSupport;
     final message = switch (mode) {
       GraphicsMode.hybrid =>
         'This makes integrated and NVIDIA graphics available. '
             'Changing which GPU drives the display may require a restart. '
             'Save your work before continuing.',
+      GraphicsMode.hybridIgpuOnly when bootSupport != null =>
+        'NVIDIA graphics will disconnect when you restart. Displays connected '
+            'through NVIDIA may stop working after the restart.',
       GraphicsMode.hybridIgpuOnly =>
         'This can disable NVIDIA graphics while the laptop is running. Disconnect '
             'external displays, save your work, and close GPU-accelerated '
@@ -211,6 +217,25 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     );
     if (!context.mounted || !confirmed) return;
     bloc.add(DgpuGraphicsModeSetRequested(mode));
+  }
+
+  Future<void> _setGraphicsBootSupport(
+    BuildContext context,
+    DgpuBloc bloc,
+    bool enabled,
+  ) async {
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: enabled ? 'Set up iGPU-only at startup' : 'Remove boot support',
+      message: enabled
+          ? 'Allow Legion to install a startup command that switches to '
+                'integrated graphics before sign-in after you select iGPU-only.'
+          : 'Remove the startup command installed by the AppImage. '
+                'You can return to Hybrid from Graphics mode.',
+      confirmLabel: enabled ? 'Set up' : 'Remove',
+    );
+    if (!context.mounted || !confirmed) return;
+    bloc.add(DgpuGraphicsBootSupportSetRequested(enabled));
   }
 
   Future<void> _killProcesses(
@@ -544,15 +569,23 @@ class _ProcessesCard extends StatelessWidget {
 }
 
 class _GraphicsModeCard extends StatelessWidget {
-  const _GraphicsModeCard({required this.state, required this.onModeSelected});
+  const _GraphicsModeCard({
+    required this.state,
+    required this.isAppImage,
+    required this.onModeSelected,
+    required this.onBootSupportChanged,
+  });
 
   final DgpuState state;
+  final bool isAppImage;
   final ValueChanged<GraphicsMode> onModeSelected;
+  final ValueChanged<bool> onBootSupportChanged;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final status = state.graphicsModeStatus;
+    final bootSupport = status?.bootSupport;
 
     return SurfaceCard(
       key: const ValueKey('graphics-mode-status'),
@@ -629,7 +662,11 @@ class _GraphicsModeCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (status.reconciliation != GraphicsReconciliation.settled) ...[
+            if (status.pendingMode case final pending?) ...[
+              const SizedBox(height: 12),
+              Text('${pending.label} is scheduled for your next restart.'),
+            ] else if (status.reconciliation !=
+                GraphicsReconciliation.settled) ...[
               const SizedBox(height: 12),
               Text(
                 switch (status.reconciliation) {
@@ -646,6 +683,34 @@ class _GraphicsModeCard extends StatelessWidget {
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 12),
+            if (bootSupport != null &&
+                status.availableModes.contains(
+                  GraphicsMode.hybridIgpuOnly,
+                )) ...[
+              if (!bootSupport.enabled)
+                Text(switch (bootSupport.setupUnavailable) {
+                  GraphicsBootSetupUnavailable.unsupportedModel =>
+                    'iGPU-only startup switching is unavailable on this model.',
+                  GraphicsBootSetupUnavailable.missingSystemd =>
+                    'iGPU-only startup switching requires systemd.',
+                  GraphicsBootSetupUnavailable.missingLsof =>
+                    'Install lsof system-wide to set up iGPU-only at startup.',
+                  null => 'Set up startup support to use iGPU-only.',
+                }),
+              if (bootSupport.appImageEnabled ||
+                  (isAppImage && bootSupport.setupUnavailable == null))
+                TextButton(
+                  onPressed: state.isApplying
+                      ? null
+                      : () =>
+                            onBootSupportChanged(!bootSupport.appImageEnabled),
+                  child: Text(
+                    bootSupport.appImageEnabled
+                        ? 'Remove boot support'
+                        : 'Set up iGPU-only at startup',
+                  ),
+                ),
+            ],
             Text(
               'Change graphics mode',
               style: Theme.of(context).textTheme.labelSmall
@@ -668,7 +733,11 @@ class _GraphicsModeCard extends StatelessWidget {
                           key: ValueKey('set-graphics-${mode.wireValue}'),
                           onPressed:
                               state.isApplying ||
+                                  mode == status.pendingMode ||
+                                  (mode == GraphicsMode.hybridIgpuOnly &&
+                                      bootSupport?.enabled == false) ||
                                   (mode == status.selectedMode &&
+                                      status.pendingMode == null &&
                                       status.reconciliation ==
                                           GraphicsReconciliation.settled)
                               ? null
@@ -772,8 +841,11 @@ class _ReconciliationBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final unsafeMode = status?.selectedMode == GraphicsMode.hybridAuto;
+    final restartPending = status?.pendingMode != null;
     final settled =
-        !unsafeMode && status?.reconciliation == GraphicsReconciliation.settled;
+        !unsafeMode &&
+        !restartPending &&
+        status?.reconciliation == GraphicsReconciliation.settled;
     final color = status == null
         ? scheme.onSurfaceVariant
         : settled
@@ -781,6 +853,8 @@ class _ReconciliationBadge extends StatelessWidget {
         : scheme.warning;
     final label = unsafeMode
         ? 'Unsafe mode'
+        : restartPending
+        ? 'Restart required'
         : status?.reconciliation.label ?? 'Unavailable';
     return DecoratedBox(
       decoration: BoxDecoration(
