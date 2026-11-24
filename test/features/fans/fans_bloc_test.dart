@@ -317,4 +317,37 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     verifyNever(() => repo.applyPreset(any()));
   });
+
+  test(
+    'reports an error when maximum fan speed readback stays unchanged',
+    () async {
+      final repo = FakeFansRepository();
+      const unchanged = FansSnapshot(
+        platformProfile: 'custom',
+        onPowerSupply: true,
+        recommendedPreset: null,
+        availablePresets: [],
+        miniFanCurveEnabled: null,
+        lockFanControllerEnabled: null,
+        maximumFanSpeedEnabled: false,
+        fanCurve: null,
+      );
+      when(repo.loadSnapshot).thenAnswer((_) async => unchanged);
+      when(() => repo.setMaximumFanSpeed(true)).thenAnswer((_) async {});
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(FansState.initial().copyWith(maximumFanSpeedEnabled: false));
+
+      bloc.add(const MaximumFanSpeedSetRequested(true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.isApplying, isFalse);
+      expect(bloc.state.maximumFanSpeedEnabled, isFalse);
+      expect(bloc.state.noticeMessage, isNull);
+      expect(
+        bloc.state.errorMessage?.message,
+        contains('Maximum fan speed did not change'),
+      );
+    },
+  );
 }
