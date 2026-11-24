@@ -10,7 +10,6 @@ import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
 import 'package:legion_frontend/features/fans/models/fan_curve.dart';
 import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
-import 'package:legion_frontend/features/fans/view/fan_curve_editor.dart';
 import 'package:legion_frontend/features/fans/view/fans_page.dart';
 
 import '../support/journey.dart';

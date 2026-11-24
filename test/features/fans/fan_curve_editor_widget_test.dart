@@ -298,6 +298,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('speed-only firmware shows a step chart and validation copy', (
+    tester,
+  ) async {
+    await _pumpEditor(
+      tester,
+      width: 320,
+      curve: const FanCurve(
+        name: 'firmware',
+        schema: FanCurveSchema.speedOnly,
+        speedUnit: FanSpeedUnit.level,
+        writeStatus: FanCurveWriteStatus.unvalidated,
+        points: [
+          FanCurvePoint(fan1Level: 1, fan1Rpm: 1200, fan2Rpm: 1100),
+          FanCurvePoint(fan1Level: 2, fan1Rpm: 1800, fan2Rpm: 1700),
+        ],
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('fan-step-chart')), findsOneWidget);
+    expect(find.byKey(const ValueKey('fan-speed-table')), findsNothing);
+    expect(find.text('Fan speed steps'), findsOneWidget);
+    expect(
+      find.textContaining('writes have not been validated'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('compatible models list'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('save is enabled only while dirty and not applying', (
     tester,
   ) async {
@@ -341,6 +370,7 @@ void main() {
 Future<void> _pumpEditor(
   WidgetTester tester, {
   required double width,
+  FanCurve? curve,
   bool dirty = false,
   bool isApplying = false,
   FanChannel channel = FanChannel.cpu,
@@ -361,7 +391,7 @@ Future<void> _pumpEditor(
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: _EditorHarness(
-              curve: _curve(),
+              curve: curve ?? _curve(),
               dirty: dirty,
               isApplying: isApplying,
               channel: channel,
