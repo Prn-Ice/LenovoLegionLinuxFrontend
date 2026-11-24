@@ -381,11 +381,17 @@ class _FanStepChart extends StatelessWidget {
                           if (index < 0 || index >= steps.length) {
                             return const SizedBox.shrink();
                           }
+                          final isCurrent = index == estimatedIndex;
                           return SideTitleWidget(
                             meta: meta,
                             child: Text(
                               '${index + 1}',
-                              style: monoMetaStyle(scheme),
+                              style: isCurrent
+                                  ? monoMetaStyle(scheme).copyWith(
+                                      color: accent,
+                                      fontWeight: FontWeight.w700,
+                                    )
+                                  : monoMetaStyle(scheme),
                             ),
                           );
                         },

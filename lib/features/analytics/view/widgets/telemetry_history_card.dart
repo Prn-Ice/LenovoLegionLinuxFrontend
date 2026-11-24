@@ -62,6 +62,13 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
     ];
     final spots = _downsample(availableSpots);
     final values = spots.map((spot) => spot.y).toList();
+    final minY = spots.length < 2
+        ? 0.0
+        : (option.minimumY ?? _lowerBound(values));
+    final maxY = spots.length < 2
+        ? 1.0
+        : (option.maximumY ?? _upperBound(values));
+    final leftInterval = _leftTitleInterval(minY, maxY);
     final scheme = Theme.of(context).colorScheme;
 
     return SurfaceCard(
@@ -138,8 +145,8 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                     LineChartData(
                       minX: spots.first.x,
                       maxX: spots.last.x,
-                      minY: option.minimumY ?? _lowerBound(values),
-                      maxY: option.maximumY ?? _upperBound(values),
+                      minY: minY,
+                      maxY: maxY,
                       lineTouchData: LineTouchData(
                         getTouchedSpotIndicator: (barData, spotIndexes) => [
                           for (final _ in spotIndexes)
@@ -214,12 +221,19 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                         leftTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
+                            interval: leftInterval,
                             reservedSize: 42,
-                            getTitlesWidget: (value, meta) => Text(
-                              value.toStringAsFixed(0),
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
+                            getTitlesWidget: (value, meta) {
+                              if (value == meta.max &&
+                                  (value - minY) % leftInterval != 0) {
+                                return const SizedBox.shrink();
+                              }
+                              return Text(
+                                value.toStringAsFixed(0),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -278,6 +292,31 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
   double _bottomTitleInterval(List<FlSpot> spots) {
     final range = spots.last.x - spots.first.x;
     return range <= 4 ? 1 : range / 4;
+  }
+
+  double _leftTitleInterval(double minY, double maxY) {
+    final span = (maxY - minY).abs();
+    if (span <= 4) return 1;
+    final raw = span / 4;
+    for (final step in const [
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      20.0,
+      25.0,
+      50.0,
+      100.0,
+      200.0,
+      250.0,
+      500.0,
+      1000.0,
+      2000.0,
+      5000.0,
+    ]) {
+      if (raw <= step) return step;
+    }
+    return (raw / 1000).ceil() * 1000.0;
   }
 }
 
