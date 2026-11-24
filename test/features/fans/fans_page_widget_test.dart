@@ -75,8 +75,9 @@ void main() {
       expect(find.text('Live now'), findsOneWidget);
       expect(find.text('2180 RPM'), findsOneWidget);
       expect(find.text('1940 RPM'), findsOneWidget);
-      expect(find.text('44% of max'), findsOneWidget);
-      expect(find.text('39% of max'), findsOneWidget);
+      expect(find.text('Of max'), findsNWidgets(2));
+      expect(find.text('44%'), findsOneWidget);
+      expect(find.text('39%'), findsOneWidget);
       expect(find.text('64°C'), findsOneWidget);
       expect(find.text('58°C'), findsOneWidget);
       expect(find.text('Step 1 of 1 (estimated)'), findsNWidgets(2));
@@ -114,7 +115,7 @@ void main() {
 
     expect(find.text('55°C'), findsOneWidget);
     expect(find.text('58°C'), findsNothing);
-    expect(find.textContaining('% of max'), findsNothing);
+    expect(find.text('Of max'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

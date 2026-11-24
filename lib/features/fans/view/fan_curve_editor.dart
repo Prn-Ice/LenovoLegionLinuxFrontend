@@ -304,6 +304,8 @@ class _FanStepChart extends StatelessWidget {
       0,
       (a, b) => a > b ? a : b,
     );
+    final axisStep = highestRpm >= 2000 ? 1000.0 : 500.0;
+    final chartMaxY = ((highestRpm * 1.15) / axisStep).ceil() * axisStep;
     final estimatedIndex = nearestStepIndex(curve, channel, currentRpm);
 
     return Column(
@@ -349,7 +351,7 @@ class _FanStepChart extends StatelessWidget {
               child: BarChart(
                 BarChartData(
                   minY: 0,
-                  maxY: highestRpm * 1.15,
+                  maxY: chartMaxY,
                   alignment: BarChartAlignment.spaceAround,
                   barTouchData: BarTouchData(enabled: false),
                   titlesData: FlTitlesData(
@@ -362,6 +364,7 @@ class _FanStepChart extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
+                        interval: axisStep,
                         reservedSize: 42,
                         getTitlesWidget: (value, meta) => Text(
                           '${value.round()}',

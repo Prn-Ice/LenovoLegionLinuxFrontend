@@ -439,7 +439,7 @@ class _LiveFanReading extends StatelessWidget {
     final speed = rpm == null ? '—' : '$rpm RPM';
     final percent = rpm == null || maxRpm == null || maxRpm! <= 0
         ? null
-        : '${(rpm! / maxRpm! * 100).round()}% of max';
+        : '${(rpm! / maxRpm! * 100).round()}%';
     final step = nearestStepIndex(curve, channel, rpm);
     final temperatureLabel = temperature == null
         ? '—'
@@ -456,7 +456,7 @@ class _LiveFanReading extends StatelessWidget {
         ),
         _LiveValue(label: 'Temperature', value: temperatureLabel),
         _LiveValue(label: 'Speed', value: speed),
-        if (percent != null) _LiveValue(label: 'Maximum', value: percent),
+        if (percent != null) _LiveValue(label: 'Of max', value: percent),
         if (step != null)
           Text(
             'Step ${step + 1} of ${curve.points.length} (estimated)',
