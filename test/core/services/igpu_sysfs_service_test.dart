@@ -38,8 +38,21 @@ void main() {
       await gpu('card3');
       await gpu('card3-eDP-1', usage: '99');
       final reading = await service.readSnapshot();
+      expect(reading?.name, 'AMD Integrated Graphics');
       expect(reading?.usagePercent, 23);
       expect(reading?.tempC, 48.5);
+    },
+  );
+
+  test(
+    'uses sysfs product_name when present and falls back to AMD name',
+    () async {
+      await gpu('card1');
+      await write('card1/device/product_name', 'AMD Radeon 780M\n');
+      expect((await service.readSnapshot())?.name, 'AMD Radeon 780M');
+
+      await write('card1/device/product_name', '   \n');
+      expect((await service.readSnapshot())?.name, 'AMD Integrated Graphics');
     },
   );
 

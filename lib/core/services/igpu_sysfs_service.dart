@@ -27,8 +27,13 @@ class IgpuSysfsService {
         final usage = double.tryParse(
           await _read('$device/gpu_busy_percent') ?? '',
         );
+        final productName = await _read('$device/product_name');
+        final name = productName != null && productName.isNotEmpty
+            ? productName
+            : 'AMD Integrated Graphics';
         readings.add(
           GpuReading(
+            name: name,
             usagePercent:
                 usage != null && usage.isFinite && usage >= 0 && usage <= 100
                 ? usage
