@@ -16,6 +16,10 @@ void main() {
       ]);
     });
 
+    test('names the graphics page GPU', () {
+      expect(AppSection.dgpu.label, 'GPU');
+    });
+
     test('every section has a non-empty label', () {
       for (final section in AppSection.values) {
         expect(

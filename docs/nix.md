@@ -41,7 +41,7 @@ privileged backend.
 The app uses the bundled helper from its first launch. The first privileged
 action requests approval to start a temporary systemd unit; exiting the app ends
 that unit. With a compatible driver and boot support enabled, choose
-**Integrated graphics only** on the **Discrete GPU** page and restart.
+**Integrated graphics only** on the **GPU** page and restart.
 
 For a desktop trial, launch from a regular desktop terminal. Change one
 reversible setting, such as Conservation mode, and approve the desktop password

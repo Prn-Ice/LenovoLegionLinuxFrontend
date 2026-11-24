@@ -52,7 +52,7 @@ action requests approval; closing the app ends the helper session.
 
 ### Integrated graphics only
 
-On supported laptops, open **Discrete GPU** and choose **Set up iGPU-only at
+On supported laptops, open **GPU** and choose **Set up iGPU-only at
 startup**. Approve the admin prompt, choose **Integrated graphics only**, then
 restart. This requires a host `legion_cli` with `graphics-mode boot-support`,
 system-wide `lsof`, and working NVIDIA runtime power management. The startup

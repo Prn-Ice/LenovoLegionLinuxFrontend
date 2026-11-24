@@ -36,7 +36,7 @@ and [GPU metrics layouts](https://github.com/torvalds/linux/blob/master/drivers/
 
 ## Temperature history
 
-Older `gpuTempC` history can contain either GPU's temperature. The Discrete GPU
+Older `gpuTempC` history can contain either GPU's temperature. The GPU
 page now uses an explicitly attributed `dgpuTempC` field, so those older samples
 do not appear in its temperature chart. Existing records remain readable. CSV
 exports append `dgpu_temp_c`; earlier columns retain their meaning and order.

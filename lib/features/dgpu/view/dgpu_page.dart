@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/gpu_reading.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -65,42 +66,31 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           _setGraphicsBootSupport(context, bloc, enabled),
     );
 
+    final snapshot = sensorState.snapshot;
+    final integratedGpu = snapshot.igpu;
+
     return AppPageBody(
       errorMessage:
           state.errorMessage ??
           sensorState.errorMessage ??
           analytics.errorMessage,
       children: [
-        if (!state.isAvailable) ...[
-          graphicsModeCard,
+        graphicsModeCard,
+        if (integratedGpu != null) ...[
           const SizedBox(height: 16),
-          AppControlCard(
-            icon: YaruIcons.video,
-            title:
+          _IntegratedGpuCard(gpu: integratedGpu),
+        ],
+        const SizedBox(height: 16),
+        if (!state.isAvailable)
+          _NvidiaAbsentCard(
+            isPoweredOff:
                 state.graphicsModeStatus?.effectiveState ==
-                    DgpuTopology.detached
-                ? 'NVIDIA GPU not detected'
-                : 'GPU unavailable',
-            children: [
-              Text(
-                state.graphicsModeStatus?.effectiveState ==
-                        DgpuTopology.detached
-                    ? 'Linux does not currently detect the NVIDIA GPU. '
-                          'Check the selected graphics mode above. In '
-                          'integrated-only mode, the laptop uses integrated graphics instead.'
-                    : 'The system found no NVIDIA display controller with '
-                          'runtime power management. Refresh after checking the '
-                          'driver and selected graphics mode.',
-              ),
-              const SizedBox(height: 12),
-              AppRefreshButton(
-                isBusy: state.isLoading,
-                onPressed: () => bloc.add(const DgpuRefreshRequested()),
-              ),
-            ],
-          ),
-        ] else ...[
-          _GpuOverview(state: state, sensor: sensorState.snapshot),
+                DgpuTopology.detached,
+            isRefreshing: state.isLoading,
+            onRefresh: () => bloc.add(const DgpuRefreshRequested()),
+          )
+        else ...[
+          _GpuOverview(state: state, sensor: snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
             history: analytics.history,
@@ -131,8 +121,6 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           ),
           const SizedBox(height: 16),
           _ProcessesCard(processes: state.processes),
-          const SizedBox(height: 16),
-          graphicsModeCard,
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -324,7 +312,7 @@ class _GpuOverview extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
-                      'Discrete GPU · '
+                      'GPU · '
                       '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'}',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
@@ -375,6 +363,144 @@ class _GpuOverview extends StatelessWidget {
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IntegratedGpuCard extends StatelessWidget {
+  const _IntegratedGpuCard({required this.gpu});
+
+  final GpuReading gpu;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = gpu.name ?? 'Integrated GPU';
+    final metrics = [
+      if (gpu.usagePercent != null)
+        _GpuMetric(
+          value: _measurement(gpu.usagePercent, '%', 0),
+          label: 'Usage',
+        ),
+      if (gpu.tempC != null)
+        _GpuMetric(
+          value: _measurement(gpu.tempC, '°', 0),
+          label: 'Temperature',
+        ),
+      if (gpu.clockGhz != null)
+        _GpuMetric(value: _measurement(gpu.clockGhz, 'GHz', 2), label: 'Clock'),
+      if (gpu.powerDrawW != null)
+        _GpuMetric(
+          value: _measurement(gpu.powerDrawW, 'W', 1),
+          label: 'Power draw',
+        ),
+    ];
+
+    return SurfaceCard(
+      key: const ValueKey('integrated-gpu-card'),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: _GpuVendorMark(name: name),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      'Integrated graphics',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (metrics.isEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Live integrated GPU readings are unavailable. Check the display driver.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ] else ...[
+            const SizedBox(height: 18),
+            Wrap(spacing: 26, runSpacing: 14, children: metrics),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NvidiaAbsentCard extends StatelessWidget {
+  const _NvidiaAbsentCard({
+    required this.isPoweredOff,
+    required this.isRefreshing,
+    required this.onRefresh,
+  });
+
+  final bool isPoweredOff;
+  final bool isRefreshing;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SurfaceCard(
+      key: const ValueKey('nvidia-absent-card'),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(YaruIcons.chip, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isPoweredOff ? 'NVIDIA GPU off' : 'NVIDIA GPU not detected',
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isPoweredOff
+                ? 'iGPU-only mode is on, so the NVIDIA GPU is powered off and '
+                      'hidden from Linux. To use it, choose Hybrid above and '
+                      'restart the laptop.'
+                : "Linux can't find the NVIDIA GPU. Check the graphics mode "
+                      'above, then refresh.',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          AppRefreshButton(isBusy: isRefreshing, onPressed: onRefresh),
         ],
       ),
     );
