@@ -100,7 +100,16 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: controls,
+                      children: [
+                        Flexible(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: controls.first,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        controls.last,
+                      ],
                     );
             },
           ),
@@ -108,9 +117,8 @@ class _TelemetryHistoryCardState extends State<TelemetryHistoryCard> {
             const SizedBox(height: 10),
             Text(
               option.description!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
           const SizedBox(height: 14),

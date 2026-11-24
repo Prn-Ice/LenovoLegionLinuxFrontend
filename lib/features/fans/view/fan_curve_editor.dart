@@ -6,15 +6,6 @@ import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../models/fan_curve.dart';
 
-enum FanChannel {
-  cpu('CPU fan'),
-  gpu('GPU fan');
-
-  const FanChannel(this.label);
-
-  final String label;
-}
-
 class FanCurveEditor extends StatefulWidget {
   const FanCurveEditor({
     super.key,
@@ -200,7 +191,12 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
           SurfaceCard(
             padding: const EdgeInsets.all(18),
             child: widget.curve.schema == FanCurveSchema.speedOnly
-                ? _FanSpeedTable(curve: widget.curve)
+                ? _FanStepChart(
+                    curve: widget.curve,
+                    channel: widget.channel,
+                    currentRpm: widget.currentRpm,
+                    accent: widget.accent,
+                  )
                 : widget.curve.points.isEmpty
                 ? const SizedBox(
                     height: 300,
@@ -280,79 +276,161 @@ class _FanCurveEditorState extends State<FanCurveEditor> {
   }
 }
 
-class _FanSpeedTable extends StatelessWidget {
-  const _FanSpeedTable({required this.curve});
+class _FanStepChart extends StatelessWidget {
+  const _FanStepChart({
+    required this.curve,
+    required this.channel,
+    required this.currentRpm,
+    required this.accent,
+  });
+
+  static const _compatibleModelsUrl =
+      'https://github.com/johnfanv2/LenovoLegionLinux/blob/main/docs/compatible-models.md';
 
   final FanCurve curve;
+  final FanChannel channel;
+  final int? currentRpm;
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final unit = curve.speedUnit;
-    final valueLabel = switch (unit) {
-      FanSpeedUnit.level => 'Level',
-      FanSpeedUnit.percent => 'Speed (%)',
-      FanSpeedUnit.rpm || FanSpeedUnit.unknown => 'PWM (0–255)',
-    };
-    String speedValue(FanCurvePoint point) {
-      if (unit == FanSpeedUnit.level) return '${point.fan1Level ?? '—'}';
-      final pwm = point.fan1Pwm;
-      if (pwm == null) return '—';
-      return unit == FanSpeedUnit.percent
-          ? '${(pwm * 100 + 254) ~/ 255}'
-          : '$pwm';
-    }
-
-    final table = <DataRow>[
-      for (var i = 0; i < curve.points.length; i++)
-        DataRow(
-          cells: [
-            DataCell(Text('${i + 1}')),
-            DataCell(Text(speedValue(curve.points[i]))),
-            DataCell(Text(curve.points[i].fan1Rpm?.toString() ?? '—')),
-            if (unit == FanSpeedUnit.level)
-              DataCell(Text(curve.points[i].fan2Rpm?.toString() ?? '—')),
-          ],
-        ),
+    final steps = [
+      for (final point in curve.points)
+        channel == FanChannel.cpu ? point.fan1Rpm : point.fan2Rpm,
     ];
+    final highestRpm = steps.whereType<int>().fold<int>(
+      0,
+      (a, b) => a > b ? a : b,
+    );
+    final axisStep = highestRpm >= 2000 ? 1000.0 : 500.0;
+    final chartMaxY = ((highestRpm * 1.15) / axisStep).ceil() * axisStep;
+    final estimatedIndex = nearestStepIndex(curve, channel, currentRpm);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          curve.speedUnit == FanSpeedUnit.level
-              ? 'Fan speed levels'
-              : 'Fan speed values',
-          style: theme.textTheme.titleSmall,
-        ),
+        Text('Fan speed steps', style: theme.textTheme.titleSmall),
         const SizedBox(height: 4),
         Text(
           curve.writeStatus == FanCurveWriteStatus.unvalidated
-              ? 'This laptop exposes a speed-only table, but writes have not been validated. Current readings remain available.'
-              : 'This firmware table is read-only in the app. It has no temperature or ramp settings. '
-                    'Table values describe firmware settings, not current fan speeds. '
-                    'RPM values come from the firmware ladder when available.',
+              ? "You can't edit these steps yet because writes have not been "
+                    'validated on this laptop. Current readings remain available.'
+              : "You can't edit these yet. Your laptop's firmware may not support "
+                    'fan curve editing. Confirm on the LenovoLegionLinux '
+                    'compatible models list:',
           style: theme.textTheme.bodySmall?.copyWith(
             color: scheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
-        const SizedBox(height: 12),
-        SingleChildScrollView(
-          key: const ValueKey('fan-speed-table'),
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: [
-              const DataColumn(label: Text('Point')),
-              DataColumn(label: Text(valueLabel)),
-              const DataColumn(label: Text('Fan 1 RPM')),
-              if (unit == FanSpeedUnit.level)
-                const DataColumn(label: Text('Fan 2 RPM')),
-            ],
-            rows: table,
+        if (curve.writeStatus != FanCurveWriteStatus.unvalidated) ...[
+          const SizedBox(height: 2),
+          SelectableText(
+            _compatibleModelsUrl,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.7),
+            ),
           ),
-        ),
+        ],
+        const SizedBox(height: 14),
+        if (highestRpm == 0)
+          Text(
+            'Fan speed readings are unavailable for ${channel.label.toLowerCase()}.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Semantics(
+            label: _stepsDescription(steps),
+            container: true,
+            child: SizedBox(
+              key: const ValueKey('fan-step-chart'),
+              height: 190,
+              child: BarChart(
+                BarChartData(
+                  minY: 0,
+                  maxY: chartMaxY,
+                  alignment: BarChartAlignment.spaceAround,
+                  barTouchData: BarTouchData(enabled: false),
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: axisStep,
+                        reservedSize: 42,
+                        getTitlesWidget: (value, meta) => Text(
+                          '${value.round()}',
+                          style: monoMetaStyle(scheme),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 24,
+                        getTitlesWidget: (value, meta) {
+                          final index = value.toInt();
+                          if (index < 0 || index >= steps.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return SideTitleWidget(
+                            meta: meta,
+                            child: Text(
+                              '${index + 1}',
+                              style: monoMetaStyle(scheme),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  gridData: FlGridData(
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: scheme.onSurface.withValues(alpha: 0.08),
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: [
+                    for (var index = 0; index < steps.length; index++)
+                      BarChartGroupData(
+                        x: index,
+                        barRods: [
+                          BarChartRodData(
+                            toY: (steps[index] ?? 0).toDouble(),
+                            width: 16,
+                            color: index == estimatedIndex
+                                ? accent
+                                : scheme.onSurface.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                duration: Duration.zero,
+              ),
+            ),
+          ),
       ],
     );
+  }
+
+  String _stepsDescription(List<int?> steps) {
+    final values = [
+      for (var index = 0; index < steps.length; index++)
+        'step ${index + 1}: ${steps[index] == null ? 'unknown' : '${steps[index]} RPM'}',
+    ];
+    return '${channel.label} fan speed steps. ${values.join(', ')}.';
   }
 }
 

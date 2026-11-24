@@ -2,6 +2,15 @@ import 'package:equatable/equatable.dart';
 
 enum FanSpeedUnit { rpm, percent, level, unknown }
 
+enum FanChannel {
+  cpu('CPU fan'),
+  gpu('GPU fan');
+
+  const FanChannel(this.label);
+
+  final String label;
+}
+
 enum FanCurveSchema { full, speedOnly }
 
 enum FanCurveWriteStatus { supported, unvalidated, unsupported, unreadable }
@@ -286,4 +295,26 @@ class FanCurve extends Equatable {
     fan1LevelRpmTable,
     fan2LevelRpmTable,
   ];
+}
+
+/// Returns the curve point whose [channel] fan speed is closest to [rpm].
+///
+/// The step number a user sees is this index plus one. Returns null when the
+/// live speed is unknown or the curve stores no speed for [channel].
+int? nearestStepIndex(FanCurve curve, FanChannel channel, int? rpm) {
+  if (rpm == null) return null;
+  int? nearestIndex;
+  var nearestDistance = 0;
+  for (var index = 0; index < curve.points.length; index++) {
+    final pointRpm = channel == FanChannel.cpu
+        ? curve.points[index].fan1Rpm
+        : curve.points[index].fan2Rpm;
+    if (pointRpm == null) continue;
+    final distance = (pointRpm - rpm).abs();
+    if (nearestIndex == null || distance < nearestDistance) {
+      nearestIndex = index;
+      nearestDistance = distance;
+    }
+  }
+  return nearestIndex;
 }

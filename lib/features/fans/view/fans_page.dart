@@ -4,8 +4,13 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
 import '../../../core/widgets/surface_card.dart';
+import '../../analytics/bloc/analytics_event.dart';
+import '../../analytics/models/sensor_record.dart';
+import '../../analytics/providers/analytics_provider.dart';
+import '../../analytics/view/widgets/telemetry_history_card.dart';
 import '../../dashboard/widgets/quick_controls.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
@@ -32,6 +37,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(liveSensorBlocProvider.bloc).add(const LiveSensorStarted());
+      ref.read(analyticsBlocProvider.bloc).add(const AnalyticsStarted());
     });
   }
 
@@ -39,7 +45,9 @@ class _FansPageState extends ConsumerState<FansPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(fansBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
+    final analytics = ref.watch(analyticsBlocProvider);
     final bloc = ref.read(fansBlocProvider.bloc);
+    final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
     final hasFanControls =
         state.miniFanCurveEnabled != null ||
@@ -47,7 +55,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         state.lockFanControllerEnabled != null;
     final currentTemperature = _channel == FanChannel.cpu
         ? sensors.cpuTempC
-        : sensors.dgpu?.tempC;
+        : sensors.dgpu?.tempC ?? sensors.igpu?.tempC;
     final currentRpm = _channel == FanChannel.cpu
         ? sensors.fan1Rpm
         : sensors.fan2Rpm;
@@ -57,7 +65,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     }
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? analytics.errorMessage,
       children: [
         _FanWorkspaceToolbar(
           channel: _channel,
@@ -74,7 +82,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         ),
         if (state.fanCurve?.schema == FanCurveSchema.speedOnly) ...[
           const SizedBox(height: 12),
-          _LiveFanReadings(sensors: sensors),
+          _LiveFanReadings(sensors: sensors, curve: state.fanCurve!),
         ],
         if (sensors.fan3Rpm case final fan3Rpm?) ...[
           const SizedBox(height: 12),
@@ -144,6 +152,38 @@ class _FansPageState extends ConsumerState<FansPage> {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        TelemetryHistoryCard(
+          history: analytics.history,
+          window: analytics.window,
+          isCollecting: analytics.isCollecting,
+          accentColor: accent,
+          onWindowChanged: analyticsBloc.add,
+          options: const [
+            TelemetrySeriesOption(
+              label: 'Fan 1 RPM',
+              unit: 'RPM',
+              minimumY: 0,
+              valueOf: _fan1Speed,
+            ),
+            TelemetrySeriesOption(
+              label: 'Fan 2 RPM',
+              unit: 'RPM',
+              minimumY: 0,
+              valueOf: _fan2Speed,
+            ),
+            TelemetrySeriesOption(
+              label: 'CPU temperature',
+              unit: '°C',
+              valueOf: _cpuTemperature,
+            ),
+            TelemetrySeriesOption(
+              label: 'GPU temperature',
+              unit: '°C',
+              valueOf: _gpuTemperature,
+            ),
+          ],
+        ),
         if (hasFanControls) ...[
           const SizedBox(height: 16),
           _FanControls(
@@ -314,7 +354,7 @@ class _FanWorkspaceToolbar extends StatelessWidget {
         );
 
         if (sharedSpeedOnly) {
-          return const SizedBox.shrink();
+          return channelPicker;
         }
         if (constraints.maxWidth < 760) {
           return Column(
@@ -341,38 +381,115 @@ class _FanWorkspaceToolbar extends StatelessWidget {
 }
 
 class _LiveFanReadings extends StatelessWidget {
-  const _LiveFanReadings({required this.sensors});
+  const _LiveFanReadings({required this.sensors, required this.curve});
 
   final LiveSensorSnapshot sensors;
+  final FanCurve curve;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    String reading(int? value) => value == null ? '—' : '$value RPM';
     return SurfaceCard(
       padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 28,
-        runSpacing: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Live now', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 10),
+          _LiveFanReading(
+            channel: FanChannel.cpu,
+            temperature: sensors.cpuTempC,
+            rpm: sensors.fan1Rpm,
+            maxRpm: sensors.fan1MaxRpm,
+            curve: curve,
+          ),
+          const SizedBox(height: 10),
+          _LiveFanReading(
+            channel: FanChannel.gpu,
+            temperature: sensors.dgpu?.tempC ?? sensors.igpu?.tempC,
+            rpm: sensors.fan2Rpm,
+            maxRpm: sensors.fan2MaxRpm,
+            curve: curve,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveFanReading extends StatelessWidget {
+  const _LiveFanReading({
+    required this.channel,
+    required this.temperature,
+    required this.rpm,
+    required this.maxRpm,
+    required this.curve,
+  });
+
+  final FanChannel channel;
+  final double? temperature;
+  final int? rpm;
+  final int? maxRpm;
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final speed = rpm == null ? '—' : '$rpm RPM';
+    final percent = rpm == null || maxRpm == null || maxRpm! <= 0
+        ? null
+        : '${(rpm! / maxRpm! * 100).round()}%';
+    final step = nearestStepIndex(curve, channel, rpm);
+    final temperatureLabel = temperature == null
+        ? '—'
+        : '${temperature!.round()}°C';
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 66,
+          child: Text(channel.label, style: theme.textTheme.bodyMedium),
+        ),
+        _LiveValue(label: 'Temperature', value: temperatureLabel),
+        _LiveValue(label: 'Speed', value: speed),
+        if (percent != null) _LiveValue(label: 'Of max', value: percent),
+        if (step != null)
+          Text(
+            'Step ${step + 1} of ${curve.points.length} (estimated)',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LiveValue extends StatelessWidget {
+  const _LiveValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      label: '$label $value',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'CPU fan: ${reading(sensors.fan1Rpm)}',
-            style: theme.textTheme.bodyMedium,
+            label,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
-          Text(
-            'GPU fan: ${reading(sensors.fan2Rpm)}',
-            style: theme.textTheme.bodyMedium,
-          ),
-          if (sensors.cpuTempC != null)
-            Text(
-              'CPU temperature: ${sensors.cpuTempC!.round()}°C',
-              style: theme.textTheme.bodyMedium,
-            ),
-          if (sensors.dgpu?.tempC case final temperature?)
-            Text(
-              'dGPU temperature: ${temperature.round()}°C',
-              style: theme.textTheme.bodyMedium,
-            ),
+          const SizedBox(width: 4),
+          Text(value, style: monoBarStyle(scheme.onSurface)),
         ],
       ),
     );
@@ -534,3 +651,12 @@ Color _presetAccent(String preset) {
   return LegionAccent.fromPowerModeValue(profile)?.color ??
       LegionAccent.custom.color;
 }
+
+double? _fan1Speed(SensorRecord record) => record.fan1Rpm?.toDouble();
+
+double? _fan2Speed(SensorRecord record) => record.fan2Rpm?.toDouble();
+
+double? _cpuTemperature(SensorRecord record) => record.cpuTempC;
+
+double? _gpuTemperature(SensorRecord record) =>
+    record.dgpuTempC ?? record.gpuTempC;
