@@ -53,9 +53,9 @@ Captured with Spectacle on my Legion Slim 7 16APH8.
 
 ![Lighting page showing per-key keyboard colors, effects, and brightness](docs/screenshots/lighting.png)
 
-### Discrete GPU
+### GPU
 
-![Discrete GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
+![GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
 
 </details>
 
@@ -73,7 +73,7 @@ complete across Lenovo Legion models.
 | Battery conservation and rapid charging | Both controls implemented; Dashboard and Battery share confirmed state. Conservation on/off write and readback verified on the test device | Rapid-charging writes still need hardware verification. |
 | Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented; Fn-lock write/readback/restore verified | Touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
 | Boot logo customization | Image upload and restore paths implemented | Applying a logo, restoring it, and checking the next boot still need recorded hardware verification. |
-| Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
+| GPU monitoring | NVIDIA runtime state, integrated GPU readings, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
 | [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented; hardware-free native app journeys cover persistence and restart | The app must stay open. These journeys do not verify physical keyboard behavior; visual polish remains. |
 | Keyboard lighting through Spectrum HID or OpenRGB | Both backends implemented | Native Spectrum currently targets USB `048d:c987` with the Gen 7/8 protocol. Other keyboards need device-specific verification; OpenRGB depends on its device support and setup. |
 | Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device. Other models have not been tested. |

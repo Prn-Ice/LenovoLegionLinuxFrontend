@@ -26,7 +26,7 @@ extension AppSectionUi on AppSection {
       case AppSection.battery:
         return 'Battery';
       case AppSection.dgpu:
-        return 'Discrete GPU';
+        return 'GPU';
       case AppSection.lighting:
         return 'Lighting';
       case AppSection.automation:

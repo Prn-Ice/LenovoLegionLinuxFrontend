@@ -16,7 +16,7 @@ Hardware control requires the Lenovo Legion driver and an administrator-owned
 The app uses the bundled privileged control helper from its first launch. The
 first privileged action requests approval; closing the app ends the helper session.
 With a compatible `legion_cli` and laptop, choose **Integrated graphics only** on
-the **Discrete GPU** page, then restart. Check the selected graphics mode and
+the **GPU** page, then restart. Check the selected graphics mode and
 NVIDIA status after signing in. [Driver CLI with boot support](https://github.com/Prn-Ice/LenovoLegionLinux/commit/3492884b83c4fb626cba4e4ddc32b3ef3dcc5f70)
 
 ## Build
