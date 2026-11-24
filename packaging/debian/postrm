@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+case "$1" in
+  remove|purge|disappear) ;;
+  *) exit 0 ;;
+esac
+
+# The host CLI coordinates request cleanup with the AppImage and local setup.
+for cli in /usr/bin/legion_cli /usr/local/bin/legion_cli; do
+  if [ -x "$cli" ] && "$cli" graphics-mode boot-support --help >/dev/null 2>&1; then
+    "$cli" graphics-mode boot-support cleanup || true
+    exit 0
+  fi
+done
+
+# The driver and its CLI are installed independently of the frontend package.
+state=/var/lib/legion-graphics
+if [ -d "$state" ] && [ ! -L "$state" ]; then
+  (
+    flock -x 9
+    for directory in /etc/systemd/system /etc/systemd/system.attached \
+      /usr/local/lib/systemd/system /usr/lib/systemd/system /lib/systemd/system; do
+      if [ -e "$directory/display-manager.service.wants/legion-graphics.service" ]; then
+        exit 0
+      fi
+    done
+    rm -f -- "$state/igpu-only-request"
+  ) 9>>"$state/lock"
+fi
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload || true
+fi

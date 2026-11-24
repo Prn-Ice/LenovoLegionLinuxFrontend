@@ -51,6 +51,24 @@ void main() {
       expect(status.reconciliationAttempts, isNull);
     });
 
+    test('keeps the scheduled mode separate from the current GPU state', () {
+      final status = GraphicsModeStatus.parse('''
+{
+  "schema_version": 2,
+  "selected_mode": "hybrid",
+  "pending_mode": "hybrid-igpu-only",
+  "dgpu_state": "attached",
+  "available_modes": ["hybrid", "hybrid-igpu-only", "hybrid-auto", "discrete"],
+  "boot_support": {"enabled": true, "appimage_enabled": true, "setup_unavailable": null}
+}
+''');
+      expect(status.selectedMode, GraphicsMode.hybrid);
+      expect(status.pendingMode, GraphicsMode.hybridIgpuOnly);
+      expect(status.effectiveState, DgpuTopology.attached);
+      expect(status.bootSupport?.enabled, isTrue);
+      expect(status.bootSupport?.appImageEnabled, isTrue);
+    });
+
     test('rejects unknown selected mode', () {
       expect(
         () => GraphicsModeStatus.parse(

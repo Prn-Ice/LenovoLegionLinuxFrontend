@@ -14,9 +14,15 @@ hashes. Nix downloads these inputs first, then builds the app in its offline
 sandbox. The package contains the desktop launcher, icons, notices, and privileged
 control helper. Installing it enables no persistent Legion service.
 
-On NixOS, add `inputs.legion.packages.x86_64-linux.frontend` to
-`environment.systemPackages`, where `inputs.legion` is this repository's flake.
-Use a pinned revision or release tag for your configuration.
+For a system install with iGPU-only boot support, add
+`inputs.legion.nixosModules.default` to your NixOS modules, where `inputs.legion`
+is this repository's flake. The module installs the app and its one-shot boot
+unit. Use a pinned revision or release tag for your configuration. Remove any
+manually configured `legion-graphics` unit when adding the module.
+
+Remove the module and rebuild to uninstall it. Run
+`sudo legion_cli graphics-mode boot-support cleanup` after the rebuild to clear
+a pending switch if no other installation provides boot support.
 
 ## Hardware access
 
@@ -34,8 +40,8 @@ privileged backend.
 
 The app uses the bundled helper from its first launch. The first privileged
 action requests approval to start a temporary systemd unit; exiting the app ends
-that unit. Persistent service management and next-boot graphics changes are
-unavailable through the helper.
+that unit. With a compatible driver and boot support enabled, choose
+**Integrated graphics only** on the **Discrete GPU** page and restart.
 
 For a desktop trial, launch from a regular desktop terminal. Change one
 reversible setting, such as Conservation mode, and approve the desktop password

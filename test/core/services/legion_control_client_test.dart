@@ -387,6 +387,19 @@ void main() {
     );
   });
 
+  test('uses typed enable and remove requests for boot support', () async {
+    final transport = _FakeTransport();
+    final client = LegionControlClient(transport: transport);
+    await client.setGraphicsBootSupport(true);
+    await client.setGraphicsBootSupport(false);
+
+    expect(transport.calls.map((call) => call.$1), [
+      'SetGraphicsBootSupport',
+      'SetGraphicsBootSupport',
+    ]);
+    expect(transport.calls.map((call) => call.$2.single), [true, false]);
+  });
+
   test('validates byte payload boundaries', () async {
     final transport = _FakeTransport();
     final client = LegionControlClient(transport: transport);

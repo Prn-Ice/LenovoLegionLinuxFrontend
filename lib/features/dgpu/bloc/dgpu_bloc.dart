@@ -17,6 +17,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     on<DgpuRefreshRequested>(_onRefreshRequested);
     on<DgpuTicked>(_onTicked);
     on<DgpuGraphicsModeSetRequested>(_onGraphicsModeSetRequested);
+    on<DgpuGraphicsBootSupportSetRequested>(_onGraphicsBootSupportSetRequested);
     on<DgpuKillProcessesRequested>(_onKillProcessesRequested);
     on<DgpuRestartPciRequested>(_onRestartPciRequested);
   }
@@ -74,6 +75,27 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       emit,
       showLoading: false,
       actionErrorMessage: actionErrorMessage,
+      requireGraphicsModeStatus: true,
+      force: true,
+    );
+  }
+
+  Future<void> _onGraphicsBootSupportSetRequested(
+    DgpuGraphicsBootSupportSetRequested event,
+    Emitter<DgpuState> emit,
+  ) async {
+    if (state.isApplying) return;
+    emit(state.copyWith(isApplying: true, errorMessage: null));
+    AppFailure? failure;
+    try {
+      await _repository.setGraphicsBootSupport(event.enabled);
+    } on DgpuRepositoryException catch (error) {
+      failure = error;
+    }
+    await _reloadState(
+      emit,
+      showLoading: false,
+      actionErrorMessage: failure,
       requireGraphicsModeStatus: true,
       force: true,
     );
