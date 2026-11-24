@@ -166,6 +166,24 @@ class DgpuRepository extends PrivilegedRepository {
     }
   }
 
+  Future<void> setGraphicsBootSupport(bool enabled) async {
+    try {
+      await bridgeService.runControlOperation(
+        operation: (client) => client.setGraphicsBootSupport(enabled),
+        method: 'graphics_mode.boot_support',
+        args: [enabled ? 'enable' : 'disable'],
+      );
+    } on LegionBridgeException catch (error) {
+      throw DgpuRepositoryException(
+        enabled
+            ? 'Could not set up iGPU-only at startup. Refresh to check the current setup.'
+            : 'Could not remove iGPU-only startup support. Refresh to check the current setup.',
+        kind: AppFailure.from(error).kind,
+        details: error.details,
+      );
+    }
+  }
+
   Future<void> killGpuProcesses(List<int> expectedPids) async {
     final currentPids =
         (await (queryComputeProcesses?.call() ?? _queryComputeProcesses()))

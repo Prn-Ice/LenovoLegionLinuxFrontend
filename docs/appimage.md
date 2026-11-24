@@ -48,8 +48,27 @@ Systemd and the host Polkit service still authorize startup.
 Hardware access requires the installed driver and administrator-controlled
 `legion_cli`, systemd, Polkit, and a desktop authentication agent. The app uses
 the bundled privileged control helper from its first launch. The first privileged
-action requests approval; closing the app ends the helper session. Persistent service
-management and next-boot graphics changes are unavailable through the helper.
+action requests approval; closing the app ends the helper session.
+
+### Integrated graphics only
+
+On supported laptops, open **Discrete GPU** and choose **Set up iGPU-only at
+startup**. Approve the admin prompt, choose **Integrated graphics only**, then
+restart. This requires a host `legion_cli` with `graphics-mode boot-support`,
+system-wide `lsof`, and working NVIDIA runtime power management. The startup
+command uses the installed CLI, so moving or replacing the AppImage keeps boot
+support available. [Driver CLI with boot support](https://github.com/Prn-Ice/LenovoLegionLinux/commit/3492884b83c4fb626cba4e4ddc32b3ef3dcc5f70)
+
+Choose **Remove boot support** on the same page to undo the AppImage setup. If
+you deleted the AppImage, run:
+
+```bash
+sudo legion_cli graphics-mode boot-support disable
+```
+
+Removing the last source of boot support cancels a pending switch. To return
+to Hybrid after iGPU-only has taken effect, choose Hybrid in the app or run
+`sudo legion_cli graphics-mode set hybrid`.
 
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.

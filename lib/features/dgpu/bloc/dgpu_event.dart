@@ -30,6 +30,15 @@ final class DgpuGraphicsModeSetRequested extends DgpuEvent {
   List<Object?> get props => [mode];
 }
 
+final class DgpuGraphicsBootSupportSetRequested extends DgpuEvent {
+  const DgpuGraphicsBootSupportSetRequested(this.enabled);
+
+  final bool enabled;
+
+  @override
+  List<Object?> get props => [enabled];
+}
+
 /// Kill all compute processes using the GPU (privileged).
 final class DgpuKillProcessesRequested extends DgpuEvent {
   const DgpuKillProcessesRequested(this.expectedPids);

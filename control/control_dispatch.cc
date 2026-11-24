@@ -134,7 +134,8 @@ void complete_operation(ControlContext::ActiveOperation *operation,
 // context and owns the reply until the operation ends.
 void start_operation(ControlContext *context, GDBusMethodInvocation *invocation,
                      const Command &command, const std::string &temp_path = {},
-                     bool graphics = false) {
+                     bool graphics = false,
+                     ManagedCommandStorage storage = ManagedCommandStorage::none) {
   if (context->active) {
     if (!temp_path.empty())
       unlink(temp_path.c_str());
@@ -165,7 +166,7 @@ void start_operation(ControlContext *context, GDBusMethodInvocation *invocation,
       context->cli_path, command.argv, runtime_seconds,
       [operation_ptr](ManagedCommandResult result) {
         complete_operation(operation_ptr, std::move(result));
-      });
+      }, storage);
 }
 
 bool within_limit(const char *value, const char *label, std::string *error) {
@@ -261,7 +262,18 @@ void dispatch(ControlContext *context, const gchar *method,
       reply_error(invocation, "InvalidArgs", error);
       return;
     }
-    start_operation(context, invocation, GraphicsModeCommand(mode), {}, true);
+    start_operation(context, invocation, GraphicsModeCommand(mode), {}, true,
+                    ManagedCommandStorage::graphicsState);
+    return;
+  }
+
+  if (g_strcmp0(method, "SetGraphicsBootSupport") == 0) {
+    gboolean enabled = FALSE;
+    g_variant_get(parameters, "(b)", &enabled);
+    start_operation(context, invocation,
+                    {{"--donotexpecthwmon", "graphics-mode", "boot-support",
+                      enabled ? "enable" : "disable"}}, {}, false,
+                    ManagedCommandStorage::graphicsBootSetup);
     return;
   }
 

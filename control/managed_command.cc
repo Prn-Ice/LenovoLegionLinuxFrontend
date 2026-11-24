@@ -42,6 +42,7 @@ struct Operation final : ManagedCommandOperation,
   std::string parent, lock_path, executable, owner, unit, unit_path;
   std::vector<std::string> args;
   unsigned runtime;
+  ManagedCommandStorage storage;
   ManagedCommandRunner::Completion completion;
   ManagedCommandResult result;
 
@@ -68,13 +69,14 @@ struct Operation final : ManagedCommandOperation,
   // holds its own reference to the manager connection.
   Operation(GDBusConnection *b, std::string p, std::string lock, std::string e,
             std::vector<std::string> a, unsigned r,
-            ManagedCommandRunner::Completion cb)
+            ManagedCommandRunner::Completion cb, ManagedCommandStorage s)
       : bus(G_DBUS_CONNECTION(g_object_ref(b))),
         parent(std::move(p)),
         lock_path(std::move(lock)),
         executable(std::move(e)),
         args(std::move(a)),
         runtime(r),
+        storage(s),
         completion(std::move(cb)) {
     gchar *uuid = g_uuid_string_random();
     unit = std::string("legion-control-op-") + uuid + ".service";
@@ -458,6 +460,10 @@ struct Operation final : ManagedCommandOperation,
       property(name, g_variant_new_boolean(TRUE));
     property("ProtectHome", g_variant_new_string("yes"));
     property("ProtectSystem", g_variant_new_string("strict"));
+    if (storage != ManagedCommandStorage::none)
+      property("StateDirectory", strings({"legion-graphics"}));
+    if (storage == ManagedCommandStorage::graphicsBootSetup)
+      property("ConfigurationDirectory", strings({"systemd/system.attached"}));
     property("RestrictNamespaces", g_variant_new_uint64(0));
     property("RestrictAddressFamilies",
              g_variant_new("(b@as)", TRUE, strings({"AF_UNIX"})));
@@ -644,9 +650,9 @@ struct Runner final : ManagedCommandRunner {
 
   std::shared_ptr<ManagedCommandOperation> Start(
       const std::string &exe, const std::vector<std::string> &args,
-      unsigned runtime, Completion done) override {
+      unsigned runtime, Completion done, ManagedCommandStorage storage) override {
     auto op = std::make_shared<Operation>(bus, parent, lock_path, exe, args,
-                                          runtime, std::move(done));
+                                          runtime, std::move(done), storage);
     g_idle_add_full(
         G_PRIORITY_DEFAULT,
         [](gpointer data) -> gboolean {

@@ -13,6 +13,7 @@ constexpr char control_xml[] =
       <method name="SetFeature"><arg type="s" direction="in"/><arg type="s" direction="in"/></method>
       <method name="SetToggle"><arg type="s" direction="in"/><arg type="b" direction="in"/></method>
       <method name="SetGraphicsMode"><arg type="s" direction="in"/></method>
+      <method name="SetGraphicsBootSupport"><arg type="b" direction="in"/></method>
       <method name="ApplyFanPreset"><arg type="s" direction="in"/></method>
       <method name="ApplyCurrentFanPreset"/>
       <method name="ApplyFanCurve"><arg type="ay" direction="in"/></method>

@@ -286,6 +286,9 @@ class LegionControlClient {
     return _call('SetGraphicsMode', [mode.wireValue]);
   }
 
+  Future<void> setGraphicsBootSupport(bool enabled) =>
+      _call('SetGraphicsBootSupport', [enabled]);
+
   Future<void> applyFanPreset(ControlFanPreset preset) {
     return _call('ApplyFanPreset', [preset.wireValue]);
   }

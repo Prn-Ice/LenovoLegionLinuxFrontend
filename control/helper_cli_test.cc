@@ -34,12 +34,14 @@ struct PendingRunner final : legion_control::ManagedCommandRunner {
 
   std::shared_ptr<legion_control::ManagedCommandOperation> Start(
       const std::string &executable, const std::vector<std::string> &arguments,
-      unsigned runtime, Completion completion) override {
+      unsigned runtime, Completion completion,
+      legion_control::ManagedCommandStorage storage) override {
     ++starts;
     g_assert_cmpstr(executable.c_str(), ==, "/trusted/legion_cli");
     g_assert_cmpuint(arguments.size(), ==, 1);
     g_assert_cmpstr(arguments.front().c_str(), ==, "--help");
     g_assert_cmpuint(runtime, ==, 3);
+    g_assert_true(storage == legion_control::ManagedCommandStorage::none);
     pending = std::make_shared<PendingOperation>();
     pending->completion = std::move(completion);
     g_idle_add(

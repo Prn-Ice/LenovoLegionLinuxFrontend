@@ -1,0 +1,16 @@
+[Unit]
+Description=Apply Lenovo iGPU-only graphics before sign-in
+After=systemd-modules-load.service systemd-udev-trigger.service
+Before=display-manager.service
+ConditionPathExists=/sys/devices/platform/legion/igpumode
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin
+ExecCondition=/usr/bin/env sh -c 'legion_cli graphics-mode apply --help >/dev/null 2>&1'
+ExecStart=/usr/bin/env legion_cli graphics-mode apply
+TimeoutStartSec=90s
+
+[Install]
+WantedBy=display-manager.service

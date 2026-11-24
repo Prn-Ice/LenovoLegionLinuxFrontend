@@ -71,6 +71,50 @@ enum GraphicsReconciliation {
   };
 }
 
+enum GraphicsBootSetupUnavailable {
+  unsupportedModel,
+  missingSystemd,
+  missingLsof;
+
+  static GraphicsBootSetupUnavailable? parse(Object? value) => switch (value) {
+    null => null,
+    'unsupported-model' => unsupportedModel,
+    'missing-systemd' => missingSystemd,
+    'missing-lsof' => missingLsof,
+    _ => throw const FormatException('Unknown graphics boot setup status.'),
+  };
+}
+
+class GraphicsBootSupport extends Equatable {
+  const GraphicsBootSupport({
+    required this.enabled,
+    required this.appImageEnabled,
+    required this.setupUnavailable,
+  });
+
+  final bool enabled;
+  final bool appImageEnabled;
+  final GraphicsBootSetupUnavailable? setupUnavailable;
+
+  factory GraphicsBootSupport.parse(Object? value) {
+    if (value case {
+      'enabled': final bool enabled,
+      'appimage_enabled': final bool appImage,
+      'setup_unavailable': final reason,
+    }) {
+      return GraphicsBootSupport(
+        enabled: enabled,
+        appImageEnabled: appImage,
+        setupUnavailable: GraphicsBootSetupUnavailable.parse(reason),
+      );
+    }
+    throw const FormatException('Invalid graphics boot support status.');
+  }
+
+  @override
+  List<Object?> get props => [enabled, appImageEnabled, setupUnavailable];
+}
+
 class GraphicsModeClient extends Equatable {
   const GraphicsModeClient({
     required this.pid,
@@ -119,6 +163,8 @@ class GraphicsModeStatus extends Equatable {
     required this.activeClients,
     required this.availableModes,
     required this.reconciliationAttempts,
+    this.pendingMode,
+    this.bootSupport,
   });
 
   final GraphicsMode selectedMode;
@@ -129,6 +175,35 @@ class GraphicsModeStatus extends Equatable {
   final List<GraphicsModeClient> activeClients;
   final List<GraphicsMode> availableModes;
   final int? reconciliationAttempts;
+  final GraphicsMode? pendingMode;
+  final GraphicsBootSupport? bootSupport;
+
+  static GraphicsModeStatus _parseStartupStatus(Map<String, dynamic> decoded) {
+    final rawModes = decoded['available_modes'];
+    if (rawModes is! List) {
+      throw const FormatException('Graphics status has invalid modes.');
+    }
+    final mode = GraphicsMode.parse(decoded['selected_mode']);
+    final effective = DgpuTopology.parse(decoded['dgpu_state']);
+    final expected = mode == GraphicsMode.hybridIgpuOnly
+        ? DgpuTopology.detached
+        : DgpuTopology.attached;
+    final pending = decoded['pending_mode'];
+    return GraphicsModeStatus(
+      selectedMode: mode,
+      effectiveState: effective,
+      expectedState: expected,
+      reconciliation: effective == expected
+          ? GraphicsReconciliation.settled
+          : GraphicsReconciliation.needed,
+      clientInspectionComplete: false,
+      activeClients: const [],
+      availableModes: rawModes.map(GraphicsMode.parse).toList(growable: false),
+      reconciliationAttempts: null,
+      pendingMode: pending == null ? null : GraphicsMode.parse(pending),
+      bootSupport: GraphicsBootSupport.parse(decoded['boot_support']),
+    );
+  }
 
   static GraphicsModeStatus parse(String source) {
     final Object? decoded;
@@ -140,6 +215,7 @@ class GraphicsModeStatus extends Equatable {
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Graphics status must be a JSON object.');
     }
+    if (decoded['schema_version'] == 2) return _parseStartupStatus(decoded);
     if (decoded['schema_version'] != 1) {
       throw FormatException(
         'Unsupported graphics status schema: ${decoded['schema_version']}',
@@ -185,5 +261,7 @@ class GraphicsModeStatus extends Equatable {
     activeClients,
     availableModes,
     reconciliationAttempts,
+    pendingMode,
+    bootSupport,
   ];
 }
