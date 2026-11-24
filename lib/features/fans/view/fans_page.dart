@@ -394,7 +394,7 @@ class _LiveFanReadings extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Live now', style: theme.textTheme.titleSmall),
+          Text('Current fan speeds', style: theme.textTheme.titleSmall),
           const SizedBox(height: 10),
           _LiveFanReading(
             channel: FanChannel.cpu,
@@ -436,10 +436,14 @@ class _LiveFanReading extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final speed = rpm == null ? '—' : '$rpm RPM';
     final percent = rpm == null || maxRpm == null || maxRpm! <= 0
         ? null
-        : '${(rpm! / maxRpm! * 100).round()}%';
+        : (rpm! / maxRpm! * 100).round();
+    final speed = rpm == null
+        ? '—'
+        : percent == null
+        ? '$rpm RPM'
+        : '$rpm RPM ($percent% of max)';
     final step = nearestStepIndex(curve, channel, rpm);
     final temperatureLabel = temperature == null
         ? '—'
@@ -456,7 +460,6 @@ class _LiveFanReading extends StatelessWidget {
         ),
         _LiveValue(label: 'Temperature', value: temperatureLabel),
         _LiveValue(label: 'Speed', value: speed),
-        if (percent != null) _LiveValue(label: 'Of max', value: percent),
         if (step != null)
           Text(
             'Step ${step + 1} of ${curve.points.length} (estimated)',
