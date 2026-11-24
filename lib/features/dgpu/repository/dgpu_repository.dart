@@ -86,7 +86,19 @@ class DgpuRepository extends PrivilegedRepository {
         timeout: const Duration(seconds: 8),
         detectUnavailableResponse: false,
       );
-      if (!result.ok) {
+      if (result.ok) {
+        return GraphicsModeStatus.parse(result.stdout);
+      }
+
+      // Older legion_cli builds output JSON from `graphics-mode status` without
+      // `--json` and list supported modes through `graphics-mode choices`.
+      final legacyStatus = await bridgeService.runCommand(
+        method: 'graphics_mode.status',
+        args: const ['graphics-mode', 'status'],
+        timeout: const Duration(seconds: 8),
+        detectUnavailableResponse: false,
+      );
+      if (!legacyStatus.ok) {
         if (required) {
           throw DgpuRepositoryException(
             'Graphics mode and NVIDIA GPU status could not be reloaded after the '
@@ -95,7 +107,21 @@ class DgpuRepository extends PrivilegedRepository {
         }
         return null;
       }
-      return GraphicsModeStatus.parse(result.stdout);
+      final choicesResult = await bridgeService.runCommand(
+        method: 'graphics_mode.choices',
+        args: const ['graphics-mode', 'choices'],
+        timeout: const Duration(seconds: 8),
+        detectUnavailableResponse: false,
+      );
+      final availableModes = <GraphicsMode>[
+        if (choicesResult.ok)
+          for (final line in choicesResult.stdout.split('\n'))
+            if (line.trim().isNotEmpty) GraphicsMode.parse(line.trim()),
+      ];
+      return GraphicsModeStatus.parseLegacyStatus(
+        legacyStatus.stdout,
+        availableModes,
+      );
     } on DgpuRepositoryException {
       rethrow;
     } catch (error) {

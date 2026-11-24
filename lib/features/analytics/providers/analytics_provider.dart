@@ -9,6 +9,7 @@ final analyticsRepositoryProvider = Provider<AnalyticsRepository>((ref) {
   return AnalyticsRepository(
     sysfsService: ref.watch(legionSysfsServiceProvider),
     nvidiaSmiService: ref.watch(nvidiaSmiServiceProvider),
+    igpuSysfsService: ref.watch(igpuSysfsServiceProvider),
     box: ref.watch(sensorRecordBoxProvider),
   );
 });

@@ -87,6 +87,67 @@ void main() {
     ).called(1);
   });
 
+  test(
+    'falls back to unversioned status and choices when --json fails',
+    () async {
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status', '--json'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 2,
+          stdout: '',
+          stderr: 'legion_cli: error: unrecognized arguments: --json',
+        ),
+      );
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 0,
+          stdout: '{"selected_mode": "hybrid-igpu-only", "pending_mode": null, "dgpu_state": "detached"}',
+          stderr: '',
+        ),
+      );
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.choices',
+          args: const ['graphics-mode', 'choices'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 0,
+          stdout: 'hybrid\nhybrid-igpu-only\nhybrid-auto\ndiscrete\n',
+          stderr: '',
+        ),
+      );
+
+      final status = await repository.loadGraphicsModeStatus();
+
+      expect(status?.selectedMode, GraphicsMode.hybridIgpuOnly);
+      expect(status?.effectiveState, DgpuTopology.detached);
+      expect(status?.reconciliation, GraphicsReconciliation.settled);
+      expect(status?.availableModes, [
+        GraphicsMode.hybrid,
+        GraphicsMode.hybridIgpuOnly,
+        GraphicsMode.hybridAuto,
+        GraphicsMode.discrete,
+      ]);
+      expect(status?.bootSupport, isNull);
+    },
+  );
+
   test('uses injected graphics reads instead of host hardware', () async {
     when(
       () => bridge.runCommand(

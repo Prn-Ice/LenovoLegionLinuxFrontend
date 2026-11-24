@@ -162,18 +162,14 @@ void main() {
     expect(find.text('Graphics mode'), findsOneWidget);
     expect(find.text('Integrated graphics only'), findsNWidgets(2));
     expect(find.text('Not detected'), findsOneWidget);
-    expect(find.text('NVIDIA GPU off'), findsOneWidget);
-    expect(
-      find.textContaining('choose Hybrid above and restart the laptop'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
     expect(find.textContaining('currently in use'), findsNothing);
     expect(find.text('GPU unavailable'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-    'iGPU-only mode keeps integrated readings and hides NVIDIA tools',
+    'iGPU-only mode shows integrated overview, history, and mode switching',
     (tester) async {
       await _pumpPage(
         tester,
@@ -202,7 +198,8 @@ void main() {
       expect(find.text('55 °'), findsOneWidget);
       expect(find.text('1.20 GHz'), findsOneWidget);
       expect(find.text('8.0 W'), findsOneWidget);
-      expect(find.text('NVIDIA GPU off'), findsOneWidget);
+      expect(find.byType(TelemetryHistoryCard), findsOneWidget);
+      expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
       expect(find.text('GPU overclock'), findsNothing);
       expect(find.text('Processes on the dGPU'), findsNothing);
       expect(find.textContaining('Failed to read sensors'), findsNothing);
@@ -233,7 +230,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('missing NVIDIA and integrated GPUs keep the recovery copy', (
+  testWidgets('missing NVIDIA and integrated GPUs still keep graphics mode', (
     tester,
   ) async {
     await _pumpPage(
@@ -246,12 +243,7 @@ void main() {
 
     expect(find.byKey(const ValueKey('graphics-mode-status')), findsOneWidget);
     expect(find.byKey(const ValueKey('integrated-gpu-card')), findsNothing);
-    expect(find.text('NVIDIA GPU not detected'), findsOneWidget);
-    expect(
-      find.textContaining("Linux can't find the NVIDIA GPU"),
-      findsOneWidget,
-    );
-    expect(find.text('NVIDIA GPU off'), findsNothing);
+    expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

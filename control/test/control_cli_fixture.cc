@@ -165,12 +165,11 @@ int main(int argc, char **argv) {
                       std::string(argv[1]) == "--donotexpecthwmon" &&
                       (std::string(argv[2]) == "batteryconservation-enable" ||
                        std::string(argv[2]) == "batteryconservation-disable");
-  const bool graphics = argc == 6 &&
+  const bool graphics = argc == 5 &&
                         std::string(argv[1]) == "--donotexpecthwmon" &&
                         std::string(argv[2]) == "graphics-mode" &&
                         std::string(argv[3]) == "set" &&
-                        std::string(argv[4]) == "hybrid-igpu-only" &&
-                        std::string(argv[5]) == "--json";
+                        std::string(argv[4]) == "hybrid-igpu-only";
   const bool fan =
       argc == 3 && std::string(argv[1]) == "fancurve-write-file-to-hw";
   if (!toggle && !graphics && !fan)

@@ -142,7 +142,7 @@ static void test_graphics_modes() {
     g_assert_true(ValidateGraphicsMode(mode, &error));
     const auto command = GraphicsModeCommand(mode).argv;
     const std::vector<std::string> expected = {
-        "--donotexpecthwmon", "graphics-mode", "set", mode, "--json"};
+        "--donotexpecthwmon", "graphics-mode", "set", mode};
     g_assert_true(command == expected);
   }
 

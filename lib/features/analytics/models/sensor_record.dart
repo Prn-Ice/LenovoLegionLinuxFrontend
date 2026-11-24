@@ -17,6 +17,8 @@ class SensorRecord extends HiveObject {
     this.gpuUtilPercent,
     this.gpuPowerDrawW,
     this.dgpuTempC,
+    this.igpuTempC,
+    this.igpuUtilPercent,
   });
 
   @HiveField(0)
@@ -56,4 +58,10 @@ class SensorRecord extends HiveObject {
   // for discrete GPU temperature history.
   @HiveField(10)
   double? dgpuTempC;
+
+  @HiveField(12)
+  double? igpuTempC;
+
+  @HiveField(13)
+  double? igpuUtilPercent;
 }

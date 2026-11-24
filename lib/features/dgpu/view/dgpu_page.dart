@@ -75,21 +75,38 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           sensorState.errorMessage ??
           analytics.errorMessage,
       children: [
-        graphicsModeCard,
-        if (integratedGpu != null) ...[
-          const SizedBox(height: 16),
-          _IntegratedGpuCard(gpu: integratedGpu),
-        ],
-        const SizedBox(height: 16),
-        if (!state.isAvailable)
-          _NvidiaAbsentCard(
-            isPoweredOff:
-                state.graphicsModeStatus?.effectiveState ==
-                DgpuTopology.detached,
-            isRefreshing: state.isLoading,
-            onRefresh: () => bloc.add(const DgpuRefreshRequested()),
-          )
-        else ...[
+        if (!state.isAvailable) ...[
+          if (integratedGpu != null) ...[
+            _IntegratedGpuCard(
+              gpu: integratedGpu,
+              graphicsModeStatus: state.graphicsModeStatus,
+            ),
+            const SizedBox(height: 16),
+            TelemetryHistoryCard(
+              history: analytics.history,
+              window: analytics.window,
+              isCollecting: analytics.isCollecting,
+              accentColor: accent,
+              onWindowChanged: analyticsBloc.add,
+              options: const [
+                TelemetrySeriesOption(
+                  label: 'Usage %',
+                  unit: '%',
+                  minimumY: 0,
+                  maximumY: 100,
+                  valueOf: _igpuUtilisation,
+                ),
+                TelemetrySeriesOption(
+                  label: 'Temperature',
+                  unit: '°C',
+                  valueOf: _igpuTemperature,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          graphicsModeCard,
+        ] else ...[
           _GpuOverview(state: state, sensor: snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
@@ -121,6 +138,12 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           ),
           const SizedBox(height: 16),
           _ProcessesCard(processes: state.processes),
+          if (integratedGpu != null) ...[
+            const SizedBox(height: 16),
+            _IntegratedGpuCard(gpu: integratedGpu),
+          ],
+          const SizedBox(height: 16),
+          graphicsModeCard,
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -370,9 +393,10 @@ class _GpuOverview extends StatelessWidget {
 }
 
 class _IntegratedGpuCard extends StatelessWidget {
-  const _IntegratedGpuCard({required this.gpu});
+  const _IntegratedGpuCard({required this.gpu, this.graphicsModeStatus});
 
   final GpuReading gpu;
+  final GraphicsModeStatus? graphicsModeStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -429,7 +453,9 @@ class _IntegratedGpuCard extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
-                      'Integrated graphics',
+                      graphicsModeStatus == null
+                          ? 'Integrated graphics'
+                          : 'Integrated graphics · ${graphicsModeStatus!.selectedMode.label}',
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
@@ -449,58 +475,6 @@ class _IntegratedGpuCard extends StatelessWidget {
             const SizedBox(height: 18),
             Wrap(spacing: 26, runSpacing: 14, children: metrics),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _NvidiaAbsentCard extends StatelessWidget {
-  const _NvidiaAbsentCard({
-    required this.isPoweredOff,
-    required this.isRefreshing,
-    required this.onRefresh,
-  });
-
-  final bool isPoweredOff;
-  final bool isRefreshing;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SurfaceCard(
-      key: const ValueKey('nvidia-absent-card'),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(YaruIcons.chip, size: 20, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  isPoweredOff ? 'NVIDIA GPU off' : 'NVIDIA GPU not detected',
-                  style: Theme.of(context).textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            isPoweredOff
-                ? 'iGPU-only mode is on, so the NVIDIA GPU is powered off and '
-                      'hidden from Linux. To use it, choose Hybrid above and '
-                      'restart the laptop.'
-                : "Linux can't find the NVIDIA GPU. Check the graphics mode "
-                      'above, then refresh.',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 12),
-          AppRefreshButton(isBusy: isRefreshing, onPressed: onRefresh),
         ],
       ),
     );
@@ -1200,6 +1174,8 @@ class _DeactivateCard extends StatelessWidget {
 double? _gpuUtilisation(SensorRecord record) => record.gpuUtilPercent;
 double? _gpuTemperature(SensorRecord record) => record.dgpuTempC;
 double? _gpuPower(SensorRecord record) => record.gpuPowerDrawW;
+double? _igpuUtilisation(SensorRecord record) => record.igpuUtilPercent;
+double? _igpuTemperature(SensorRecord record) => record.igpuTempC;
 
 String _measurement(double? value, String unit, int precision) =>
     value == null ? '—' : '${value.toStringAsFixed(precision)} $unit';

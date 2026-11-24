@@ -178,9 +178,19 @@ class GraphicsModeStatus extends Equatable {
   final GraphicsMode? pendingMode;
   final GraphicsBootSupport? bootSupport;
 
-  static GraphicsModeStatus _parseStartupStatus(Map<String, dynamic> decoded) {
+  static GraphicsModeStatus _parseStartupStatus(
+    Map<String, dynamic> decoded, {
+    List<GraphicsMode>? fallbackAvailableModes,
+    bool requireBootSupport = true,
+  }) {
     final rawModes = decoded['available_modes'];
-    if (rawModes is! List) {
+    final List<GraphicsMode> availableModes;
+    if (rawModes is List) {
+      availableModes = rawModes.map(GraphicsMode.parse).toList(growable: false);
+    } else if (fallbackAvailableModes != null &&
+        fallbackAvailableModes.isNotEmpty) {
+      availableModes = List.unmodifiable(fallbackAvailableModes);
+    } else {
       throw const FormatException('Graphics status has invalid modes.');
     }
     final mode = GraphicsMode.parse(decoded['selected_mode']);
@@ -189,6 +199,7 @@ class GraphicsModeStatus extends Equatable {
         ? DgpuTopology.detached
         : DgpuTopology.attached;
     final pending = decoded['pending_mode'];
+    final rawBootSupport = decoded['boot_support'];
     return GraphicsModeStatus(
       selectedMode: mode,
       effectiveState: effective,
@@ -198,10 +209,37 @@ class GraphicsModeStatus extends Equatable {
           : GraphicsReconciliation.needed,
       clientInspectionComplete: false,
       activeClients: const [],
-      availableModes: rawModes.map(GraphicsMode.parse).toList(growable: false),
+      availableModes: availableModes,
       reconciliationAttempts: null,
       pendingMode: pending == null ? null : GraphicsMode.parse(pending),
-      bootSupport: GraphicsBootSupport.parse(decoded['boot_support']),
+      bootSupport: rawBootSupport == null && !requireBootSupport
+          ? null
+          : GraphicsBootSupport.parse(rawBootSupport),
+    );
+  }
+
+  /// Parses unversioned `legion_cli graphics-mode status` JSON combined with
+  /// lines from `legion_cli graphics-mode choices`.
+  static GraphicsModeStatus parseLegacyStatus(
+    String source,
+    List<GraphicsMode> availableModes,
+  ) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(source);
+    } on FormatException catch (error) {
+      throw FormatException('Invalid graphics status JSON: ${error.message}');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Graphics status must be a JSON object.');
+    }
+    if (decoded.containsKey('schema_version')) {
+      return parse(source);
+    }
+    return _parseStartupStatus(
+      decoded,
+      fallbackAvailableModes: availableModes,
+      requireBootSupport: false,
     );
   }
 
