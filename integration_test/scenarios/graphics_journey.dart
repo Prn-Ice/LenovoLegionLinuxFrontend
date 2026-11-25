@@ -197,11 +197,11 @@ Future<void> _chooseMode(WidgetTester tester) async {
 }
 
 Future<void> _openGraphicsPage(WidgetTester tester) async {
-  final navigation = find.text('Discrete GPU').hitTestable();
+  final navigation = find.text('GPU').hitTestable();
   await waitFor(
     tester,
     () => navigation.evaluate().isNotEmpty,
-    description: 'Discrete GPU navigation control',
+    description: 'GPU navigation control',
   );
   await tester.tap(navigation.first);
   await waitFor(

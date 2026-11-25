@@ -1,7 +1,8 @@
 import 'package:equatable/equatable.dart';
 
-class DgpuProcess extends Equatable {
-  const DgpuProcess({
+/// A process with GPU usage attributed by the kernel or the vendor tool.
+class GpuProcess extends Equatable {
+  const GpuProcess({
     required this.pid,
     required this.name,
     required this.usedMemoryMib,
@@ -16,8 +17,8 @@ class DgpuProcess extends Equatable {
   ///            --format=csv,noheader,nounits
   ///
   /// Each line: `pid, process_name, used_memory_MiB`
-  static List<DgpuProcess> parseNvidiaSmiOutput(String output) {
-    final processes = <DgpuProcess>[];
+  static List<GpuProcess> parseNvidiaSmiOutput(String output) {
+    final processes = <GpuProcess>[];
     for (final line in output.trim().split('\n')) {
       final trimmed = line.trim();
       if (trimmed.isEmpty) continue;
@@ -29,7 +30,7 @@ class DgpuProcess extends Equatable {
       final name = rawName.contains('/') ? rawName.split('/').last : rawName;
       // Memory field may be "N/A" for some process types; default to 0 rather than skip.
       final mem = int.tryParse(parts[2].trim()) ?? 0;
-      processes.add(DgpuProcess(pid: pid, name: name, usedMemoryMib: mem));
+      processes.add(GpuProcess(pid: pid, name: name, usedMemoryMib: mem));
     }
     return processes;
   }

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/gpu_process.dart';
+import '../../../core/models/gpu_process_scan.dart';
 import '../../../core/models/gpu_reading.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
@@ -23,7 +25,6 @@ import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/dgpu_bloc.dart';
 import '../bloc/dgpu_event.dart';
 import '../bloc/dgpu_state.dart';
-import '../models/dgpu_process.dart';
 import '../models/graphics_mode.dart';
 import '../providers/dgpu_provider.dart';
 
@@ -35,6 +36,8 @@ class DgpuPage extends ConsumerStatefulWidget {
 }
 
 class _DgpuPageState extends ConsumerState<DgpuPage> {
+  _GpuChannel _channel = _GpuChannel.discrete;
+
   @override
   void initState() {
     super.initState();
@@ -54,10 +57,20 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
 
-    if (!state.hasLoaded || (state.isAvailable && sensorState.isLoading)) {
+    if (!state.hasLoaded || sensorState.isLoading) {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
+    final snapshot = sensorState.snapshot;
+    final integratedGpu = snapshot.igpu;
+    final integratedProcesses = snapshot.igpuProcesses;
+    final availableChannels = <_GpuChannel>[
+      if (state.isAvailable) _GpuChannel.discrete,
+      if (integratedGpu != null) _GpuChannel.integrated,
+    ];
+    final channel = availableChannels.contains(_channel)
+        ? _channel
+        : (availableChannels.isEmpty ? null : availableChannels.first);
     final graphicsModeCard = _GraphicsModeCard(
       state: state,
       isAppImage: Platform.environment['LEGION_APPIMAGE'] == '1',
@@ -66,84 +79,72 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           _setGraphicsBootSupport(context, bloc, enabled),
     );
 
-    final snapshot = sensorState.snapshot;
-    final integratedGpu = snapshot.igpu;
-
     return AppPageBody(
       errorMessage:
           state.errorMessage ??
           sensorState.errorMessage ??
           analytics.errorMessage,
       children: [
-        if (!state.isAvailable) ...[
-          if (integratedGpu != null) ...[
-            _IntegratedGpuCard(
-              gpu: integratedGpu,
-              graphicsModeStatus: state.graphicsModeStatus,
-            ),
-            const SizedBox(height: 16),
-            TelemetryHistoryCard(
-              history: analytics.history,
-              window: analytics.window,
-              isCollecting: analytics.isCollecting,
-              accentColor: accent,
-              onWindowChanged: analyticsBloc.add,
-              options: const [
-                TelemetrySeriesOption(
-                  label: 'Usage %',
-                  unit: '%',
-                  minimumY: 0,
-                  maximumY: 100,
-                  valueOf: _igpuUtilisation,
-                ),
-                TelemetrySeriesOption(
-                  label: 'Temperature',
-                  unit: '°C',
-                  valueOf: _igpuTemperature,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-          ],
-          graphicsModeCard,
-        ] else ...[
+        if (availableChannels.length > 1) ...[
+          _GpuChannelToolbar(
+            channel: channel!,
+            channels: availableChannels,
+            onChanged: (channel) => setState(() => _channel = channel),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (channel == _GpuChannel.discrete) ...[
           _GpuOverview(state: state, sensor: snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
+            key: const ValueKey('gpu-history-discrete'),
             history: analytics.history,
             window: analytics.window,
             isCollecting: analytics.isCollecting,
             accentColor: accent,
             onWindowChanged: analyticsBloc.add,
-            options: const [
-              TelemetrySeriesOption(
-                label: 'Usage %',
-                unit: '%',
-                minimumY: 0,
-                maximumY: 100,
-                valueOf: _gpuUtilisation,
-              ),
-              TelemetrySeriesOption(
-                label: 'Temperature',
-                unit: '°C',
-                valueOf: _gpuTemperature,
-              ),
-              TelemetrySeriesOption(
-                label: 'Power draw',
-                unit: 'W',
-                minimumY: 0,
-                valueOf: _gpuPower,
-              ),
-            ],
+            options: _discreteHistoryOptions,
           ),
           const SizedBox(height: 16),
-          _ProcessesCard(processes: state.processes),
-          if (integratedGpu != null) ...[
-            const SizedBox(height: 16),
-            _IntegratedGpuCard(gpu: integratedGpu),
-          ],
+          _ProcessesCard(
+            key: const ValueKey('gpu-processes-discrete'),
+            title: 'Processes on the discrete GPU',
+            processes: state.processes,
+            emptyMessage: 'No CUDA compute processes are using the GPU.',
+            note: 'Display server processes may not appear in this list.',
+          ),
+        ] else if (channel == _GpuChannel.integrated) ...[
+          _IntegratedGpuCard(
+            gpu: integratedGpu!,
+            graphicsModeStatus: state.graphicsModeStatus,
+            // This card appears only when the APU supplied a current reading.
+            isActive: true,
+          ),
           const SizedBox(height: 16),
-          graphicsModeCard,
+          TelemetryHistoryCard(
+            key: const ValueKey('gpu-history-integrated'),
+            history: analytics.history,
+            window: analytics.window,
+            isCollecting: analytics.isCollecting,
+            accentColor: accent,
+            onWindowChanged: analyticsBloc.add,
+            options: _integratedHistoryOptions,
+          ),
+          const SizedBox(height: 16),
+          _ProcessesCard(
+            key: const ValueKey('gpu-processes-integrated'),
+            title: 'Processes on the integrated GPU',
+            processes: integratedProcesses?.processes ?? const [],
+            countLabel: _integratedProcessCount(integratedProcesses),
+            emptyMessage: _integratedProcessMessage(integratedProcesses),
+            note:
+                'Only processes the app can inspect appear. '
+                'Display server processes may not appear.',
+          ),
+        ],
+        if (channel != null) const SizedBox(height: 16),
+        graphicsModeCard,
+        if (channel == _GpuChannel.discrete) ...[
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -294,6 +295,44 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
   }
 }
 
+enum _GpuChannel {
+  discrete('Discrete GPU'),
+  integrated('Integrated GPU');
+
+  const _GpuChannel(this.label);
+
+  final String label;
+}
+
+class _GpuChannelToolbar extends StatelessWidget {
+  const _GpuChannelToolbar({
+    required this.channel,
+    required this.channels,
+    required this.onChanged,
+  });
+
+  final _GpuChannel channel;
+  final List<_GpuChannel> channels;
+  final ValueChanged<_GpuChannel> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: ToggleButtons(
+      key: const ValueKey('gpu-channel-toggle'),
+      isSelected: [for (final candidate in channels) candidate == channel],
+      onPressed: (index) => onChanged(channels[index]),
+      children: [
+        for (final candidate in channels)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            child: Text(candidate.label),
+          ),
+      ],
+    ),
+  );
+}
+
 class _GpuOverview extends StatelessWidget {
   const _GpuOverview({required this.state, required this.sensor});
 
@@ -393,9 +432,14 @@ class _GpuOverview extends StatelessWidget {
 }
 
 class _IntegratedGpuCard extends StatelessWidget {
-  const _IntegratedGpuCard({required this.gpu, this.graphicsModeStatus});
+  const _IntegratedGpuCard({
+    required this.gpu,
+    required this.isActive,
+    this.graphicsModeStatus,
+  });
 
   final GpuReading gpu;
+  final bool isActive;
   final GraphicsModeStatus? graphicsModeStatus;
 
   @override
@@ -462,6 +506,8 @@ class _IntegratedGpuCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
+              _RuntimeBadge(isActive: isActive),
             ],
           ),
           if (metrics.isEmpty) ...[
@@ -513,7 +559,7 @@ class _RuntimeBadge extends StatelessWidget {
                   ? 'Unknown'
                   : active
                   ? 'Active'
-                  : 'Suspended',
+                  : 'Inactive',
               style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
           ],
@@ -586,9 +632,20 @@ class _GpuMetric extends StatelessWidget {
 }
 
 class _ProcessesCard extends StatelessWidget {
-  const _ProcessesCard({required this.processes});
+  const _ProcessesCard({
+    super.key,
+    required this.title,
+    required this.processes,
+    required this.emptyMessage,
+    required this.note,
+    this.countLabel,
+  });
 
-  final List<DgpuProcess> processes;
+  final String title;
+  final List<GpuProcess> processes;
+  final String emptyMessage;
+  final String note;
+  final String? countLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -604,12 +661,12 @@ class _ProcessesCard extends StatelessWidget {
             alignment: WrapAlignment.spaceBetween,
             children: [
               Text(
-                'Processes on the dGPU',
+                title,
                 style: Theme.of(context).textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                '${processes.length} running',
+                countLabel ?? '${processes.length} running',
                 style: monoFactStyle(scheme)
                     .copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
@@ -621,7 +678,8 @@ class _ProcessesCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
-                  'No CUDA compute processes are using the GPU.',
+                  emptyMessage,
+                  textAlign: TextAlign.center,
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
               ),
@@ -658,7 +716,7 @@ class _ProcessesCard extends StatelessWidget {
             ],
           const SizedBox(height: 8),
           Text(
-            'Display server processes may not appear in this list.',
+            note,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant),
           ),
@@ -1176,6 +1234,63 @@ double? _gpuTemperature(SensorRecord record) => record.dgpuTempC;
 double? _gpuPower(SensorRecord record) => record.gpuPowerDrawW;
 double? _igpuUtilisation(SensorRecord record) => record.igpuUtilPercent;
 double? _igpuTemperature(SensorRecord record) => record.igpuTempC;
+
+const _discreteHistoryOptions = [
+  TelemetrySeriesOption(
+    label: 'Usage %',
+    unit: '%',
+    minimumY: 0,
+    maximumY: 100,
+    valueOf: _gpuUtilisation,
+  ),
+  TelemetrySeriesOption(
+    label: 'Temperature',
+    unit: '°C',
+    valueOf: _gpuTemperature,
+  ),
+  TelemetrySeriesOption(
+    label: 'Power draw',
+    unit: 'W',
+    minimumY: 0,
+    valueOf: _gpuPower,
+  ),
+];
+
+const _integratedHistoryOptions = [
+  TelemetrySeriesOption(
+    label: 'Usage %',
+    unit: '%',
+    minimumY: 0,
+    maximumY: 100,
+    valueOf: _igpuUtilisation,
+  ),
+  TelemetrySeriesOption(
+    label: 'Temperature',
+    unit: '°C',
+    valueOf: _igpuTemperature,
+  ),
+];
+
+String _integratedProcessCount(GpuProcessScan? scan) {
+  if (scan == null) return 'Unavailable';
+  return switch (scan.reporting) {
+    GpuProcessReporting.reported => '${scan.processes.length} running',
+    GpuProcessReporting.notReported => 'Unavailable',
+    GpuProcessReporting.noClients => 'None found',
+  };
+}
+
+String _integratedProcessMessage(GpuProcessScan? scan) {
+  if (scan == null) {
+    return 'Process usage for the integrated GPU is unavailable.';
+  }
+  return switch (scan.reporting) {
+    GpuProcessReporting.notReported =>
+      'This kernel does not report which processes use the integrated GPU.',
+    GpuProcessReporting.reported || GpuProcessReporting.noClients =>
+      'No processes the app can inspect are using the integrated GPU.',
+  };
+}
 
 String _measurement(double? value, String unit, int precision) =>
     value == null ? '—' : '${value.toStringAsFixed(precision)} $unit';

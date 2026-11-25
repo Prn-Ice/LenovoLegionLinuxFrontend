@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/core/models/gpu_process.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
-import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
 import 'package:mocktail/mocktail.dart';
@@ -165,7 +165,7 @@ void main() {
       findPciAddress: () async => '0000:01:00.0',
       readRuntimeStatus: (_) async => false,
       queryComputeProcesses: () async => const [
-        DgpuProcess(pid: 42, name: 'fixture-app', usedMemoryMib: 12),
+        GpuProcess(pid: 42, name: 'fixture-app', usedMemoryMib: 12),
       ],
       queryPciName: (_) async => 'Fixture GPU',
     );
