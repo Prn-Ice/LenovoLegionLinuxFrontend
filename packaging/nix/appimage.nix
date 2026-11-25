@@ -14,6 +14,7 @@
   dejavu_fonts,
   xdg-user-dirs,
   frontend,
+  staticHelper,
 }:
 
 let
@@ -74,6 +75,10 @@ stdenv.mkDerivation {
       "$appdir/usr/share/fonts" \
       "$bundle/lib/gio/modules" "$bundle/lib/pixbuf-loaders" "$bundle/libexec"
     cp -r ${frontend}/app/legion-linux-frontend/. "$bundle/"
+    # Replace the dynamically linked helper with a static binary so appimage-run's
+    # unprivileged FHS namespace does not fail the root-owned interpreter check.
+    rm -f "$bundle/libexec/legion-control-helper"
+    cp -L ${staticHelper}/libexec/legion-control-helper "$bundle/libexec/legion-control-helper"
     cp -L ${xdg-user-dirs}/bin/xdg-user-dir "$appdir/usr/bin/"
 
     # Runtime data that the Nix package leaves to the host system.
@@ -128,6 +133,13 @@ stdenv.mkDerivation {
       while IFS= read -r -d "" file; do
         isElf "$file" || continue
         case "$file" in
+          "$bundle/libexec/legion-control-helper")
+            if readelf -lW -dW "$file" | grep -E 'INTERP|NEEDED|RPATH|RUNPATH'; then
+              echo "The AppImage helper must have no dynamic loader or shared libraries." >&2
+              exit 1
+            fi
+            continue
+            ;;
           "$bundle"/lib/pixbuf-loaders/*) rpath='$ORIGIN/..' ;;
           "$bundle"/lib/*) rpath='$ORIGIN' ;;
           "$bundle"/libexec/*) rpath='$ORIGIN/../lib' ;;

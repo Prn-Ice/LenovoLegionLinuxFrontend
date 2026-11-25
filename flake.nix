@@ -34,7 +34,8 @@
         extraPkgConfigPackages = [ pkgs.libthai ];
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
-      appimage = pkgs.callPackage ./packaging/nix/appimage.nix { inherit frontend; };
+      staticHelper = pkgs.pkgsStatic.callPackage ./packaging/nix/static-helper.nix { };
+      appimage = pkgs.callPackage ./packaging/nix/appimage.nix { inherit frontend staticHelper; };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
       tag = pkgs.writeShellApplication {
         name = "legion-tag";
