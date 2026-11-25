@@ -109,7 +109,18 @@ user-tested `46b827e` build, which used official Flutter 3.47.9 and hashed to
 `018ea3f01a17a2b629ca4e8bb7589b17bf176bc144320959c11cd37121911929`.
 Check the actual target and checksum before using a local convenience link.
 
-## Push a tag
+## Prepare a release and push its tag
+
+From a clean checkout on a release branch, run:
+
+```bash
+nix run .#tag -- --prepare 0.1.0-alpha.3+1
+```
+
+This updates `pubspec.yaml` and regenerates the Nix metadata with
+`tool/update_nix_metadata.sh`. Review the diff, sign and push the commit, and open
+a PR targeting `main`. After the PR merges, check out the merged release commit
+and push its tag as described below.
 
 Tag a commit containing the release workflow and the intended version in
 `pubspec.yaml`. Use `v` followed by the version before its build number:

@@ -40,7 +40,11 @@
       tag = pkgs.writeShellApplication {
         name = "legion-tag";
         runtimeInputs = with pkgs; [
+          bash
+          coreutils
           git
+          gnused
+          jq
           yq-go
           openssh
           gnupg
@@ -96,10 +100,12 @@
               nativeBuildInputs = with pkgs; [
                 git
                 openssh
+                yq-go
+                jq
               ];
             }
             ''
-              bash ${./test/tool/tag_test.sh} ${pkgs.lib.getExe tag}
+              bash ${./test/tool/tag_test.sh} ${./tool/update_nix_metadata.sh} ${pkgs.lib.getExe tag}
               touch "$out"
             '';
         frontend-package = import ./control/test/frontend_package.nix { inherit pkgs frontend; };
