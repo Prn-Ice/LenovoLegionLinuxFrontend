@@ -125,6 +125,10 @@ On NixOS, use the [native Nix package](docs/nix.md):
 nix run .#frontend
 ```
 
+For a local AppImage built from the same flake, run
+`nix build .#appimage --print-out-paths` and see
+[the Nix guide](docs/nix.md#local-appimage).
+
 The Nix package supplies its library dependencies. The AppImage bundles its
 desktop libraries and uses host graphics and core system libraries. On NixOS,
 enable standard AppImage support as described in the
