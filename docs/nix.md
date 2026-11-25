@@ -24,6 +24,25 @@ Remove the module and rebuild to uninstall it. Run
 `sudo legion_cli graphics-mode boot-support cleanup` after the rebuild to clear
 a pending switch if no other installation provides boot support.
 
+## Local AppImage
+
+Build an AppImage without Docker or an Ubuntu container:
+
+```bash
+nix build .#appimage --print-out-paths
+```
+
+The command prints the image's path in the Nix store, and `./result` links to
+the same file. On NixOS, run `appimage-run ./result`. On other distributions,
+execute it directly where FUSE is available. The image bundles the desktop
+libraries from the flake's Nixpkgs. Core system libraries and the graphics
+driver interfaces come from the host, so the host needs glibc 2.44 or newer.
+
+This image is for local testing, not distribution. The release workflow builds
+the published image in a pinned Ubuntu 22.04 container and adds a source
+companion. Use the release AppImage when you need the documented glibc 2.35
+baseline or the matching source archive.
+
 ## Hardware access
 
 Choose **Allow** at startup to see CPU watts on hardware with a Linux powercap

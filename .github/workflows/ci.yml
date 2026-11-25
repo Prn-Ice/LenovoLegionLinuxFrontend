@@ -330,6 +330,7 @@ jobs:
         run: >-
           nix build .#frontend .#frontend-source
           .#checks.x86_64-linux.nix-metadata
+          .#checks.x86_64-linux.appimage-package
           .#checks.x86_64-linux.release-tag --print-build-logs
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs

@@ -26,6 +26,10 @@ handle, and the socket's PID before authentication. It never accepts
 namespace-visible `nobody` ownership as root evidence. This uses no project launcher or patched
 executables. The [native Nix package](nix.md) is also available.
 
+For a container-free local image built from this repository's flake, see
+[the Nix guide](nix.md#local-appimage). That image is for testing and does not
+replace this release flow.
+
 Build the desktop app and privileged control helper together on Ubuntu 22.04.
 The AppImage contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
 settings schemas, icons, and DejaVu fonts. It bundles `xdg-user-dir` to find the
