@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/services/drm_process_service.dart';
 import 'package:legion_frontend/core/services/igpu_sysfs_service.dart';
 
 void main() {
@@ -21,7 +22,10 @@ void main() {
 
   Future<void> gpu(String card, {int format = 2, String usage = '23'}) async {
     await write('$card/device/vendor', '0x1002');
-    await write('$card/device/uevent', 'DRIVER=amdgpu\n');
+    await write(
+      '$card/device/uevent',
+      'DRIVER=amdgpu\nPCI_SLOT_NAME=0000:05:00.0\n',
+    );
     await write('$card/device/power/runtime_status', 'active');
     // A synthetic header from the kernel's APU metrics layout.
     await File('${root.path}/$card/device/gpu_metrics')
@@ -83,6 +87,38 @@ void main() {
     await gpu('card1');
     await gpu('card2');
     expect(await service.readSnapshot(), isNull);
+  });
+
+  test('attributes processes to the identified APU', () async {
+    await gpu('card1');
+    final proc = await Directory.systemTemp.createTemp('igpu-proc-');
+    addTearDown(() => proc.delete(recursive: true));
+    final fdinfo = File('${proc.path}/42/fdinfo/3');
+    await fdinfo.parent.create(recursive: true);
+    await fdinfo.writeAsString(
+      'drm-pdev:\t0000:05:00.0\n'
+      'drm-memory-gtt:\t4096 KiB\n',
+    );
+    final fd = Link('${proc.path}/42/fd/3');
+    await fd.parent.create(recursive: true);
+    await fd.create('/dev/dri/renderD128');
+    await File('${proc.path}/42/comm').writeAsString('browser\n');
+    final withProcesses = IgpuSysfsService(
+      drmPath: root.path,
+      processService: DrmProcessService(procPath: proc.path),
+    );
+
+    final scan = await withProcesses.readProcesses();
+
+    expect(scan?.processes.single.name, 'browser');
+    expect(scan?.processes.single.usedMemoryMib, 4);
+  });
+
+  test('returns no process scan without a single identified APU', () async {
+    await gpu('card1');
+    await gpu('card2');
+
+    expect(await service.readProcesses(), isNull);
   });
 
   test(

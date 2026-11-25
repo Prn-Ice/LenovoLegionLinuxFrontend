@@ -41,6 +41,18 @@ page now uses an explicitly attributed `dgpuTempC` field, so those older samples
 do not appear in its temperature chart. Existing records remain readable. CSV
 exports append `dgpu_temp_c`; earlier columns retain their meaning and order.
 
+## Process lists
+
+The GPU page shows processes for the selected GPU card.
+
+- **Discrete GPU:** `nvidia-smi --query-compute-apps`. It lists CUDA compute
+  processes; display-server clients may be missing.
+- **Integrated GPU:** the kernel's DRM client statistics in
+  `/proc/<pid>/fdinfo`, matched to the APU's PCI address with `drm-pdev`. Only
+  processes this user can inspect appear. Kernels that do not name the GPU for
+  DRM clients show an unavailable message instead of an empty list. The app
+  reuses a scan for 15 seconds to keep sensor polling cheap.
+
 ## Check the feature
 
 1. Open the Dashboard on a supported AMD/NVIDIA hybrid laptop. Expect separate
@@ -51,3 +63,9 @@ exports append `dgpu_temp_c`; earlier columns retain their meaning and order.
 4. Re-enable the row. It should return when the driver provides a reading.
 5. With the dGPU suspended, expect its unavailable readings to disappear while
    the CPU and iGPU readings continue. A genuine idle reading should display 0%.
+6. Open the GPU page on a hybrid laptop. Switch between **Discrete GPU** and
+   **Integrated GPU**. Each view shows that card's temperature history and
+   process list.
+7. Switch to iGPU-only and reboot. Expect the integrated card without the NVIDIA
+   controls. When the discrete GPU reports an inactive runtime state, expect its
+   status tag to read **Inactive**.

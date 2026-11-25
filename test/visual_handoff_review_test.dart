@@ -382,6 +382,13 @@ void main() {
             await _capture(tester, 'power-reference-$variant');
           }
           if (section == AppSection.dgpu) {
+            await tester.ensureVisible(find.text('Integrated GPU'));
+            await tester.tap(find.text('Integrated GPU'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'gpu-integrated-$variant-top');
+            await tester.ensureVisible(find.text('Discrete GPU'));
+            await tester.tap(find.text('Discrete GPU'));
+            await tester.pumpAndSettle();
             await tester.ensureVisible(find.text('Graphics mode'));
             await tester.pumpAndSettle();
             await _capture(tester, 'graphics-mode-$variant');

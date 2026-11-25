@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_process.dart';
+import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/services/igpu_sysfs_service.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
@@ -51,6 +53,7 @@ void main() {
     when(sysfs.readBatteryStatus).thenAnswer((_) async => null);
     when(igpu.readSnapshot)
         .thenAnswer((_) async => const GpuReading(usagePercent: 12, tempC: 48));
+    when(igpu.readProcesses).thenAnswer((_) async => null);
     when(packagePower.readPackagePowerWatts).thenAnswer((_) async => 24.5);
   });
 
@@ -101,6 +104,22 @@ void main() {
     expect(snapshot.igpu?.usagePercent, 12);
     verifyNever(sysfs.readGpuTempC);
     verify(packagePower.readPackagePowerWatts).called(1);
+  });
+
+  test('propagates integrated GPU process use from the same scan', () async {
+    when(nvidia.readSnapshot).thenAnswer((_) async => null);
+    when(igpu.readProcesses).thenAnswer(
+      (_) async => const GpuProcessScan(
+        processes: [GpuProcess(pid: 77, name: 'browser', usedMemoryMib: 96)],
+        reporting: GpuProcessReporting.reported,
+      ),
+    );
+
+    final snapshot = await repository.loadSnapshot();
+
+    expect(snapshot.igpuProcesses?.processes.single.pid, 77);
+    expect(snapshot.igpuProcesses?.reporting, GpuProcessReporting.reported);
+    verify(igpu.readProcesses).called(1);
   });
 
   test('missing iGPU does not hide or replace discrete GPU readings', () async {

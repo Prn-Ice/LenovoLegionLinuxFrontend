@@ -4,16 +4,16 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:legion_frontend/core/models/control_capabilities.dart';
+import 'package:legion_frontend/core/models/gpu_process.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
-import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
+import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
+import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/providers/dgpu_provider.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
-import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
-import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 
 /// Synthetic graphics state and typed control writes for the native journey.
 /// The fixture never reads or writes host PCI, process, or CLI state.
@@ -95,7 +95,7 @@ List<Override> safeGraphicsOverrides(SafeGraphicsFixture fixture) {
         bridgeService: ref.watch(legionBridgeServiceProvider),
         findPciAddress: () async => '0000:01:00.0',
         readRuntimeStatus: (_) async => true,
-        queryComputeProcesses: () async => const <DgpuProcess>[],
+        queryComputeProcesses: () async => const <GpuProcess>[],
         queryPciName: (_) async => 'Synthetic NVIDIA GPU',
       );
     }),

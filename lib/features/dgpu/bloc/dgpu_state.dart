@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../core/models/app_failure.dart';
-import '../models/dgpu_process.dart';
+import '../../../core/models/gpu_process.dart';
 import '../models/graphics_mode.dart';
 
 class DgpuState extends Equatable {
@@ -37,7 +37,7 @@ class DgpuState extends Equatable {
 
   /// null = sysfs runtime_status path not found (NVIDIA GPU unavailable)
   final bool? isActive;
-  final List<DgpuProcess> processes;
+  final List<GpuProcess> processes;
   final String? pciAddress;
   final bool isLoading;
   final bool isApplying;
@@ -54,7 +54,7 @@ class DgpuState extends Equatable {
 
   DgpuState copyWith({
     Object? isActive = _unset,
-    List<DgpuProcess>? processes,
+    List<GpuProcess>? processes,
     Object? pciAddress = _unset,
     bool? isLoading,
     bool? isApplying,

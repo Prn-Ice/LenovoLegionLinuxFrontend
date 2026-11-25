@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-import 'dgpu_process.dart';
+import '../../../core/models/gpu_process.dart';
 import 'graphics_mode.dart';
 
 class DgpuSnapshot extends Equatable {
@@ -16,7 +16,7 @@ class DgpuSnapshot extends Equatable {
   final bool? isActive;
 
   /// Empty if nvidia-smi is not installed or reports no processes.
-  final List<DgpuProcess> processes;
+  final List<GpuProcess> processes;
 
   /// The discovered PCI address (e.g. "0000:01:00.0"), or null if not found.
   final String? pciAddress;

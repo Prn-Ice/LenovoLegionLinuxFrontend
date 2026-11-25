@@ -1,10 +1,10 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/core/models/gpu_process.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
-import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
 import 'package:legion_frontend/features/dgpu/models/dgpu_snapshot.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
@@ -56,7 +56,7 @@ void main() {
     seed: () => DgpuState.initial().copyWith(
       isActive: true,
       processes: const [
-        DgpuProcess(pid: 4242, name: 'blender', usedMemoryMib: 1024),
+        GpuProcess(pid: 4242, name: 'blender', usedMemoryMib: 1024),
       ],
     ),
     act: (bloc) => bloc.add(const DgpuKillProcessesRequested([4242])),
@@ -66,12 +66,10 @@ void main() {
   blocTest<DgpuBloc, DgpuState>(
     'sets a graphics mode and reloads authoritative state',
     build: () {
-      when(
-        () => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
-      ).thenAnswer((_) async {});
-      when(
-        repo.loadSnapshotAfterGraphicsWrite,
-      ).thenAnswer((_) async => _hybridSnapshot);
+      when(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly))
+          .thenAnswer((_) async {});
+      when(repo.loadSnapshotAfterGraphicsWrite)
+          .thenAnswer((_) async => _hybridSnapshot);
       return DgpuBloc(repository: repo);
     },
     seed: () => DgpuState.initial().copyWith(
@@ -102,9 +100,8 @@ void main() {
           kind: AppFailureKind.graphicsPending,
         ),
       );
-      when(
-        repo.loadSnapshotAfterGraphicsWrite,
-      ).thenAnswer((_) async => _hybridSnapshot);
+      when(repo.loadSnapshotAfterGraphicsWrite)
+          .thenAnswer((_) async => _hybridSnapshot);
       return DgpuBloc(repository: repo);
     },
     seed: () => DgpuState.initial().copyWith(
@@ -134,9 +131,8 @@ void main() {
   blocTest<DgpuBloc, DgpuState>(
     'passes the confirmed PCI baseline to the repository',
     build: () {
-      when(
-        () => repo.restartPciDevice('0000:01:00.0'),
-      ).thenAnswer((_) async {});
+      when(() => repo.restartPciDevice('0000:01:00.0'))
+          .thenAnswer((_) async {});
       return DgpuBloc(repository: repo);
     },
     seed: () => DgpuState.initial().copyWith(
@@ -158,9 +154,8 @@ void main() {
           details: 'write diagnostic',
         ),
       );
-      when(
-        repo.loadSnapshotAfterGraphicsWrite,
-      ).thenThrow(StateError('read failed'));
+      when(repo.loadSnapshotAfterGraphicsWrite)
+          .thenThrow(StateError('read failed'));
       return DgpuBloc(repository: repo);
     },
     act: (bloc) => bloc.add(
