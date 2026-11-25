@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/gpu_process_scan.dart';
 import '../../../core/models/gpu_reading.dart';
 
 class LiveSensorSnapshot extends Equatable {
@@ -16,6 +17,7 @@ class LiveSensorSnapshot extends Equatable {
     this.fan3Rpm,
     this.fan3MaxRpm,
     this.igpu,
+    this.igpuProcesses,
     this.dgpu,
     required this.motherboardTempC,
     required this.batteryPercent,
@@ -56,6 +58,10 @@ class LiveSensorSnapshot extends Equatable {
   final int? fan3MaxRpm;
 
   final GpuReading? igpu;
+
+  /// Kernel-attributed process use for the identified integrated GPU.
+  final GpuProcessScan? igpuProcesses;
+
   final GpuReading? dgpu;
 
   final double? motherboardTempC;
@@ -78,6 +84,7 @@ class LiveSensorSnapshot extends Equatable {
     fan3Rpm,
     fan3MaxRpm,
     igpu,
+    igpuProcesses,
     dgpu,
     motherboardTempC,
     batteryPercent,

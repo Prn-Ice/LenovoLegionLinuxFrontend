@@ -1,3 +1,4 @@
+import '../../../core/models/gpu_process_scan.dart';
 import '../../../core/models/gpu_reading.dart';
 import '../../../core/services/igpu_sysfs_service.dart';
 import '../../../core/services/legion_sysfs_service.dart';
@@ -39,6 +40,7 @@ class LiveSensorRepository {
       _sysfs.readDiskTempC(),
       _nvidia.readSnapshot(),
       _igpu.readSnapshot(),
+      _igpu.readProcesses(),
     ]);
 
     final cpuName = results[0] as String?;
@@ -57,6 +59,7 @@ class LiveSensorRepository {
     final diskTemp = results[13] as double?;
     final nvidia = results[14] as GpuReading?;
     final igpu = results[15] as GpuReading?;
+    final igpuProcesses = results[16] as GpuProcessScan?;
 
     final batteryPercent = await _sysfs.readBatteryPercent();
     final batteryStatusStr = await _sysfs.readBatteryStatus();
@@ -74,6 +77,7 @@ class LiveSensorRepository {
       fan3Rpm: fan3,
       fan3MaxRpm: fan3Max,
       igpu: igpu,
+      igpuProcesses: igpuProcesses,
       dgpu: nvidia,
       motherboardTempC: moboTemp,
       batteryPercent: batteryPercent,

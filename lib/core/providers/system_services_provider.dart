@@ -41,7 +41,7 @@ final nvidiaSmiServiceProvider = Provider<NvidiaSmiService>(
 );
 
 final igpuSysfsServiceProvider = Provider<IgpuSysfsService>(
-  (ref) => const IgpuSysfsService(),
+  (ref) => IgpuSysfsService(),
 );
 
 final legionBridgeServiceProvider = Provider<LegionFrontendBridgeService>((

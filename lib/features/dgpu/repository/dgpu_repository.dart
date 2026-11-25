@@ -2,8 +2,8 @@ import 'dart:io';
 
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/gpu_process.dart';
 import '../../../core/services/legion_frontend_bridge_service.dart';
-import '../models/dgpu_process.dart';
 import '../models/dgpu_snapshot.dart';
 import '../models/graphics_mode.dart';
 
@@ -24,7 +24,7 @@ class DgpuRepository extends PrivilegedRepository {
   /// Omitted callbacks use the sysfs and process readers below.
   final Future<String?> Function()? findPciAddress;
   final Future<bool?> Function(String path)? readRuntimeStatus;
-  final Future<List<DgpuProcess>> Function()? queryComputeProcesses;
+  final Future<List<GpuProcess>> Function()? queryComputeProcesses;
   final Future<String?> Function(String pciAddress)? queryPciName;
 
   @override
@@ -297,14 +297,14 @@ class DgpuRepository extends PrivilegedRepository {
 
   /// Queries NVIDIA compute processes via nvidia-smi.
   /// Returns empty list if nvidia-smi is not installed or fails.
-  Future<List<DgpuProcess>> _queryComputeProcesses() async {
+  Future<List<GpuProcess>> _queryComputeProcesses() async {
     try {
       final result = await Process.run('nvidia-smi', [
         '--query-compute-apps=pid,process_name,used_gpu_memory',
         '--format=csv,noheader,nounits',
       ]).timeout(const Duration(seconds: 8));
       if (result.exitCode != 0) return [];
-      return DgpuProcess.parseNvidiaSmiOutput('${result.stdout}');
+      return GpuProcess.parseNvidiaSmiOutput('${result.stdout}');
     } on Exception catch (_) {
       return [];
     }
