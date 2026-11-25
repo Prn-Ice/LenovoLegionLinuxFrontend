@@ -4,13 +4,21 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/theme/legion_accent.dart';
 import '../../../core/widgets/app_shell_components.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/surface_card.dart';
+import '../../analytics/bloc/analytics_event.dart';
+import '../../analytics/models/sensor_record.dart';
+import '../../analytics/providers/analytics_provider.dart';
+import '../../analytics/view/widgets/telemetry_history_card.dart';
 import '../../dashboard/widgets/quick_controls.dart';
 import '../../sensors/bloc/live_sensor_event.dart';
+import '../../sensors/models/live_sensor_snapshot.dart';
 import '../../sensors/providers/live_sensor_provider.dart';
 import '../bloc/fans_bloc.dart';
 import '../bloc/fans_event.dart';
 import '../bloc/fans_state.dart';
+import '../models/fan_curve.dart';
 import '../providers/fans_provider.dart';
 import 'fan_curve_editor.dart';
 
@@ -29,6 +37,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(liveSensorBlocProvider.bloc).add(const LiveSensorStarted());
+      ref.read(analyticsBlocProvider.bloc).add(const AnalyticsStarted());
     });
   }
 
@@ -36,7 +45,9 @@ class _FansPageState extends ConsumerState<FansPage> {
   Widget build(BuildContext context) {
     final state = ref.watch(fansBlocProvider);
     final sensors = ref.watch(liveSensorBlocProvider).snapshot;
+    final analytics = ref.watch(analyticsBlocProvider);
     final bloc = ref.read(fansBlocProvider.bloc);
+    final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
     final hasFanControls =
         state.miniFanCurveEnabled != null ||
@@ -44,7 +55,7 @@ class _FansPageState extends ConsumerState<FansPage> {
         state.lockFanControllerEnabled != null;
     final currentTemperature = _channel == FanChannel.cpu
         ? sensors.cpuTempC
-        : sensors.gpuTempC;
+        : sensors.dgpu?.tempC ?? sensors.igpu?.tempC;
     final currentRpm = _channel == FanChannel.cpu
         ? sensors.fan1Rpm
         : sensors.fan2Rpm;
@@ -54,7 +65,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     }
 
     return AppPageBody(
-      errorMessage: state.errorMessage,
+      errorMessage: state.errorMessage ?? analytics.errorMessage,
       children: [
         _FanWorkspaceToolbar(
           channel: _channel,
@@ -63,9 +74,35 @@ class _FansPageState extends ConsumerState<FansPage> {
           recommendedPreset: state.recommendedPreset,
           onPowerSupply: state.onPowerSupply,
           isApplying: state.isApplying,
+          sharedSpeedOnly: state.fanCurve?.schema == FanCurveSchema.speedOnly,
+          presetsEnabled:
+              state.fanCurve?.canEdit == true && !state.fanCurveCapabilityStale,
           onChannelChanged: (channel) => setState(() => _channel = channel),
           onPresetSelected: (preset) => _applyPreset(context, preset, bloc),
         ),
+        if (state.fanCurve?.schema == FanCurveSchema.speedOnly) ...[
+          const SizedBox(height: 12),
+          _LiveFanReadings(sensors: sensors, curve: state.fanCurve!),
+        ],
+        if (sensors.fan3Rpm case final fan3Rpm?) ...[
+          const SizedBox(height: 12),
+          SurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Additional fan',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(
+                  '$fan3Rpm RPM',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         if (state.fanCurve == null)
           FanCurveUnavailablePanel(
@@ -81,15 +118,72 @@ class _FansPageState extends ConsumerState<FansPage> {
             currentTemperature: currentTemperature,
             currentRpm: currentRpm,
             accent: accent,
-            enabled: !state.isApplying,
+            enabled:
+                !state.isApplying &&
+                state.fanCurve!.canEdit &&
+                !state.fanCurveCapabilityStale,
             dirty: state.fanCurveDirty,
             isApplying: state.isApplying,
             onPointChanged: (index, point) =>
                 bloc.add(FanCurvePointUpdated(index: index, point: point)),
-            onSave: state.fanCurveDirty && !state.isApplying
+            onSave:
+                state.fanCurveDirty &&
+                    !state.isApplying &&
+                    state.fanCurve!.canEdit &&
+                    !state.fanCurveCapabilityStale
                 ? () => _saveCurve(context, bloc)
                 : null,
           ),
+        if (state.fanCurveCapabilityStale) ...[
+          const Text(
+            'Fan-table support changed. Your earlier draft is preserved, '
+            'but cannot be applied to the current table. Refresh to check again '
+            'or discard the draft to view the current table.',
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: state.isApplying
+                  ? null
+                  : () => ref
+                        .read(fansBlocProvider.bloc)
+                        .add(const FanCurveDraftDiscarded()),
+              child: const Text('Discard draft'),
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        TelemetryHistoryCard(
+          history: analytics.history,
+          window: analytics.window,
+          isCollecting: analytics.isCollecting,
+          accentColor: accent,
+          onWindowChanged: analyticsBloc.add,
+          options: const [
+            TelemetrySeriesOption(
+              label: 'Fan 1 RPM',
+              unit: 'RPM',
+              minimumY: 0,
+              valueOf: _fan1Speed,
+            ),
+            TelemetrySeriesOption(
+              label: 'Fan 2 RPM',
+              unit: 'RPM',
+              minimumY: 0,
+              valueOf: _fan2Speed,
+            ),
+            TelemetrySeriesOption(
+              label: 'CPU temperature',
+              unit: '°C',
+              valueOf: _cpuTemperature,
+            ),
+            TelemetrySeriesOption(
+              label: 'GPU temperature',
+              unit: '°C',
+              valueOf: _gpuTemperature,
+            ),
+          ],
+        ),
         if (hasFanControls) ...[
           const SizedBox(height: 16),
           _FanControls(
@@ -132,8 +226,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: enabled ? 'Enable maximum fan speed' : 'Disable maximum fan speed',
-      message:
-          'Maximum fan speed overrides normal curve control and may increase noise and power use. This change requires privileged access.',
+      message: 'Maximum fan speed overrides normal curve control and may increase noise and power use. This change requires privileged access.',
       confirmLabel: enabled ? 'Enable' : 'Disable',
     );
     if (!context.mounted || !confirmed) return;
@@ -159,8 +252,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Set mini fan curve',
-      message:
-          'This changes the embedded controller fan behavior and requires privileged access.',
+      message: 'This changes the embedded controller fan behavior and requires privileged access.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
@@ -175,8 +267,7 @@ class _FansPageState extends ConsumerState<FansPage> {
     final confirmed = await confirmPrivilegedAction(
       context,
       title: 'Change fan controller lock',
-      message:
-          'Locking the embedded controller fan state requires privileged access. Disable it before returning fan control to another tool.',
+      message: 'Locking the embedded controller fan state requires privileged access.',
       confirmLabel: 'Apply',
     );
     if (!context.mounted || !confirmed) return;
@@ -192,6 +283,8 @@ class _FanWorkspaceToolbar extends StatelessWidget {
     required this.recommendedPreset,
     required this.onPowerSupply,
     required this.isApplying,
+    required this.sharedSpeedOnly,
+    required this.presetsEnabled,
     required this.onChannelChanged,
     required this.onPresetSelected,
   });
@@ -202,6 +295,8 @@ class _FanWorkspaceToolbar extends StatelessWidget {
   final String? recommendedPreset;
   final bool? onPowerSupply;
   final bool isApplying;
+  final bool sharedSpeedOnly;
+  final bool presetsEnabled;
   final ValueChanged<FanChannel> onChannelChanged;
   final ValueChanged<String> onPresetSelected;
 
@@ -252,12 +347,15 @@ class _FanWorkspaceToolbar extends StatelessWidget {
                 selected: preset == selectedPreset,
                 recommended: preset == recommendedPreset,
                 showContext: suffix == null,
-                enabled: !isApplying,
+                enabled: !isApplying && presetsEnabled,
                 onSelected: onPresetSelected,
               ),
           ],
         );
 
+        if (sharedSpeedOnly) {
+          return channelPicker;
+        }
         if (constraints.maxWidth < 760) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,6 +376,125 @@ class _FanWorkspaceToolbar extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _LiveFanReadings extends StatelessWidget {
+  const _LiveFanReadings({required this.sensors, required this.curve});
+
+  final LiveSensorSnapshot sensors;
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Current fan speeds', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 10),
+          _LiveFanReading(
+            channel: FanChannel.cpu,
+            temperature: sensors.cpuTempC,
+            rpm: sensors.fan1Rpm,
+            maxRpm: sensors.fan1MaxRpm,
+            curve: curve,
+          ),
+          const SizedBox(height: 10),
+          _LiveFanReading(
+            channel: FanChannel.gpu,
+            temperature: sensors.dgpu?.tempC ?? sensors.igpu?.tempC,
+            rpm: sensors.fan2Rpm,
+            maxRpm: sensors.fan2MaxRpm,
+            curve: curve,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveFanReading extends StatelessWidget {
+  const _LiveFanReading({
+    required this.channel,
+    required this.temperature,
+    required this.rpm,
+    required this.maxRpm,
+    required this.curve,
+  });
+
+  final FanChannel channel;
+  final double? temperature;
+  final int? rpm;
+  final int? maxRpm;
+  final FanCurve curve;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final percent = rpm == null || maxRpm == null || maxRpm! <= 0
+        ? null
+        : (rpm! / maxRpm! * 100).round();
+    final speed = rpm == null
+        ? '—'
+        : percent == null
+        ? '$rpm RPM'
+        : '$rpm RPM ($percent% of max)';
+    final step = nearestStepIndex(curve, channel, rpm);
+    final temperatureLabel = temperature == null
+        ? '—'
+        : '${temperature!.round()}°C';
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 66,
+          child: Text(channel.label, style: theme.textTheme.bodyMedium),
+        ),
+        _LiveValue(label: 'Temperature', value: temperatureLabel),
+        _LiveValue(label: 'Speed', value: speed),
+        if (step != null)
+          Text(
+            'Step ${step + 1} of ${curve.points.length} (estimated)',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _LiveValue extends StatelessWidget {
+  const _LiveValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      label: '$label $value',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(width: 4),
+          Text(value, style: monoBarStyle(scheme.onSurface)),
+        ],
+      ),
     );
   }
 }
@@ -314,9 +531,8 @@ class _PresetChip extends StatelessWidget {
       side: selected ? BorderSide(color: accent.withValues(alpha: 0.55)) : null,
       checkmarkColor: accent,
       labelStyle: selected
-          ? Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(color: scheme.onSurface)
+          ? Theme.of(context).textTheme.labelLarge
+                ?.copyWith(color: scheme.onSurface)
           : null,
       onSelected: enabled ? (_) => onSelected(preset) : null,
       avatar: recommended
@@ -364,17 +580,25 @@ class _FanControls extends StatelessWidget {
               ? 'Applying change...'
               : "Use the controller's low-temperature fan behavior.",
         ),
-      if (state.maximumFanSpeedEnabled case final value?)
-        QuickControl(
-          widgetKey: const ValueKey('maximum-fan-speed'),
-          icon: YaruIcons.meter_9,
-          value: value,
-          onChanged: state.isApplying ? null : onMaximumFanSpeedChanged,
-          title: 'Maximum fan speed',
-          subtitle: state.isApplying
-              ? 'Applying change...'
-              : 'Run both fans at full speed until disabled.',
-        ),
+      if (state.maximumFanSpeedEnabled case final value?) ...[
+        () {
+          final canToggle = state.platformProfile == 'custom' || value;
+          return QuickControl(
+            widgetKey: const ValueKey('maximum-fan-speed'),
+            icon: YaruIcons.meter_9,
+            value: value,
+            onChanged: state.isApplying || !canToggle
+                ? null
+                : onMaximumFanSpeedChanged,
+            title: 'Maximum fan speed',
+            subtitle: state.isApplying
+                ? 'Applying change...'
+                : !canToggle
+                ? 'Switch to Custom power mode to use maximum fan speed.'
+                : 'Run both fans at full speed until disabled.',
+          );
+        }(),
+      ],
       if (state.lockFanControllerEnabled case final value?)
         QuickControl(
           widgetKey: const ValueKey('lock-fan-controller'),
@@ -438,3 +662,12 @@ Color _presetAccent(String preset) {
   return LegionAccent.fromPowerModeValue(profile)?.color ??
       LegionAccent.custom.color;
 }
+
+double? _fan1Speed(SensorRecord record) => record.fan1Rpm?.toDouble();
+
+double? _fan2Speed(SensorRecord record) => record.fan2Rpm?.toDouble();
+
+double? _cpuTemperature(SensorRecord record) => record.cpuTempC;
+
+double? _gpuTemperature(SensorRecord record) =>
+    record.dgpuTempC ?? record.gpuTempC;

@@ -63,7 +63,7 @@ printf '123\n' >"$home/window"
   gui_desktop() { printf '%s\n' "$*" >>"$temporary/readiness"; }
   desktop_wait_ready
 )
-printf '%s\n' Dashboard 'xdotool windowfocus --sync 123' 'Battery health' | diff - "$temporary/readiness"
+printf '%s\n' 'Show CPU power usage' 'xdotool windowfocus --sync 123' 'xdotool key Escape' 'Battery health' | diff - "$temporary/readiness"
 echo 'PASS: window activation precedes real content readiness and navigation'
 
 printf 'Hardware control\nAdministrator access\n' >"$temporary/settings"
@@ -90,7 +90,7 @@ expect_status 1 bash -c '
   wait_until() { [[ $* != *"Legion control cleanup complete."* ]]; }
   gui_no_unit() { :; }
   assert_cleanup_succeeded() { :; }
-  desktop_verify_cleanup 123 456 legion-portable-control-fixture.service
+  desktop_verify_cleanup 123 456 legion-control-helper-fixture.service
 ' bash "$support/desktop_test_support.sh"
 expect_status 23 bash -c '
   source "$1"

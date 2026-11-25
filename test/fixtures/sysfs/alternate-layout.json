@@ -7,6 +7,7 @@
   "sys/class/hwmon/hwmon7/name": "yogafan",
   "sys/class/hwmon/hwmon7/fan1_input": "3200",
   "sys/class/hwmon/hwmon7/fan2_input": "0",
+  "sys/module/legion_laptop/drivers/platform:legion/legion/hwmon/hwmon2/fan3_input": "2300",
   "sys/class/power_supply/USBC/type": "Mains",
   "sys/class/power_supply/USBC/online": "1"
 }

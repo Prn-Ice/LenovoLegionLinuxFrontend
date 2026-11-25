@@ -62,7 +62,7 @@ finish() {
       cat "$latest" >&2
       magick identify "${latest%-ocr.txt}-frame.png" "${latest%-ocr.txt}-header.png" >&2 || true
     fi
-    journalctl -b --no-pager -u 'legion-portable-control-*' >&2 || true
+    journalctl -b --no-pager -u 'legion-control-helper-*' >&2 || true
     journalctl -b --no-pager -k | tail -n100 >&2 || true
   fi
   if [[ -S /run/user/1000/sway.sock ]]; then wayland swaymsg exit || true; fi
@@ -95,6 +95,9 @@ start_gui() {
   wait_until 90 test -s /home/approved/app.pid
   pid=$(cat /home/approved/app.pid)
   [[ $pid =~ ^[0-9]+$ ]]
+  desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
+  wait_text 'Show CPU power usage' 1280x720+0+0 11
+  desktop xdotool key Escape
 }
 close_gui() {
   # Xvfb may disconnect xdotool as it finishes the click. Check the app's status.
@@ -111,7 +114,6 @@ wait_text() { wait_until 30 ocr "$@"; }
 echo 'Checking fresh first-launch administrator access without a mode choice'
 start_gui
 wait_text Dashboard 380x32+288+7
-desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
 wait_text 'Battery health' 1280x720+0+0 11
 wait_until 10 test -f "$gui_home/preferences.hive"
 icon=$(desktop xprop -id "$(head -n1 /home/approved/window.id)" _NET_WM_ICON)
@@ -120,7 +122,7 @@ echo 'Checking official appimage-run uses its bundled runtime on first launch'
 [[ $(readlink "/proc/$pid/ns/user") != "$(readlink /proc/1/ns/user)" ]]
 executable=$(as_user approved readlink "/proc/$pid/exe")
 [[ $executable == */.cache/appimage-run/* ]]
-helper=${executable%/*}/libexec/legion-portable-control
+helper=${executable%/*}/libexec/legion-control-helper
 for library in libgtk-3.so.0 libglib-2.0.so.0 libpango-1.0.so.0; do
   grep -F "/usr/lib/legion_frontend/lib/$library" "/proc/$pid/maps"
 done
@@ -129,7 +131,7 @@ click 90 228
 wait_text 'Collect history' 1280x720+0+0 11
 desktop xdotool mousemove --window "$(head -n1 /home/approved/window.id)" 1100 600 click --repeat 18 --delay 50 5
 wait_text mode 260x25+359+648
-unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-portable-control-*' | awk '{print $1}'; }
+unit_query() { systemctl list-units --type=service --state=active --plain --no-legend 'legion-control-helper-*' | awk '{print $1}'; }
 echo deny >/run/legion-gui-approval
 click 734 667
 wait_text 'Action could not be completed' 1280x720+0+0 11
@@ -147,16 +149,16 @@ click 734 667
 has_unit() { [[ -n $(unit_query) ]]; }
 wait_until 30 has_unit
 unit=$(unit_query)
-[[ $unit =~ ^legion-portable-control-[0-9a-f-]+\.service$ ]]
+[[ $unit =~ ^legion-control-helper-[0-9a-f-]+\.service$ ]]
 helper_pid=$(systemctl show --property=MainPID --value "$unit")
 readback() { nsenter --target "$helper_pid" --mount -- cat /tmp/legion-fixture/battery-conservation; }
 enabled() { readback | grep -x enabled; }
 wait_until 15 enabled
 reject grep -F .so "/proc/$helper_pid/maps"
-echo 1 >"$conservation"
+grep -qx 1 "$conservation"
 restore() { click 1142 23; click 734 667; readback | grep -x disabled; }
 wait_until 20 restore
-echo 0 >"$conservation"
+grep -qx 0 "$conservation"
 [[ $(desktop xdotool getwindowpid "$(head -n1 /home/approved/window.id)") == "$pid" ]]
 screenshot privileged-control-restored
 click 90 427
@@ -176,7 +178,6 @@ echo 'Checking ten more normal X11 closes through official appimage-run'
 for ((attempt=1; attempt<=10; attempt++)); do
   start_gui
   wait_text Dashboard 380x32+288+7
-  desktop xdotool windowfocus --sync "$(head -n1 /home/approved/window.id)"
   close_gui
 done
 reject grep -E 'Pango-CRITICAL|GLib-CRITICAL|GLib-GObject-CRITICAL' /home/approved/gui.log

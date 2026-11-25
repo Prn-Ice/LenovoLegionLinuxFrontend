@@ -3,8 +3,8 @@
 # shellcheck disable=SC2016
 set -euo pipefail
 support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$support/portable_session_test.sh"
+# shellcheck source=control/test/helper_session_test.sh
+source "$support/helper_session_test.sh"
 # shellcheck source=control/test/distro_test_support.sh
 source "$support/distro_test_support.sh"
 declare -A app=()
@@ -38,13 +38,13 @@ cleanup() {
 trap cleanup EXIT
 check_helper() {
   local appdir=$1 helper elf documents digest
-  helper=$appdir/usr/lib/legion_frontend/libexec/legion-portable-control
+  helper=$appdir/usr/lib/legion_frontend/libexec/legion-control-helper
   elf=$(as_user approved readelf -lW -dW "$helper")
   [[ $elf != *INTERP* && $elf != *'(NEEDED)'* ]]
   documents=$(as_user approved "$appdir/usr/bin/xdg-user-dir" DOCUMENTS)
   [[ $documents == /home/approved* ]]
   digest=$(as_user approved sha256sum "$helper")
-  [[ ${digest%% *} == "$(jq -r '.appdir["./usr/lib/legion_frontend/libexec/legion-portable-control"].sha256' "$manifest")" ]]
+  [[ ${digest%% *} == "$(jq -r '.appdir["./usr/lib/legion_frontend/libexec/legion-control-helper"].sha256' "$manifest")" ]]
   session_new app approved "$helper" false
   [[ ${app[cli]} == /usr/local/bin/legion_cli ]]
   session_prepare app success
@@ -67,11 +67,12 @@ check_helper "$mountpoint"
 echo 'PASS: bundled helper from FUSE with synthetic write/readback/restore'
 cleanup
 timeout 420 bash "$support/desktop_test_support.sh" "$image" appimage-gui-fuse.log fuse '' true
+timeout 420 bash "$support/desktop_test_support.sh" "$image" appimage-power.log power "" true allow
 extraction='/home/approved/Extracted app with spaces'
 as_user approved mkdir -p "$extraction"
 as_user approved bash -c 'cd "$1"; "$2" --appimage-extract >/dev/null' bash "$extraction" "$image"
 appdir=$extraction/squashfs-root
-helper=$appdir/usr/lib/legion_frontend/libexec/legion-portable-control
+helper=$appdir/usr/lib/legion_frontend/libexec/legion-control-helper
 size=$(jq -r .native_runtime.helper.cleanup.size "$manifest")
 digest=$(jq -r .native_runtime.helper.cleanup.sha256 "$manifest")
 found=false

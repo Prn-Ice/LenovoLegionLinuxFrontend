@@ -1,4 +1,7 @@
 // Configure the real frontend targets without building Flutter or host libraries.
+@Tags(['tooling'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -16,13 +19,10 @@ void main() {
         ..createSync(recursive: true);
       final runner = Directory('${linux.path}/runner')..createSync();
       final modules = Directory('${root.path}/modules')..createSync();
-      for (final name in [
-        'CMakeLists.txt',
-        'portable_helper_install.cmake.in',
-      ]) {
+      for (final name in ['CMakeLists.txt', 'helper_install.cmake.in']) {
         File('${project.path}/linux/$name').copySync('${linux.path}/$name');
       }
-      for (final name in ['telemetry', 'control', 'packaging']) {
+      for (final name in ['control', 'packaging']) {
         Link('${root.path}/$name').createSync('${project.path}/$name');
       }
       // Stub only external dependencies; use real native target/install rules.
@@ -53,7 +53,7 @@ endfunction()
         build.path,
         '-DCMAKE_MODULE_PATH=${modules.path}',
         if (oldCache) ...[
-          '-DBUILD_PORTABLE_CONTROL_HELPER=OFF',
+          '-DBUILD_CONTROL_HELPER=OFF',
           '-DBUILD_LEGION_CONTROL_SERVICE=ON',
         ],
       ]);
@@ -63,11 +63,11 @@ endfunction()
         '--target',
         'help',
       ]);
-      expect(targets, contains('legion_portable_control'));
+      expect(targets, contains('legion_control_helper'));
       expect(targets, isNot(contains('legion_control_service')));
       final install = File('${build.path}/cmake_install.cmake')
           .readAsStringSync();
-      expect(install, contains('/libexec/legion-portable-control'));
+      expect(install, contains('/libexec/legion-control-helper'));
       expect(install, isNot(contains('legion-control.service')));
     });
   }

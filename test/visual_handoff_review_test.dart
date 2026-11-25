@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 import 'package:yaru/yaru.dart';
 
@@ -36,6 +37,7 @@ import 'package:legion_frontend/features/dgpu/providers/dgpu_provider.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_bloc.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_event.dart';
 import 'package:legion_frontend/features/fans/bloc/fans_state.dart';
+import 'package:legion_frontend/features/fans/models/fan_curve.dart';
 import 'package:legion_frontend/features/fans/providers/fans_provider.dart';
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 
@@ -155,6 +157,7 @@ void main() {
       final variant =
           '${brightness.name}-${size.width.toInt()}x${size.height.toInt()}';
       for (final section in [
+        AppSection.dashboard,
         AppSection.settings,
         AppSection.battery,
         AppSection.automation,
@@ -186,7 +189,7 @@ void main() {
                 PowerLimitReading(
                   spec: PowerRepository.allPowerLimits.first,
                   value: 55,
-                  hardwareDefault: 54,
+                  reference: 54,
                 ),
               ],
             ),
@@ -196,7 +199,12 @@ void main() {
             const Stream<LiveSensorState>.empty(),
             initialState: LiveSensorState.initial().copyWith(
               isLoading: false,
-              snapshot: section == AppSection.fans ? _fanReadings : null,
+              snapshot: switch (section) {
+                AppSection.dashboard ||
+                AppSection.dgpu ||
+                AppSection.fans => _sensorReadings,
+                _ => null,
+              },
             ),
           );
           final dgpu = _Dgpu();
@@ -226,14 +234,24 @@ void main() {
             initialState: FansState.initial().copyWith(
               platformProfile: 'balanced',
               onPowerSupply: true,
-              availablePresets: [
-                'quiet-ac',
-                'balanced-ac',
-                'performance-ac',
-                'balanced-performance-ac',
-              ],
+              availablePresets: const [],
               maximumFanSpeedEnabled: false,
-              lockFanControllerEnabled: true,
+              fanCurve: const FanCurve(
+                name: 'Firmware speed table',
+                schema: FanCurveSchema.speedOnly,
+                speedUnit: FanSpeedUnit.level,
+                writeStatus: FanCurveWriteStatus.unsupported,
+                points: [
+                  FanCurvePoint(fan1Level: 1, fan1Rpm: 1000, fan2Rpm: 900),
+                  FanCurvePoint(fan1Level: 2, fan1Rpm: 1500, fan2Rpm: 1400),
+                  FanCurvePoint(fan1Level: 3, fan1Rpm: 2000, fan2Rpm: 1900),
+                  FanCurvePoint(fan1Level: 4, fan1Rpm: 2500, fan2Rpm: 2400),
+                  FanCurvePoint(fan1Level: 5, fan1Rpm: 3000, fan2Rpm: 2900),
+                  FanCurvePoint(fan1Level: 6, fan1Rpm: 3500, fan2Rpm: 3400),
+                  FanCurvePoint(fan1Level: 7, fan1Rpm: 4000, fan2Rpm: 3900),
+                  FanCurvePoint(fan1Level: 8, fan1Rpm: 4500, fan2Rpm: 4400),
+                ],
+              ),
             ),
           );
           final analytics = _Analytics();
@@ -294,7 +312,9 @@ void main() {
           whenListen(
             dashboard,
             const Stream<DashboardState>.empty(),
-            initialState: DashboardState.initial(),
+            initialState: DashboardState.initial().copyWith(
+              hasInitialized: true,
+            ),
           );
           whenListen(
             devices,
@@ -375,6 +395,17 @@ void main() {
             await tester.ensureVisible(find.text('Hardware control'));
             await tester.pumpAndSettle();
             await _capture(tester, 'hardware-control-$variant');
+            await tester.ensureVisible(find.text('Dashboard readings'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-reading-settings-$variant');
+            await tester.ensureVisible(find.text('CPU usage'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-usage-settings-$variant');
+          }
+          if (section == AppSection.dashboard) {
+            await tester.ensureVisible(find.text('CPU usage'));
+            await tester.pumpAndSettle();
+            await _capture(tester, 'dashboard-usage-$variant');
           }
           // Capture the end of the real page too; a first viewport cannot prove
           // that lower settings and recovery actions remain reachable.
@@ -438,23 +469,20 @@ void main() {
 }
 
 // Synthetic sensor values keep copy review independent of the host's hardware.
-const _fanReadings = LiveSensorSnapshot(
+const _sensorReadings = LiveSensorSnapshot(
   cpuName: null,
   cpuTempC: 47,
-  cpuUtilPercent: null,
+  cpuUtilPercent: 19,
   cpuClockGhz: null,
   cpuPackagePowerW: null,
   fan1Rpm: 1800,
   fan2Rpm: 1600,
-  gpuName: null,
-  gpuTempC: 43,
-  gpuUtilPercent: null,
-  gpuClockGhz: null,
-  gpuVramUsedGb: null,
-  gpuVramTotalGb: null,
-  gpuFanPercent: null,
-  gpuPowerDrawW: null,
-  gpuIsDiscrete: true,
+  igpu: GpuReading(tempC: 46, usagePercent: 17),
+  dgpu: GpuReading(
+    name: 'NVIDIA GeForce RTX 4060 Laptop GPU',
+    tempC: 43,
+    usagePercent: 0,
+  ),
   motherboardTempC: null,
   batteryPercent: null,
   batteryCharging: null,

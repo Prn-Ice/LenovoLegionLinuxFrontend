@@ -80,7 +80,8 @@ void main() {
       await _tap(tester, find.text('Close'));
       expect(find.text('Unsaved limit changes'), findsOneWidget);
       for (final (limit, value) in values) {
-        _expectCurrent(tester, limit, value);
+        _expectCurrent(tester, limit, limit.initialValue);
+        expect(tester.widget<Slider>(_slider(limit)).value.round(), value);
       }
       await _tap(tester, find.text('Apply changes'));
       await _waitForApplied(tester);

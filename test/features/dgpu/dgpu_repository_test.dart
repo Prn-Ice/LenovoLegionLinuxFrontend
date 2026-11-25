@@ -3,6 +3,7 @@ import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
+import 'package:legion_frontend/features/dgpu/models/dgpu_process.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 import 'package:legion_frontend/features/dgpu/repository/dgpu_repository.dart';
 import 'package:mocktail/mocktail.dart';
@@ -84,6 +85,97 @@ void main() {
         detectUnavailableResponse: false,
       ),
     ).called(1);
+  });
+
+  test(
+    'falls back to unversioned status and choices when --json fails',
+    () async {
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status', '--json'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 2,
+          stdout: '',
+          stderr: 'legion_cli: error: unrecognized arguments: --json',
+        ),
+      );
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 0,
+          stdout: '{"selected_mode": "hybrid-igpu-only", "pending_mode": null, "dgpu_state": "detached"}',
+          stderr: '',
+        ),
+      );
+      when(
+        () => bridge.runCommand(
+          method: 'graphics_mode.choices',
+          args: const ['graphics-mode', 'choices'],
+          timeout: const Duration(seconds: 8),
+          detectUnavailableResponse: false,
+        ),
+      ).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 0,
+          stdout: 'hybrid\nhybrid-igpu-only\nhybrid-auto\ndiscrete\n',
+          stderr: '',
+        ),
+      );
+
+      final status = await repository.loadGraphicsModeStatus();
+
+      expect(status?.selectedMode, GraphicsMode.hybridIgpuOnly);
+      expect(status?.effectiveState, DgpuTopology.detached);
+      expect(status?.reconciliation, GraphicsReconciliation.settled);
+      expect(status?.availableModes, [
+        GraphicsMode.hybrid,
+        GraphicsMode.hybridIgpuOnly,
+        GraphicsMode.hybridAuto,
+        GraphicsMode.discrete,
+      ]);
+      expect(status?.bootSupport, isNull);
+    },
+  );
+
+  test('uses injected graphics reads instead of host hardware', () async {
+    when(
+      () => bridge.runCommand(
+        method: any(named: 'method'),
+        args: any(named: 'args'),
+        timeout: any(named: 'timeout'),
+        detectUnavailableResponse: any(named: 'detectUnavailableResponse'),
+      ),
+    ).thenAnswer(
+      (_) async =>
+          const LegionCliResult(exitCode: 0, stdout: _statusJson, stderr: ''),
+    );
+    final fixtureRepository = DgpuRepository(
+      bridgeService: bridge,
+      findPciAddress: () async => '0000:01:00.0',
+      readRuntimeStatus: (_) async => false,
+      queryComputeProcesses: () async => const [
+        DgpuProcess(pid: 42, name: 'fixture-app', usedMemoryMib: 12),
+      ],
+      queryPciName: (_) async => 'Fixture GPU',
+    );
+
+    final snapshot = await fixtureRepository.loadSnapshot();
+
+    expect(snapshot.pciAddress, '0000:01:00.0');
+    expect(snapshot.isActive, isFalse);
+    expect(snapshot.name, 'Fixture GPU');
+    expect(snapshot.processes.single.pid, 42);
   });
 
   test('keeps graphics status unavailable after command failure', () async {

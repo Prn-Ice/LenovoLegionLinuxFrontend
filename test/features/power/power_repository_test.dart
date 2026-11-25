@@ -40,18 +40,16 @@ void main() {
     when(() => sysfs.readBiosVersion()).thenAnswer((_) async => null);
   });
 
-  test('omits non-positive limits while retaining positive readings', () async {
+  test('retains supported zero and positive readings', () async {
     when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'balanced');
-    when(
-      () => sysfs.readPlatformProfileChoices(),
-    ).thenAnswer((_) async => ['balanced']);
+    when(() => sysfs.readPlatformProfileChoices())
+        .thenAnswer((_) async => ['balanced']);
     when(() => sysfs.readCpuOverclockMode()).thenAnswer((_) async => null);
     when(() => sysfs.readGpuOverclockMode()).thenAnswer((_) async => null);
     when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
     when(() => sysfs.readCpuPolicySnapshot()).thenAnswer((_) async => null);
-    when(
-      () => profileService.loadDaemonSnapshot(),
-    ).thenAnswer((_) async => null);
+    when(() => profileService.loadDaemonSnapshot())
+        .thenAnswer((_) async => null);
     when(
       () => profileService.availableProfiles(
         hardwareProfiles: ['balanced'],
@@ -75,23 +73,48 @@ void main() {
 
     final snapshot = await repository.loadSnapshot();
 
-    expect(snapshot.powerLimits, hasLength(4));
+    expect(snapshot.powerLimits, hasLength(12));
     expect(snapshot.powerLimits.first.spec.id, 'cpu_longterm');
     expect(snapshot.powerLimits.first.value, 35);
-    expect(snapshot.powerLimits.first.hardwareDefault, 54);
+    expect(snapshot.powerLimits.first.reference, 54);
     expect(
       snapshot.powerLimits
           .where((reading) => !reading.spec.isWritable)
           .map((reading) => reading.spec.id),
       ['cpu_temperature', 'cpu_default', 'gpu_power_target_offset'],
     );
-    expect(snapshot.powerLimits.last.hardwareDefault, 45);
+    expect(
+      snapshot.powerLimits
+          .firstWhere((reading) => reading.spec.id == 'gpu_power_target_offset')
+          .reference,
+      45,
+    );
+    expect(
+      snapshot.powerLimits
+          .where((reading) => reading.value == 0)
+          .map((reading) => reading.spec.id),
+      containsAll(<String>[
+        'cpu_peak',
+        'cpu_cross_loading',
+        'cpu_apu_sppt',
+        'gpu_ctgp',
+        'gpu_ppab',
+        'gpu_boost_clock',
+        'gpu_temperature',
+      ]),
+    );
+    expect(
+      snapshot.powerLimits
+          .firstWhere((reading) => reading.spec.id == 'cpu_shortterm')
+          .value,
+      201,
+    );
 
     when(() => sysfs.readBiosVersion()).thenAnswer((_) async => 'M1CN49WW');
     final otherBiosSnapshot = await repository.loadSnapshot();
     expect(
       otherBiosSnapshot.powerLimits.every(
-        (reading) => reading.hardwareDefault == null,
+        (reading) => reading.reference == null,
       ),
       isTrue,
     );
@@ -162,35 +185,35 @@ void main() {
     );
   });
 
-  test('rejects non-positive power-limit writes', () async {
-    final zeroReading = PowerLimitReading(
-      spec: PowerRepository.allPowerLimits.firstWhere((spec) => spec.min == 0),
-      value: 0,
-    );
-
-    await expectLater(
-      repository.setPowerLimit(zeroReading.spec, zeroReading.value),
-      throwsA(
-        isA<PowerRepositoryException>().having(
-          (error) => error.message,
-          'message',
-          contains('between 1 and'),
+  test(
+    'keeps zero visible but preserves the app request lower bound',
+    () async {
+      final zeroReading = PowerLimitReading(
+        spec: PowerRepository.allPowerLimits.firstWhere(
+          (spec) => spec.min == 0,
         ),
-      ),
-    );
-    await expectLater(
-      repository.setPowerLimits([zeroReading]),
-      throwsA(isA<PowerRepositoryException>()),
-    );
-    verifyZeroInteractions(bridge);
-  });
+        value: 0,
+      );
+      expect(zeroReading.spec.effectiveMin, 1);
+      await expectLater(
+        repository.setPowerLimit(zeroReading.spec, zeroReading.value),
+        throwsA(
+          isA<PowerRepositoryException>().having(
+            (error) => error.message,
+            'message',
+            contains('between 1 and'),
+          ),
+        ),
+      );
+    },
+  );
 
   test('writes validated staged limits in Custom mode on AC', () async {
     when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
     when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
-    when(
-      () => sysfs.readLegionIntFile(reading.spec.sysfsAttribute),
-    ).thenAnswer((_) async => 55);
+    var reads = 0;
+    when(() => sysfs.readLegionIntFile(reading.spec.sysfsAttribute))
+        .thenAnswer((_) async => reads++ == 0 ? 55 : 60);
     when(
       () => bridge.runControlOperation(
         operation: any(named: 'operation'),
@@ -212,6 +235,157 @@ void main() {
     ).called(1);
   });
 
+  test('reports a clamped readback instead of claiming success', () async {
+    when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
+    when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+    var reads = 0;
+    when(() => sysfs.readLegionIntFile(reading.spec.sysfsAttribute)).thenAnswer(
+      (_) async => switch (reads++) {
+        0 => 55,
+        1 => 50,
+        _ => 55,
+      },
+    );
+    when(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
+        method: 'feature.set',
+        args: [reading.spec.feature!.wireValue, '60'],
+        timeout: const Duration(seconds: 5),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
+        method: 'feature.set',
+        args: [reading.spec.feature!.wireValue, '55'],
+        timeout: const Duration(seconds: 5),
+      ),
+    ).thenAnswer((_) async {});
+
+    await expectLater(
+      repository.setPowerLimits([reading]),
+      throwsA(
+        isA<PowerLimitReadbackException>()
+            .having((error) => error.requested, 'requested', 60)
+            .having((error) => error.actual, 'actual', 50)
+            .having((error) => error.message, 'message', contains('clamped')),
+      ),
+    );
+  });
+
+  test('reports missing readback without claiming success', () async {
+    when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
+    when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+    var reads = 0;
+    when(() => sysfs.readLegionIntFile(reading.spec.sysfsAttribute)).thenAnswer(
+      (_) async => switch (reads++) {
+        0 => 55,
+        1 => null,
+        _ => 55,
+      },
+    );
+    when(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
+        method: 'feature.set',
+        args: [reading.spec.feature!.wireValue, '60'],
+        timeout: const Duration(seconds: 5),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => bridge.runControlOperation(
+        operation: any(named: 'operation'),
+        method: 'feature.set',
+        args: [reading.spec.feature!.wireValue, '55'],
+        timeout: const Duration(seconds: 5),
+      ),
+    ).thenAnswer((_) async {});
+
+    await expectLater(
+      repository.setPowerLimits([reading]),
+      throwsA(
+        isA<PowerLimitReadbackException>()
+            .having((error) => error.actual, 'actual', isNull)
+            .having(
+              (error) => error.message,
+              'message',
+              contains('actual value is unavailable'),
+            ),
+      ),
+    );
+  });
+
+  test(
+    'rolls back all changed limits after an accepted-but-clamped batch write',
+    () async {
+      final second = PowerLimitReading(
+        spec: PowerRepository.allPowerLimits[1],
+        value: 80,
+      );
+      when(() => sysfs.readPlatformProfile()).thenAnswer((_) async => 'custom');
+      when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
+      var firstReads = 0;
+      var secondReads = 0;
+      when(() => sysfs.readLegionIntFile(reading.spec.sysfsAttribute))
+          .thenAnswer(
+            (_) async => switch (firstReads++) {
+              0 => 55,
+              1 => 60,
+              _ => 55,
+            },
+          );
+      when(() => sysfs.readLegionIntFile(second.spec.sysfsAttribute))
+          .thenAnswer(
+            (_) async => switch (secondReads++) {
+              0 => 75,
+              1 => 70,
+              _ => 75,
+            },
+          );
+      for (final args in [
+        [reading.spec.feature!.wireValue, '60'],
+        [second.spec.feature!.wireValue, '80'],
+        [second.spec.feature!.wireValue, '75'],
+        [reading.spec.feature!.wireValue, '55'],
+      ]) {
+        when(
+          () => bridge.runControlOperation(
+            operation: any(named: 'operation'),
+            method: 'feature.set',
+            args: args,
+            timeout: const Duration(seconds: 5),
+          ),
+        ).thenAnswer((_) async {});
+      }
+
+      await expectLater(
+        repository.setPowerLimits([reading, second]),
+        throwsA(
+          isA<PowerLimitReadbackException>()
+              .having((error) => error.limit, 'limit', second.spec)
+              .having((error) => error.actual, 'actual', 70),
+        ),
+      );
+      verify(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
+          method: 'feature.set',
+          args: [second.spec.feature!.wireValue, '75'],
+          timeout: const Duration(seconds: 5),
+        ),
+      ).called(1);
+      verify(
+        () => bridge.runControlOperation(
+          operation: any(named: 'operation'),
+          method: 'feature.set',
+          args: [reading.spec.feature!.wireValue, '55'],
+          timeout: const Duration(seconds: 5),
+        ),
+      ).called(1);
+    },
+  );
+
   for (final rollbackFails in [false, true]) {
     test(
       'preserves write failure after rollback (rollback fails: $rollbackFails)',
@@ -220,16 +394,20 @@ void main() {
           spec: PowerRepository.allPowerLimits[1],
           value: 80,
         );
-        when(
-          () => sysfs.readPlatformProfile(),
-        ).thenAnswer((_) async => 'custom');
+        when(() => sysfs.readPlatformProfile())
+            .thenAnswer((_) async => 'custom');
         when(() => sysfs.readOnPowerSupplyMode()).thenAnswer((_) async => true);
-        when(
-          () => sysfs.readLegionIntFile(reading.spec.sysfsAttribute),
-        ).thenAnswer((_) async => 55);
-        when(
-          () => sysfs.readLegionIntFile(second.spec.sysfsAttribute),
-        ).thenAnswer((_) async => 75);
+        var firstReads = 0;
+        when(() => sysfs.readLegionIntFile(reading.spec.sysfsAttribute))
+            .thenAnswer(
+              (_) async => switch (firstReads++) {
+                0 => 55,
+                1 => 60,
+                _ => 55,
+              },
+            );
+        when(() => sysfs.readLegionIntFile(second.spec.sysfsAttribute))
+            .thenAnswer((_) async => 75);
         when(
           () => bridge.runControlOperation(
             operation: any(named: 'operation'),

@@ -1,4 +1,7 @@
 // Check runtime dependency failures and source attribution before packaging.
+@Tags(['tooling'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

@@ -34,6 +34,8 @@
         extraPkgConfigPackages = [ pkgs.libthai ];
       };
       frontend = pkgs.callPackage ./packaging/nix/frontend.nix { inherit flutterSdk flutter; };
+      staticHelper = pkgs.pkgsStatic.callPackage ./packaging/nix/static-helper.nix { };
+      appimage = pkgs.callPackage ./packaging/nix/appimage.nix { inherit frontend staticHelper; };
       frontendSource = pkgs.callPackage ./packaging/nix/sources.nix { inherit frontend; };
       tag = pkgs.writeShellApplication {
         name = "legion-tag";
@@ -53,9 +55,30 @@
     {
       packages.${system} = {
         default = frontend;
-        inherit frontend;
+        inherit frontend appimage;
         frontend-source = frontendSource;
       };
+      nixosModules.default =
+        { pkgs, ... }:
+        {
+          environment.systemPackages = [ frontend ];
+          systemd.services.legion-graphics = {
+            description = "Apply Lenovo iGPU-only graphics before sign-in";
+            after = [ "systemd-modules-load.service" "systemd-udev-trigger.service" ];
+            before = [ "display-manager.service" ];
+            wantedBy = [ "display-manager.service" ];
+            path = [ pkgs.lsof ];
+            restartIfChanged = false;
+            unitConfig.ConditionPathExists = "/sys/devices/platform/legion/igpumode";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecCondition = "${pkgs.runtimeShell} -c '/run/current-system/sw/bin/legion_cli graphics-mode apply --help >/dev/null 2>&1'";
+              ExecStart = "/run/current-system/sw/bin/legion_cli graphics-mode apply";
+              TimeoutStartSec = "90s";
+            };
+          };
+        };
       apps.${system} = {
         default = {
           type = "app";
@@ -102,12 +125,32 @@
               diff -u ${./packaging/nix/pubspec.lock.json} pubspec.lock.json
               touch "$out"
             '';
-        control-lifecycle = import ./control/test/control_lifecycle.nix {
+        helper-bootstrap = import ./control/test/helper_bootstrap.nix {
           inherit pkgs;
         };
-        portable-bootstrap = import ./control/test/portable_bootstrap.nix {
-          inherit pkgs;
-        };
+        appimage-package =
+          pkgs.runCommand "legion-appimage-check"
+            {
+              nativeBuildInputs = [ pkgs.patchelf ];
+            }
+            ''
+              ${appimage} --appimage-extract >/dev/null
+              test -x squashfs-root/AppRun
+              test -x squashfs-root/usr/lib/legion_frontend/legion_frontend
+              test -f squashfs-root/usr/share/glib-2.0/schemas/gschemas.compiled
+              status=0
+              while IFS= read -r -d "" file; do
+                rpath="$(patchelf --print-rpath "$file" 2>/dev/null)" || continue
+                case "$rpath" in
+                  *nix/store*)
+                    echo "The AppImage keeps a Nix store library path: $file" >&2
+                    status=1
+                    ;;
+                esac
+              done < <(find squashfs-root -type f -print0)
+              [ "$status" = 0 ]
+              touch "$out"
+            '';
       };
 
       devShells.${system}.default = pkgs.mkShell {
@@ -121,10 +164,10 @@
           dpkg
           squashfsTools
           git
+          openssh
           nix.out
           gtk3
           glib
-          polkit
           libthai
           fribidi
           gsettings-desktop-schemas

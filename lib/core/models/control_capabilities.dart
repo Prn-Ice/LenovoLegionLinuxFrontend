@@ -1,9 +1,5 @@
 /// Operations advertised by the selected control helper.
-enum ControlCapability {
-  interactiveControl,
-  persistentServices,
-  nextBootGraphics,
-}
+enum ControlCapability { interactiveControl }
 
 class ControlCapabilities {
   ControlCapabilities({

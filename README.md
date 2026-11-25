@@ -53,9 +53,9 @@ Captured with Spectacle on my Legion Slim 7 16APH8.
 
 ![Lighting page showing per-key keyboard colors, effects, and brightness](docs/screenshots/lighting.png)
 
-### Discrete GPU
+### GPU
 
-![Discrete GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
+![GPU page showing usage history, active processes, and graphics modes](docs/screenshots/discrete-gpu.png)
 
 </details>
 
@@ -73,10 +73,10 @@ complete across Lenovo Legion models.
 | Battery conservation and rapid charging | Both controls implemented; Dashboard and Battery share confirmed state. Conservation on/off write and readback verified on the test device | Rapid-charging writes still need hardware verification. |
 | Fn-lock and touchpad controls; camera status | Controls and read-only camera status implemented; Fn-lock write/readback/restore verified | Touchpad writes still need recorded hardware checks. The camera status file is absent on the test device; camera control is not supported. |
 | Boot logo customization | Image upload and restore paths implemented | Applying a logo, restoring it, and checking the next boot still need recorded hardware verification. |
-| Discrete GPU monitoring | NVIDIA runtime state, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
+| GPU monitoring | NVIDIA runtime state, integrated GPU readings, compute-process list, and graphics-mode status implemented | Graphics switching is still being validated; Hybrid Auto is intentionally unavailable as a desktop action. Process killing and PCI restart are not supported by the control service. |
 | [Keyboard lighting profiles for each power mode](docs/keyboard-automation.md) | Saved profiles and automatic mode-based switching implemented; hardware-free native app journeys cover persistence and restart | The app must stay open. These journeys do not verify physical keyboard behavior; visual polish remains. |
 | Keyboard lighting through Spectrum HID or OpenRGB | Both backends implemented | Native Spectrum currently targets USB `048d:c987` with the Gen 7/8 protocol. Other keyboards need device-specific verification; OpenRGB depends on its device support and setup. |
-| Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device, not a multi-model test matrix. |
+| Real-time dashboard | Periodically refreshed telemetry and quick controls implemented | Available readings depend on the driver and hardware. Read-only fan, power, and battery checks exist for the test device. Other models have not been tested. |
 
 See the **[public backlog](BACKLOG.md)** for work in progress, known gaps, and
 ways to help.
@@ -116,12 +116,18 @@ environment.systemPackages = [ pkgs.lenovo-legion ];
 Hardware controls discover `legion_cli` in fixed host locations. The privileged
 control helper checks root ownership before executing privileged commands.
 Persistent service management and next-boot graphics changes are unavailable through the
-helper. Optional power telemetry and keyboard access need their own host setup.
+helper. Choose **Allow** at startup to show CPU power in watts on supported
+hardware. **Skip** opens the dashboard without that reading. Keyboard access
+requires separate host setup.
 On NixOS, use the [native Nix package](docs/nix.md):
 
 ```bash
 nix run .#frontend
 ```
+
+For a local AppImage built from the same flake, run
+`nix build .#appimage --print-out-paths` and see
+[the Nix guide](docs/nix.md#local-appimage).
 
 The Nix package supplies its library dependencies. The AppImage bundles its
 desktop libraries and uses host graphics and core system libraries. On NixOS,
@@ -199,7 +205,7 @@ flutter analyze
 ## Architecture
 
 The app reads hardware data through sysfs and D-Bus. Privileged changes go through
-the `legion-control` service, which checks permissions with Polkit.
+the bundled privileged control helper, which checks permissions with Polkit.
 
 See the [architecture overview](docs/architecture/overview.md).
 

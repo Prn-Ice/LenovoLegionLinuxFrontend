@@ -1,16 +1,25 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/package_release.dart';
+import '../../tool/release_source/build_record.dart';
+import '../../tool/release_source/linux_build.dart';
+import '../../tool/release_source/source_archive.dart';
+import '../../tool/release_source/source_inputs.dart';
+import '../support/git_fixture.dart';
 
 void main() {
   late Directory workspace;
   late Directory root;
   late Directory dependency;
   late Directory bundle;
-  late Map<String, Object> stamp;
+  late ReleaseBuildRecord stamp;
+  late GitFixture repository;
 
   void write(String path, String content) {
     File(path)
@@ -18,7 +27,7 @@ void main() {
       ..writeAsStringSync(content);
   }
 
-  Future<Map<String, Object>> recordBuild() async =>
+  Future<ReleaseBuildRecord> recordBuild() async =>
       recordReleaseBuild(bundle, await captureReleaseInputs(root));
 
   setUp(() async {
@@ -28,10 +37,10 @@ void main() {
     dependency = Directory('${workspace.path}/dependency')..createSync();
     bundle = Directory('${root.path}/build/bundle');
     write('${bundle.path}/lib/libapp.so', 'binary');
-    write('${bundle.path}/libexec/legion-portable-control', 'helper');
+    write('${bundle.path}/libexec/legion-control-helper', 'helper');
     await _run(root, 'chmod', [
       '755',
-      '${bundle.path}/libexec/legion-portable-control',
+      '${bundle.path}/libexec/legion-control-helper',
     ]);
     write('${dependency.path}/pubspec.yaml', 'name: handy_window');
     write('${dependency.path}/linux/libhandy/src/COPYING', 'license');
@@ -71,14 +80,81 @@ void main() {
     write('${root.path}/.beads/credentials', 'private');
     Directory('${root.path}/.agent').createSync();
     Link('${root.path}/.agent/local-skill').createSync('/private/home/skill');
-    await _run(root, 'git', ['init', '-q']);
-    await _run(root, 'git', ['config', 'user.email', 'test@example.invalid']);
-    await _run(root, 'git', ['config', 'user.name', 'Test']);
-    await _run(root, 'git', ['add', '.']);
-    await _run(root, 'git', ['add', '-f', '.env', '.beads/credentials']);
-    await _run(root, 'git', ['commit', '-qm', 'fixture']);
+    repository = GitFixture(root);
+    addTearDown(repository.dispose);
+    repository.initialize();
+    repository.git(['add', '.']);
+    repository.git(['add', '-f', '.env', '.beads/credentials']);
+    repository.git(['commit', '-qm', 'fixture']);
     stamp = await recordBuild();
   });
+
+  test(
+    'resolves source archive options without losing spaces or absolute paths',
+    () {
+      expect(
+        releaseSourceArchive([], root).path,
+        '${root.path}/build/release/legion-frontend-source.tar.gz',
+      );
+      expect(
+        releaseSourceArchive([
+          '--output',
+          'build/source archive.tar.gz',
+        ], root).path,
+        '${root.path}/build/source archive.tar.gz',
+      );
+      final absolute = '${workspace.path}/source archive.tar.gz';
+      expect(releaseSourceArchive(['--output', absolute], root).path, absolute);
+    },
+  );
+
+  test('the release CLI rejects malformed options before building', () async {
+    final result = await Process.run('dart', [
+      'tool/package_release.dart',
+      '--output',
+      '--unexpected',
+    ]);
+    expect(result.exitCode, 64);
+    expect(result.stderr, contains('Usage: dart tool/package_release.dart'));
+    expect(result.stdout, isEmpty);
+  });
+
+  test(
+    'a serialized build record still pairs the archive and static helper',
+    () async {
+      final recorded = await recordReleaseBuild(
+        bundle,
+        await captureReleaseInputs(root),
+        staticHelper: true,
+      );
+      final json = jsonDecode(jsonEncode(recorded)) as Map<String, dynamic>;
+      final restored = ReleaseBuildRecord.fromJson(json);
+      final output = File('${root.path}/build/restored.tar.gz');
+      final manifest = await packageReleaseSource(
+        root,
+        bundle,
+        output,
+        restored,
+      );
+      expect(manifest['format'], 4);
+      expect(manifest['inputs'], json['inputs']);
+      expect(manifest['binary_sha256'], json['binary_sha256']);
+      expect(manifest['bundle'], json['bundle']);
+      expect(manifest['build_config'], {
+        'portable_control': true,
+        'static_portable_helper': true,
+      });
+      final recipe = await _run(root, 'tar', [
+        '-xOf',
+        output.path,
+        './REBUILD.md',
+      ]);
+      expect(
+        recipe.stdout,
+        contains('bash source/tool/build_static_helper.sh'),
+      );
+    },
+  );
 
   test(
     'archives build sources, preserves edits/modes/links, and repeats exactly',
@@ -181,9 +257,9 @@ void main() {
   });
 
   test('rejects a helper replaced after the build', () async {
-    write('${bundle.path}/libexec/legion-portable-control', 'approved helper');
+    write('${bundle.path}/libexec/legion-control-helper', 'approved helper');
     stamp = await recordBuild();
-    write('${bundle.path}/libexec/legion-portable-control', 'replacement');
+    write('${bundle.path}/libexec/legion-control-helper', 'replacement');
     await expectLater(
       packageReleaseSource(
         root,
@@ -196,7 +272,7 @@ void main() {
   });
 
   test('requires an executable helper in every release build', () async {
-    final helper = File('${bundle.path}/libexec/legion-portable-control');
+    final helper = File('${bundle.path}/libexec/legion-control-helper');
     await _run(root, 'chmod', ['644', helper.path]);
     await expectLater(recordBuild(), throwsStateError);
     await _run(root, 'chmod', ['755', helper.path]);
@@ -208,33 +284,15 @@ void main() {
     await expectLater(recordBuild(), throwsStateError);
   });
 
-  test(
-    'rejects source pairing for a build without helper configuration',
-    () async {
-      stamp['build_config'] = {'portable_control': false};
-      await expectLater(
-        packageReleaseSource(
-          root,
-          bundle,
-          File('${root.path}/build/release.tar.gz'),
-          stamp,
-        ),
-        throwsStateError,
-      );
-    },
-  );
+  test('rejects source pairing for a build without helper configuration', () {
+    final json = stamp.toJson();
+    json['build_config'] = {'portable_control': false};
+    expect(() => ReleaseBuildRecord.fromJson(json), throwsStateError);
+  });
 
-  test('requires the whole bundle fingerprint for source pairing', () async {
-    stamp.remove('bundle');
-    await expectLater(
-      packageReleaseSource(
-        root,
-        bundle,
-        File('${root.path}/build/release.tar.gz'),
-        stamp,
-      ),
-      throwsStateError,
-    );
+  test('requires the whole bundle fingerprint for source pairing', () {
+    final json = stamp.toJson()..remove('bundle');
+    expect(() => ReleaseBuildRecord.fromJson(json), throwsStateError);
   });
 
   test('records the default helper and extra runtime source inputs', () async {

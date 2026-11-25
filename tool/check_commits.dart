@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'git_environment.dart';
+
 final conventionalSubject = RegExp(
   r'^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)'
   r'(\([^()\r\n]+\))?!?: \S[^\r\n]*$',
@@ -11,15 +13,20 @@ List<String> invalidCommitSubjects(Directory root, String base, String head) {
   if (!commitId.hasMatch(base) || !commitId.hasMatch(head)) {
     throw const FormatException('Expected full base and head commit hashes.');
   }
-  final result = Process.runSync('git', [
-    '-C',
-    root.path,
-    'log',
-    '--no-merges',
-    '--format=%h %s',
-    '$base..$head',
-    '--',
-  ]);
+  final result = Process.runSync(
+    'git',
+    [
+      '-C',
+      root.path,
+      'log',
+      '--no-merges',
+      '--format=%h %s',
+      '$base..$head',
+      '--',
+    ],
+    environment: gitRepositoryEnvironment(),
+    includeParentEnvironment: false,
+  );
   if (result.exitCode != 0) {
     throw StateError('Cannot read the PR commits: ${result.stderr}');
   }

@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/models/gpu_reading.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
@@ -55,6 +58,17 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
+    final graphicsModeCard = _GraphicsModeCard(
+      state: state,
+      isAppImage: Platform.environment['LEGION_APPIMAGE'] == '1',
+      onModeSelected: (mode) => _setGraphicsMode(context, bloc, state, mode),
+      onBootSupportChanged: (enabled) =>
+          _setGraphicsBootSupport(context, bloc, enabled),
+    );
+
+    final snapshot = sensorState.snapshot;
+    final integratedGpu = snapshot.igpu;
+
     return AppPageBody(
       errorMessage:
           state.errorMessage ??
@@ -62,39 +76,38 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           analytics.errorMessage,
       children: [
         if (!state.isAvailable) ...[
-          _GraphicsModeCard(
-            state: state,
-            onModeSelected: (mode) =>
-                _setGraphicsMode(context, bloc, state, mode),
-          ),
-          const SizedBox(height: 16),
-          AppControlCard(
-            icon: YaruIcons.video,
-            title:
-                state.graphicsModeStatus?.effectiveState ==
-                    DgpuTopology.detached
-                ? 'NVIDIA GPU not detected'
-                : 'GPU unavailable',
-            children: [
-              Text(
-                state.graphicsModeStatus?.effectiveState ==
-                        DgpuTopology.detached
-                    ? 'Linux does not currently detect the NVIDIA GPU. '
-                          'Check the selected graphics mode above. In '
-                          'integrated-only mode, the laptop uses integrated graphics instead.'
-                    : 'The system found no NVIDIA display controller with '
-                          'runtime power management. Refresh after checking the '
-                          'driver and selected graphics mode.',
-              ),
-              const SizedBox(height: 12),
-              AppRefreshButton(
-                isBusy: state.isLoading,
-                onPressed: () => bloc.add(const DgpuRefreshRequested()),
-              ),
-            ],
-          ),
+          if (integratedGpu != null) ...[
+            _IntegratedGpuCard(
+              gpu: integratedGpu,
+              graphicsModeStatus: state.graphicsModeStatus,
+            ),
+            const SizedBox(height: 16),
+            TelemetryHistoryCard(
+              history: analytics.history,
+              window: analytics.window,
+              isCollecting: analytics.isCollecting,
+              accentColor: accent,
+              onWindowChanged: analyticsBloc.add,
+              options: const [
+                TelemetrySeriesOption(
+                  label: 'Usage %',
+                  unit: '%',
+                  minimumY: 0,
+                  maximumY: 100,
+                  valueOf: _igpuUtilisation,
+                ),
+                TelemetrySeriesOption(
+                  label: 'Temperature',
+                  unit: '°C',
+                  valueOf: _igpuTemperature,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          graphicsModeCard,
         ] else ...[
-          _GpuOverview(state: state, sensor: sensorState.snapshot),
+          _GpuOverview(state: state, sensor: snapshot),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
             history: analytics.history,
@@ -125,12 +138,12 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           ),
           const SizedBox(height: 16),
           _ProcessesCard(processes: state.processes),
+          if (integratedGpu != null) ...[
+            const SizedBox(height: 16),
+            _IntegratedGpuCard(gpu: integratedGpu),
+          ],
           const SizedBox(height: 16),
-          _GraphicsModeCard(
-            state: state,
-            onModeSelected: (mode) =>
-                _setGraphicsMode(context, bloc, state, mode),
-          ),
+          graphicsModeCard,
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -187,11 +200,15 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     DgpuState state,
     GraphicsMode mode,
   ) async {
+    final bootSupport = state.graphicsModeStatus?.bootSupport;
     final message = switch (mode) {
       GraphicsMode.hybrid =>
         'This makes integrated and NVIDIA graphics available. '
             'Changing which GPU drives the display may require a restart. '
             'Save your work before continuing.',
+      GraphicsMode.hybridIgpuOnly when bootSupport != null =>
+        'NVIDIA graphics will disconnect when you restart. Displays connected '
+            'through NVIDIA may stop working after the restart.',
       GraphicsMode.hybridIgpuOnly =>
         'This can disable NVIDIA graphics while the laptop is running. Disconnect '
             'external displays, save your work, and close GPU-accelerated '
@@ -211,6 +228,25 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     );
     if (!context.mounted || !confirmed) return;
     bloc.add(DgpuGraphicsModeSetRequested(mode));
+  }
+
+  Future<void> _setGraphicsBootSupport(
+    BuildContext context,
+    DgpuBloc bloc,
+    bool enabled,
+  ) async {
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: enabled ? 'Set up iGPU-only at startup' : 'Remove boot support',
+      message: enabled
+          ? 'Allow Legion to install a startup command that switches to '
+                'integrated graphics before sign-in after you select iGPU-only.'
+          : 'Remove the startup command installed by the AppImage. '
+                'You can return to Hybrid from Graphics mode.',
+      confirmLabel: enabled ? 'Set up' : 'Remove',
+    );
+    if (!context.mounted || !confirmed) return;
+    bloc.add(DgpuGraphicsBootSupportSetRequested(enabled));
   }
 
   Future<void> _killProcesses(
@@ -267,10 +303,8 @@ class _GpuOverview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final telemetryAvailable = sensor.gpuIsDiscrete;
-    final name = telemetryAvailable && sensor.gpuName != null
-        ? sensor.gpuName!
-        : state.name ?? 'NVIDIA discrete GPU';
+    final gpu = sensor.dgpu;
+    final name = gpu?.name ?? state.name ?? 'NVIDIA discrete GPU';
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
@@ -297,16 +331,14 @@ class _GpuOverview extends StatelessWidget {
                       name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
-                      'Discrete GPU · '
+                      'GPU · '
                       '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -320,42 +352,128 @@ class _GpuOverview extends StatelessWidget {
             spacing: 26,
             runSpacing: 14,
             children: [
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? sensor.gpuPerformanceState ?? '—'
-                    : '—',
-                label: 'Power state',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _measurement(sensor.gpuTempC, '°', 0)
-                    : '—',
-                label: 'Temperature',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _measurement(sensor.gpuPowerDrawW, 'W', 1)
-                    : '—',
-                label: 'Power draw',
-              ),
-              _GpuMetric(
-                value: telemetryAvailable
-                    ? _vramLabel(sensor.gpuVramUsedGb, sensor.gpuVramTotalGb)
-                    : '—',
-                label: 'VRAM',
-              ),
+              if (gpu?.usagePercent != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.usagePercent, '%', 0),
+                  label: 'Usage',
+                ),
+              if (gpu?.performanceState != null)
+                _GpuMetric(value: gpu!.performanceState!, label: 'Power state'),
+              if (gpu?.tempC != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.tempC, '°', 0),
+                  label: 'Temperature',
+                ),
+              if (gpu?.powerDrawW != null)
+                _GpuMetric(
+                  value: _measurement(gpu!.powerDrawW, 'W', 1),
+                  label: 'Power draw',
+                ),
+              if (gpu?.vramUsedGb != null && gpu?.vramTotalGb != null)
+                _GpuMetric(
+                  value: _vramLabel(gpu!.vramUsedGb, gpu.vramTotalGb),
+                  label: 'VRAM',
+                ),
             ],
           ),
-          if (!telemetryAvailable) ...[
+          if (gpu == null) ...[
             const SizedBox(height: 14),
             Text(
               state.isActive == false
                   ? 'Live NVIDIA telemetry is unavailable while the GPU is suspended.'
                   : 'Live NVIDIA telemetry is unavailable. Check the NVIDIA driver and nvidia-smi.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IntegratedGpuCard extends StatelessWidget {
+  const _IntegratedGpuCard({required this.gpu, this.graphicsModeStatus});
+
+  final GpuReading gpu;
+  final GraphicsModeStatus? graphicsModeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = gpu.name ?? 'Integrated GPU';
+    final metrics = [
+      if (gpu.usagePercent != null)
+        _GpuMetric(
+          value: _measurement(gpu.usagePercent, '%', 0),
+          label: 'Usage',
+        ),
+      if (gpu.tempC != null)
+        _GpuMetric(
+          value: _measurement(gpu.tempC, '°', 0),
+          label: 'Temperature',
+        ),
+      if (gpu.clockGhz != null)
+        _GpuMetric(value: _measurement(gpu.clockGhz, 'GHz', 2), label: 'Clock'),
+      if (gpu.powerDrawW != null)
+        _GpuMetric(
+          value: _measurement(gpu.powerDrawW, 'W', 1),
+          label: 'Power draw',
+        ),
+    ];
+
+    return SurfaceCard(
+      key: const ValueKey('integrated-gpu-card'),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: _GpuVendorMark(name: name),
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      graphicsModeStatus == null
+                          ? 'Integrated graphics'
+                          : 'Integrated graphics · ${graphicsModeStatus!.selectedMode.label}',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (metrics.isEmpty) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Live integrated GPU readings are unavailable. Check the display driver.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ] else ...[
+            const SizedBox(height: 18),
+            Wrap(spacing: 26, runSpacing: 14, children: metrics),
           ],
         ],
       ),
@@ -459,9 +577,8 @@ class _GpuMetric extends StatelessWidget {
         ),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: scheme.onSurfaceVariant),
         ),
       ],
     );
@@ -488,15 +605,13 @@ class _ProcessesCard extends StatelessWidget {
             children: [
               Text(
                 'Processes on the dGPU',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
                 '${processes.length} running',
-                style: monoFactStyle(
-                  scheme,
-                ).copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
+                style: monoFactStyle(scheme)
+                    .copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
               ),
             ],
           ),
@@ -529,9 +644,8 @@ class _ProcessesCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       'PID ${process.pid}',
-                      style: monoFactStyle(
-                        scheme,
-                      ).copyWith(color: scheme.onSurfaceVariant),
+                      style: monoFactStyle(scheme)
+                          .copyWith(color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(width: 14),
                     Text(
@@ -545,9 +659,8 @@ class _ProcessesCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Display server processes may not appear in this list.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -556,15 +669,23 @@ class _ProcessesCard extends StatelessWidget {
 }
 
 class _GraphicsModeCard extends StatelessWidget {
-  const _GraphicsModeCard({required this.state, required this.onModeSelected});
+  const _GraphicsModeCard({
+    required this.state,
+    required this.isAppImage,
+    required this.onModeSelected,
+    required this.onBootSupportChanged,
+  });
 
   final DgpuState state;
+  final bool isAppImage;
   final ValueChanged<GraphicsMode> onModeSelected;
+  final ValueChanged<bool> onBootSupportChanged;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final status = state.graphicsModeStatus;
+    final bootSupport = status?.bootSupport;
 
     return SurfaceCard(
       key: const ValueKey('graphics-mode-status'),
@@ -577,9 +698,8 @@ class _GraphicsModeCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Graphics mode',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               _ReconciliationBadge(status: status),
@@ -588,17 +708,15 @@ class _GraphicsModeCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Choose which graphics hardware the laptop can use.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
           if (status == null)
             Text(
               'Graphics status is unavailable. Use Refresh to reload it before changing modes.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             )
           else ...[
             LayoutBuilder(
@@ -644,31 +762,59 @@ class _GraphicsModeCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (status.reconciliation != GraphicsReconciliation.settled) ...[
+            if (status.pendingMode case final pending?) ...[
+              const SizedBox(height: 12),
+              Text('${pending.label} is scheduled for your next restart.'),
+            ] else if (status.reconciliation !=
+                GraphicsReconciliation.settled) ...[
               const SizedBox(height: 12),
               Text(
                 switch (status.reconciliation) {
-                  GraphicsReconciliation.needed =>
-                    'Save your work and restart the laptop before changing graphics modes again.',
+                  GraphicsReconciliation.needed => 'Save your work and restart the laptop before changing graphics modes again.',
                   GraphicsReconciliation.blocked =>
                     'Close applications using NVIDIA graphics and disconnect external displays, then try again. '
                         'If the desktop is using NVIDIA graphics, log out and switch modes from a text console.',
-                  _ =>
-                    'Use Refresh to reload graphics status before changing modes.',
+                  _ => 'Use Refresh to reload graphics status before changing modes.',
                 },
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: scheme.warning),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.warning),
               ),
             ],
             const SizedBox(height: 16),
             const Divider(height: 1),
             const SizedBox(height: 12),
+            if (bootSupport != null &&
+                status.availableModes.contains(
+                  GraphicsMode.hybridIgpuOnly,
+                )) ...[
+              if (!bootSupport.enabled)
+                Text(switch (bootSupport.setupUnavailable) {
+                  GraphicsBootSetupUnavailable.unsupportedModel =>
+                    'iGPU-only startup switching is unavailable on this model.',
+                  GraphicsBootSetupUnavailable.missingSystemd =>
+                    'iGPU-only startup switching requires systemd.',
+                  GraphicsBootSetupUnavailable.missingLsof =>
+                    'Install lsof system-wide to set up iGPU-only at startup.',
+                  null => 'Set up startup support to use iGPU-only.',
+                }),
+              if (bootSupport.appImageEnabled ||
+                  (isAppImage && bootSupport.setupUnavailable == null))
+                TextButton(
+                  onPressed: state.isApplying
+                      ? null
+                      : () =>
+                            onBootSupportChanged(!bootSupport.appImageEnabled),
+                  child: Text(
+                    bootSupport.appImageEnabled
+                        ? 'Remove boot support'
+                        : 'Set up iGPU-only at startup',
+                  ),
+                ),
+            ],
             Text(
               'Change graphics mode',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
             ResponsiveCardGrid(
@@ -687,7 +833,11 @@ class _GraphicsModeCard extends StatelessWidget {
                           key: ValueKey('set-graphics-${mode.wireValue}'),
                           onPressed:
                               state.isApplying ||
+                                  mode == status.pendingMode ||
+                                  (mode == GraphicsMode.hybridIgpuOnly &&
+                                      bootSupport?.enabled == false) ||
                                   (mode == status.selectedMode &&
+                                      status.pendingMode == null &&
                                       status.reconciliation ==
                                           GraphicsReconciliation.settled)
                               ? null
@@ -771,9 +921,8 @@ class _GraphicsFact extends StatelessWidget {
         children: [
           Text(
             label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 2),
           Text(value, style: Theme.of(context).textTheme.titleSmall),
@@ -792,8 +941,11 @@ class _ReconciliationBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final unsafeMode = status?.selectedMode == GraphicsMode.hybridAuto;
+    final restartPending = status?.pendingMode != null;
     final settled =
-        !unsafeMode && status?.reconciliation == GraphicsReconciliation.settled;
+        !unsafeMode &&
+        !restartPending &&
+        status?.reconciliation == GraphicsReconciliation.settled;
     final color = status == null
         ? scheme.onSurfaceVariant
         : settled
@@ -801,6 +953,8 @@ class _ReconciliationBadge extends StatelessWidget {
         : scheme.warning;
     final label = unsafeMode
         ? 'Unsafe mode'
+        : restartPending
+        ? 'Restart required'
         : status?.reconciliation.label ?? 'Unavailable';
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -811,10 +965,8 @@ class _ReconciliationBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         child: Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
       ),
     );
@@ -846,9 +998,8 @@ class _GpuPerformanceCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'GPU performance',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -942,17 +1093,15 @@ class _DeactivateCard extends StatelessWidget {
         children: [
           Text(
             'Reset discrete GPU',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           Text(
             'Close GPU workloads, then restart the PCI device to recover from '
             'a stuck active state.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 10),
           Row(
@@ -966,9 +1115,8 @@ class _DeactivateCard extends StatelessWidget {
               Flexible(
                 child: Text(
                   'Privileged dGPU deactivation is not available in this build.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
             ],
@@ -1013,9 +1161,8 @@ class _DeactivateCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Restart becomes available after the process list is clear.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
         ],
@@ -1025,8 +1172,10 @@ class _DeactivateCard extends StatelessWidget {
 }
 
 double? _gpuUtilisation(SensorRecord record) => record.gpuUtilPercent;
-double? _gpuTemperature(SensorRecord record) => record.gpuTempC;
+double? _gpuTemperature(SensorRecord record) => record.dgpuTempC;
 double? _gpuPower(SensorRecord record) => record.gpuPowerDrawW;
+double? _igpuUtilisation(SensorRecord record) => record.igpuUtilPercent;
+double? _igpuTemperature(SensorRecord record) => record.igpuTempC;
 
 String _measurement(double? value, String unit, int precision) =>
     value == null ? '—' : '${value.toStringAsFixed(precision)} $unit';

@@ -1,4 +1,7 @@
 // Exercise release validation and GitHub writes with local files and fake replies.
+@Tags(['tooling'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../tool/packaging_files.dart';
 import '../../tool/packaging_versions.dart';
 import '../../tool/release_workflow.dart' as release;
+import '../support/git_fixture.dart';
 
 void archiveContents(File path, Map<String, String> files) {
   final staging = Directory.systemTemp.createTempSync('release-fixture-');
@@ -50,9 +54,9 @@ Matcher failsWith(String message) => throwsA(
 class ReleaseFixture {
   ReleaseFixture({this.version = '1.2.3+7'}) {
     root.createSync();
-    git(['init', '-q', '--initial-branch=main']);
-    git(['config', 'user.name', 'Release test']);
-    git(['config', 'user.email', 'release@example.invalid']);
+    addTearDown(() => temporary.deleteSync(recursive: true));
+    addTearDown(repository.dispose);
+    repository.initialize(name: 'Release test');
     File('${root.path}/pubspec.yaml')
         .writeAsStringSync('name: fixture\nversion: $version\n');
     git(['add', '.']);
@@ -75,7 +79,7 @@ class ReleaseFixture {
       '.': {'type': 'directory', 'mode': '755'},
       './legion_frontend': {'type': 'file', 'mode': '755', 'sha256': 'b' * 64},
       './lib/libapp.so': {'type': 'file', 'mode': '644', 'sha256': 'c' * 64},
-      './libexec/legion-portable-control': {
+      './libexec/legion-control-helper': {
         'type': 'file',
         'mode': '755',
         'sha256': hash(helper),
@@ -111,6 +115,7 @@ class ReleaseFixture {
 
   final temporary = Directory.systemTemp.createTempSync('release with spaces ');
   late final root = Directory('${temporary.path}/source');
+  late final repository = GitFixture(root);
   late final inputs = Directory('${temporary.path}/inputs');
   late final binary = Directory('${inputs.path}/appimage-release');
   late final qa = Directory('${inputs.path}/appimage-qualification');
@@ -127,7 +132,7 @@ class ReleaseFixture {
   late final metadata = '$prefix.json';
   late Map sources, manifest, evidence, debManifest;
 
-  String git(List<String> arguments) => release.releaseGit(root, arguments);
+  String git(List<String> arguments) => repository.git(arguments);
   String hash(File path) => release.releaseSha256(path);
   Map<String, Object> prepare() =>
       release.prepareRelease(root, tag, inputs, output);
@@ -159,7 +164,7 @@ class ReleaseFixture {
     evidence = {
       'commit': commit,
       'source_worktree_modified': false,
-      'appimage': release.qualifiedAppImage,
+      'appimage': release.passedAppImageChecks,
       'files': {
         for (final name in [
           'native-source.tar.gz',
@@ -244,7 +249,7 @@ class ReleaseFixture {
       writePackagingJson(File('${directory.path}/manifest.json'), {
         'commit': commit,
         'source_worktree_modified': false,
-        'deb': release.qualifiedDeb,
+        'deb': release.passedDebianChecks,
         'files': {
           for (final name in [
             'native-source.tar.gz',
@@ -283,7 +288,7 @@ class ReleaseFixture {
     };
     sources['release_inputs'] = {
       './native/sources/gtk/gtk.tar.xz': {'sha256': 'e' * 64},
-      './native/portable-cleanup.elf': {'sha256': 'f' * 64},
+      './native/helper-cleanup.elf': {'sha256': 'f' * 64},
     };
     manifest['native_runtime'] = native;
     archiveJson(
@@ -372,7 +377,6 @@ void main() {
   late ReleaseFixture fixture;
   setUp(() {
     fixture = ReleaseFixture();
-    addTearDown(() => fixture.temporary.deleteSync(recursive: true));
   });
 
   test('native runtime requires normal window close evidence', () {
@@ -510,7 +514,7 @@ void main() {
         (
           'bounded cleanup ELF',
           (manifest, sources) {
-            sources['release_inputs'].remove('./native/portable-cleanup.elf');
+            sources['release_inputs'].remove('./native/helper-cleanup.elf');
           },
         ),
       ];
@@ -560,7 +564,6 @@ void main() {
     'alpha assets verify with safe names and Debian prerelease metadata',
     () {
       final alpha = ReleaseFixture(version: '0.1.0-alpha.2+1');
-      addTearDown(() => alpha.temporary.deleteSync(recursive: true));
       final plan = alpha.prepare();
       expect(plan['prerelease'], isTrue);
       const package = 'legion-linux-frontend_0.1.0-alpha.2+1-1_amd64.deb';
@@ -591,7 +594,6 @@ void main() {
 
   test('download filename cannot replace the internal Debian version', () {
     final alpha = ReleaseFixture(version: '0.1.0-alpha.2+1');
-    addTearDown(() => alpha.temporary.deleteSync(recursive: true));
     alpha.refreshDebian(changes: {'package_version': '0.1.0-alpha.2+1-1'});
     expect(alpha.prepare, failsWith('Debian build differs'));
   });
@@ -635,7 +637,7 @@ void main() {
       '--single-branch',
       fixture.root.uri.toString(),
       copied.path,
-    ]);
+    ], environment: fixture.repository.environment);
     expect(release.checkTag(copied, fixture.tag)['commit'], fixture.commit);
   });
 
@@ -824,7 +826,7 @@ void main() {
   });
 
   test('AppImage helper payload must match its source inventory', () {
-    fixture.sources['bundle']['./libexec/legion-portable-control']['sha256'] =
+    fixture.sources['bundle']['./libexec/legion-control-helper']['sha256'] =
         '0' * 64;
     archiveJson(
       File('${fixture.binary.path}/${fixture.source}'),
@@ -876,7 +878,7 @@ void main() {
       fixture.sources,
     );
     fixture.refresh();
-    expect(fixture.prepare, failsWith('describe this portable build'));
+    expect(fixture.prepare, failsWith('describe this AppImage build'));
   });
 
   test('modified Debian package is rejected', () {
@@ -917,7 +919,7 @@ void main() {
   });
 
   test('source companion must include the complete helper inventory', () {
-    fixture.sources['bundle'].remove('./libexec/legion-portable-control');
+    fixture.sources['bundle'].remove('./libexec/legion-control-helper');
     archiveJson(
       File('${fixture.binary.path}/${fixture.source}'),
       './SOURCE-MANIFEST.json',
@@ -1025,7 +1027,6 @@ void main() {
     'publishes alpha versions as prereleases without marking them latest',
     () async {
       final alpha = ReleaseFixture(version: '0.1.0-alpha.3+1');
-      addTearDown(() => alpha.temporary.deleteSync(recursive: true));
       alpha.prepare();
       final writes = <List<String>>[];
       await release.publishRelease(

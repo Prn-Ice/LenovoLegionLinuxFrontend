@@ -44,7 +44,7 @@ compatible stable SDK includes [the upstream fix](https://github.com/flutter/flu
 and repeated window-close checks pass (`lllf-dt0.5.13`).
 
 
-Flutter 3.50 package qualification remains blocked by Linux renderer teardown
+Historical Flutter 3.50 packages failed during Linux renderer teardown
 (`lllf-dt0.5.16`). The NixOS AppImage can exit while its raster thread still uses
 Mesa; explicitly destroying the retained window instead can abort in
 `g_mutex_clear`. The experimental cleanup was rejected. Upstream
@@ -92,6 +92,10 @@ window backend. The released 0.7.0 moves to `nativeapi` and changes its API.
 Wait for compatible Yaru support or an approved window migration rather than
 overriding the constraint. See the [November tooling review](tooling-review-2026-11.md#linux-window-styling-and-shutdown)
 for current stable, beta, and master findings.
+
+Native integration tests declare the same compatible version directly as a
+development dependency to resize the real GTK window for compact navigation.
+The application still uses Yaru's Linux window backend.
 
 ### AppImage runtime
 

@@ -11,6 +11,7 @@ GIO_MODULE_DIR="$bundle/lib/gio/modules"
 FONTCONFIG_FILE="$appdir/usr/etc/fonts/fonts.conf"
 XDG_DATA_DIRS="$appdir/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export PATH LD_LIBRARY_PATH GSETTINGS_SCHEMA_DIR GIO_MODULE_DIR FONTCONFIG_FILE XDG_DATA_DIRS
+export LEGION_APPIMAGE=1
 unset GIO_EXTRA_MODULES GTK_MODULES GTK3_MODULES
 
 runtime=$(LD_LIBRARY_PATH='' mktemp -d "${TMPDIR:-/tmp}/legion-appimage.XXXXXXXX")

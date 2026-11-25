@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/features/analytics/bloc/analytics_bloc.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/analytics/providers/analytics_provider.dart';
@@ -41,9 +42,9 @@ void main() {
     tester,
   ) async {
     await _pumpPage(tester, width: 360, processes: const []);
-    final accent = Theme.of(
-      tester.element(find.byType(DgpuPage)),
-    ).colorScheme.primary;
+    final accent = Theme.of(tester.element(find.byType(DgpuPage)))
+        .colorScheme
+        .primary;
 
     expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
     expect(find.text('P2'), findsOneWidget);
@@ -143,9 +144,8 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Switch mode'));
     await tester.pumpAndSettle();
-    verify(
-      () => repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly),
-    ).called(1);
+    verify(() => repository.setGraphicsMode(GraphicsMode.hybridIgpuOnly))
+        .called(1);
   });
 
   testWidgets('graphics status stays visible when NVIDIA is detached', (
@@ -162,9 +162,88 @@ void main() {
     expect(find.text('Graphics mode'), findsOneWidget);
     expect(find.text('Integrated graphics only'), findsNWidgets(2));
     expect(find.text('Not detected'), findsOneWidget);
-    expect(find.text('NVIDIA GPU not detected'), findsOneWidget);
+    expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
     expect(find.textContaining('currently in use'), findsNothing);
     expect(find.text('GPU unavailable'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'iGPU-only mode shows integrated overview, history, and mode switching',
+    (tester) async {
+      await _pumpPage(
+        tester,
+        width: 420,
+        height: 500,
+        processes: const [],
+        dgpuAvailable: false,
+        graphicsModeStatus: _igpuOnlyStatus,
+        igpu: const GpuReading(
+          name: 'AMD Radeon 780M',
+          usagePercent: 12,
+          tempC: 55,
+          clockGhz: 1.2,
+          powerDrawW: 8,
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('graphics-mode-status')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('integrated-gpu-card')), findsOneWidget);
+      expect(find.text('AMD Radeon 780M'), findsOneWidget);
+      expect(find.byKey(const ValueKey('gpu-vendor-amd')), findsOneWidget);
+      expect(find.text('12 %'), findsOneWidget);
+      expect(find.text('55 °'), findsOneWidget);
+      expect(find.text('1.20 GHz'), findsOneWidget);
+      expect(find.text('8.0 W'), findsOneWidget);
+      expect(find.byType(TelemetryHistoryCard), findsOneWidget);
+      expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
+      expect(find.text('GPU overclock'), findsNothing);
+      expect(find.text('Processes on the dGPU'), findsNothing);
+      expect(find.textContaining('Failed to read sensors'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('integrated readings sit beside the NVIDIA overview', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 900,
+      processes: const [],
+      igpu: const GpuReading(
+        name: 'AMD Radeon 780M',
+        usagePercent: 9,
+        tempC: 51,
+      ),
+    );
+
+    expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
+    expect(find.byKey(const ValueKey('integrated-gpu-card')), findsOneWidget);
+    expect(find.text('9 %'), findsOneWidget);
+    expect(find.text('51 °'), findsOneWidget);
+    expect(find.text('GPU overclock'), findsOneWidget);
+    expect(find.text('Processes on the dGPU'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('missing NVIDIA and integrated GPUs still keep graphics mode', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 420,
+      height: 500,
+      processes: const [],
+      dgpuAvailable: false,
+    );
+
+    expect(find.byKey(const ValueKey('graphics-mode-status')), findsOneWidget);
+    expect(find.byKey(const ValueKey('integrated-gpu-card')), findsNothing);
+    expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -351,6 +430,7 @@ Future<_MockDgpuRepository> _pumpPage(
   required List<DgpuProcess> processes,
   String gpuName = 'NVIDIA GeForce RTX 4060',
   bool dgpuAvailable = true,
+  GpuReading? igpu,
   GraphicsModeStatus? graphicsModeStatus = _hybridStatus,
 }) async {
   tester.view.physicalSize = Size(width, height);
@@ -395,9 +475,8 @@ Future<_MockDgpuRepository> _pumpPage(
   await dgpuLoaded;
 
   final sensorRepository = _MockLiveSensorRepository();
-  when(
-    sensorRepository.loadSnapshot,
-  ).thenAnswer((_) async => _liveSensorSnapshot(gpuName));
+  when(sensorRepository.loadSnapshot)
+      .thenAnswer((_) async => _liveSensorSnapshot(gpuName, igpu: igpu));
   final sensorBloc = LiveSensorBloc(
     repository: sensorRepository,
     pollInterval: const Duration(days: 1),
@@ -435,9 +514,8 @@ Future<_MockDgpuRepository> _pumpPage(
   final analyticsRepository = _MockAnalyticsRepository();
   when(analyticsRepository.pruneOldRecords).thenAnswer((_) async {});
   when(analyticsRepository.recordReading).thenAnswer((_) async => history.last);
-  when(
-    () => analyticsRepository.readHistory(since: any(named: 'since')),
-  ).thenReturn(history);
+  when(() => analyticsRepository.readHistory(since: any(named: 'since')))
+      .thenReturn(history);
   final analyticsBloc = AnalyticsBloc(
     repository: analyticsRepository,
     pollInterval: const Duration(days: 1),
@@ -459,9 +537,8 @@ Future<_MockDgpuRepository> _pumpPage(
           darkTheme: yaru.darkTheme,
           themeMode: ThemeMode.dark,
           builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
           home: const Scaffold(body: DgpuPage()),
@@ -473,30 +550,33 @@ Future<_MockDgpuRepository> _pumpPage(
   return dgpuRepository;
 }
 
-LiveSensorSnapshot _liveSensorSnapshot(String gpuName) => LiveSensorSnapshot(
-  cpuName: 'Test CPU',
-  cpuTempC: 62,
-  cpuUtilPercent: 18,
-  cpuClockGhz: 3.1,
-  cpuPackagePowerW: 24,
-  fan1Rpm: null,
-  fan2Rpm: null,
-  gpuName: gpuName,
-  gpuTempC: 64,
-  gpuUtilPercent: 42,
-  gpuClockGhz: 1.8,
-  gpuVramUsedGb: 2.1,
-  gpuVramTotalGb: 8,
-  gpuFanPercent: 35,
-  gpuPowerDrawW: 38,
-  gpuIsDiscrete: true,
-  gpuPerformanceState: 'P2',
-  motherboardTempC: null,
-  batteryPercent: 94,
-  batteryCharging: false,
-  batteryPowerDrawW: 0,
-  diskTempC: null,
-);
+LiveSensorSnapshot _liveSensorSnapshot(String gpuName, {GpuReading? igpu}) =>
+    LiveSensorSnapshot(
+      cpuName: 'Test CPU',
+      cpuTempC: 62,
+      cpuUtilPercent: 18,
+      cpuClockGhz: 3.1,
+      cpuPackagePowerW: 24,
+      fan1Rpm: null,
+      fan2Rpm: null,
+      igpu: igpu,
+      dgpu: GpuReading(
+        name: gpuName,
+        tempC: 64,
+        usagePercent: 42,
+        clockGhz: 1.8,
+        vramUsedGb: 2.1,
+        vramTotalGb: 8,
+        fanPercent: 35,
+        powerDrawW: 38,
+        performanceState: 'P2',
+      ),
+      motherboardTempC: null,
+      batteryPercent: 94,
+      batteryCharging: false,
+      batteryPowerDrawW: 0,
+      diskTempC: null,
+    );
 
 const _powerSnapshot = PowerSnapshot(
   currentMode: PowerMode('balanced'),

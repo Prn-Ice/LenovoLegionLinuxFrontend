@@ -47,8 +47,8 @@ class LegionControlSetupException extends LegionControlUnavailableException {
   const LegionControlSetupException(super.message);
 }
 
-class LegionControlPortableSetupException extends LegionControlSetupException {
-  const LegionControlPortableSetupException(super.message);
+class ControlHelperSetupException extends LegionControlSetupException {
+  const ControlHelperSetupException(super.message);
 }
 
 class LegionControlUnavailableException extends LegionControlException {
@@ -136,9 +136,9 @@ class LegionControlClient {
       if (identical(_capabilities, pending)) _capabilities = null;
       if (error is LegionControlSetupException) {
         await close();
-        throw error is LegionControlPortableSetupException
+        throw error is ControlHelperSetupException
             ? error
-            : LegionControlPortableSetupException(error.message);
+            : ControlHelperSetupException(error.message);
       }
       rethrow;
     }
@@ -159,9 +159,9 @@ class LegionControlClient {
     } catch (error) {
       await close();
       if (error is LegionControlSetupException) {
-        throw error is LegionControlPortableSetupException
+        throw error is ControlHelperSetupException
             ? error
-            : LegionControlPortableSetupException(error.message);
+            : ControlHelperSetupException(error.message);
       }
       rethrow;
     }
@@ -286,6 +286,9 @@ class LegionControlClient {
     return _call('SetGraphicsMode', [mode.wireValue]);
   }
 
+  Future<void> setGraphicsBootSupport(bool enabled) =>
+      _call('SetGraphicsBootSupport', [enabled]);
+
   Future<void> applyFanPreset(ControlFanPreset preset) {
     return _call('ApplyFanPreset', [preset.wireValue]);
   }
@@ -310,12 +313,6 @@ class LegionControlClient {
   }
 
   Future<void> restoreBootLogo() => _call('RestoreBootLogo', const []);
-  Future<void> setServiceEnabled(ControlService service, bool enabled) => _call(
-    'SetServiceEnabled',
-    [service.wireValue, enabled],
-    capability: ControlCapability.persistentServices,
-  );
-
   Future<void> _closeWith(LegionControlException error) {
     if (!_closed) {
       _closed = true;
@@ -392,10 +389,10 @@ class LegionControlClient {
         name.endsWith('UnknownObject') ||
         name.endsWith('UnknownInterface') ||
         name.endsWith('UnknownMethod')) {
-      return LegionControlPortableSetupException(message);
+      return ControlHelperSetupException(message);
     }
     if (name.endsWith('Error.Authorization')) {
-      return LegionControlPortableSetupException(message);
+      return ControlHelperSetupException(message);
     }
     if (name.endsWith('InvalidArgs') || name.endsWith('NotSupported')) {
       return LegionControlNotSupportedException(message);

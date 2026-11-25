@@ -5,7 +5,7 @@ import 'package:legion_frontend/core/services/legion_control_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('io.github.prnice.legion/portable_control');
+  const channel = MethodChannel('io.github.prnice.legion/control');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
@@ -27,7 +27,7 @@ void main() {
       messenger.setMockMethodCallHandler(channel, (_) async => value);
       await expectLater(
         resolveNativeHostCli(),
-        throwsA(isA<LegionControlPortableSetupException>()),
+        throwsA(isA<ControlHelperSetupException>()),
       );
     }
     messenger.setMockMethodCallHandler(channel, (_) async {
@@ -35,7 +35,7 @@ void main() {
     });
     await expectLater(
       resolveNativeHostCli(),
-      throwsA(isA<LegionControlPortableSetupException>()),
+      throwsA(isA<ControlHelperSetupException>()),
     );
   });
 }

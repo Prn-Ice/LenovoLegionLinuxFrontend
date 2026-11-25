@@ -4,11 +4,14 @@ set -euo pipefail
 metadata_script=$1
 shift
 app=("$@")
+# A hook's repository pointers must not reach either fixture repository.
+for name in ${!GIT_@}; do unset "$name"; done
 temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-export HOME="$temporary/home"
-mkdir -p "$HOME"
+export HOME="$temporary/home" XDG_CONFIG_HOME="$temporary/config"
+export GIT_TEMPLATE_DIR="$temporary/empty"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$GIT_TEMPLATE_DIR"
 ssh-keygen -q -t ed25519 -N '' -f "$temporary/key"
 printf 'test@example.invalid %s\n' "$(cat "$temporary/key.pub")" > "$temporary/signers"
 git init -q --bare "$temporary/remote"

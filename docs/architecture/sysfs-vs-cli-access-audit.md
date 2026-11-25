@@ -118,10 +118,7 @@ the [power-defaults investigation](../power-defaults-evidence.md) for gaps in th
 supporting evidence. The values are not verified factory defaults. Other systems
 show `Reference` with `Unavailable`.
 
-Graphics policy operations use the typed client from `dgpu`; service changes use
-it from `settings`. Next-boot graphics requires installed integration. See
-[graphics setup](next-boot-graphics.md) and [transport modes](portable-control.md)
-for those contracts and their limits.
+The dGPU page sends live graphics-mode changes through the [bundled helper](control-helper.md).
 
 ---
 

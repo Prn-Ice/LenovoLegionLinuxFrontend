@@ -145,7 +145,7 @@ flutter test test/features/power/power_model_defaults_test.dart test/features/li
 
 ## Recorded read-only check: 82Y4 / M1CN48WW
 
-On 2026-11-04, the app's readers were checked on the project owner's Legion Slim
+On 2026-11-04, we checked the app's readers on the project owner's Legion Slim
 7 16APH8 with kernel `7.3.1`, running on battery in `low-power` mode. They found
 both fan readings through `legion_hwmon`, the selected CPU/GPU power files, and
 the adapter and battery-conservation state. Native keyboard discovery found
@@ -168,15 +168,39 @@ the same system D-Bus client and the production sysfs readers:
 | Fn-lock | off → on → off | off |
 | Always-on USB charging | on → off → on | on |
 
-Each setting was tested and restored before the next test started. These checks
+We tested and restored each setting before starting the next test. These checks
 confirm authorization, command execution, and the driver's reported value. They
 did not measure USB charging current or test physical Fn-key behavior. Rapid
 charging had no readable value, so it was not changed. Other hardware write
 operations remain untested.
 
-The [recorded sample](../test/fixtures/sysfs/82y4-m1cn48ww-readonly.json) and
-[capture notes](../test/fixtures/sysfs/README.md) preserve the paths and readings
-used by the hardware-free replay test.
+On 2026-11-19, we ran a read-only check on the same laptop running NixOS
+generation `26.11.20261117.0490633`, kernel `7.3.4`,
+`lenovo-legion-module-0.1.8-unstable-2026-11-17`, and
+`lenovo-legion-app-0.1.8-unstable-2026-11-17` (`baafe12`), in `low-power` on
+battery:
+
+- `PNP0C09:00` stayed bound to `acpi-ec`, and the synthetic `legion` platform
+  device bound to `legion` (`legion_laptop`).
+- `LegionSysfsService.readFanCurve()` returned a 10-point `speedOnly`/`level`
+  read-only curve (`1..8,8,8` → `0, 1800, 1900, 2100, 2400, 2800, 2900, 3600,
+  3600, 3600` RPM from the `0..4700` ladders). `1,2,3,4,5,6,7,8,8,8` matches
+  the firmware `CFST` initializer before any custom curve write.
+- `minifancurve` and `lockfancontroller` are absent in sysfs and exited `2`
+  through `legion_cli`.
+- `fan_fullspeed` read `0`, `rapidcharge` read `0`, `gpu_ppab_powerlimit` read
+  `20` W, and `cpu_longterm_powerlimit_defaults` and
+  `cpu_shortterm_powerlimit_defaults` reported per-mode CPU defaults.
+- `legion_cli graphics-mode status --json` exited `0` (`hybrid`, `attached`,
+  `settled`).
+- Hardware writes, fan-table writes (`allow_unvalidated_fancurve` stayed
+  disabled), graphics transitions, and sleep remain untested on this build
+  (`lllf-5kk`, `lllf-em2`, `lllf-dok`).
+
+[The 2026-11-04 Kernel 7.3.1 sample](../test/fixtures/sysfs/82y4-m1cn48ww-readonly.json),
+[the 2026-11-19 Kernel 7.3.4 sample](../test/fixtures/sysfs/82y4-m1cn48ww-kernel734-readonly.json),
+and [capture notes](../test/fixtures/sysfs/README.md) preserve the paths and
+readings used by the hardware-free replay tests.
 
 ## Tested-model entry template
 

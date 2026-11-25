@@ -189,10 +189,15 @@ class LegionSysfsService {
     probes[HardwareCheck.miniFanCurve] = await _probePaths([
       if (controller != null) '${controller}minifancurve',
     ], kind: _ProbeValue.boolean);
-    for (final fan in [1, 2]) {
+    for (final fan in [1, 2, 3]) {
       final candidates = (await _fanRpmPaths(fan)).toSet().toList();
       final probe = await _probePaths(candidates, kind: _ProbeValue.integer);
-      probes[fan == 1 ? HardwareCheck.fan1Rpm : HardwareCheck.fan2Rpm] = probe;
+      probes[fan == 1
+              ? HardwareCheck.fan1Rpm
+              : fan == 2
+              ? HardwareCheck.fan2Rpm
+              : HardwareCheck.fan3Rpm] =
+          probe;
       final selectedIndex = probe.reads.indexWhere(
         (read) => read.outcome == SysfsReadOutcome.readable,
       );
@@ -201,7 +206,9 @@ class LegionSysfsService {
           : File(candidates[selectedIndex]);
       probes[fan == 1
           ? HardwareCheck.fan1Provider
-          : HardwareCheck.fan2Provider] = await _probePaths([
+          : fan == 2
+          ? HardwareCheck.fan2Provider
+          : HardwareCheck.fan3Provider] = await _probePaths([
         if (selectedFile != null) '${selectedFile.parent.path}/name',
       ]);
     }
@@ -474,6 +481,65 @@ class LegionSysfsService {
       return null;
     }
 
+    final rawUnit = await _readFirstLegionAttribute('fancurve_speed_unit');
+    final unit = _parseFanSpeedUnit(rawUnit);
+    final pointCountRaw = await _readTrimmedFile(
+      '${hwmonPath}auto_points_size',
+    );
+    final pointCount = pointCountRaw == null
+        ? null
+        : int.tryParse(pointCountRaw);
+    if (pointCountRaw != null &&
+        (pointCount == null || pointCount <= 0 || pointCount > 10)) {
+      return null;
+    }
+    final count = pointCount ?? 10;
+
+    // Speed-only WMI tables share one PWM value across the fans. Decode the
+    // advertised unit before looking up each fan's nominal firmware RPM.
+    if (unit == FanSpeedUnit.level ||
+        (await File('${hwmonPath}pwm1_auto_point1_pwm').exists() &&
+            !await File('${hwmonPath}pwm1_auto_point1_temp').exists())) {
+      final fan1Raw = await _readFirstLegionAttribute('fan1_level_rpm_table');
+      final fan2Raw = await _readFirstLegionAttribute('fan2_level_rpm_table');
+      final fan1Table = _readLevelRpmTableValue(fan1Raw ?? '');
+      final fan2Table = _readLevelRpmTableValue(fan2Raw ?? '');
+      final fan1Max = await readIntFile('${hwmonPath}fan1_max');
+      final points = <FanCurvePoint>[];
+      for (var i = 1; i <= count; i++) {
+        final value = await readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm');
+        if (value == null || value < 0 || value > 255) return null;
+        final level = unit == FanSpeedUnit.level
+            ? (value * 10 + 127) ~/ 255
+            : null;
+        points.add(
+          FanCurvePoint(
+            fan1Level: level,
+            fan1Pwm: value,
+            fan1Rpm: level != null
+                ? _rpmForLevel(level, fan1Table)
+                : unit == FanSpeedUnit.rpm && fan1Max != null && fan1Max > 0
+                ? ((value * fan1Max + 25499) ~/ 25500) * 100
+                : null,
+            fan2Rpm: level == null ? null : _rpmForLevel(level, fan2Table),
+          ),
+        );
+      }
+      if (points.isEmpty) return null;
+      return FanCurve(
+        name: 'custom',
+        points: List.unmodifiable(points),
+        schema: FanCurveSchema.speedOnly,
+        speedUnit: unit,
+        activePointCount: count,
+        fan1LevelRpmTable: fan1Table,
+        fan2LevelRpmTable: fan2Table,
+        // The existing editor writes full curves. Keep other schemas read-only;
+        // the kernel's model-specific write guard remains authoritative.
+        writeStatus: FanCurveWriteStatus.unsupported,
+      );
+    }
+
     final fan1Max = await readIntFile('${hwmonPath}fan1_max');
     final fan2Max = await readIntFile('${hwmonPath}fan2_max');
 
@@ -482,7 +548,7 @@ class LegionSysfsService {
     }
 
     final points = <FanCurvePoint>[];
-    for (var i = 1; i <= 10; i++) {
+    for (var i = 1; i <= count; i++) {
       final values = await Future.wait([
         readIntFile('${hwmonPath}pwm1_auto_point${i}_pwm'),
         readIntFile('${hwmonPath}pwm2_auto_point${i}_pwm'),
@@ -538,8 +604,53 @@ class LegionSysfsService {
       points: List.unmodifiable(points),
       fan1MaxRpm: fan1Max,
       fan2MaxRpm: fan2Max,
+      speedUnit: rawUnit == null ? FanSpeedUnit.rpm : unit,
+      activePointCount: count,
+      // Preserve the existing full-schema editor. In the reviewed backend all
+      // unvalidated-write model configurations use speed-only tables above.
+      // Supported here describes the app contract, not hardware qualification.
+      writeStatus: rawUnit != null && unit == FanSpeedUnit.unknown
+          ? FanCurveWriteStatus.unsupported
+          : FanCurveWriteStatus.supported,
     );
   }
+
+  Future<String?> _readFirstLegionAttribute(String attribute) async {
+    for (final path in _legionPaths(attribute)) {
+      final value = await _readTrimmedFile(path);
+      if (value != null) return value;
+    }
+    return null;
+  }
+
+  static FanSpeedUnit _parseFanSpeedUnit(String? value) => switch (value) {
+    'rpm' => FanSpeedUnit.rpm,
+    'percent' => FanSpeedUnit.percent,
+    'level' => FanSpeedUnit.level,
+    _ => FanSpeedUnit.unknown,
+  };
+
+  static List<int>? _readLevelRpmTableValue(String raw) {
+    if (raw.trim().isEmpty) return null;
+    final values = raw.trim().split(RegExp(r'\s+')).map(int.tryParse).toList();
+    if (values.length > 10 ||
+        values.any((value) => value == null || value < 0)) {
+      return null;
+    }
+    final ladder = values.cast<int>();
+    if (ladder.last <= 0) return null;
+    for (var i = 1; i < ladder.length; i++) {
+      if (ladder[i] < ladder[i - 1]) return null;
+    }
+    return List.unmodifiable(ladder);
+  }
+
+  // Upstream's ladder entry zero describes level 1; level 0 is fan stop.
+  static int? _rpmForLevel(int level, List<int>? ladder) => level == 0
+      ? 0
+      : ladder != null && level <= ladder.length
+      ? ladder[level - 1]
+      : null;
 
   Future<bool?> readCpuOverclockMode() async {
     return _readLegionBoolFile('cpu_oc');
@@ -559,9 +670,17 @@ class LegionSysfsService {
     return _readFanRpm(2);
   }
 
+  /// Optional third fan speed in RPM. Returns null when the model does not
+  /// expose firmware fan 4 as a hwmon fan3 input.
+  Future<int?> readFan3Rpm() async {
+    return _readFanRpm(3);
+  }
+
   Future<int?> readFan1MaxRpm() => _readFanMaxRpm(1);
 
   Future<int?> readFan2MaxRpm() => _readFanMaxRpm(2);
+
+  Future<int?> readFan3MaxRpm() => _readFanMaxRpm(3);
 
   /// CPU package temperature in °C. Returns null if unavailable.
   Future<double?> readCpuTempC() async {
@@ -931,6 +1050,9 @@ class LegionSysfsService {
     final paths = <String>[
       if (controller != null) '${controller}fan${fanNumber}_input',
     ];
+    // Only the Legion controller is authoritative for firmware fan 4/fan3.
+    // Other hwmon providers may expose unrelated fan3 channels.
+    if (fanNumber == 3) return paths;
     for (final entity in await _sortedDirectories(_hwmonRoot)) {
       final name = await _readTrimmedFile('${entity.path}/name');
       if (name?.toLowerCase() == 'yogafan') {
@@ -980,10 +1102,10 @@ class LegionSysfsService {
     for (var i = 1; i < points.length; i++) {
       final previous = points[i - 1];
       final current = points[i];
-      if (current.cpuUpperTemp < previous.cpuUpperTemp ||
-          current.gpuUpperTemp < previous.gpuUpperTemp ||
-          current.fan1Rpm < previous.fan1Rpm ||
-          current.fan2Rpm < previous.fan2Rpm) {
+      if (current.cpuUpperTemp! < previous.cpuUpperTemp! ||
+          current.gpuUpperTemp! < previous.gpuUpperTemp! ||
+          current.fan1Rpm! < previous.fan1Rpm! ||
+          current.fan2Rpm! < previous.fan2Rpm!) {
         return false;
       }
     }

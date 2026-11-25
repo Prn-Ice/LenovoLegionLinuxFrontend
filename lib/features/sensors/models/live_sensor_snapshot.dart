@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../core/models/gpu_reading.dart';
+
 class LiveSensorSnapshot extends Equatable {
   const LiveSensorSnapshot({
     required this.cpuName,
@@ -11,16 +13,10 @@ class LiveSensorSnapshot extends Equatable {
     this.fan1MaxRpm,
     required this.fan2Rpm,
     this.fan2MaxRpm,
-    required this.gpuName,
-    required this.gpuTempC,
-    required this.gpuUtilPercent,
-    required this.gpuClockGhz,
-    required this.gpuVramUsedGb,
-    required this.gpuVramTotalGb,
-    required this.gpuFanPercent,
-    required this.gpuPowerDrawW,
-    required this.gpuIsDiscrete,
-    this.gpuPerformanceState,
+    this.fan3Rpm,
+    this.fan3MaxRpm,
+    this.igpu,
+    this.dgpu,
     required this.motherboardTempC,
     required this.batteryPercent,
     required this.batteryCharging,
@@ -38,15 +34,8 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm: null,
     fan2Rpm: null,
     fan2MaxRpm: null,
-    gpuName: null,
-    gpuTempC: null,
-    gpuUtilPercent: null,
-    gpuClockGhz: null,
-    gpuVramUsedGb: null,
-    gpuVramTotalGb: null,
-    gpuFanPercent: null,
-    gpuPowerDrawW: null,
-    gpuIsDiscrete: false,
+    fan3Rpm: null,
+    fan3MaxRpm: null,
     motherboardTempC: null,
     batteryPercent: null,
     batteryCharging: null,
@@ -63,18 +52,11 @@ class LiveSensorSnapshot extends Equatable {
   final int? fan1MaxRpm;
   final int? fan2Rpm;
   final int? fan2MaxRpm;
+  final int? fan3Rpm;
+  final int? fan3MaxRpm;
 
-  // Active GPU (dGPU when active, iGPU otherwise).
-  final String? gpuName;
-  final double? gpuTempC;
-  final double? gpuUtilPercent;
-  final double? gpuClockGhz;
-  final double? gpuVramUsedGb;
-  final double? gpuVramTotalGb;
-  final int? gpuFanPercent;
-  final double? gpuPowerDrawW;
-  final bool gpuIsDiscrete;
-  final String? gpuPerformanceState;
+  final GpuReading? igpu;
+  final GpuReading? dgpu;
 
   final double? motherboardTempC;
   final int? batteryPercent;
@@ -93,16 +75,10 @@ class LiveSensorSnapshot extends Equatable {
     fan1MaxRpm,
     fan2Rpm,
     fan2MaxRpm,
-    gpuName,
-    gpuTempC,
-    gpuUtilPercent,
-    gpuClockGhz,
-    gpuVramUsedGb,
-    gpuVramTotalGb,
-    gpuFanPercent,
-    gpuPowerDrawW,
-    gpuIsDiscrete,
-    gpuPerformanceState,
+    fan3Rpm,
+    fan3MaxRpm,
+    igpu,
+    dgpu,
     motherboardTempC,
     batteryPercent,
     batteryCharging,

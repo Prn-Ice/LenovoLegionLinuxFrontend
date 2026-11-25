@@ -8,10 +8,10 @@ import 'package:legion_frontend/core/models/control_selectors.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
-import 'package:legion_frontend/core/services/portable_legion_control_transport.dart';
-import 'package:legion_frontend/core/services/portable_control_launcher.dart';
+import 'package:legion_frontend/core/services/helper_control_transport.dart';
+import 'package:legion_frontend/core/services/control_launcher.dart';
 
-import '../../support/portable_helper_process.dart';
+import '../../support/helper_process.dart';
 
 class DeniedTransport extends LegionControlTransport {
   int closes = 0;
@@ -45,10 +45,10 @@ void main() {
       final transport = container.read(controlTransportFactoryProvider)(
         () async {
           resolved = true;
-          return portableTestCli;
+          return helperTestCli;
         },
       );
-      expect(transport, isA<PortableLegionControlTransport>());
+      expect(transport, isA<HelperControlTransport>());
       expect(resolved, isFalse);
       await transport.close();
     },
@@ -57,13 +57,13 @@ void main() {
   test(
     'CLI discovery uses the trusted host boundary without starting a helper',
     () async {
-      const channel = MethodChannel('io.github.prnice.legion/portable_control');
+      const channel = MethodChannel('io.github.prnice.legion/control');
       final calls = <String>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             calls.add(call.method);
             expect(call.method, 'findHostCli');
-            return portableTestCli;
+            return helperTestCli;
           });
       addTearDown(
         () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -74,7 +74,7 @@ void main() {
       expect(calls, isEmpty);
       expect(
         await container.read(legionCliServiceProvider).resolvePath(),
-        portableTestCli,
+        helperTestCli,
       );
       expect(calls, ['findHostCli']);
     },
@@ -113,9 +113,9 @@ void main() {
           return path.future;
         },
       );
-      final process = PortableHelperProcess();
+      final process = HelperProcessFixture();
       var starts = 0;
-      final launcher = PortableControlLauncher(
+      final launcher = ControlLauncher(
         executable: '/bundle/helper',
         startProcess:
             (
@@ -136,7 +136,7 @@ void main() {
             return cli;
           }),
           controlTransportFactoryProvider.overrideWithValue((resolvePath) {
-            return PortableLegionControlTransport(
+            return HelperControlTransport(
               createLauncher: () => launcher,
               resolveCliPath: resolvePath,
               connect: (_) => DeniedTransport(),
@@ -152,7 +152,7 @@ void main() {
       await resolving.future;
       container.dispose();
       await rejected;
-      path.complete(portableTestCli);
+      path.complete(helperTestCli);
       await Future<void>.delayed(Duration.zero);
       expect(starts, 0);
     },

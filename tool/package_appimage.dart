@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'bundle_appimage_runtime.dart' show bundleRuntime;
 
-import 'package_release.dart';
+import 'release_source/linux_build.dart';
+import 'release_source/source_archive.dart';
+import 'release_source/source_files.dart';
 
 import 'package_linux.dart';
 
@@ -38,7 +40,7 @@ Future<void> main(List<String> args) async {
     }
     final inputs = Directory(inputPath).absolute;
     await verifyRuntimeInputs(root, inputs);
-    final (bundle: bundle, stamp: built) = await buildLinuxRelease(root);
+    final (bundle: bundle, record: built) = await buildLinuxRelease(root);
     final version = RegExp(r'^version:\s*(\S+)', multiLine: true)
         .firstMatch(await File('${root.path}/pubspec.yaml').readAsString())!
         .group(1)!;
@@ -61,7 +63,7 @@ Future<void> main(List<String> args) async {
       ]);
       // A library or helper changed while staging must invalidate the build.
       if (jsonEncode(await inventoryReleaseTree(bundle)) !=
-          jsonEncode(built['bundle'])) {
+          jsonEncode(built.bundle)) {
         throw StateError(
           'The built bundle changed while staging; build again.',
         );
@@ -87,8 +89,8 @@ Future<void> main(List<String> args) async {
       final appBundle = Directory('${appdir.path}/usr/lib/legion_frontend');
       final stamp = await recordReleaseBuild(
         appBundle,
-        (built['inputs'] as Map).cast<String, Object>(),
-        staticPortableHelper: true,
+        built.inputs,
+        staticHelper: true,
       );
       await output.create(recursive: true);
       final name = 'legion-frontend-$version-x86_64';
@@ -126,7 +128,7 @@ Future<void> main(List<String> args) async {
       final manifest = <String, Object>{
         'format': 1,
         'version': version,
-        'source_commit': (built['inputs'] as Map)['commit'],
+        'source_commit': built.inputs.commit,
         'architecture': 'x86_64',
         'build_os': os,
         'portable_control': true,

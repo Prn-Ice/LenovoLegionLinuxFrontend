@@ -99,6 +99,9 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     await _apply(
       emit,
       action: () => _repository.setBatteryConservation(event.enabled),
+      readbackMatches: (current) =>
+          current.batteryConservationEnabled == event.enabled,
+      settingName: 'Battery conservation',
       successMessage:
           'Battery conservation ${event.enabled ? 'enabled' : 'disabled'}.',
     );
@@ -111,6 +114,9 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     await _apply(
       emit,
       action: () => _repository.setRapidCharging(event.enabled),
+      readbackMatches: (current) =>
+          current.rapidChargingEnabled == event.enabled,
+      settingName: 'Rapid charging',
       successMessage:
           'Rapid charging ${event.enabled ? 'enabled' : 'disabled'}.',
     );
@@ -124,6 +130,8 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
     await _apply(
       emit,
       action: () => _repository.setAlwaysOnUsb(event.enabled),
+      readbackMatches: (current) => current.alwaysOnUsbEnabled == event.enabled,
+      settingName: 'Always-on USB charging',
       successMessage:
           'Always-on USB charging ${event.enabled ? 'enabled' : 'disabled'}.',
     );
@@ -132,6 +140,8 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
   Future<void> _apply(
     Emitter<BatteryState> emit, {
     required Future<void> Function() action,
+    required bool Function(BatteryState) readbackMatches,
+    required String settingName,
     required String successMessage,
   }) async {
     if (state.isApplying) return;
@@ -148,8 +158,25 @@ class BatteryBloc extends Bloc<BatteryEvent, BatteryState> {
         emit(state.copyWith(isApplying: false));
         return;
       }
+      if (!readbackMatches(state)) {
+        emit(
+          state.copyWith(
+            isApplying: false,
+            errorMessage: AppFailure(
+              '$settingName could not be confirmed. The reported setting does '
+              'not match the request or is unavailable. Review the current '
+              'charging settings before retrying.',
+            ),
+          ),
+        );
+        return;
+      }
       emit(state.copyWith(isApplying: false, noticeMessage: successMessage));
     } catch (error) {
+      if (_closing || emit.isDone) return;
+      // Conservation can disable rapid charging before a later step fails.
+      // Reload both settings and retain the original command failure.
+      await _reloadState(emit, showLoading: false);
       if (_closing || emit.isDone) return;
       emit(state.copyWith(isApplying: false, errorMessage: error));
     }

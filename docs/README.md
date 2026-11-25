@@ -6,7 +6,7 @@
 - [Community backlog and current work](../BACKLOG.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Architecture](architecture/overview.md)
-- [Release formats and portable control](architecture/portable-control.md)
+- [Release formats and hardware control](architecture/control-helper.md)
 - [Model support and testing](model-support.md)
 - [Dependencies](dependencies.md)
 - [Page patterns](page-template.md) and [error feedback](error-and-feedback-standard.md)
@@ -15,8 +15,8 @@
 
 ## Hardware guides and investigations
 
-- [Change graphics mode at the next boot](architecture/next-boot-graphics.md)
 - [Legion Slim 7 16APH8 findings](architecture/m1cn-hardware-evidence.md)
+- [Backend upgrade compatibility and follow-ups](backend-upgrade-compatibility.md)
 - [Power defaults investigation](power-defaults-evidence.md)
 - [Poweroff diagnostics after dGPU detach](architecture/poweroff-stall-investigation.md)
 - [PipeWire logout crash](architecture/pipewire-logout-crash.md)

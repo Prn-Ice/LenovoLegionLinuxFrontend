@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package_linux.dart';
-import 'package_release.dart';
+import 'release_source/linux_build.dart';
+import 'release_source/source_archive.dart';
+import 'release_source/source_files.dart';
 import 'packaging_versions.dart';
 
 Future<void> main(List<String> args) async {
@@ -30,11 +32,18 @@ Future<void> main(List<String> args) async {
         .firstMatch(await File('${root.path}/pubspec.yaml').readAsString())!
         .group(1)!;
     final packageVersion = debianVersion(version);
-    final (bundle: bundle, stamp: built) = await buildLinuxRelease(root);
+    final (bundle: bundle, record: built) = await buildLinuxRelease(root);
     final scratch = await Directory.systemTemp.createTemp('legion-deb-');
     try {
       final staging = Directory('${scratch.path}/package');
       await stageDesktopPackage(root, bundle, staging);
+      final units = Directory('${staging.path}/usr/lib/systemd/system');
+      final wants = Directory('${units.path}/display-manager.service.wants');
+      await wants.create(recursive: true);
+      await File('${root.path}/packaging/debian/legion-graphics.service')
+          .copy('${units.path}/legion-graphics.service');
+      await Link('${wants.path}/legion-graphics.service')
+          .create('../legion-graphics.service');
       await File('${root.path}/packaging/debian/legion_frontend')
           .copy('${staging.path}/launcher');
       await runPackagingCommand('install', [
@@ -52,17 +61,14 @@ Future<void> main(List<String> args) async {
         '${staging.path}/usr/share/metainfo/$appId.metainfo.xml',
       ]);
       if (jsonEncode(await inventoryReleaseTree(bundle)) !=
-          jsonEncode(built['bundle'])) {
+          jsonEncode(built.bundle)) {
         throw StateError(
           'The built bundle changed while staging; build again.',
         );
       }
       final elf = await inspectDesktopPackage(staging);
       final appBundle = Directory('${staging.path}/usr/lib/legion_frontend');
-      final stamp = await recordReleaseBuild(
-        appBundle,
-        (built['inputs'] as Map).cast<String, Object>(),
-      );
+      final stamp = await recordReleaseBuild(appBundle, built.inputs);
       final dependencies = await debianDependencies(staging, elf.keys);
       final doc = Directory(
         '${staging.path}/usr/share/doc/legion-linux-frontend',
@@ -70,6 +76,13 @@ Future<void> main(List<String> args) async {
       await File('${root.path}/LICENSE').copy('${doc.path}/copyright');
       await File('${root.path}/docs/debian.md').copy('${doc.path}/README.md');
       final control = Directory('${staging.path}/DEBIAN')..createSync();
+      for (final script in ['postinst', 'postrm']) {
+        await runPackagingCommand('install', [
+          '-m755',
+          '${root.path}/packaging/debian/$script',
+          '${control.path}/$script',
+        ]);
+      }
       final size = (await runPackagingCommand('du', [
         '-sk',
         '${staging.path}/usr',
@@ -107,7 +120,7 @@ Description: Lenovo Legion hardware frontend
         '2',
         '--target',
         'legion_cli',
-        'legion-portable-test-client',
+        'legion-helper-test-client',
       ]);
       final fixtures = File('${output.path}/vm-fixtures.tar.gz');
       await runPackagingCommand('tar', [
@@ -116,7 +129,7 @@ Description: Lenovo Legion hardware frontend
         '-C',
         fixtureDirectory,
         'legion_cli',
-        'legion-portable-test-client',
+        'legion-helper-test-client',
       ]);
       final prefix = 'legion-frontend-$version-amd64';
       final deb = File('${output.path}/${debianFileName(version)}');
@@ -143,7 +156,7 @@ Description: Lenovo Legion hardware frontend
         'format': 1,
         'version': version,
         'package_version': packageVersion,
-        'source_commit': (built['inputs'] as Map)['commit']!,
+        'source_commit': built.inputs.commit,
         'architecture': 'amd64',
         'build_os': os,
         'portable_control': true,
@@ -151,7 +164,7 @@ Description: Lenovo Legion hardware frontend
         'depends': dependencies,
         'vm_fixtures_sha256': await fileSha256(fixtures),
         'elf_dependencies': elf,
-        'bundle': stamp['bundle']!,
+        'bundle': stamp.bundle,
         'payload': payload,
         'files': {
           deb.uri.pathSegments.last: await fileSha256(deb),
@@ -213,5 +226,5 @@ Future<String> debianDependencies(
     throw StateError('dpkg-shlibdeps returned no dependencies.');
   }
   await debian.delete(recursive: true);
-  return '$generated, libegl1, libgles2, gsettings-desktop-schemas, xdg-user-dirs, polkitd | policykit-1, systemd';
+  return '$generated, libegl1, libgles2, gsettings-desktop-schemas, xdg-user-dirs, polkitd | policykit-1, systemd, lsof';
 }

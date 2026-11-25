@@ -2,7 +2,7 @@
 
 The amd64 `.deb` installs the desktop app, privileged control helper, launcher,
 icons, and notices. It uses host GTK, GLib, Polkit, graphics, and C/C++ libraries.
-Installing it adds no persistent Legion service or authorization policy.
+The package also installs the one-shot command that applies iGPU-only before sign-in.
 
 Install the package with apt so it resolves the runtime dependencies:
 
@@ -15,8 +15,9 @@ Hardware control requires the Lenovo Legion driver and an administrator-owned
 `legion_cli` installation, systemd, Polkit, and a desktop authentication agent.
 The app uses the bundled privileged control helper from its first launch. The
 first privileged action requests approval; closing the app ends the helper session.
-Persistent service management and next-boot graphics changes are unavailable
-through the helper. Existing installed services remain separately managed.
+With a compatible `legion_cli` and laptop, choose **Integrated graphics only** on
+the **GPU** page, then restart. Check the selected graphics mode and
+NVIDIA status after signing in. [Driver CLI with boot support](https://github.com/Prn-Ice/LenovoLegionLinux/commit/3492884b83c4fb626cba4e4ddc32b3ef3dcc5f70)
 
 ## Build
 
@@ -73,4 +74,7 @@ Remove the package with:
 sudo apt purge legion-linux-frontend
 ```
 
-User settings remain in the user's data directory after removal.
+Removal deletes the package's startup files. It cancels a pending graphics
+switch if this package was the last source of boot support. To return to
+Hybrid after iGPU-only has taken effect, select Hybrid before uninstalling or
+run `sudo legion_cli graphics-mode set hybrid`.

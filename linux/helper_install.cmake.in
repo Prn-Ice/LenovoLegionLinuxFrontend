@@ -1,0 +1,8 @@
+execute_process(
+  COMMAND "@HELPER_PATCHELF@" --set-rpath "@helper_install_rpath@"
+    "$ENV{DESTDIR}@CMAKE_INSTALL_PREFIX@/libexec/legion-control-helper"
+  RESULT_VARIABLE helper_rpath_status
+)
+if(NOT helper_rpath_status EQUAL 0)
+  message(FATAL_ERROR "Could not set the app helper host library paths.")
+endif()

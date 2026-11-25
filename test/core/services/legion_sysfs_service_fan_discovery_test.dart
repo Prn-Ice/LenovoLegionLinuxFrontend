@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
+import 'package:legion_frontend/features/fans/models/fan_curve.dart';
 
 void main() {
   late Directory root;
@@ -30,6 +31,7 @@ void main() {
     }
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     );
     expect(await service.readFan1Rpm(), isNull);
@@ -38,12 +40,16 @@ void main() {
     File('${yoga.path}/name').writeAsStringSync('yogafan\n');
     File('${yoga.path}/fan1_input').writeAsStringSync('2300');
     File('${yoga.path}/fan2_input').writeAsStringSync('2400');
+    File('${yoga.path}/fan3_input').writeAsStringSync('2500');
     expect(await service.readFan1Rpm(), 2300);
     expect(await service.readFan2Rpm(), 2400);
+    expect(await service.readFan3Rpm(), isNull);
     final controller = Directory('${controllerRoot.path}/hwmon0')..createSync();
     File('${controller.path}/fan1_input').writeAsStringSync('0');
+    File('${controller.path}/fan3_input').writeAsStringSync('2500');
     expect(await service.readFan1Rpm(), 0);
     expect(await service.readFan2Rpm(), 2400);
+    expect(await service.readFan3Rpm(), 2500);
   });
 
   test('follows controller hwmon symlinks for live RPMs', () async {
@@ -54,6 +60,7 @@ void main() {
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     );
 
@@ -72,6 +79,7 @@ void main() {
 
       final service = LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
       );
 
@@ -98,13 +106,13 @@ void main() {
         'pwm1_auto_point${i}_decel': 8,
       };
       for (final entry in values.entries) {
-        await File(
-          '${controller.path}/${entry.key}',
-        ).writeAsString('${entry.value}\n');
+        await File('${controller.path}/${entry.key}')
+            .writeAsString('${entry.value}\n');
       }
     }
     final curve = await LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       fanHwmonRoot: controllerRoot.path,
     ).readFanCurve();
     expect(curve?.fan1MaxRpm, 10000);
@@ -122,6 +130,7 @@ void main() {
       expect(
         await LegionSysfsService(
           hwmonRoot: hwmonRoot.path,
+          sysRoot: root.path,
           fanHwmonRoot: controllerRoot.path,
         ).readFanCurve(),
         isNull,
@@ -153,11 +162,117 @@ void main() {
     expect(
       await LegionSysfsService(
         hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
         fanHwmonRoot: controllerRoot.path,
       ).readFanCurve(),
       isNull,
     );
   });
+
+  test(
+    'reads a variable-size speed-only level table without temperatures',
+    () async {
+      final platform = Directory('${root.path}/platform/legion')
+        ..createSync(recursive: true);
+      final controller = Directory('${controllerRoot.path}/hwmon0')
+        ..createSync();
+      File('${platform.path}/fancurve_speed_unit').writeAsStringSync('level\n');
+      File('${platform.path}/fan1_level_rpm_table')
+          .writeAsStringSync('0 1000 2000 3000\n');
+      File('${platform.path}/fan2_level_rpm_table')
+          .writeAsStringSync('900 1900 2900 3900\n');
+      File('${controller.path}/auto_points_size').writeAsStringSync('4\n');
+      for (var i = 1; i <= 4; i++) {
+        final pwm = [25, 51, 76, 255][i - 1];
+        File('${controller.path}/pwm1_auto_point${i}_pwm')
+            .writeAsStringSync('$pwm\n');
+      }
+      final curve = await LegionSysfsService(
+        hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
+        fanHwmonRoot: controllerRoot.path,
+        legionPlatformRoots: [platform.path],
+      ).readFanCurve();
+      expect(curve, isNotNull);
+      expect(curve!.schema, FanCurveSchema.speedOnly);
+      expect(curve.points, hasLength(4));
+      expect(curve.points.map((point) => point.fan1Level), [1, 2, 3, 10]);
+      expect(curve.points.map((point) => point.fan1Rpm), [0, 1000, 2000, null]);
+      expect(curve.points.map((point) => point.fan2Rpm), [
+        900,
+        1900,
+        2900,
+        null,
+      ]);
+      expect(curve.canEdit, isFalse);
+    },
+  );
+
+  test('does not invent RPMs when a level ladder is missing', () async {
+    final platform = Directory('${root.path}/platform/legion')
+      ..createSync(recursive: true);
+    final controller = Directory('${controllerRoot.path}/hwmon0')..createSync();
+    File('${platform.path}/fancurve_speed_unit').writeAsStringSync('level');
+    File('${controller.path}/auto_points_size').writeAsStringSync('1');
+    File('${controller.path}/pwm1_auto_point1_pwm').writeAsStringSync('25');
+    final curve = await LegionSysfsService(
+      hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
+      fanHwmonRoot: controllerRoot.path,
+      legionPlatformRoots: [platform.path],
+    ).readFanCurve();
+    expect(curve, isNotNull);
+    expect(curve!.fan1LevelRpmTable, isNull);
+    expect(curve.points.single.fan1Level, 1);
+    expect(curve.points.single.fan1Rpm, isNull);
+  });
+
+  test(
+    'rejects malformed ladders and point counts without losing table units',
+    () async {
+      final platform = Directory('${root.path}/platform/legion')
+        ..createSync(recursive: true);
+      final controller = Directory('${controllerRoot.path}/hwmon0')
+        ..createSync();
+      final size = File('${controller.path}/auto_points_size')
+        ..writeAsStringSync('1');
+      final unit = File('${platform.path}/fancurve_speed_unit')
+        ..writeAsStringSync('level');
+      final ladder = File('${platform.path}/fan1_level_rpm_table');
+      File('${controller.path}/pwm1_auto_point1_pwm').writeAsStringSync('51');
+      final service = LegionSysfsService(
+        hwmonRoot: hwmonRoot.path,
+        sysRoot: root.path,
+        fanHwmonRoot: controllerRoot.path,
+        legionPlatformRoots: [platform.path],
+      );
+      for (final raw in [
+        '1000 invalid',
+        '2000 1000',
+        '1:1000 2:2000',
+        '0 0',
+        '1 2 3 4 5 6 7 8 9 10 11',
+      ]) {
+        ladder.writeAsStringSync(raw);
+        final curve = await service.readFanCurve();
+        expect(curve, isNotNull);
+        expect(curve!.points.single.fan1Level, 2);
+        expect(curve.points.single.fan1Rpm, isNull, reason: raw);
+      }
+      for (final raw in ['0', '11', 'unknown']) {
+        size.writeAsStringSync(raw);
+        expect(await service.readFanCurve(), isNull, reason: raw);
+      }
+      size.writeAsStringSync('1');
+      unit.writeAsStringSync('percent');
+      final percent = (await service.readFanCurve())!;
+      expect(percent.speedUnit, FanSpeedUnit.percent);
+      expect(percent.points.single.fan1Pwm, 51);
+      expect(percent.points.single.fan1Level, isNull);
+      expect(percent.points.single.fan1Rpm, isNull);
+      expect(percent.canEdit, isFalse);
+    },
+  );
 
   test('discovers the Kernel 7 synthetic platform root', () async {
     final virtualRoot = Directory('${root.path}/platform/legion');
@@ -168,6 +283,7 @@ void main() {
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
     );
 
@@ -179,12 +295,12 @@ void main() {
     final legacyRoot = Directory('${root.path}/platform/PNP0C09:00');
     await legacyRoot.create(recursive: true);
     await File('${legacyRoot.path}/gsync').writeAsString('1\n');
-    await File(
-      '${legacyRoot.path}/cpu_longterm_powerlimit',
-    ).writeAsString('54\n');
+    await File('${legacyRoot.path}/cpu_longterm_powerlimit')
+        .writeAsString('54\n');
 
     final service = LegionSysfsService(
       hwmonRoot: hwmonRoot.path,
+      sysRoot: root.path,
       legionPlatformRoots: [virtualRoot.path, legacyRoot.path],
     );
 

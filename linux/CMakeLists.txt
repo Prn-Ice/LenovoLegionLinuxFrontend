@@ -81,31 +81,28 @@ install(CODE "
   file(REMOVE_RECURSE \"${BUILD_BUNDLE_DIR}/\")
   " COMPONENT Runtime)
 
-# Build and bundle the root-owned, read-only package power service. System
-# packages install its unit and D-Bus policy from the bundle into /usr.
-# The frontend uses only the bundled privileged control helper for authorization.
-set(BUILD_PORTABLE_CONTROL_HELPER ON)
-set(BUILD_LEGION_CONTROL_SERVICE OFF)
-add_subdirectory("../telemetry" "${CMAKE_BINARY_DIR}/telemetry")
+# The bundled helper starts either a hardware-control or read-only power session.
+set(BUILD_CONTROL_HELPER ON)
+add_subdirectory("../control" "${CMAKE_BINARY_DIR}/control")
 
 set(INSTALL_BUNDLE_DATA_DIR "${CMAKE_INSTALL_PREFIX}/data")
 set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib")
 
 # Bundle the helper without installing control service units or policies.
-install(TARGETS legion_portable_control
+install(TARGETS legion_control_helper
   RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/libexec" COMPONENT Runtime)
-get_target_property(portable_install_rpath legion_portable_control INSTALL_RPATH)
-if(portable_install_rpath)
+get_target_property(helper_install_rpath legion_control_helper INSTALL_RPATH)
+if(helper_install_rpath)
   # Nix compiler wrappers may retain extra rpaths after CMake installation.
   # Set the complete installed value so development directories cannot survive.
-  find_program(PORTABLE_PATCHELF patchelf)
-  if(NOT PORTABLE_PATCHELF)
-    message(FATAL_ERROR "Nix portable helper bundles require patchelf.")
+  find_program(HELPER_PATCHELF patchelf)
+  if(NOT HELPER_PATCHELF)
+    message(FATAL_ERROR "Nix app helper bundles require patchelf.")
   endif()
-  string(REPLACE ";" ":" portable_install_rpath "${portable_install_rpath}")
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/portable_helper_install.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake" @ONLY)
-  install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/portable_helper_install.cmake"
+  string(REPLACE ";" ":" helper_install_rpath "${helper_install_rpath}")
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/helper_install.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/helper_install.cmake" @ONLY)
+  install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/helper_install.cmake"
     COMPONENT Runtime)
 endif()
 

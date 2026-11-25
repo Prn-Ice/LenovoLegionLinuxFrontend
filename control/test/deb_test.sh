@@ -2,8 +2,8 @@
 # Install, upgrade, exercise, and purge the package inside a disposable VM.
 set -euo pipefail
 support=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=control/test/portable_session_test.sh
-source "$support/portable_session_test.sh"
+# shellcheck source=control/test/helper_session_test.sh
+source "$support/helper_session_test.sh"
 # shellcheck source=control/test/distro_test_support.sh
 source "$support/distro_test_support.sh"
 # Session helpers access these maps by name.
@@ -24,7 +24,13 @@ reject systemctl cat legion-control.service
 timeout 180 apt-get install -y --no-install-recommends "$package"
 version=$(jq -r .package_version "$manifest")
 [[ $(dpkg-query -W -f='${Version}' legion-linux-frontend) == "$version" ]]
-diff "$before" <(persistent_files)
+boot_unit=/usr/lib/systemd/system/legion-graphics.service
+boot_link=/usr/lib/systemd/system/display-manager.service.wants/legion-graphics.service
+[[ -f $boot_unit && $(readlink "$boot_link") == ../legion-graphics.service ]]
+without_package_boot_unit() {
+  persistent_files | awk -F '\t' -v unit="$boot_unit" -v link="$boot_link" '$1 != unit && $1 != link'
+}
+diff "$before" <(without_package_boot_unit)
 
 verify_bundle() {
   local entry name path type mode entries
@@ -52,7 +58,7 @@ verify_bundle() {
 verify_bundle
 timeout 420 bash "$support/desktop_test_support.sh" \
   /usr/bin/legion_frontend deb-gui.log 'Debian package' /usr/lib/legion_frontend/legion_frontend
-helper=/usr/lib/legion_frontend/libexec/legion-portable-control
+helper=/usr/lib/legion_frontend/libexec/legion-control-helper
 session_new app approved "$helper" false
 [[ ${app[cli]} == /usr/local/bin/legion_cli ]]
 session_prepare app success
@@ -72,7 +78,7 @@ wait_collected
 # Preserve the administrator's service bytes and permissions through upgrade and purge.
 printf '# Existing administrator-managed Legion service fixture\n' >/etc/systemd/system/legion-control.service
 coexistence=$(mktemp)
-persistent_files >"$coexistence"
+without_package_boot_unit >"$coexistence"
 session_new active approved "$helper" false
 session_prepare active success
 session_send active connect
@@ -90,11 +96,26 @@ printf 'enabled\n' | diff - <(session_value active battery-conservation)
 session_send active disable
 printf 'disabled\n' | diff - <(session_value active battery-conservation)
 session_close active
-diff "$coexistence" <(persistent_files)
+diff "$coexistence" <(without_package_boot_unit)
+install -d /var/lib/legion-graphics
+printf 'synthetic pending request\n' >/var/lib/legion-graphics/igpu-only-request
 timeout 180 apt-get purge -y legion-linux-frontend
+test ! -e /var/lib/legion-graphics/igpu-only-request
 test ! -e /usr/lib/legion_frontend
 test ! -e /usr/bin/legion_frontend
 diff "$coexistence" <(persistent_files)
+
+# AppImage setup under systemd's attached-unit path remains after package removal.
+attached=/etc/systemd/system.attached
+install -D -m644 /dev/null "$attached/legion-graphics.service"
+mkdir -p "$attached/display-manager.service.wants"
+ln -s ../legion-graphics.service "$attached/display-manager.service.wants/legion-graphics.service"
+printf 'synthetic AppImage request\n' >/var/lib/legion-graphics/igpu-only-request
+persistent_files >"$coexistence"
+timeout 180 apt-get install -y --no-install-recommends "$package"
+timeout 180 apt-get purge -y legion-linux-frontend
+diff "$coexistence" <(persistent_files)
+grep -Fx 'synthetic AppImage request' /var/lib/legion-graphics/igpu-only-request
 rm "$before" "$coexistence"
 assert_cleanup_succeeded
 jq -n '{installation:true, desktop:true, helper:true, denied:true, missing_agent:true, upgrade:true, purge:true, existing_integration_preserved:true}' >/home/approved/deb-checks.json

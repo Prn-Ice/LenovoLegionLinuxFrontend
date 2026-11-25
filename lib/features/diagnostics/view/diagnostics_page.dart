@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yaru/yaru.dart';
 
+import '../../../core/widgets/fan_icon.dart';
+
 import '../../../core/models/bridge_command_record.dart';
 import '../../../core/widgets/app_shell_components.dart';
 import '../../about/bloc/about_event.dart';
@@ -369,6 +371,16 @@ class _SensorReadings extends StatelessWidget {
                 : '—',
           ),
         ),
+        if (latest?.fan3Rpm != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: _ReadingChip(
+              leading: const FanIcon(size: 14),
+              label: 'Fan 3',
+              value: '${latest!.fan3Rpm} RPM',
+            ),
+          ),
+        ],
         const SizedBox(width: 8),
         Expanded(
           child: _ReadingChip(
@@ -402,12 +414,14 @@ class _SensorReadings extends StatelessWidget {
 
 class _ReadingChip extends StatelessWidget {
   const _ReadingChip({
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.label,
     required this.value,
   });
 
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String label;
   final String value;
 
@@ -426,7 +440,7 @@ class _ReadingChip extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 14, color: scheme.outline),
+              leading ?? Icon(icon, size: 14, color: scheme.outline),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(
@@ -538,6 +552,14 @@ class _FanSpeedChart extends StatelessWidget {
             barWidth: 2,
             dotData: const FlDotData(show: false),
           ),
+          if (history.any((r) => r.fan3Rpm != null))
+            LineChartBarData(
+              spots: _spots((r) => r.fan3Rpm),
+              isCurved: true,
+              color: scheme.error,
+              barWidth: 2,
+              dotData: const FlDotData(show: false),
+            ),
         ],
         titlesData: const FlTitlesData(show: false),
         borderData: FlBorderData(show: false),

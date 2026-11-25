@@ -62,6 +62,8 @@ class PowerPage extends ConsumerWidget {
   not CPU package power or wall power.
 - Show `—` for missing readings. Do not invent values or silently substitute
   another measurement.
+- Hide unavailable optional readings on the Dashboard and GPU overview.
+  See [dashboard readings](dashboard-readings.md) for sources and saved visibility.
 
 ## 4. Typography
 
@@ -141,7 +143,7 @@ Use **`YaruIcons.*`**, not Material `Icons.*`, for generic navigation and action
 icons so the app stays Yaru-native. The nav rail already does this via each
 section's `icon`. The Fans tab uses the shared `FanIcon` because Yaru has no fan
 glyph. Dashboard uses a grid, Power a power symbol, Battery a battery, Lighting
-a keyboard, Discrete GPU a chip, Automation a play symbol, and Settings a gear.
+a keyboard, GPU a chip, Automation a play symbol, and Settings a gear.
 
 For detected hardware, use the manufacturer's logo in its vendor colour, with a
 neutral background and accessible label. Use a generic device icon when the

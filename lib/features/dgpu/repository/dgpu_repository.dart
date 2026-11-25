@@ -12,7 +12,20 @@ class DgpuRepositoryException extends AppFailure {
 }
 
 class DgpuRepository extends PrivilegedRepository {
-  const DgpuRepository({required super.bridgeService});
+  const DgpuRepository({
+    required super.bridgeService,
+    this.findPciAddress,
+    this.readRuntimeStatus,
+    this.queryComputeProcesses,
+    this.queryPciName,
+  });
+
+  /// Callbacks replace PCI and process reads in hardware-free tests.
+  /// Omitted callbacks use the sysfs and process readers below.
+  final Future<String?> Function()? findPciAddress;
+  final Future<bool?> Function(String path)? readRuntimeStatus;
+  final Future<List<DgpuProcess>> Function()? queryComputeProcesses;
+  final Future<String?> Function(String pciAddress)? queryPciName;
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DgpuRepositoryException(
@@ -33,7 +46,7 @@ class DgpuRepository extends PrivilegedRepository {
     bool requireGraphicsModeStatus = false,
   }) async {
     final results = await Future.wait([
-      _findNvidiaGpuPciAddress(),
+      findPciAddress?.call() ?? _findNvidiaGpuPciAddress(),
       loadGraphicsModeStatus(required: requireGraphicsModeStatus),
     ]);
     final pciAddress = results[0] as String?;
@@ -43,12 +56,17 @@ class DgpuRepository extends PrivilegedRepository {
     if (pciAddress != null) {
       final runtimePath =
           '/sys/bus/pci/devices/$pciAddress/power/runtime_status';
-      isActive = await _readRuntimeStatus(runtimePath);
+      isActive =
+          await (readRuntimeStatus?.call(runtimePath) ??
+              _readRuntimeStatus(runtimePath));
     } else {
       isActive = null;
     }
-    final processes = await _queryComputeProcesses();
-    final name = pciAddress == null ? null : await _queryPciName(pciAddress);
+    final processes =
+        await (queryComputeProcesses?.call() ?? _queryComputeProcesses());
+    final name = pciAddress == null
+        ? null
+        : await (queryPciName?.call(pciAddress) ?? _queryPciName(pciAddress));
     return DgpuSnapshot(
       isActive: isActive,
       processes: processes,
@@ -68,7 +86,19 @@ class DgpuRepository extends PrivilegedRepository {
         timeout: const Duration(seconds: 8),
         detectUnavailableResponse: false,
       );
-      if (!result.ok) {
+      if (result.ok) {
+        return GraphicsModeStatus.parse(result.stdout);
+      }
+
+      // Older legion_cli builds output JSON from `graphics-mode status` without
+      // `--json` and list supported modes through `graphics-mode choices`.
+      final legacyStatus = await bridgeService.runCommand(
+        method: 'graphics_mode.status',
+        args: const ['graphics-mode', 'status'],
+        timeout: const Duration(seconds: 8),
+        detectUnavailableResponse: false,
+      );
+      if (!legacyStatus.ok) {
         if (required) {
           throw DgpuRepositoryException(
             'Graphics mode and NVIDIA GPU status could not be reloaded after the '
@@ -77,7 +107,21 @@ class DgpuRepository extends PrivilegedRepository {
         }
         return null;
       }
-      return GraphicsModeStatus.parse(result.stdout);
+      final choicesResult = await bridgeService.runCommand(
+        method: 'graphics_mode.choices',
+        args: const ['graphics-mode', 'choices'],
+        timeout: const Duration(seconds: 8),
+        detectUnavailableResponse: false,
+      );
+      final availableModes = <GraphicsMode>[
+        if (choicesResult.ok)
+          for (final line in choicesResult.stdout.split('\n'))
+            if (line.trim().isNotEmpty) GraphicsMode.parse(line.trim()),
+      ];
+      return GraphicsModeStatus.parseLegacyStatus(
+        legacyStatus.stdout,
+        availableModes,
+      );
     } on DgpuRepositoryException {
       rethrow;
     } catch (error) {
@@ -148,9 +192,29 @@ class DgpuRepository extends PrivilegedRepository {
     }
   }
 
+  Future<void> setGraphicsBootSupport(bool enabled) async {
+    try {
+      await bridgeService.runControlOperation(
+        operation: (client) => client.setGraphicsBootSupport(enabled),
+        method: 'graphics_mode.boot_support',
+        args: [enabled ? 'enable' : 'disable'],
+      );
+    } on LegionBridgeException catch (error) {
+      throw DgpuRepositoryException(
+        enabled
+            ? 'Could not set up iGPU-only at startup. Refresh to check the current setup.'
+            : 'Could not remove iGPU-only startup support. Refresh to check the current setup.',
+        kind: AppFailure.from(error).kind,
+        details: error.details,
+      );
+    }
+  }
+
   Future<void> killGpuProcesses(List<int> expectedPids) async {
     final currentPids =
-        (await _queryComputeProcesses()).map((process) => process.pid).toList()
+        (await (queryComputeProcesses?.call() ?? _queryComputeProcesses()))
+            .map((process) => process.pid)
+            .toList()
           ..sort();
     final baseline = [...expectedPids]..sort();
     if (baseline.isEmpty || !_sameValues(currentPids, baseline)) {
@@ -165,13 +229,15 @@ class DgpuRepository extends PrivilegedRepository {
   }
 
   Future<void> restartPciDevice(String expectedPciAddress) async {
-    final currentAddress = await _findNvidiaGpuPciAddress();
+    final currentAddress =
+        await (findPciAddress?.call() ?? _findNvidiaGpuPciAddress());
     if (currentAddress != expectedPciAddress) {
       throw const DgpuRepositoryException(
         'The GPU PCI target changed. Refresh before trying again.',
       );
     }
-    if ((await _queryComputeProcesses()).isNotEmpty) {
+    if ((await (queryComputeProcesses?.call() ?? _queryComputeProcesses()))
+        .isNotEmpty) {
       throw const DgpuRepositoryException(
         'GPU compute processes are still active. Stop them before restarting the PCI device.',
       );

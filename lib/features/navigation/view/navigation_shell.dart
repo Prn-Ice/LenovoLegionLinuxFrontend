@@ -29,6 +29,8 @@ import '../../dgpu/bloc/dgpu_event.dart';
 import '../../dgpu/providers/dgpu_provider.dart';
 import '../../dgpu/view/dgpu_page.dart';
 import '../../fans/view/fans_page.dart';
+import '../../fans/bloc/fans_event.dart';
+import '../../fans/providers/fans_provider.dart';
 import '../../lighting/view/lighting_page.dart';
 import '../../power/bloc/power_event.dart';
 import '../../power/providers/power_provider.dart';
@@ -43,7 +45,9 @@ import '../providers/navigation_provider.dart';
 const _pageColor = Color(0xffFAF9F8);
 
 class NavigationShell extends ConsumerStatefulWidget {
-  const NavigationShell({super.key});
+  const NavigationShell({super.key, this.onReady});
+
+  final void Function(BuildContext, WidgetRef)? onReady;
 
   @override
   ConsumerState<NavigationShell> createState() => _NavigationShellState();
@@ -67,6 +71,9 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
       length: NavShellEntries.sections.length,
       initialIndex: initialIndex,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onReady?.call(context, ref);
+    });
   }
 
   @override
@@ -146,6 +153,8 @@ class _NavigationShellState extends ConsumerState<NavigationShell> {
         () => ref
             .read(batteryBlocProvider.bloc)
             .add(const BatteryRefreshRequested()),
+      AppSection.fans =>
+        () => ref.read(fansBlocProvider.bloc).add(const FansRefreshRequested()),
       AppSection.dgpu =>
         () => ref.read(dgpuBlocProvider.bloc).add(const DgpuRefreshRequested()),
       _ => null,

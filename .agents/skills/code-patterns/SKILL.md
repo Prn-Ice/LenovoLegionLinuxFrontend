@@ -58,6 +58,14 @@ precedence; this does not install Ponytail or add its modes and commands.
 
 ## Keep the behavior visible
 
+- For an unfamiliar flow, start with its purpose. Name the main method, who
+  calls it, and the helper that makes the next decision. Describe the actual
+  check in plain words. A helper's comment should stand on its own: say what
+  it checks and what its result means to the caller. Describe what the code does
+  now in positive terms; drop defensive disclaimers about old names, fixed bugs,
+  or rejected options (keep that context in Beads or PR notes). Fix unclear
+  older comments as you encounter them. Use the
+  [templates and worked examples](references/comments.md).
 - Read construction, callers, failure handling, and cleanup together. State the
   behavior being preserved before choosing a pattern.
 - Prefer product-language names and straightforward statements. Extract helpers
@@ -79,6 +87,16 @@ precedence; this does not install Ponytail or add its modes and commands.
 - Correct safe, relevant problems encountered in existing code and search for
   related occurrences. Ask before behavior changes or broader migrations; link
   exact locations and a proposed correction in Beads when outside this task.
+
+## Write readable Dart scripts
+
+Use [`docs/dart-scripting.md`](../../../docs/dart-scripting.md) and the real
+`tool/package_release.dart` / `tool/release_source/` implementation as the
+benchmark for Dart scripts. Entrypoints should tell a short story through typed,
+descriptive operations. Keep reusable details in responsibility-named files,
+raw commands and JSON conversion at external boundaries, and asynchronous
+completion explicit. Preserve validation, authorization, cleanup, and failure
+status. Do not add forwarding layers or a framework merely to shorten `main`.
 
 ## Say what things are
 

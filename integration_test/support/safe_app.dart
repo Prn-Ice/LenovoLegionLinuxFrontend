@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -14,6 +15,7 @@ import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
+import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
 import 'package:legion_frontend/features/automation/providers/automation_provider.dart';
@@ -29,6 +31,10 @@ import 'package:yaru/yaru.dart';
 enum ControlFailure { permissionDenied, unavailable, commandFailed }
 
 enum FixturePlatformProfile { quiet, balanced, performance, maxPower, custom }
+
+enum FixtureFanCurveResult { applied, unchanged }
+
+enum FixtureRapidChargingResult { applied, unchanged, readbackUnavailable }
 
 /// Synthetic values chosen to distinguish edits and rollback from initial state.
 enum FixturePowerLimit {
@@ -68,10 +74,21 @@ class SafeApp {
   FixturePowerLimit? failNextPowerLimit;
   final writes = <bool>[];
   final requests = <bool>[];
+  final rapidChargingRequests = <bool>[];
+  final rapidChargingWrites = <bool>[];
+  FixtureRapidChargingResult rapidChargingResult =
+      FixtureRapidChargingResult.applied;
+  File get rapidChargingFile => File(
+    '${directory.path}/sys/module/legion_laptop/drivers/'
+    'platform:legion/legion/rapidcharge',
+  );
   final platformProfileWrites = <FixturePlatformProfile>[];
   final platformProfileRequests = <FixturePlatformProfile>[];
   final fanPresetWrites = <ControlFanPreset>[];
   final fanPresetRequests = <ControlFanPreset>[];
+  final fanCurveRequests = <List<int>>[];
+  final fanCurveCompletions = <List<int>>[];
+  FixtureFanCurveResult fanCurveResult = FixtureFanCurveResult.applied;
   ControlFailure? nextFailure;
   Completer<void>? writeCompletion;
   bool _controlCreated = false;
@@ -85,6 +102,7 @@ class SafeApp {
     bool acOnline = true,
     bool includeFanFixture = false,
     bool includePowerLimitFixture = false,
+    bool includeRapidChargingFixture = false,
     List<FixturePlatformProfile> profileChoices = const [
       FixturePlatformProfile.quiet,
       FixturePlatformProfile.balanced,
@@ -109,6 +127,7 @@ class SafeApp {
       acOnline: acOnline,
       includeFanFixture: includeFanFixture,
       includePowerLimitFixture: includePowerLimitFixture,
+      includeRapidChargingFixture: includeRapidChargingFixture,
     );
     Hive.init('${directory.path}/storage');
     if (!Hive.isAdapterRegistered(1)) {
@@ -135,6 +154,7 @@ class SafeApp {
     required bool acOnline,
     required bool includeFanFixture,
     required bool includePowerLimitFixture,
+    required bool includeRapidChargingFixture,
   }) async {
     final file = File(
       '${directory.path}/sys/bus/platform/drivers/ideapad_acpi/'
@@ -155,6 +175,14 @@ class SafeApp {
     await File('${ac.path}/type').writeAsString('Mains\n');
     await File('${ac.path}/online').writeAsString(acOnline ? '1\n' : '0\n');
     await Directory('${directory.path}/proc').create(recursive: true);
+    if (includeRapidChargingFixture) {
+      final rapidCharge = File(
+        '${directory.path}/sys/module/legion_laptop/drivers/'
+        'platform:legion/legion/rapidcharge',
+      );
+      await rapidCharge.parent.create(recursive: true);
+      await rapidCharge.writeAsString('0\n');
+    }
     if (includeFanFixture) {
       await _prepareFanFixture(directory);
     }
@@ -317,6 +345,63 @@ class _FixtureControl extends LegionControlTransport {
 
   @override
   Future<void> call(String method, List<Object> arguments) async {
+    if (method == 'ApplyFanCurve' &&
+        app.hasFanFixture &&
+        arguments.length == 1 &&
+        arguments.single is List<int>) {
+      final bytes = List<int>.unmodifiable(arguments.single as List<int>);
+      if (utf8.decode(bytes) != _editedFixtureCurve()) {
+        throw StateError('Unexpected synthetic fan-curve payload');
+      }
+      app.fanCurveRequests.add(bytes);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the fan curve. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      if (app.fanCurveResult == FixtureFanCurveResult.applied) {
+        final controller =
+            '${app.directory.path}/sys/module/legion_laptop/'
+            'drivers/platform:legion/legion/hwmon/hwmon0';
+        for (final entry in const {
+          'pwm1_auto_point1_pwm': 40,
+          'pwm2_auto_point1_pwm': 40,
+          'pwm1_auto_point1_temp': 40,
+          'pwm2_auto_point1_temp': 42,
+        }.entries) {
+          await File('$controller/${entry.key}')
+              .writeAsString('${entry.value}\n');
+        }
+      }
+      app.fanCurveCompletions.add(bytes);
+      return;
+    }
+    if (method == 'SetToggle' &&
+        arguments.length == 2 &&
+        arguments.first == ControlToggle.rapidCharging.wireValue &&
+        arguments.last is bool &&
+        await app.rapidChargingFile.exists()) {
+      final enabled = arguments.last as bool;
+      app.rapidChargingRequests.add(enabled);
+      if (app.nextFailure == ControlFailure.commandFailed) {
+        app.nextFailure = null;
+        throw const LegionControlCommandFailedException(
+          'Test backend rejected the write. Fix the backend and retry.',
+        );
+      }
+      await app.writeCompletion?.future;
+      if (app.rapidChargingResult != FixtureRapidChargingResult.unchanged) {
+        await app.rapidChargingFile.writeAsString(enabled ? '1\n' : '0\n');
+        app.rapidChargingWrites.add(enabled);
+      }
+      if (app.rapidChargingResult ==
+          FixtureRapidChargingResult.readbackUnavailable) {
+        await app.rapidChargingFile.delete();
+      }
+      return;
+    }
     if (method == 'SetFeature' &&
         app.hasPowerLimitFixture &&
         arguments.length == 2 &&
@@ -438,6 +523,28 @@ class _FixtureControl extends LegionControlTransport {
   Future<void> close() async => app._controlClosed.complete();
 }
 
+// Independent expected wire document for edits to the synthetic table's first
+// CPU/GPU point. Do not use FanCurve.toYaml: this also checks its serialization.
+String _editedFixtureCurve() {
+  final document = StringBuffer('name: custom\nentries:\n');
+  for (var point = 1; point <= 10; point++) {
+    final pwm = point == 1 ? 40 : point * 20;
+    document
+      ..writeln('- fan1_speed: ${(pwm / 255 * 10000).round()}.0')
+      ..writeln('  fan2_speed: ${(pwm / 255 * 9000).round()}.0')
+      ..writeln('  cpu_lower_temp: 3')
+      ..writeln('  cpu_upper_temp: ${point == 1 ? 40 : 30 + point * 5}')
+      ..writeln('  gpu_lower_temp: 3')
+      ..writeln('  gpu_upper_temp: ${point == 1 ? 42 : 32 + point * 5}')
+      ..writeln('  ic_lower_temp: 2')
+      ..writeln('  ic_upper_temp: ${35 + point * 5}')
+      ..writeln('  acceleration: 4')
+      ..writeln('  deceleration: 8');
+  }
+  document.writeln('enable_minifancurve: true');
+  return document.toString();
+}
+
 extension on FixturePlatformProfile {
   String get wireValue => switch (this) {
     FixturePlatformProfile.quiet => 'quiet',
@@ -459,7 +566,7 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 
 class _NoNvidia implements NvidiaSmiService {
   @override
-  Future<NvidiaSmiSnapshot?> readSnapshot() async => null;
+  Future<GpuReading?> readSnapshot() async => null;
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

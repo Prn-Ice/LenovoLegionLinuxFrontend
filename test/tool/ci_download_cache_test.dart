@@ -1,3 +1,6 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,13 +28,16 @@ void main() {
       ..writeAsStringSync(content);
   }
 
-  ProcessResult run(String script) => Process.runSync(
+  ProcessResult run(String script, {bool local = false}) => Process.runSync(
     'bash',
     ['-euo', 'pipefail', '-c', script],
     workingDirectory: root.path,
     environment: {
       'PATH': '${root.path}/bin:${Platform.environment['PATH']}',
       'RUNNER_TEMP': '${root.path}/temp',
+      'RUNNER_KIND': local ? 'self-hosted' : 'github-hosted',
+      'HOME': root.path,
+      'GITHUB_ENV': '${root.path}/env',
       'GITHUB_OUTPUT': '${root.path}/output',
       'DIGEST': digest,
       'FIXTURE_ROOT': root.path,
@@ -42,6 +48,10 @@ void main() {
     root = Directory.systemTemp.createTempSync('ci-download-cache-');
     addTearDown(() => root.deleteSync(recursive: true));
     Directory('${root.path}/temp').createSync();
+    write(
+      'tool/cache_flutter_archive.sh',
+      File('tool/cache_flutter_archive.sh').readAsStringSync(),
+    );
     write('download', 'verified download bytes\n');
     digest =
         (Process.runSync('sha256sum', ['${root.path}/download']).stdout
@@ -105,6 +115,17 @@ cp "$source_file" "$output"
       expect(result.exitCode, isNot(0));
     });
   }
+
+  test('local package jobs reuse the archive after job cleanup', () {
+    final step = actionScript(
+      'package-inputs',
+      'Verify or download the pinned SDK',
+    );
+    expect(run(step, local: true).exitCode, 0);
+    Directory('${root.path}/temp').deleteSync(recursive: true);
+    expect(run(step, local: true).exitCode, 0);
+    expect(File('${root.path}/requests').readAsLinesSync(), hasLength(1));
+  });
 
   test('Ubuntu refreshes its checksum before selecting an image cache key', () {
     final result = run(

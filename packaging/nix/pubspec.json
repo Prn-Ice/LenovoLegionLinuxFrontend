@@ -30,7 +30,8 @@
     "integration_test": {
       "sdk": "flutter"
     },
-    "mocktail": "^1.0.4"
+    "mocktail": "^1.0.4",
+    "window_manager": "^0.5.2"
   },
   "environment": {
     "flutter": ">=3.50.0",

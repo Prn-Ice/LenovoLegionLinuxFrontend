@@ -1,8 +1,6 @@
-name: CI
+name: Release validation
 
 on:
-  pull_request:
-    branches: [main]
   workflow_call:
 
 permissions:
@@ -10,12 +8,12 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   changes:
     name: Select build and VM checks
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     outputs:
       integration: ${{ steps.changes.outputs.integration }}
       lifecycle: ${{ steps.changes.outputs.lifecycle }}
@@ -42,7 +40,7 @@ jobs:
 
   test:
     name: Flutter Test & Analyze
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -50,7 +48,24 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
+      - name: Load the local Flutter SDK
+        if: runner.environment == 'self-hosted'
+        run: |
+          version="$(jq -er '.flutter.version' packaging/appimage/build-inputs.json)"
+          digest="$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json)"
+          sdk="$RUNNER_TOOL_CACHE/flutter/stable-$version-x64"
+          if [[ ! -x "$sdk/flutter/bin/flutter" ]]; then
+            archive="$(bash tool/cache_flutter_archive.sh "$HOME/.cache/legion-ci/flutter-$digest.tar.xz")"
+            mkdir -p "$sdk"
+            staging="$(mktemp -d "$sdk/.extract.XXXXXXXX")"
+            trap 'rm -rf "$staging"' EXIT
+            tar -xf "$archive" -C "$staging"
+            mv "$staging/flutter" "$sdk/flutter"
+          fi
+          echo "$sdk/flutter/bin" >> "$GITHUB_PATH"
+          echo "FLUTTER_ROOT=$sdk/flutter" >> "$GITHUB_ENV"
       - name: Set up Flutter
+        if: runner.environment == 'github-hosted'
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -59,8 +74,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ make dpkg squashfs-tools
+          packages=(cmake g++ make dpkg squashfs-tools git openssh-client)
+          if ! dpkg-query -W -f='${db:Status-Status}\n' "${packages[@]}" > "$RUNNER_TEMP/package-status" 2>/dev/null ||
+              grep -qvx installed "$RUNNER_TEMP/package-status"; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          fi
           flutter pub get --enforce-lockfile
 
       - name: Generate Hive adapters
@@ -73,17 +92,25 @@ jobs:
         run: flutter analyze
 
       - name: Run tests
-        run: flutter test --reporter=compact
+        env:
+          LOCAL_RUNNER: ${{ runner.environment == 'self-hosted' }}
+        run: |
+          # Two Flutter workers exceeded the local machine's 4 GiB limit.
+          workers=()
+          if [[ $LOCAL_RUNNER == true ]]; then workers=(--concurrency=1); fi
+          flutter test --reporter=expanded "${workers[@]}"
 
       - name: Test VM readiness and evidence handling
         run: |
           bash control/test/acceptance_support_test.sh
           bash test/tool/appimage_nixos_wrapper_test.sh
-          bash test/tool/portable_distro_evidence_test.sh
-          bash test/tool/portable_distro_readiness_test.sh
+          bash test/tool/distro_evidence_test.sh
+          bash test/tool/distro_readiness_test.sh
 
   native:
     name: Native services and tests
+    # These checks need pidfds and execution from sealed file descriptors,
+    # which fail under the temporary runner's Rosetta translation.
     runs-on: ubuntu-latest
 
     steps:
@@ -95,16 +122,14 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev libpolkit-gobject-1-dev dbus jq
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libglib2.0-dev dbus jq
 
       - name: Test graphics guards without hardware
         run: |
-          bash tool/test_graphics_boot.sh
-          bash tool/test_setup_next_boot_graphics.sh
           bash tool/test_check_graphics_tty.sh
           bash tool/test_auto_battery_tty_json.sh
 
-      - name: Set up Flutter for the portable control probe
+      - name: Set up Flutter for the hardware control probe
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -116,26 +141,25 @@ jobs:
 
       - name: Configure
         run: >-
-          cmake -S telemetry -B build/native -G Ninja
-          -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_TESTING=ON
-          -DBUILD_PORTABLE_CONTROL_PROTOTYPE=ON -DBUILD_PORTABLE_CONTROL_HELPER=ON
+          cmake -S control -B build/native -G Ninja
+          -DBUILD_TESTING=ON
+          -DBUILD_CONTROL_PROTOTYPE=ON -DBUILD_CONTROL_HELPER=ON
 
       - name: Build services and tests
         run: >-
           cmake --build build/native --parallel 2 --target
-          legion_telemetry_service legion_control_service
-          package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test portable_cli_test
-          portable_control_probe legion_portable_control
+          package_power_sampler_test control_commands_test managed_command_test executable_snapshot_test helper_lifetime_test control_peer_test trusted_executable_test helper_cli_test
+          control_probe legion_control_helper
 
       - name: Run native tests
         run: ctest --test-dir build/native --output-on-failure --no-tests=error
 
-      - name: Probe portable control without hardware
+      - name: Probe hardware control without hardware
         timeout-minutes: 2
-        run: dart run tool/probe_portable_control.dart --helper build/native/portable_control_probe
+        run: dart run tool/probe_control.dart --helper build/native/control_probe
 
   control-lifecycle:
-    name: Control lifecycle and portable startup VMs
+    name: Control lifecycle and helper startup VMs
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
@@ -148,14 +172,13 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
-      - name: Verify containment and portable startup with real systemd
+      - name: Verify containment and helper startup with real systemd
         run: >-
-          nix build .#checks.x86_64-linux.control-lifecycle
-          .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+          nix build .#checks.x86_64-linux.helper-bootstrap --print-build-logs
 
   appimage-build:
     name: AppImage build and source companion
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.appimage == 'true'
@@ -166,7 +189,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/package-inputs
       - name: Build the AppImage and source companion
-        run: bash tool/build_appimage.sh "$RUNNER_TEMP/flutter.tar.xz" build/appimage-inputs build/appimage-release
+        run: bash tool/build_appimage.sh "$PACKAGE_FLUTTER_ARCHIVE" "$PACKAGE_RUNTIME_INPUTS" build/appimage-release
       - uses: actions/upload-artifact@v7
         with:
           name: appimage-build
@@ -194,6 +217,10 @@ jobs:
           path: build/appimage-release
       - name: Restore the AppImage executable bit after artifact download
         run: chmod +x build/appimage-release/*.AppImage
+      - name: Install Dart to record package test results
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.14.0'
       - uses: cachix/install-nix-action@v31
         with:
           enable_kvm: true
@@ -208,18 +235,13 @@ jobs:
           IMAGE: ${{ steps.ubuntu.outputs.image }}
           CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          bash tool/test_portable_distro.sh "$IMAGE" "$CHECKSUM" \
+          bash tool/test_distro.sh "$IMAGE" "$CHECKSUM" \
             build/appimage-qualification --appimage build/appimage-release
       - name: Test privileged controls through official NixOS appimage-run
         run: |
           bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
-          directory=build/appimage-qualification
-          name=appimage-nixos-qualification.tar.gz
-          digest="$(sha256sum "$directory/$name" | cut -d ' ' -f1)"
-          jq --arg name "$name" --arg digest "$digest" '.files[$name] = $digest' \
-            "$directory/manifest.json" >"$directory/manifest.json.tmp"
-          mv "$directory/manifest.json.tmp" "$directory/manifest.json"
+          dart tool/record_package_test_results.dart nixos build/appimage-qualification
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -235,6 +257,8 @@ jobs:
 
   linux-integration:
     name: Linux native app integration
+    # Run the desktop journey on native Linux; translated execution failed
+    # during Flutter/Xvfb cleanup after the test cases.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
@@ -249,7 +273,7 @@ jobs:
       - name: Install Linux desktop dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build g++ pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev gsettings-desktop-schemas xvfb xauth
+          sudo apt-get install -y clang cmake ninja-build g++ pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev gsettings-desktop-schemas xvfb xauth
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -274,11 +298,11 @@ jobs:
             bash tool/test_linux_journeys.sh \
             2>&1 | tee linux-integration.log
 
-      - name: Test native portable control argument mapping
+      - name: Test native hardware control argument mapping
         run: |
           flutter build linux --debug --no-pub
-          cmake --build build/linux/x64/debug --target portable_control_channel_test
-          build/linux/x64/debug/runner/portable_control_channel_test
+          cmake --build build/linux/x64/debug --target control_channel_test
+          xvfb-run -a build/linux/x64/debug/runner/control_channel_test
 
       - name: Upload integration log on failure
         if: failure()
@@ -306,13 +330,14 @@ jobs:
         run: >-
           nix build .#frontend .#frontend-source
           .#checks.x86_64-linux.nix-metadata
+          .#checks.x86_64-linux.appimage-package
           .#checks.x86_64-linux.release-tag --print-build-logs
       - name: Test the installed desktop and helper in a disposable NixOS VM
         run: nix build .#checks.x86_64-linux.frontend-package --print-build-logs
 
   debian-build:
     name: Debian build and source companion
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.debian == 'true'
@@ -325,7 +350,7 @@ jobs:
         with:
           appimage-runtime: 'false'
       - name: Build the Debian package and source companion
-        run: bash tool/build_deb.sh "$RUNNER_TEMP/flutter.tar.xz" build/deb-release
+        run: bash tool/build_deb.sh "$PACKAGE_FLUTTER_ARCHIVE" build/deb-release
       - uses: actions/upload-artifact@v7
         with:
           name: debian-build
@@ -351,6 +376,10 @@ jobs:
         with:
           name: debian-build
           path: build/deb-release
+      - name: Install Dart to record package test results
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.14.0'
       - name: Install disposable VM tools
         run: |
           sudo apt-get update
@@ -373,12 +402,12 @@ jobs:
           IMAGE: ${{ steps.ubuntu.outputs.image }}
           CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          bash tool/test_portable_distro.sh "$IMAGE" "$CHECKSUM" \
+          bash tool/test_distro.sh "$IMAGE" "$CHECKSUM" \
             build/deb-ubuntu-qualification --deb build/deb-release
       - name: Test install, launch, helper, upgrade, and purge on Debian 12
         run: |
           checksum="$(cat /tmp/deb-bookworm.img.sha256)"
-          bash tool/test_portable_distro.sh /tmp/deb-bookworm.img "$checksum" \
+          bash tool/test_distro.sh /tmp/deb-bookworm.img "$checksum" \
             build/deb-debian-qualification --deb build/deb-release
       - name: Upload the Debian package, sources, and acceptance evidence
         if: always()

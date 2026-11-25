@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision only the disposable Ubuntu VM created by test_portable_distro.sh.
+# Provision only the disposable Ubuntu VM created by test_distro.sh.
 set -euo pipefail
 virtual_machine="$(systemd-detect-virt --vm || true)"
 if [[ $(id -u) != 0 || ! $virtual_machine =~ ^(qemu|kvm)$ ]]; then
@@ -15,7 +15,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y --no-install-recommends cmake ninja-build g++ pkg-config \
-  libglib2.0-dev libpolkit-gobject-1-dev policykit-1 dbus jq util-linux binutils
+  libglib2.0-dev policykit-1 dbus jq util-linux binutils
 printf 'legion-control-disposable-lifecycle-vm\n' > /etc/legion-control-lifecycle-test-vm
 chmod 644 /etc/legion-control-lifecycle-test-vm
 for user in approved denied challenge; do useradd -m -s /bin/bash "$user"; done
@@ -44,16 +44,16 @@ ResultAny=auth_admin
 ResultInactive=auth_admin
 ResultActive=auth_admin
 EOF
-cmake -S telemetry -B /tmp/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
-  -DBUILD_LEGION_CONTROL_SERVICE=ON -DBUILD_PORTABLE_CONTROL_HELPER=ON
-cmake --build /tmp/native --parallel 2 --target legion_portable_control \
-  package_power_sampler_test control_commands_test graphics_boot_service_test \
-  managed_command_test executable_snapshot_test portable_lifetime_test \
-  portable_peer_test trusted_executable_test portable_cli_test
+cmake -S control -B /tmp/native -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+  -DBUILD_CONTROL_HELPER=ON
+cmake --build /tmp/native --parallel 2 --target legion_control_helper \
+  package_power_sampler_test control_commands_test \
+  managed_command_test executable_snapshot_test helper_lifetime_test \
+  control_peer_test trusted_executable_test helper_cli_test
 cmake -S control/test -B /tmp/fixtures -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build /tmp/fixtures --parallel 2
 install -m755 /tmp/fixtures/legion_cli /usr/local/bin/legion_cli
-install -m755 /tmp/fixtures/legion-portable-test-client /usr/local/bin/legion-portable-test-client
+install -m755 /tmp/fixtures/legion-helper-test-client /usr/local/bin/legion-helper-test-client
 # The direct command fixture deliberately requires an ordinary user. The two
 # ownership checks also run separately as root inside this marked VM.
 chown -R approved:approved /tmp/native
@@ -67,16 +67,16 @@ for check in trusted_executable_test executable_snapshot_test; do
 done
 # Keep the production helper in a user-owned path, as in an extracted AppImage.
 for user in approved denied challenge; do
-  install -m755 /tmp/native/legion-portable-control "/home/$user/legion-portable-control"
-  chown "$user:$user" "/home/$user/legion-portable-control"
+  install -m755 /tmp/native/legion-control-helper "/home/$user/legion-control-helper"
+  chown "$user:$user" "/home/$user/legion-control-helper"
 done
 systemctl restart polkit.service
-bash control/test/portable_distro_test.sh
+bash control/test/distro_test.sh
 mkdir -p /root/qualification
-cp /tmp/native/legion-portable-control /root/qualification/
+cp /tmp/native/legion-control-helper /root/qualification/
 cp LICENSE THIRD_PARTY_NOTICES.md /root/qualification/
-readelf -lW /root/qualification/legion-portable-control > /root/qualification/elf-program-headers.txt
-readelf -dW /root/qualification/legion-portable-control > /root/qualification/elf-dynamic.txt
+readelf -lW /root/qualification/legion-control-helper > /root/qualification/elf-program-headers.txt
+readelf -dW /root/qualification/legion-control-helper > /root/qualification/elf-dynamic.txt
 if grep -E 'RPATH|RUNPATH|/nix/store' /root/qualification/elf-{program-headers,dynamic}.txt; then
   echo 'Distro helper must use host loader paths.' >&2
   exit 1

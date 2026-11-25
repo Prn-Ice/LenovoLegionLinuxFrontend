@@ -2,27 +2,36 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/metric_gauge.dart';
 import '../../../core/widgets/metric_tile.dart';
+import '../../../core/widgets/metric_text.dart';
 import '../../../core/widgets/surface_card.dart';
 import '../../sensors/models/live_sensor_snapshot.dart';
+import '../models/dashboard_metric.dart';
 
-/// Telemetry hero for the dashboard: a row of gauge cards (temperatures + fan
-/// speeds) above a load card with utilisation bars, all from the
-/// shared [LiveSensorSnapshot]. [accent] follows the current power mode.
+/// Dashboard temperatures, fan speeds, and usage from [LiveSensorSnapshot].
 class SensorStrip extends StatelessWidget {
-  const SensorStrip({super.key, required this.snapshot, required this.accent});
+  const SensorStrip({
+    super.key,
+    required this.snapshot,
+    required this.accent,
+    this.hiddenMetrics = const {},
+  });
 
   final LiveSensorSnapshot snapshot;
   final Color accent;
+  final Set<DashboardMetric> hiddenMetrics;
+
+  bool _show(DashboardMetric metric, Object? value) =>
+      value != null && !hiddenMetrics.contains(metric);
 
   static const double _tempCritical = 90;
 
   @override
   Widget build(BuildContext context) {
     final gauges = <Widget>[
-      if (snapshot.cpuTempC != null)
+      if (_show(DashboardMetric.cpuTemperature, snapshot.cpuTempC))
         _GaugeCard(
           value: snapshot.cpuTempC,
-          min: 30,
+          min: 0,
           max: 100,
           label: 'CPU temp',
           unit: '°',
@@ -30,38 +39,54 @@ class SensorStrip extends StatelessWidget {
           accent: accent,
           critical: _tempCritical,
         ),
-      if (snapshot.gpuTempC != null)
+      if (_show(DashboardMetric.igpuTemperature, snapshot.igpu?.tempC))
         _GaugeCard(
-          value: snapshot.gpuTempC,
-          min: 30,
+          value: snapshot.igpu?.tempC,
+          min: 0,
           max: 100,
-          label: snapshot.gpuIsDiscrete ? 'dGPU temp' : 'iGPU temp',
+          label: 'iGPU temp',
           unit: '°',
           fractionDigits: 1,
           accent: accent,
           critical: _tempCritical,
         ),
-      if (snapshot.fan1Rpm != null)
+      if (_show(DashboardMetric.dgpuTemperature, snapshot.dgpu?.tempC))
         _GaugeCard(
-          value: snapshot.fan1Rpm!.toDouble(),
+          value: snapshot.dgpu?.tempC,
           min: 0,
-          max: (snapshot.fan1MaxRpm ?? 6000).toDouble(),
+          max: 100,
+          label: 'dGPU temp',
+          unit: '°',
+          fractionDigits: 1,
+          accent: accent,
+          critical: _tempCritical,
+        ),
+      if (_show(DashboardMetric.cpuFan, snapshot.fan1Rpm))
+        _FanCard(
+          value: snapshot.fan1Rpm!.toDouble(),
+          max: snapshot.fan1MaxRpm,
           label: 'CPU fan (RPM)',
           accent: accent,
         ),
-      if (snapshot.fan2Rpm != null)
-        _GaugeCard(
+      if (_show(DashboardMetric.gpuFan, snapshot.fan2Rpm))
+        _FanCard(
           value: snapshot.fan2Rpm!.toDouble(),
-          min: 0,
-          max: (snapshot.fan2MaxRpm ?? 6000).toDouble(),
+          max: snapshot.fan2MaxRpm,
           label: 'GPU fan (RPM)',
           accent: accent,
         ),
-      if (snapshot.diskTempC != null)
+      if (_show(DashboardMetric.thirdFan, snapshot.fan3Rpm))
+        _FanCard(
+          value: snapshot.fan3Rpm!.toDouble(),
+          max: snapshot.fan3MaxRpm,
+          label: 'Fan 3 (RPM)',
+          accent: accent,
+        ),
+      if (_show(DashboardMetric.diskTemperature, snapshot.diskTempC))
         _GaugeCard(
           value: snapshot.diskTempC,
-          min: 20,
-          max: 90,
+          min: 0,
+          max: 100,
           label: 'Disk temp',
           unit: '°',
           fractionDigits: 1,
@@ -71,26 +96,39 @@ class SensorStrip extends StatelessWidget {
     ];
 
     final tiles = <Widget>[
-      if (snapshot.cpuUtilPercent != null)
-        _tile('CPU load', snapshot.cpuUtilPercent, '%'),
-      if (snapshot.gpuUtilPercent != null)
-        _tile('GPU load', snapshot.gpuUtilPercent, '%'),
-      if (snapshot.gpuVramUsedGb != null && snapshot.gpuVramTotalGb != null)
+      if (_show(DashboardMetric.cpuUsage, snapshot.cpuUtilPercent))
+        _tile('CPU usage', snapshot.cpuUtilPercent, '%'),
+      if (_show(DashboardMetric.igpuUsage, snapshot.igpu?.usagePercent))
+        _tile('iGPU usage', snapshot.igpu?.usagePercent, '%'),
+      if (_show(DashboardMetric.dgpuUsage, snapshot.dgpu?.usagePercent))
+        _tile('dGPU usage', snapshot.dgpu?.usagePercent, '%'),
+      if (_show(DashboardMetric.vram, snapshot.dgpu?.vramUsedGb) &&
+          (snapshot.dgpu?.vramTotalGb ?? 0) > 0)
         MetricTile(
-          label: 'VRAM',
-          value: snapshot.gpuVramUsedGb,
+          label: 'dGPU VRAM',
+          value: snapshot.dgpu?.vramUsedGb,
           min: 0,
-          max: snapshot.gpuVramTotalGb!,
-          unit: ' / ${snapshot.gpuVramTotalGb!.toStringAsFixed(0)} GB',
+          max: snapshot.dgpu!.vramTotalGb!,
+          unit: ' / ${snapshot.dgpu!.vramTotalGb!.toStringAsFixed(0)} GB',
           accent: accent,
           fractionDigits: 1,
         ),
     ];
 
-    if (gauges.isEmpty && tiles.isEmpty) {
+    final secondary = <String>[
+      if (_show(DashboardMetric.systemTemperature, snapshot.motherboardTempC))
+        'System ${snapshot.motherboardTempC!.toStringAsFixed(1)}°C',
+    ];
+    if (gauges.isEmpty && tiles.isEmpty && secondary.isEmpty) {
       return SurfaceCard(
         padding: const EdgeInsets.all(16),
-        child: const Center(child: Text('Sensor data unavailable.')),
+        child: Center(
+          child: Text(
+            hiddenMetrics.isEmpty
+                ? 'Sensor data unavailable.'
+                : 'No readings to show. Choose readings in Settings.',
+          ),
+        ),
       );
     }
 
@@ -99,8 +137,9 @@ class SensorStrip extends StatelessWidget {
       children: [
         if (gauges.isNotEmpty)
           Wrap(spacing: 12, runSpacing: 12, children: gauges),
-        if (gauges.isNotEmpty && tiles.isNotEmpty) const SizedBox(height: 12),
-        if (tiles.isNotEmpty)
+        if (gauges.isNotEmpty && (tiles.isNotEmpty || secondary.isNotEmpty))
+          const SizedBox(height: 12),
+        if (tiles.isNotEmpty || secondary.isNotEmpty)
           SurfaceCard(
             padding: const EdgeInsets.all(18),
             child: Column(
@@ -110,7 +149,29 @@ class SensorStrip extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 7),
                     child: tile,
                   ),
-                _SecondaryLine(snapshot: snapshot),
+                if (secondary.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(top: tiles.isEmpty ? 0 : 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 16,
+                        runSpacing: 4,
+                        children: [
+                          for (final item in secondary)
+                            Text(
+                              item,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -122,8 +183,69 @@ class SensorStrip extends StatelessWidget {
       MetricTile(label: label, value: value, unit: unit, accent: accent);
 }
 
-/// A single gauge card: the radial gauge centered in a bordered surface with
-/// its label below.
+/// Uses a gauge only when firmware reports a positive maximum RPM.
+class _FanCard extends StatelessWidget {
+  const _FanCard({
+    required this.value,
+    required this.max,
+    required this.label,
+    required this.accent,
+  });
+
+  final double value;
+  final int? max;
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final validMax = max != null && max! > 0 ? max!.toDouble() : null;
+    if (validMax != null) {
+      return _GaugeCard(
+        value: value,
+        min: 0,
+        max: validMax,
+        label: label,
+        accent: accent,
+      );
+    }
+
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      key: ValueKey('$label-numeric'),
+      label: '$label: ${value.toStringAsFixed(0)} RPM',
+      child: SizedBox(
+        width: 176,
+        child: SurfaceCard(
+          padding: const EdgeInsets.fromLTRB(16, 38, 16, 34),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: value.toStringAsFixed(0),
+                      style: monoGaugeStyle(116, scheme.onSurface),
+                    ),
+                    TextSpan(text: ' RPM', style: monoUnitStyle(scheme)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GaugeCard extends StatelessWidget {
   const _GaugeCard({
     required this.value,
@@ -168,49 +290,10 @@ class _GaugeCard extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onSurface.withValues(alpha: 0.7),
-              ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurface.withValues(alpha: 0.7)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Compact one-line readout for the lower-priority sensors.
-class _SecondaryLine extends StatelessWidget {
-  const _SecondaryLine({required this.snapshot});
-
-  final LiveSensorSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <String>[];
-    if (snapshot.batteryPercent != null) {
-      final state = snapshot.batteryCharging == true
-          ? 'charging'
-          : 'discharging';
-      final draw = snapshot.batteryPowerDrawW != null
-          ? ' ${snapshot.batteryPowerDrawW!.toStringAsFixed(0)}W'
-          : '';
-      items.add('Battery ${snapshot.batteryPercent}% $state$draw');
-    }
-    if (snapshot.motherboardTempC != null) {
-      items.add('System ${snapshot.motherboardTempC!.toStringAsFixed(1)}°C');
-    }
-    if (items.isEmpty) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          items.join('   ·   '),
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
         ),
       ),
     );

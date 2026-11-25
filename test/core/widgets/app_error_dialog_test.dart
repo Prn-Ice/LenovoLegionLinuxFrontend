@@ -5,7 +5,7 @@ import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/widgets/app_shell_components.dart';
 
 void main() {
-  testWidgets('portable setup recovery avoids installed service instructions', (
+  testWidgets('helper setup explains how to restore access', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(420, 500);
@@ -18,7 +18,7 @@ void main() {
           body: AppErrorDialog(
             message: AppFailure(
               'CLI selection changed',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
               details: 'Canonical CLI mismatch',
             ),
           ),
@@ -140,7 +140,7 @@ void main() {
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
               'The privileged control helper could not start.',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
               details: 'Missing helper executable',
             ),
             child: Text('Page content'),
@@ -175,7 +175,7 @@ void main() {
           body: AppErrorDialogListener(
             errorMessage: AppFailure(
               'The privileged control helper could not start.',
-              kind: AppFailureKind.portableSetup,
+              kind: AppFailureKind.helperSetup,
             ),
             child: Text('Page content'),
           ),

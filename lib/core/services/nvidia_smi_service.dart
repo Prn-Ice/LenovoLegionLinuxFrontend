@@ -1,38 +1,27 @@
 import 'dart:io';
 
-class NvidiaSmiSnapshot {
-  const NvidiaSmiSnapshot({
-    required this.name,
-    required this.utilPercent,
-    required this.clkGhz,
-    required this.tempC,
-    required this.fanPercent,
-    required this.vramUsedGb,
-    required this.vramTotalGb,
-    required this.powerDrawW,
-    this.performanceState,
-  });
-
-  final String? name;
-  final double? utilPercent;
-  final double? clkGhz;
-  final double? tempC;
-  final int? fanPercent;
-  final double? vramUsedGb;
-  final double? vramTotalGb;
-  final double? powerDrawW;
-  final String? performanceState;
-}
+import '../models/gpu_reading.dart';
 
 class NvidiaSmiService {
-  /// Returns null if nvidia-smi is not available or dGPU is not active.
-  Future<NvidiaSmiSnapshot?> readSnapshot() async {
+  NvidiaSmiService({
+    this._pciDevicesPath = '/sys/bus/pci/devices',
+    Future<ProcessResult> Function(String, List<String>)? runProcess,
+  }) : _runProcess = runProcess ?? Process.run;
+
+  final String _pciDevicesPath;
+  final Future<ProcessResult> Function(String, List<String>) _runProcess;
+
+  /// Skip inactive devices before invoking nvidia-smi, which can wake a GPU.
+  Future<GpuReading?> readSnapshot() async {
     try {
-      final result = await Process.run('nvidia-smi', [
+      final address = await _activeDevice();
+      if (address == null) return null;
+      final result = await _runProcess('nvidia-smi', [
+        '--id=$address',
         '--query-gpu=name,utilization.gpu,clocks.gr,temperature.gpu,'
             'fan.speed,memory.used,memory.total,power.draw,pstate',
         '--format=csv,noheader,nounits',
-      ]);
+      ]).timeout(const Duration(seconds: 4));
       if (result.exitCode != 0) return null;
       return parseCsvOutput('${result.stdout}');
     } catch (_) {
@@ -40,7 +29,35 @@ class NvidiaSmiService {
     }
   }
 
-  static NvidiaSmiSnapshot? parseCsvOutput(String output) {
+  Future<String?> _activeDevice() async {
+    final addresses = <String>[];
+    await for (final device in Directory(_pciDevicesPath).list()) {
+      try {
+        final vendor = (await File(
+          '${device.path}/vendor',
+        ).readAsString()).trim();
+        if (vendor != '0x10de') continue;
+        final deviceClass = int.tryParse(
+          (await File('${device.path}/class').readAsString()).trim(),
+        );
+        if (deviceClass == null || deviceClass >> 16 != 0x03) continue;
+        // Count all NVIDIA display devices: ambiguity must not change identity
+        // when one of several devices suspends.
+        addresses.add(device.path);
+      } on FileSystemException {
+        continue;
+      }
+    }
+    if (addresses.length != 1) return null;
+    final path = addresses.single;
+    final runtime = (await File(
+      '$path/power/runtime_status',
+    ).readAsString()).trim();
+    if (runtime != 'active' && runtime != 'unsupported') return null;
+    return path.split('/').last;
+  }
+
+  static GpuReading? parseCsvOutput(String output) {
     final lines = output
         .split(RegExp(r'\r?\n'))
         .map((line) => line.trim())
@@ -49,8 +66,11 @@ class NvidiaSmiService {
     final parts = lines.first.split(',').map((part) => part.trim()).toList();
     if (parts.length != 9) return null;
 
-    double? parseDouble(String value) =>
-        double.tryParse(value.replaceAll('[Not Supported]', '').trim());
+    double? parseDouble(String value) {
+      final number = double.tryParse(value.trim());
+      return number != null && number.isFinite && number >= 0 ? number : null;
+    }
+
     int? parseInt(String value) =>
         int.tryParse(value.replaceAll('[Not Supported]', '').trim());
     String? parseString(String value) {
@@ -62,12 +82,13 @@ class NvidiaSmiService {
     }
 
     final clockMhz = parseDouble(parts[2]);
+    final usage = parseDouble(parts[1]);
     final vramUsedMib = parseDouble(parts[5]);
     final vramTotalMib = parseDouble(parts[6]);
-    return NvidiaSmiSnapshot(
+    return GpuReading(
       name: parseString(parts[0]),
-      utilPercent: parseDouble(parts[1]),
-      clkGhz: clockMhz == null ? null : clockMhz / 1000.0,
+      usagePercent: usage != null && usage <= 100 ? usage : null,
+      clockGhz: clockMhz == null ? null : clockMhz / 1000.0,
       tempC: parseDouble(parts[3]),
       fanPercent: parseInt(parts[4]),
       vramUsedGb: vramUsedMib == null ? null : vramUsedMib / 1024.0,

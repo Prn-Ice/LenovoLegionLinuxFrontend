@@ -15,7 +15,7 @@ assert_disposable_vm() {
 
 persistent_files() {
   local root path value
-  for root in /etc/systemd/system /usr/lib/systemd/system /etc/polkit-1 \
+  for root in /etc/systemd/system /etc/systemd/system.attached /usr/lib/systemd/system /etc/polkit-1 \
     /usr/share/polkit-1/actions /etc/dbus-1/system.d /usr/share/dbus-1/system.d /etc/udev/rules.d; do
     [[ -d $root ]] || continue
     while IFS= read -r -d '' path; do

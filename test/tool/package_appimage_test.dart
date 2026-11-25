@@ -1,3 +1,6 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -45,10 +48,10 @@ void main() {
       '#!/bin/sh\nprintf \'%s\\n\' "\$@" "\$LD_LIBRARY_PATH"\n',
     );
     await Process.run('chmod', ['755', '${bundle.path}/legion_frontend']);
-    write('${bundle.path}/libexec/legion-portable-control', 'helper');
+    write('${bundle.path}/libexec/legion-control-helper', 'helper');
     await Process.run('chmod', [
       '755',
-      '${bundle.path}/libexec/legion-portable-control',
+      '${bundle.path}/libexec/legion-control-helper',
     ]);
     write(
       '${bundle.path}/libexec/legion-telemetry-service',
@@ -97,7 +100,7 @@ void main() {
     await stageAppDir(root, bundle, appdir, runtimeInputs: inputs);
     final base = '${appdir.path}/usr/lib/legion_frontend';
     expect(
-      File('$base/libexec/legion-portable-control').readAsStringSync(),
+      File('$base/libexec/legion-control-helper').readAsStringSync(),
       'helper',
     );
     expect(
@@ -206,8 +209,8 @@ void main() {
     },
   );
 
-  test('rejects a bundle without the portable helper', () async {
-    File('${bundle.path}/libexec/legion-portable-control').deleteSync();
+  test('rejects a bundle without the app helper', () async {
+    File('${bundle.path}/libexec/legion-control-helper').deleteSync();
     await expectLater(
       stageAppDir(
         root,
@@ -222,7 +225,7 @@ void main() {
   test('rejects a non-executable helper', () async {
     await Process.run('chmod', [
       '644',
-      '${bundle.path}/libexec/legion-portable-control',
+      '${bundle.path}/libexec/legion-control-helper',
     ]);
     await expectLater(
       stageAppDir(

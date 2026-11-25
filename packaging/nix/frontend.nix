@@ -8,7 +8,6 @@
   autoPatchelfHook,
   gtk3,
   glib,
-  polkit,
   libthai,
   fribidi,
   libglvnd,
@@ -30,7 +29,6 @@ in
       ../../assets
       ../../linux
       ../../control
-      ../../telemetry
       ../../packaging
       ../../tool
       ../../pubspec.yaml
@@ -55,7 +53,6 @@ in
   buildInputs = [
     gtk3
     glib
-    polkit
     libthai
     fribidi
     jdk17
@@ -91,9 +88,6 @@ in
   '';
   postInstall = ''
     bundle="$out/app/$pname"
-    rm -rf "$bundle/lib/systemd" "$bundle/lib/sysusers.d" \
-      "$bundle/share/dbus-1" "$bundle/share/polkit-1"
-    rm -f "$bundle/libexec/legion-telemetry-service"
     install -Dm644 packaging/appimage/${applicationId}.desktop \
       "$out/share/applications/${applicationId}.desktop"
     install -Dm644 packaging/appimage/${applicationId}.metainfo.xml \

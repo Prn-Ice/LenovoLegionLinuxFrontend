@@ -3,8 +3,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'git_environment.dart';
 import 'packaging_files.dart';
 import 'packaging_versions.dart';
+import 'package_test_results.dart'
+    show passedAppImageChecks, passedDebianChecks;
+
+export 'package_test_results.dart'
+    show passedAppImageChecks, passedDebianChecks;
 
 enum ReleaseCommand { checkTag, prepare, publish }
 
@@ -20,11 +26,8 @@ enum ReleaseSection {
   final String heading;
 }
 
-const qualifiedAppImage =
-    'FUSE, extraction, desktop launch, and synthetic helper control verified';
-const qualifiedDeb = 'install, desktop, helper, upgrade, and purge verified';
 const releaseHelperPath =
-    'usr/lib/legion_frontend/libexec/legion-portable-control';
+    'usr/lib/legion_frontend/libexec/legion-control-helper';
 const debianChecks = {
   'installation',
   'desktop',
@@ -248,8 +251,11 @@ void archiveEvidence(File output, Map<String, File> files) {
   }
 }
 
-String releaseGit(Directory root, List<String> arguments) =>
-    packagingCommand('git', ['-C', root.path, ...arguments]).trim();
+String releaseGit(Directory root, List<String> arguments) => packagingCommand(
+  'git',
+  ['-C', root.path, ...arguments],
+  environment: gitRepositoryEnvironment(),
+).trim();
 
 String releaseNotes(Directory root, String tag) {
   if (releaseGit(root, ['rev-parse', '--is-shallow-repository']) == 'true') {
@@ -382,7 +388,7 @@ void validateAppImageRuntime(Map manifest, Map sources, Map archived) {
   final size = cleanup['size'] as num? ?? 0;
   if (size <= 0 ||
       size >= 64 * 1024 ||
-      sources['release_inputs']['./native/portable-cleanup.elf']?['sha256'] !=
+      sources['release_inputs']['./native/helper-cleanup.elf']?['sha256'] !=
           cleanup['sha256']) {
     throw StateError('The source companion lacks the bounded cleanup ELF.');
   }
@@ -455,7 +461,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
   for (final name in [
     './legion_frontend',
     './lib/libapp.so',
-    './libexec/legion-portable-control',
+    './libexec/legion-control-helper',
   ]) {
     if (manifest['bundle'][name]?['type'] != 'file') {
       throw StateError('The Debian bundle lacks $name.');
@@ -463,7 +469,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
   }
   verifyDebianHelper(
     File('${directory.path}/$package'),
-    manifest['bundle']['./libexec/legion-portable-control'] as Map,
+    manifest['bundle']['./libexec/legion-control-helper'] as Map,
   );
   for (final distribution in {
     'ubuntu': ['ID=ubuntu', 'VERSION_ID="22.04"'],
@@ -474,7 +480,7 @@ List<String> prepareDebian(Map release, Directory inputs, Directory output) {
     final qa = readReleaseJson(File('${qaDirectory.path}/manifest.json'));
     if (qa['commit'] != release['commit'] ||
         qa['source_worktree_modified'] != false ||
-        qa['deb'] != qualifiedDeb) {
+        qa['deb'] != passedDebianChecks) {
       throw StateError('Debian package acceptance is incomplete for $label.');
     }
     const expected = {'native-source.tar.gz', 'deb-qualification.tar.gz'};
@@ -564,7 +570,7 @@ Map<String, Object> prepareRelease(
       sources['inputs']['commit'] != release['commit'] ||
       sources['build_config']['portable_control'] != true) {
     throw StateError(
-      'The source companion does not describe this portable build.',
+      'The source companion does not describe this AppImage build.',
     );
   }
   const bundlePrefix = './usr/lib/legion_frontend';
@@ -582,7 +588,7 @@ Map<String, Object> prepareRelease(
   for (final path in [
     './legion_frontend',
     './lib/libapp.so',
-    './libexec/legion-portable-control',
+    './libexec/legion-control-helper',
   ]) {
     if ((shipped[path] as Map?)?['type'] != 'file') {
       throw StateError('The shipped bundle lacks $path.');
@@ -591,7 +597,7 @@ Map<String, Object> prepareRelease(
   verifyAppImageHelper(
     File('${directory.path}/$image'),
     manifest['runtime_size'],
-    shipped['./libexec/legion-portable-control'] as Map,
+    shipped['./libexec/legion-control-helper'] as Map,
   );
   if (sources['build_config']['static_portable_helper'] == true &&
       !manifest.containsKey('native_runtime')) {
@@ -616,7 +622,7 @@ Map<String, Object> prepareRelease(
       'VM qualification used a different or modified source checkout.',
     );
   }
-  if (qa['appimage'] != qualifiedAppImage) {
+  if (qa['appimage'] != passedAppImageChecks) {
     throw StateError('AppImage VM acceptance has not passed.');
   }
   final qaFiles = {

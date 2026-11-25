@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+unset $(git rev-parse --local-env-vars)
+tests=()
+release=false
+while read -r ref _ _ _; do
+  if [[ "$ref" == refs/tags/* ]]; then release=true; fi
+done
+# Include local edits because the checks run in this worktree, not a clone.
+if [[ "$release" == false ]] && base=$(git merge-base HEAD origin/main); then
+  selection=$(bash tool/ci_build_changes.sh --base "$base" --worktree)
+  if grep -qx 'tooling=false' <<<"$selection"; then
+    tests=(--exclude-tags tooling)
+    echo 'No tooling inputs changed; skipping tooling tests.'
+  fi
+fi
+flutter pub get --enforce-lockfile
+dart run build_runner build
+git diff --exit-code -- lib
+flutter analyze
+flutter test --no-pub --concurrency=1 --reporter=expanded "${tests[@]}"

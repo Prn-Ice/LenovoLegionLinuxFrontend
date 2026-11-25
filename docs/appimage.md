@@ -21,10 +21,14 @@ extracts and caches the AppImage in its usual compatibility environment. The
 app resolves fixed host CLI locations for unprivileged reads. The host root
 helper independently validates the CLI before privileged execution, and the
 app requires both paths to match. The host system bus reports the helper's
-actual UID and PID, which are checked against systemd, a pinned process handle,
-and the socket's PID before authentication. Namespace-visible `nobody` ownership
-is never accepted as root evidence. This uses no project launcher or patched
+actual UID and PID, and the client checks both against systemd, a pinned process
+handle, and the socket's PID before authentication. It never accepts
+namespace-visible `nobody` ownership as root evidence. This uses no project launcher or patched
 executables. The [native Nix package](nix.md) is also available.
+
+For a container-free local image built from this repository's flake, see
+[the Nix guide](nix.md#local-appimage). That image is for testing and does not
+replace this release flow.
 
 Build the desktop app and privileged control helper together on Ubuntu 22.04.
 The AppImage contains Flutter, GTK, GLib, Pango, font rendering libraries, image loaders,
@@ -48,8 +52,27 @@ Systemd and the host Polkit service still authorize startup.
 Hardware access requires the installed driver and administrator-controlled
 `legion_cli`, systemd, Polkit, and a desktop authentication agent. The app uses
 the bundled privileged control helper from its first launch. The first privileged
-action requests approval; closing the app ends the helper session. Persistent service
-management and next-boot graphics changes are unavailable through the helper.
+action requests approval; closing the app ends the helper session.
+
+### Integrated graphics only
+
+On supported laptops, open **GPU** and choose **Set up iGPU-only at
+startup**. Approve the admin prompt, choose **Integrated graphics only**, then
+restart. This requires a host `legion_cli` with `graphics-mode boot-support`,
+system-wide `lsof`, and working NVIDIA runtime power management. The startup
+command uses the installed CLI, so moving or replacing the AppImage keeps boot
+support available. [Driver CLI with boot support](https://github.com/Prn-Ice/LenovoLegionLinux/commit/3492884b83c4fb626cba4e4ddc32b3ef3dcc5f70)
+
+Choose **Remove boot support** on the same page to undo the AppImage setup. If
+you deleted the AppImage, run:
+
+```bash
+sudo legion_cli graphics-mode boot-support disable
+```
+
+Removing the last source of boot support cancels a pending switch. To return
+to Hybrid after iGPU-only has taken effect, choose Hybrid in the app or run
+`sudo legion_cli graphics-mode set hybrid`.
 
 This is a qualification build. Desktop password dialogs, actual CLI package
 dependencies, hardware readback, and other distributions need separate testing.
@@ -72,8 +95,8 @@ exit status still need an explicit record for the final candidate.
 Wayland startup still reports `Unable to load  from the cursor theme`.
 Flutter 3.50 initializes its cursor name to an empty string before GTK realizes
 the view. Track the upstream fix in
-`lllf-dt0.5.10.1`. Keep the standard launch command; no cursor shim or log filter
-is included.
+`lllf-dt0.5.10.1`. Keep the standard launch command; the package includes no
+cursor shim or log filter.
 
 ## Build
 
@@ -107,12 +130,13 @@ static helper archive. `release-inputs/native/native-runtime.json` records binar
 and source package versions and archive hashes. Each `.dsc` and its companion
 archives retain the distro patches and build recipes. Copyright notices and
 license texts ship in the app. `REBUILD.md` explains modifying and relinking the
-helper. The SDK archive is identified by URL and hash and obtained separately.
+helper. The manifest identifies the SDK archive by URL and hash; download it
+separately.
 
 The AppDir reuses the project icon and app identifier. It contains desktop and
 AppStream metadata, Flutter notices, project and font/native licenses, and runtime
-licenses. Installed service units, D-Bus policies, and Polkit actions are removed
-from the AppDir. Running it installs no persistent integration files.
+licenses. Packaging removes installed service units, D-Bus policies, and Polkit
+actions from the AppDir. Running it installs no persistent integration files.
 
 AppRun selects the bundled desktop libraries, schemas, fonts, and GIO modules.
 It starts in the AppDir so bundled Fontconfig 2.13 can resolve `usr/share/fonts`.
@@ -128,8 +152,8 @@ any dynamic interpreter, shared dependency, RPATH, or RUNPATH in the static help
 Dolphin's file preview and Plasma's running-app icon use different lookups.
 The AppImage includes a PNG `.DirIcon` for file previews. KDE's installed
 AppImage thumbnail plugin successfully decoded the original official 3.50
-image and the user's Inkscape comparison image. The reported missing Dolphin
-preview is not yet reproduced by that plugin; the running-app fix below does
+image and the user's Inkscape comparison image. That plugin did not reproduce
+the reported missing Dolphin preview; the running-app fix below does
 not establish a fix for the file-manager display.
 
 Use the standard launch command above. Plasma can read an AppImage's bundled
@@ -142,18 +166,18 @@ icon name for a file extension. A short root icon name avoids that lookup error.
 The desktop filename, native application ID, and installed-package icon name
 remain `io.github.prnice.legion_linux_frontend`. The Legion artwork is unchanged.
 
-The icon lookup was checked with Plasma's actual task-manager library and the
+We checked the icon lookup with Plasma's actual task-manager library and the
 standard NixOS runner, without host desktop registration. Sway rendering and
 X11 `_NET_WM_ICON` checks do not prove the visible KDE taskbar result. Track that
 remaining desktop check in `lllf-dt0.5.18`.
 
 ## Test the artifact
 
-Use the [Ubuntu VM runner](architecture/portable-distro-qualification.md) with the
+Use the [Ubuntu VM runner](architecture/control-helper-tests.md) with the
 additional release directory:
 
 ```bash
-bash tool/test_portable_distro.sh /tmp/jammy.img "$checksum" \
+bash tool/test_distro.sh /tmp/jammy.img "$checksum" \
   build/appimage-qualification --appimage build/appimage-release
 ```
 
@@ -164,7 +188,7 @@ Paths contain spaces. The acceptance guest has no GTK, JVM, or installed Legion
 service. Both normal launches must display the Dashboard and map GTK, GLib,
 and Pango from the AppImage. The tests press the X button and require exit status
 zero. They retain screenshots, logs, and desktop memory maps. The helper must
-load no shared libraries; the bundled directory command is also checked.
+load no shared libraries; the test also checks the bundled directory command.
 The VM uses QEMU's host CPU profile with KVM, or the named 64-bit `Nehalem`
 profile with software emulation. Mesa's LLVM can misidentify the generic `max`
 profile as a 32-bit AMD processor. The evidence records the selected profile and
@@ -183,16 +207,16 @@ This separate NixOS VM launches the actual app through official `appimage-run`.
 It uses the helper on first launch and changes and restores a synthetic setting
 on the Battery page. It checks private GTK libraries,
 the runner's user namespace, static helper execution, cleanup, denied approval,
-and a missing authentication agent. Fixed-location CLI discovery is also tested
-inside the runner. The synthetic CLI and kernel files exist only in the VM;
-real hardware is not involved. CI runs both VM checks and keeps their
+and a missing authentication agent. It also tests fixed-location CLI discovery
+inside the runner. The synthetic CLI and kernel files exist only in the VM, and
+the test touches no real hardware. CI runs both VM checks and keeps their
 evidence. Tag-release preparation requires both checks for this bundled format
 and verifies that they tested the same AppImage hash and source commit.
 
 ## Known shutdown issue
 
 Historical official-SDK packages intermittently crashed on normal close in
-NixOS and Ubuntu VMs. The native cleanup experiment was reverted; newer passing
+NixOS and Ubuntu VMs. We reverted the native cleanup experiment; newer passing
 acceptance does not establish a crash fix. On 17 November, the user deferred
 further investigation unless a concrete cause and simple supported fix become
 available. See the [shutdown evidence and stop condition](linux-shutdown.md).
@@ -244,7 +268,7 @@ libraries accompany the app source. The runtime build recipe and libfuse patch
 remain in the upstream source archive. Upstream provides no complete manifest
 of the binary's Alpine package revisions; those revisions remain unverified.
 
-The type-2 image is assembled from that runtime and a SquashFS payload using
-Ubuntu's `mksquashfs`. See the [AppImage format](https://docs.appimage.org/reference/architecture.html),
+The build assembles the type-2 image from that runtime and a SquashFS payload
+using Ubuntu's `mksquashfs`. See the [AppImage format](https://docs.appimage.org/reference/architecture.html),
 [AppDir specification](https://docs.appimage.org/reference/appdir.html), and
 [runtime build sources](https://github.com/AppImage/type2-runtime/tree/20251108).

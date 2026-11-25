@@ -4,12 +4,13 @@ import 'package:hive_ce/hive.dart';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../services/legion_cli_service.dart';
-import '../services/portable_legion_control_transport.dart';
+import '../services/helper_control_transport.dart';
 import '../services/native_host_cli_resolver.dart';
 import '../services/legion_control_client.dart';
 import '../services/legion_frontend_bridge_service.dart';
 import '../services/legion_sysfs_service.dart';
 import '../services/nvidia_smi_service.dart';
+import '../services/igpu_sysfs_service.dart';
 import '../services/package_power_telemetry_service.dart';
 import '../services/power_profile_service.dart';
 import '../services/xrandr_service.dart';
@@ -23,7 +24,7 @@ final controlTransportFactoryProvider = Provider<ControlTransportFactory>((
   ref,
 ) {
   return (resolveCliPath) =>
-      PortableLegionControlTransport(resolveCliPath: resolveCliPath);
+      HelperControlTransport(resolveCliPath: resolveCliPath);
 });
 final legionSysfsServiceProvider = Provider<LegionSysfsService>(
   (ref) => LegionSysfsService(),
@@ -37,6 +38,10 @@ final legionCliServiceProvider = Provider<LegionCliService>((ref) {
 
 final nvidiaSmiServiceProvider = Provider<NvidiaSmiService>(
   (ref) => NvidiaSmiService(),
+);
+
+final igpuSysfsServiceProvider = Provider<IgpuSysfsService>(
+  (ref) => const IgpuSysfsService(),
 );
 
 final legionBridgeServiceProvider = Provider<LegionFrontendBridgeService>((
@@ -71,7 +76,7 @@ final powerProfileServiceProvider = Provider<PowerProfileService>((ref) {
 
 final packagePowerTelemetryClientProvider =
     Provider<PackagePowerTelemetryClient>((ref) {
-      final client = DBusPackagePowerTelemetryClient();
+      final client = SessionPackagePowerClient();
       ref.onDispose(() => unawaited(client.close()));
       return client;
     });

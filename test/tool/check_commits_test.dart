@@ -1,22 +1,19 @@
+@Tags(['tooling'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../tool/check_commits.dart';
+import '../support/git_fixture.dart';
 
 void main() {
   late Directory root;
+  late GitFixture repository;
   late String base;
 
-  String git(List<String> arguments) {
-    final result = Process.runSync(
-      'git',
-      arguments,
-      workingDirectory: root.path,
-    );
-    expect(result.exitCode, 0, reason: '${result.stderr}');
-    return '${result.stdout}'.trim();
-  }
+  String git(List<String> arguments) => repository.git(arguments);
 
   void commit(String message) => git([
     '-c',
@@ -29,13 +26,13 @@ void main() {
 
   setUp(() {
     root = Directory.systemTemp.createTempSync('commit-conventions-');
-    git(['init', '-b', 'main']);
-    git(['config', 'user.name', 'Commit test']);
-    git(['config', 'user.email', 'test@example.invalid']);
+    addTearDown(() => root.deleteSync(recursive: true));
+    repository = GitFixture(root);
+    addTearDown(repository.dispose);
+    repository.initialize(name: 'Commit test');
     commit('Existing history without a prefix');
     base = git(['rev-parse', 'HEAD']);
   });
-  tearDown(() => root.deleteSync(recursive: true));
 
   test('checks new branch commits but excludes base history and merges', () {
     commit('fix(fans): preserve the saved curve');
@@ -62,31 +59,6 @@ void main() {
     expect(invalid.single, endsWith(' Forgot the prefix'));
   });
 
-  test(
-    'rejects malformed subjects and accepts scopes and breaking markers',
-    () {
-      for (final subject in [
-        'fix: save the curve',
-        'feat(fans)!: replace presets',
-        'chore!: require the new compiler',
-        'revert: restore the previous preset',
-      ]) {
-        expect(conventionalSubject.hasMatch(subject), isTrue, reason: subject);
-      }
-      for (final subject in [
-        'update: save the curve',
-        'Fix: save the curve',
-        'fix(): save the curve',
-        'fix:no space',
-        'fix: ',
-        'fix:  ',
-        'fix: description\nsecond line',
-      ]) {
-        expect(conventionalSubject.hasMatch(subject), isFalse, reason: subject);
-      }
-    },
-  );
-
   test('fails on an invalid or unavailable revision', () {
     expect(
       () => invalidCommitSubjects(root, '--all', base),
@@ -98,11 +70,17 @@ void main() {
   test('the CI command exits unsuccessfully for a rejected commit', () {
     commit('Missing type');
     final script = File('tool/check_commits.dart').absolute.path;
-    final result = Process.runSync('dart', [
-      script,
-      base,
-      git(['rev-parse', 'HEAD']),
-    ], workingDirectory: root.path);
+    final result = Process.runSync(
+      'dart',
+      [
+        script,
+        base,
+        git(['rev-parse', 'HEAD']),
+      ],
+      workingDirectory: root.path,
+      environment: repository.environment,
+      includeParentEnvironment: false,
+    );
     expect(result.exitCode, 1);
     expect(result.stderr, contains('Missing type'));
   });

@@ -17,4 +17,4 @@ enum class CliAccess { privileged, readOnly };
 // helper independently validates the same selected path before any writes.
 std::string FindHostLegionCli(std::string *error,
                               CliAccess access = CliAccess::privileged);
-} // namespace legion_control
+}  // namespace legion_control

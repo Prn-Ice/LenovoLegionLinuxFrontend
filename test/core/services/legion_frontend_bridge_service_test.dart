@@ -297,7 +297,7 @@ void main() {
           isA<LegionBridgeException>().having(
             (error) => error.code,
             'code',
-            LegionBridgeErrorCode.portableSetup,
+            LegionBridgeErrorCode.helperSetup,
           ),
         ),
       );
@@ -327,7 +327,7 @@ void main() {
   test('maps control errors to bridge error codes', () async {
     final cases = <Object, LegionBridgeErrorCode>{
       const LegionControlSetupException('setup'):
-          LegionBridgeErrorCode.portableSetup,
+          LegionBridgeErrorCode.helperSetup,
       const LegionControlUnavailableException('unavailable'):
           LegionBridgeErrorCode.unavailable,
       const LegionControlNotSupportedException('unsupported'):
@@ -407,6 +407,97 @@ void main() {
       final bridge = LegionFrontendBridgeService(cliService: cli);
       await expectLater(
         bridge.runCommand(method: 'diagnostic', args: const ['status']),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.commandFailed,
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'maps generic CLI unavailable exits to the typed bridge error',
+    () async {
+      final cli = _MockCliService();
+      when(() => cli.runCommand(any())).thenAnswer(
+        (_) async => const LegionCliResult(
+          exitCode: 2,
+          stdout: '',
+          stderr: 'capability unavailable',
+        ),
+      );
+      final bridge = LegionFrontendBridgeService(cliService: cli);
+
+      await expectLater(
+        bridge.runCommand(method: 'toggle', args: const ['on']),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.unavailable,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('maps generic CLI feature-not-found exits to unavailable', () async {
+    final cli = _MockCliService();
+    when(() => cli.runCommand(any())).thenAnswer(
+      (_) async => const LegionCliResult(
+        exitCode: 3,
+        stdout: '',
+        stderr: 'feature not found',
+      ),
+    );
+    final bridge = LegionFrontendBridgeService(cliService: cli);
+
+    await expectLater(
+      bridge.runCommand(method: 'toggle', args: const ['on']),
+      throwsA(
+        isA<LegionBridgeException>().having(
+          (error) => error.code,
+          'code',
+          LegionBridgeErrorCode.unavailable,
+        ),
+      ),
+    );
+  });
+
+  test(
+    'keeps graphics exit classifications scoped to graphics commands',
+    () async {
+      final cli = _MockCliService();
+      when(() => cli.runCommand(any())).thenAnswer(
+        (_) async => const LegionCliResult(exitCode: 2, stdout: '', stderr: ''),
+      );
+      final bridge = LegionFrontendBridgeService(cliService: cli);
+
+      await expectLater(
+        bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status', '--json'],
+        ),
+        throwsA(
+          isA<LegionBridgeException>().having(
+            (error) => error.code,
+            'code',
+            LegionBridgeErrorCode.graphicsBlocked,
+          ),
+        ),
+      );
+
+      when(() => cli.runCommand(any())).thenAnswer(
+        (_) async => const LegionCliResult(exitCode: 1, stdout: '', stderr: ''),
+      );
+      await expectLater(
+        bridge.runCommand(
+          method: 'graphics_mode.status',
+          args: const ['graphics-mode', 'status', '--json'],
+        ),
         throwsA(
           isA<LegionBridgeException>().having(
             (error) => error.code,

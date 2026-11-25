@@ -46,7 +46,10 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
   versions in [docs/dependencies.md](docs/dependencies.md).
 - Say what things are and what we use them for, in ordinary language. For data,
   say where it came from and why we chose it. Apply this to comments, docs, UI
-  copy, and handoffs. See the writing examples in the project code patterns.
+  copy, and handoffs. Describe what the code does now in positive terms; keep
+  old names, rejected approaches, and audit disclaimers out of code comments
+  (record them in Beads or PR notes). See the writing examples in the project
+  code patterns.
 - Separate what changed, what was tested, and what remains unverified.
 
 ## Standard workflows and simple solutions
@@ -73,6 +76,7 @@ this Linux hardware frontend; Ester's product and deployment rules do not apply.
 
 ## Writing standard
 
+- Start with what the user does and what they’ll see. Explain the technical reason in plain language. Let them ask for deeper detail.
 - **Use [Writing Clearly and Concisely](.agents/skills/writing-clearly-and-concisely/SKILL.md) for all prose.** Read the skill before writing, editing, or reviewing comments, documentation, UI copy, error messages, test descriptions, commit and PR text, reports, or agent messages.
 - **One prose-style authority.** The writing skill takes precedence over style advice in other skills, guides, plans, and examples. Preserve product facts, terminology, accessibility, behavior, and approved decisions from those sources.
 - **Preserve meaning and voice.** Match the product's audience. Use the skill's [confirmed samples](.agents/skills/writing-clearly-and-concisely/references/prince-voice.md) when drafting in Prince's voice; keep personal anecdotes and phone facts out of unrelated copy.

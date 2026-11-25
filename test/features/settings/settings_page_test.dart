@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/features/dashboard/models/dashboard_metric.dart';
+import 'package:legion_frontend/features/dashboard/providers/dashboard_readings_provider.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
 import 'package:legion_frontend/features/about/providers/about_provider.dart';
 import 'package:legion_frontend/features/boot_logo/models/boot_logo_snapshot.dart';
@@ -53,9 +55,12 @@ void main() {
     'win key',
     'win key unavailable',
     'appearance',
+    'dashboard readings',
   ]) {
     testWidgets('Settings $scenario uses the current provider', (tester) async {
-      if (scenario == 'appearance' || scenario == 'boot logo') {
+      if (scenario == 'appearance' ||
+          scenario == 'boot logo' ||
+          scenario == 'dashboard readings') {
         tester.view.physicalSize = const Size(420, 500);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
@@ -76,7 +81,7 @@ void main() {
       when(() => boot.enableBootLogo('/tmp/logo.png')).thenThrow(
         const BootLogoRepositoryException(
           'Could not apply boot logo',
-          kind: AppFailureKind.portableSetup,
+          kind: AppFailureKind.helperSetup,
           details: 'Test helper unavailable',
         ),
       );
@@ -161,7 +166,39 @@ void main() {
       ]) {
         expect(find.text(label), findsWidgets);
       }
-      if (scenario == 'appearance') {
+      if (scenario == 'dashboard readings') {
+        expect(find.text('Battery'), findsNothing);
+        expect(
+          container.read(dashboardReadingsProvider).hidden,
+          contains(DashboardMetric.systemTemperature),
+        );
+        await tester.ensureVisible(find.text('System temperature'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('System temperature'));
+        await tester.pumpAndSettle();
+        expect(
+          container.read(dashboardReadingsProvider).hidden,
+          isNot(contains(DashboardMetric.systemTemperature)),
+        );
+        for (final metric in [
+          DashboardMetric.igpuUsage,
+          DashboardMetric.dgpuUsage,
+        ]) {
+          await tester.ensureVisible(find.text(metric.label));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(metric.label));
+          await tester.pumpAndSettle();
+          expect(
+            container.read(dashboardReadingsProvider).hidden,
+            contains(metric),
+          );
+        }
+        expect(
+          container.read(dashboardReadingsProvider).hidden,
+          isNot(contains(DashboardMetric.cpuUsage)),
+        );
+        expect(tester.takeException(), isNull);
+      } else if (scenario == 'appearance') {
         expect(find.text('Accent follows power mode'), findsOneWidget);
         await tester.tap(find.text('Dark'));
         await tester.pumpAndSettle();
@@ -208,7 +245,7 @@ void main() {
         expect(find.text('Administrator access needs setup'), findsOneWidget);
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.kind,
-          AppFailureKind.portableSetup,
+          AppFailureKind.helperSetup,
         );
         expect(
           container.read(bootLogoBlocProvider).errorMessage?.details,

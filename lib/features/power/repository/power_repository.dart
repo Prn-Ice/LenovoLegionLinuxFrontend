@@ -12,6 +12,28 @@ class PowerRepositoryException extends AppFailure {
   const PowerRepositoryException(super.message, {super.kind, super.details});
 }
 
+class PowerLimitReadbackException extends PowerRepositoryException {
+  PowerLimitReadbackException({
+    required this.limit,
+    required this.requested,
+    this.actual,
+  }) : super(
+         actual == null
+             ? 'Could not verify ${limit.label} after requesting '
+                   '$requested ${limit.unit}; the actual value is unavailable. '
+                   'The change may have been applied. Refresh the power page '
+                   'before retrying.'
+             : '${limit.label} did not accept $requested ${limit.unit}; '
+                   'hardware reports $actual ${limit.unit}. The firmware may '
+                   'have clamped or ignored the request. Refresh the power '
+                   'page, then retry with a value within the app input limits.',
+       );
+
+  final PowerLimitSpec limit;
+  final int requested;
+  final int? actual;
+}
+
 class PowerRepository extends PrivilegedRepository {
   const PowerRepository({
     required this._sysfsService,
@@ -48,8 +70,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_shortterm',
       label: 'CPU boost (PL2)',
-      feature: ControlFeature
-          .cpuShorttermPowerLimit, // legion_linux/legion.py:CPUShorttermPowerLimit
+      feature: ControlFeature.cpuShorttermPowerLimit, // legion_linux/legion.py:CPUShorttermPowerLimit
       sysfsAttribute: 'cpu_shortterm_powerlimit',
       min: 5,
       max: 200,
@@ -66,8 +87,7 @@ class PowerRepository extends PrivilegedRepository {
     PowerLimitSpec(
       id: 'cpu_cross_loading',
       label: 'CPU Cross Loading Power Limit',
-      feature: ControlFeature
-          .cpuCrossLoadingPowerLimit, // legion_linux/legion.py:CPUCrossLoadingPowerLimit
+      feature: ControlFeature.cpuCrossLoadingPowerLimit, // legion_linux/legion.py:CPUCrossLoadingPowerLimit
       sysfsAttribute: 'cpu_cross_loading_powerlimit',
       min: 0,
       max: 100,
@@ -150,7 +170,7 @@ class PowerRepository extends PrivilegedRepository {
     final onPowerSupply = await _sysfsService.readOnPowerSupplyMode();
     final daemonSnapshot = await _powerProfileService.loadDaemonSnapshot();
     final cpuPolicy = await _sysfsService.readCpuPolicySnapshot();
-    final hardwareDefaults = await _loadHardwareDefaults();
+    final references = await _loadReferences();
 
     final hardwareProfiles = choicesRaw.isEmpty
         ? daemonSnapshot == null
@@ -184,12 +204,14 @@ class PowerRepository extends PrivilegedRepository {
     final powerLimits = <PowerLimitReading>[];
     for (final spec in allPowerLimits) {
       final value = await _sysfsService.readLegionIntFile(spec.sysfsAttribute);
-      if (value != null && value >= spec.effectiveMin && value <= spec.max) {
+      // App bounds validate requests, not hardware readback. Keep every
+      // nonnegative value so clamping remains visible to the user.
+      if (value != null && value >= 0) {
         powerLimits.add(
           PowerLimitReading(
             spec: spec,
             value: value,
-            hardwareDefault: hardwareDefaults[spec.id],
+            reference: references[spec.id],
           ),
         );
       }
@@ -242,6 +264,7 @@ class PowerRepository extends PrivilegedRepository {
       method: 'feature.set',
       failurePrefix: 'Failed to set ${limit.label}',
     );
+    await _verifyReadback(limit, value);
   }
 
   Future<void> setPowerLimits(List<PowerLimitReading> readings) async {
@@ -283,6 +306,7 @@ class PowerRepository extends PrivilegedRepository {
           failurePrefix: 'Failed to set ${reading.spec.label}',
         );
         applied.add(reading);
+        await _verifyReadback(reading.spec, reading.value);
       }
     } catch (error) {
       final rollbackFailures = <String>[];
@@ -300,8 +324,9 @@ class PowerRepository extends PrivilegedRepository {
             method: 'feature.set',
             failurePrefix: 'Failed to restore ${reading.spec.label}',
           );
-        } catch (_) {
-          rollbackFailures.add(reading.spec.label);
+          await _verifyReadback(reading.spec, originals[reading.spec.id]!);
+        } catch (rollbackError) {
+          rollbackFailures.add('${reading.spec.label}: $rollbackError');
         }
       }
       if (rollbackFailures.isNotEmpty) {
@@ -313,6 +338,17 @@ class PowerRepository extends PrivilegedRepository {
         );
       }
       rethrow;
+    }
+  }
+
+  Future<void> _verifyReadback(PowerLimitSpec limit, int requested) async {
+    final actual = await _sysfsService.readLegionIntFile(limit.sysfsAttribute);
+    if (actual != requested) {
+      throw PowerLimitReadbackException(
+        limit: limit,
+        requested: requested,
+        actual: actual,
+      );
     }
   }
 
@@ -330,7 +366,7 @@ class PowerRepository extends PrivilegedRepository {
     }
   }
 
-  Future<Map<String, int>> _loadHardwareDefaults() async {
+  Future<Map<String, int>> _loadReferences() async {
     final identity = await Future.wait([
       _sysfsService.readDeviceProductName(),
       _sysfsService.readBiosVersion(),

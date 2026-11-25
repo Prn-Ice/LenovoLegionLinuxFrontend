@@ -12,6 +12,7 @@ services.
 - GLib/GIO development files for native service tests
 - Polkit development files for the bundled helper and control-service tests
 - Bash, GNU coreutils, and jq for tooling tests and packaging scripts
+- Git and OpenSSH (`ssh-keygen`) for isolated Git fixtures
 - `dpkg-deb` and SquashFS tools for package-payload tests
 
 Linux builds include the privileged control helper. Nix development builds also
@@ -21,7 +22,7 @@ Follow the [Flutter Linux setup guide](https://docs.flutter.dev/platform-integra
 On Debian/Ubuntu, install the build dependencies with:
 
 ```bash
-sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev libpolkit-gobject-1-dev xvfb xauth jq dpkg-dev squashfs-tools
+sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev libglib2.0-dev xvfb xauth jq dpkg-dev squashfs-tools git openssh-client
 ```
 
 Package names vary by distribution. You do not need the Android SDK.
@@ -31,7 +32,23 @@ git clone https://github.com/Prn-Ice/LenovoLegionLinuxFrontend.git
 cd LenovoLegionLinuxFrontend
 flutter --version
 flutter pub get
+git config --local core.hooksPath .githooks
 ```
+
+The pre-push hook runs generation, analysis, and app tests in the current
+worktree. It also runs tooling tests when the branch or local edits change
+tooling, packaging, native code, dependencies, or test infrastructure. It compares
+the worktree with the branch point on `origin/main`, including staged, unstaged,
+and untracked files. Release tags and worktrees without a usable `origin/main`
+run every test. Work in a clean worktree so these checks reflect the commit you
+push.
+
+A failed command stops the push. Enable the hook in every clone; Git does not
+install repository hooks when cloning. Some tests require Linux.
+
+Merging a PR into `main` does not publish a release. Pushing a matching `v*`
+tag starts the release workflow, which checks the tag, builds the packages,
+runs acceptance tests and publishes the verified artifacts.
 
 Run `nix develop` for the project's development shell, or `direnv allow` to load
 it automatically with nix-direnv.
@@ -66,7 +83,24 @@ flutter analyze
 Use fake services and sample data so tests run without hardware, installed
 services, or administrator access.
 
+Tooling tests exercise Git, release scripts, and package formats. Git fixtures
+use disposable repositories, isolated user configuration, empty hook/template
+directories, and unsigned commits. The tag test uses its own temporary signing
+key and local remote.
+
+For an unrelated app change, run only app tests:
+
+```bash
+flutter test --exclude-tags tooling
+```
+
+To check tooling changes, run `flutter test --tags tooling`. Plain `flutter test`
+and CI still run both groups.
+
 ### Linux app integration journey
+
+See the [native coverage matrix](docs/native-journey-coverage.md) for the covered
+sections, safe I/O boundaries, quick smoke command, restart checks, and limits.
 
 From a Linux desktop session, run:
 
@@ -91,6 +125,12 @@ apply them together and verify temporary sysfs and page readback. A rejected
 second write restores the first value and leaves the edits available for retry.
 Non-Custom mode, battery power, unknown AC status, and unsupported limits send no
 privileged requests. Polling is paused so it cannot repair missing readback.
+Rapid-charging journeys cancel and apply the Power confirmation while on battery,
+then check confirmed readback. Battery has no rapid-charging readout: its Refresh
+action reloads a simulated firmware change into shared state, and returning to
+Power verifies the visible switch. A failed write preserves the confirmed value;
+a controlled pending retry keeps the switch disabled and unchanged until
+completion. Unsupported devices expose no rapid-charging control.
 The keyboard journey saves a Lighting profile, makes a different manual edit,
 assigns the saved profile to Balanced in Automation, and verifies the saved
 colors are applied. It also checks that clearing the assignment leaves lighting
@@ -105,6 +145,12 @@ The missing-profile journey deletes an assigned profile and clears its missing
 assignment without another RGB command. The Fans journey cancels a preset
 confirmation, then applies the preset and checks its curve readback through the
 real repository. Polling is paused so it cannot hide a missing write readback.
+The curve-editing journeys use the precise CPU/GPU controls to change temperature
+and speed, check that edits stay within neighbouring points, cancel save without
+writing, then apply and verify the full table and visible readback. Rejected
+writes and accepted commands with unchanged readback preserve the draft for
+retry. The fixture accepts only this synthetic edited table; it does not parse
+arbitrary YAML or qualify a real controller.
 
 The runner then starts two separate native app processes to check persistence.
 The first saves a profile and its assignment, makes a different manual edit, and
@@ -112,7 +158,7 @@ exits. The second reopens the same temporary Hive/config data and verifies the
 assigned profile is restored. The processes record distinct IDs. The runner
 removes its temporary data on completion or failure.
 
-The portable-control scenario uses the real Linux method channel to check that
+The control-helper scenario uses the real Linux method channel to check that
 an invalid endpoint is rejected before connection. It starts no helper. The native
 discovery scenario rejects caller-selected CLI paths before inspecting the host.
 The hardware-access journey opens fresh Settings, checks that the authorization
@@ -122,8 +168,8 @@ with:
 
 ```bash
 flutter build linux --debug --no-pub
-cmake --build build/linux/x64/debug --target portable_control_channel_test
-build/linux/x64/debug/runner/portable_control_channel_test
+cmake --build build/linux/x64/debug --target control_channel_test
+xvfb-run -a build/linux/x64/debug/runner/control_channel_test
 ```
 
 To run only the journeys in the first app process:
@@ -174,42 +220,32 @@ capture screenshots for these tests.
 
 Plain `flutter test` still runs the separate unit/widget suite under `test/`.
 
-To build and test native service code without installing it:
+To build and test the native helper without installing it:
 
 ```bash
-cmake -S telemetry -B build/native -G Ninja -DBUILD_LEGION_CONTROL_SERVICE=ON
-cmake --build build/native --target legion_telemetry_service legion_control_service package_power_sampler_test control_commands_test graphics_boot_service_test managed_command_test executable_snapshot_test portable_lifetime_test portable_peer_test trusted_executable_test portable_cli_test
+cmake -S control -B build/native -G Ninja -DBUILD_CONTROL_HELPER=ON
+cmake --build build/native --target legion_control_helper package_power_sampler_test control_commands_test managed_command_test executable_snapshot_test helper_lifetime_test control_peer_test trusted_executable_test helper_cli_test
 ctest --test-dir build/native --output-on-failure
 ```
 
 For the AppImage control experiment, run the
-[hardware-free portable-control probe](docs/architecture/portable-control.md#hardware-free-prototype).
+[hardware-free control-helper probe](docs/architecture/control-helper.md#hardware-free-prototype).
 It tests a private D-Bus connection with simulated authorization and a synthetic
 backend, using an opt-in native build.
-
-To check backend process cleanup with real systemd, run the disposable VM test:
-
-```bash
-nix build .#checks.x86_64-linux.control-lifecycle --print-build-logs
-```
-
-This uses QEMU/KVM and synthetic backend commands inside NixOS. See
-[backend process containment](docs/architecture/portable-control.md#backend-process-containment)
-for the lifecycle cases it covers.
 
 To test administrator startup from an immutable helper snapshot:
 
 ```bash
-nix build .#checks.x86_64-linux.portable-bootstrap --print-build-logs
+nix build .#checks.x86_64-linux.helper-bootstrap --print-build-logs
 ```
 
 This separate disposable VM uses real systemd and Polkit with deterministic test
 policies. The startup probe uses a synthetic CLI and refuses to run on the host.
-See the [startup experiment](docs/architecture/portable-control.md#administrator-startup-experiment)
+See the [startup experiment](docs/architecture/control-helper.md#administrator-startup-experiment)
 for its trust boundary and remaining checks.
 
 To build and test the production helper with Ubuntu 22.04's libraries, follow
-the [Ubuntu VM qualification](docs/architecture/portable-distro-qualification.md).
+the [Ubuntu helper tests](docs/architecture/control-helper-tests.md).
 It uses a synthetic CLI and records the image, source, package versions, and results.
 
 To build and test the actual AppImage through FUSE and extraction, follow

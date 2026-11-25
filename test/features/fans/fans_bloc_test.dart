@@ -61,9 +61,8 @@ void main() {
           };
         });
         final draft = curve.copyWithPoint(0, editedPoint);
-        when(
-          () => repo.writeFanCurveToHardware(draft),
-        ).thenAnswer((_) async {});
+        when(() => repo.writeFanCurveToHardware(draft))
+            .thenAnswer((_) async {});
         final bloc = FansBloc(
           repository: repo,
           pollInterval: const Duration(days: 1),
@@ -298,4 +297,116 @@ void main() {
       expect: () => isEmpty,
     );
   });
+
+  test('blocks presets when the loaded curve is speed-only', () async {
+    final repo = FakeFansRepository();
+    final bloc = FansBloc(repository: repo);
+    addTearDown(bloc.close);
+    bloc.emit(
+      FansState.initial().copyWith(
+        fanCurve: const FanCurve(
+          name: 'm1cn',
+          schema: FanCurveSchema.speedOnly,
+          writeStatus: FanCurveWriteStatus.unvalidated,
+          points: [FanCurvePoint(fan1Level: 1)],
+        ),
+        selectedPreset: 'quiet-ac',
+      ),
+    );
+    bloc.add(const FansApplySelectedPresetRequested());
+    await Future<void>.delayed(Duration.zero);
+    verifyNever(() => repo.applyPreset(any()));
+  });
+
+  test(
+    'reports an error when maximum fan speed readback stays unchanged',
+    () async {
+      final repo = FakeFansRepository();
+      const unchanged = FansSnapshot(
+        platformProfile: 'custom',
+        onPowerSupply: true,
+        recommendedPreset: null,
+        availablePresets: [],
+        miniFanCurveEnabled: null,
+        lockFanControllerEnabled: null,
+        maximumFanSpeedEnabled: false,
+        fanCurve: null,
+      );
+      when(repo.loadSnapshot).thenAnswer((_) async => unchanged);
+      when(() => repo.setMaximumFanSpeed(true)).thenAnswer((_) async {});
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'custom',
+          maximumFanSpeedEnabled: false,
+        ),
+      );
+
+      bloc.add(const MaximumFanSpeedSetRequested(true));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bloc.state.isApplying, isFalse);
+      expect(bloc.state.maximumFanSpeedEnabled, isFalse);
+      expect(bloc.state.noticeMessage, isNull);
+      expect(
+        bloc.state.errorMessage?.message,
+        contains('Maximum fan speed did not change'),
+      );
+    },
+  );
+
+  test(
+    'ignores enabling maximum fan speed outside Custom power mode',
+    () async {
+      final repo = FakeFansRepository();
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'balanced',
+          maximumFanSpeedEnabled: false,
+        ),
+      );
+
+      bloc.add(const MaximumFanSpeedSetRequested(true));
+      await Future<void>.delayed(Duration.zero);
+
+      verifyNever(() => repo.setMaximumFanSpeed(any()));
+    },
+  );
+
+  test(
+    'allows disabling maximum fan speed outside Custom power mode',
+    () async {
+      final repo = FakeFansRepository();
+      const disabled = FansSnapshot(
+        platformProfile: 'balanced',
+        onPowerSupply: true,
+        recommendedPreset: null,
+        availablePresets: [],
+        miniFanCurveEnabled: null,
+        lockFanControllerEnabled: null,
+        maximumFanSpeedEnabled: false,
+        fanCurve: null,
+      );
+      when(repo.loadSnapshot).thenAnswer((_) async => disabled);
+      when(() => repo.setMaximumFanSpeed(false)).thenAnswer((_) async {});
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'balanced',
+          maximumFanSpeedEnabled: true,
+        ),
+      );
+
+      bloc.add(const MaximumFanSpeedSetRequested(false));
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => repo.setMaximumFanSpeed(false)).called(1);
+      expect(bloc.state.maximumFanSpeedEnabled, isFalse);
+      expect(bloc.state.errorMessage, isNull);
+    },
+  );
 }
