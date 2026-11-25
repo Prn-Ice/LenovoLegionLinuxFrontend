@@ -191,6 +191,7 @@ class FansBloc extends Bloc<FansEvent, FansState> {
     Emitter<FansState> emit,
   ) async {
     if (state.maximumFanSpeedEnabled == null) return;
+    if (event.enabled && state.platformProfile != 'custom') return;
     await _apply(
       emit,
       action: () => _repository.setMaximumFanSpeed(event.enabled),

@@ -336,7 +336,12 @@ void main() {
       when(() => repo.setMaximumFanSpeed(true)).thenAnswer((_) async {});
       final bloc = FansBloc(repository: repo);
       addTearDown(bloc.close);
-      bloc.emit(FansState.initial().copyWith(maximumFanSpeedEnabled: false));
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'custom',
+          maximumFanSpeedEnabled: false,
+        ),
+      );
 
       bloc.add(const MaximumFanSpeedSetRequested(true));
       await Future<void>.delayed(Duration.zero);
@@ -348,6 +353,60 @@ void main() {
         bloc.state.errorMessage?.message,
         contains('Maximum fan speed did not change'),
       );
+    },
+  );
+
+  test(
+    'ignores enabling maximum fan speed outside Custom power mode',
+    () async {
+      final repo = FakeFansRepository();
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'balanced',
+          maximumFanSpeedEnabled: false,
+        ),
+      );
+
+      bloc.add(const MaximumFanSpeedSetRequested(true));
+      await Future<void>.delayed(Duration.zero);
+
+      verifyNever(() => repo.setMaximumFanSpeed(any()));
+    },
+  );
+
+  test(
+    'allows disabling maximum fan speed outside Custom power mode',
+    () async {
+      final repo = FakeFansRepository();
+      const disabled = FansSnapshot(
+        platformProfile: 'balanced',
+        onPowerSupply: true,
+        recommendedPreset: null,
+        availablePresets: [],
+        miniFanCurveEnabled: null,
+        lockFanControllerEnabled: null,
+        maximumFanSpeedEnabled: false,
+        fanCurve: null,
+      );
+      when(repo.loadSnapshot).thenAnswer((_) async => disabled);
+      when(() => repo.setMaximumFanSpeed(false)).thenAnswer((_) async {});
+      final bloc = FansBloc(repository: repo);
+      addTearDown(bloc.close);
+      bloc.emit(
+        FansState.initial().copyWith(
+          platformProfile: 'balanced',
+          maximumFanSpeedEnabled: true,
+        ),
+      );
+
+      bloc.add(const MaximumFanSpeedSetRequested(false));
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => repo.setMaximumFanSpeed(false)).called(1);
+      expect(bloc.state.maximumFanSpeedEnabled, isFalse);
+      expect(bloc.state.errorMessage, isNull);
     },
   );
 }
