@@ -580,17 +580,25 @@ class _FanControls extends StatelessWidget {
               ? 'Applying change...'
               : "Use the controller's low-temperature fan behavior.",
         ),
-      if (state.maximumFanSpeedEnabled case final value?)
-        QuickControl(
-          widgetKey: const ValueKey('maximum-fan-speed'),
-          icon: YaruIcons.meter_9,
-          value: value,
-          onChanged: state.isApplying ? null : onMaximumFanSpeedChanged,
-          title: 'Maximum fan speed',
-          subtitle: state.isApplying
-              ? 'Applying change...'
-              : 'Run both fans at full speed until disabled.',
-        ),
+      if (state.maximumFanSpeedEnabled case final value?) ...[
+        () {
+          final canToggle = state.platformProfile == 'custom' || value;
+          return QuickControl(
+            widgetKey: const ValueKey('maximum-fan-speed'),
+            icon: YaruIcons.meter_9,
+            value: value,
+            onChanged: state.isApplying || !canToggle
+                ? null
+                : onMaximumFanSpeedChanged,
+            title: 'Maximum fan speed',
+            subtitle: state.isApplying
+                ? 'Applying change...'
+                : !canToggle
+                ? 'Switch to Custom power mode to use maximum fan speed.'
+                : 'Run both fans at full speed until disabled.',
+          );
+        }(),
+      ],
       if (state.lockFanControllerEnabled case final value?)
         QuickControl(
           widgetKey: const ValueKey('lock-fan-controller'),

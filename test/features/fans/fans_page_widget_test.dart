@@ -387,6 +387,69 @@ void main() {
     expect(find.text('Controller safeguards'), findsNothing);
     expect(find.text('Admin privileges required'), findsNothing);
   });
+
+  testWidgets('maximum fan speed is disabled outside Custom mode when off', (
+    tester,
+  ) async {
+    await _pumpPage(
+      tester,
+      width: 800,
+      snapshot: const FansSnapshot(
+        platformProfile: 'balanced',
+        onPowerSupply: true,
+        recommendedPreset: null,
+        availablePresets: [],
+        miniFanCurveEnabled: null,
+        lockFanControllerEnabled: null,
+        maximumFanSpeedEnabled: false,
+        fanCurve: null,
+      ),
+    );
+
+    expect(
+      find.text('Switch to Custom power mode to use maximum fan speed.'),
+      findsOneWidget,
+    );
+    final disabledSwitch = tester.widget<YaruSwitch>(
+      find.descendant(
+        of: find.byKey(const ValueKey('maximum-fan-speed')),
+        matching: find.byType(YaruSwitch),
+      ),
+    );
+    expect(disabledSwitch.onChanged, isNull);
+  });
+
+  testWidgets(
+    'maximum fan speed can still turn off outside Custom mode when on',
+    (tester) async {
+      await _pumpPage(
+        tester,
+        width: 800,
+        snapshot: const FansSnapshot(
+          platformProfile: 'balanced',
+          onPowerSupply: true,
+          recommendedPreset: null,
+          availablePresets: [],
+          miniFanCurveEnabled: null,
+          lockFanControllerEnabled: null,
+          maximumFanSpeedEnabled: true,
+          fanCurve: null,
+        ),
+      );
+
+      expect(
+        find.text('Run both fans at full speed until disabled.'),
+        findsOneWidget,
+      );
+      final enabledSwitch = tester.widget<YaruSwitch>(
+        find.descendant(
+          of: find.byKey(const ValueKey('maximum-fan-speed')),
+          matching: find.byType(YaruSwitch),
+        ),
+      );
+      expect(enabledSwitch.onChanged, isNotNull);
+    },
+  );
 }
 
 Future<_PageHarness> _pumpPage(
