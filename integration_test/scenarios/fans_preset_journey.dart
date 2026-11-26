@@ -94,8 +94,8 @@ void main() {
     await _navigateToFans(tester);
     await waitFor(
       tester,
-      () => find.byKey(const ValueKey('fan-speed-table')).evaluate().isNotEmpty,
-      description: 'read-only firmware speed table',
+      () => find.byKey(const ValueKey('fan-step-chart')).evaluate().isNotEmpty,
+      description: 'read-only firmware speed chart',
     );
 
     expect(find.byKey(const ValueKey('fan-curve-save')), findsNothing);
