@@ -95,7 +95,13 @@ void main() {
     // Full tag-app behavior is covered by the Nix release-tag check.
     final result = Process.runSync(
       'bash',
-      [File('test/tool/tag_test.sh').absolute.path, 'bash', '-c', 'exit 37'],
+      [
+        File('test/tool/tag_test.sh').absolute.path,
+        File('test/fixtures/tag_metadata.sh').absolute.path,
+        'bash',
+        '-c',
+        'exit 37',
+      ],
       workingDirectory: workspace.path,
       environment: hostileEnvironment,
       includeParentEnvironment: false,
