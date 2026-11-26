@@ -95,6 +95,9 @@ void test_hot_restart_closes_sessions() {
 }  // namespace
 
 int main(int argc, char **argv) {
+  // The hot-restart test initializes GTK without a desktop session. Do not
+  // connect to an accessibility bus that CI runners do not provide.
+  g_setenv("NO_AT_BRIDGE", "1", TRUE);
   g_test_init(&argc, &argv, nullptr);
   protocol = g_dbus_node_info_new_for_xml(legion_control::control_xml, nullptr);
   g_test_add_func("/control-channel/typed-arguments", test_typed_arguments);
