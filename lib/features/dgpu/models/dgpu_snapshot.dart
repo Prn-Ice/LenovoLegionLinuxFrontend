@@ -1,12 +1,12 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../core/models/gpu_process.dart';
+import '../../../core/models/gpu_process_scan.dart';
 import 'graphics_mode.dart';
 
 class DgpuSnapshot extends Equatable {
   const DgpuSnapshot({
     required this.isActive,
-    required this.processes,
+    required this.processScan,
     required this.pciAddress,
     required this.graphicsModeStatus,
     this.name,
@@ -15,8 +15,7 @@ class DgpuSnapshot extends Equatable {
   /// null = GPU sysfs path not found (not available / not NVIDIA)
   final bool? isActive;
 
-  /// Empty if nvidia-smi is not installed or reports no processes.
-  final List<GpuProcess> processes;
+  final GpuProcessScan? processScan;
 
   /// The discovered PCI address (e.g. "0000:01:00.0"), or null if not found.
   final String? pciAddress;
@@ -28,7 +27,7 @@ class DgpuSnapshot extends Equatable {
   @override
   List<Object?> get props => [
     isActive,
-    processes,
+    processScan,
     pciAddress,
     graphicsModeStatus,
     name,

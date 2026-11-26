@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:legion_frontend/core/models/control_capabilities.dart';
-import 'package:legion_frontend/core/models/gpu_process.dart';
+import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
@@ -95,7 +95,7 @@ List<Override> safeGraphicsOverrides(SafeGraphicsFixture fixture) {
         bridgeService: ref.watch(legionBridgeServiceProvider),
         findPciAddress: () async => '0000:01:00.0',
         readRuntimeStatus: (_) async => true,
-        queryComputeProcesses: () async => const <GpuProcess>[],
+        readOpenDevices: (_) async => GpuProcessScan.noClients,
         queryPciName: (_) async => 'Synthetic NVIDIA GPU',
       );
     }),

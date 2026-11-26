@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
 import 'package:legion_frontend/core/models/gpu_process.dart';
+import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/core/services/legion_cli_service.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_frontend_bridge_service.dart';
@@ -164,9 +165,21 @@ void main() {
       bridgeService: bridge,
       findPciAddress: () async => '0000:01:00.0',
       readRuntimeStatus: (_) async => false,
-      queryComputeProcesses: () async => const [
-        GpuProcess(pid: 42, name: 'fixture-app', usedMemoryMib: 12),
-      ],
+      queryComputeProcesses: () async =>
+          throw StateError('Refreshing the GPU page must not query CUDA.'),
+      readOpenDevices: (pciAddress) async {
+        expect(pciAddress, '0000:01:00.0');
+        return const GpuProcessScan(
+          processes: [
+            GpuProcess(
+              pid: 42,
+              name: 'fixture-app',
+              devices: ['/dev/dri/card0'],
+            ),
+          ],
+          reporting: GpuProcessReporting.reported,
+        );
+      },
       queryPciName: (_) async => 'Fixture GPU',
     );
 
@@ -175,7 +188,7 @@ void main() {
     expect(snapshot.pciAddress, '0000:01:00.0');
     expect(snapshot.isActive, isFalse);
     expect(snapshot.name, 'Fixture GPU');
-    expect(snapshot.processes.single.pid, 42);
+    expect(snapshot.processScan?.processes.single.pid, 42);
   });
 
   test('keeps graphics status unavailable after command failure', () async {

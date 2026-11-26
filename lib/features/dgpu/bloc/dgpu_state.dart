@@ -1,13 +1,13 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../core/models/app_failure.dart';
-import '../../../core/models/gpu_process.dart';
+import '../../../core/models/gpu_process_scan.dart';
 import '../models/graphics_mode.dart';
 
 class DgpuState extends Equatable {
   const DgpuState({
     required this.isActive,
-    required this.processes,
+    required this.processScan,
     required this.pciAddress,
     required this.isLoading,
     required this.isApplying,
@@ -21,7 +21,7 @@ class DgpuState extends Equatable {
 
   factory DgpuState.initial() => const DgpuState(
     isActive: null,
-    processes: [],
+    processScan: null,
     pciAddress: null,
     isLoading: false,
     isApplying: false,
@@ -37,7 +37,7 @@ class DgpuState extends Equatable {
 
   /// null = sysfs runtime_status path not found (NVIDIA GPU unavailable)
   final bool? isActive;
-  final List<GpuProcess> processes;
+  final GpuProcessScan? processScan;
   final String? pciAddress;
   final bool isLoading;
   final bool isApplying;
@@ -54,7 +54,7 @@ class DgpuState extends Equatable {
 
   DgpuState copyWith({
     Object? isActive = _unset,
-    List<GpuProcess>? processes,
+    Object? processScan = _unset,
     Object? pciAddress = _unset,
     bool? isLoading,
     bool? isApplying,
@@ -67,7 +67,9 @@ class DgpuState extends Equatable {
   }) {
     return DgpuState(
       isActive: isActive == _unset ? this.isActive : isActive as bool?,
-      processes: processes ?? this.processes,
+      processScan: processScan == _unset
+          ? this.processScan
+          : processScan as GpuProcessScan?,
       pciAddress: pciAddress == _unset
           ? this.pciAddress
           : pciAddress as String?,
@@ -93,7 +95,7 @@ class DgpuState extends Equatable {
   @override
   List<Object?> get props => [
     isActive,
-    processes,
+    processScan,
     pciAddress,
     isLoading,
     isApplying,

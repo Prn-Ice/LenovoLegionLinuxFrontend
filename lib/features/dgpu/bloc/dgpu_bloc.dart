@@ -167,7 +167,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       emit(
         state.copyWith(
           isActive: snapshot.isActive,
-          processes: snapshot.processes,
+          processScan: snapshot.processScan,
           pciAddress: snapshot.pciAddress,
           isLoading: false,
           isApplying: false,

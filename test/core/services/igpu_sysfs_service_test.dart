@@ -93,6 +93,9 @@ void main() {
     await gpu('card1');
     final proc = await Directory.systemTemp.createTemp('igpu-proc-');
     addTearDown(() => proc.delete(recursive: true));
+    final pciPath = '${proc.path}/pci';
+    await Directory('$pciPath/devices/0000:05:00.0/drm/renderD128')
+        .create(recursive: true);
     final fdinfo = File('${proc.path}/42/fdinfo/3');
     await fdinfo.parent.create(recursive: true);
     await fdinfo.writeAsString(
@@ -105,7 +108,7 @@ void main() {
     await File('${proc.path}/42/comm').writeAsString('browser\n');
     final withProcesses = IgpuSysfsService(
       drmPath: root.path,
-      processService: DrmProcessService(procPath: proc.path),
+      processService: DrmProcessService(procPath: proc.path, pciPath: pciPath),
     );
 
     final scan = await withProcesses.readProcesses();

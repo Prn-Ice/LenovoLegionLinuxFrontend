@@ -45,13 +45,16 @@ exports append `dgpu_temp_c`; earlier columns retain their meaning and order.
 
 The GPU page shows processes for the selected GPU card.
 
-- **Discrete GPU:** `nvidia-smi --query-compute-apps`. It lists CUDA compute
-  processes; display-server clients may be missing.
+- **Discrete GPU** lists processes with NVIDIA display, rendering, or
+  GPU-specific driver devices open. The app matches the GPU's device paths
+  against file descriptor links in procfs. Reading the links leaves the devices
+  closed to the app. Linux permissions limit which processes appear, and a
+  process can keep a device open while the GPU sleeps.
 - **Integrated GPU:** the kernel's DRM client statistics in
   `/proc/<pid>/fdinfo`, matched to the APU's PCI address with `drm-pdev`. Only
   processes this user can inspect appear. Kernels that do not name the GPU for
   DRM clients show an unavailable message instead of an empty list. The app
-  reuses a scan for 15 seconds to keep sensor polling cheap.
+  reuses each GPU's scan for 15 seconds to limit the cost of polling.
 
 ## Check the feature
 

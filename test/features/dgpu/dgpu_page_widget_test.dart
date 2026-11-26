@@ -68,7 +68,11 @@ void main() {
     );
     expect(find.byKey(const ValueKey('set-graphics-discrete')), findsOneWidget);
     expect(find.text('GPU performance'), findsOneWidget);
-    expect(find.text('Processes on the discrete GPU'), findsOneWidget);
+    expect(find.text('Processes with NVIDIA devices open'), findsOneWidget);
+    expect(
+      find.text('No visible processes have NVIDIA devices open.'),
+      findsOneWidget,
+    );
     expect(find.text('Discrete GPU'), findsNothing);
     expect(find.byKey(const ValueKey('gpu-vendor-nvidia')), findsOneWidget);
     expect(
@@ -83,10 +87,10 @@ void main() {
     )) {
       expect(toggle.selectedColor, accent);
     }
-    expect(find.text('No process targets'), findsOneWidget);
+    expect(find.text('Kill processes'), findsOneWidget);
     final killButton = tester.widget<OutlinedButton>(
       find.ancestor(
-        of: find.text('No process targets'),
+        of: find.text('Kill processes'),
         matching: find.byType(OutlinedButton),
       ),
     );
@@ -202,7 +206,7 @@ void main() {
       expect(find.byType(TelemetryHistoryCard), findsOneWidget);
       expect(find.byKey(const ValueKey('nvidia-absent-card')), findsNothing);
       expect(find.text('GPU overclock'), findsNothing);
-      expect(find.text('Processes on the discrete GPU'), findsNothing);
+      expect(find.text('Processes with NVIDIA devices open'), findsNothing);
       expect(find.text('Processes on the integrated GPU'), findsOneWidget);
       expect(find.text('Unavailable'), findsOneWidget);
       expect(
@@ -223,7 +227,16 @@ void main() {
       tester,
       width: 900,
       processes: const [
-        GpuProcess(pid: 4242, name: 'blender', usedMemoryMib: 2048),
+        GpuProcess(
+          pid: 2182,
+          name: 'kwin_wayland',
+          devices: ['/dev/dri/card0'],
+        ),
+        GpuProcess(
+          pid: 4242,
+          name: 'blender',
+          devices: ['/dev/dri/renderD128', '/dev/nvidia0'],
+        ),
       ],
       igpu: const GpuReading(
         name: 'AMD Radeon 780M',
@@ -239,8 +252,14 @@ void main() {
     expect(find.byKey(const ValueKey('gpu-channel-toggle')), findsOneWidget);
     expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
     expect(find.byKey(const ValueKey('integrated-gpu-card')), findsNothing);
-    expect(find.text('Processes on the discrete GPU'), findsOneWidget);
+    expect(find.text('Processes with NVIDIA devices open'), findsOneWidget);
+    expect(find.text('kwin_wayland'), findsOneWidget);
+    expect(find.text('Display (card0)'), findsOneWidget);
     expect(find.text('blender'), findsOneWidget);
+    expect(
+      find.text('Render (renderD128), NVIDIA driver (nvidia0)'),
+      findsOneWidget,
+    );
     expect(find.text('PID 4242'), findsOneWidget);
     expect(find.text('GPU overclock'), findsOneWidget);
 
@@ -265,6 +284,7 @@ void main() {
     expect(find.text('Processes on the integrated GPU'), findsOneWidget);
     expect(find.text('browser'), findsOneWidget);
     expect(find.text('PID 77'), findsOneWidget);
+    expect(find.text('96 MiB'), findsOneWidget);
     expect(find.text('blender'), findsNothing);
     expect(find.text('GPU overclock'), findsNothing);
     expect(find.text('Discrete GPU'), findsOneWidget);
@@ -508,7 +528,11 @@ void main() {
       tester,
       width: 900,
       processes: const [
-        GpuProcess(pid: 4242, name: 'blender', usedMemoryMib: 2048),
+        GpuProcess(
+          pid: 4242,
+          name: 'blender',
+          devices: ['/dev/dri/renderD128'],
+        ),
       ],
     );
 
@@ -518,7 +542,7 @@ void main() {
     );
     final killButton = tester.widget<OutlinedButton>(
       find.ancestor(
-        of: find.text('Kill 1 processes'),
+        of: find.text('Kill processes'),
         matching: find.byType(OutlinedButton),
       ),
     );
@@ -531,6 +555,18 @@ void main() {
     expect(killButton.onPressed, isNull);
     expect(restartButton.onPressed, isNull);
   });
+
+  testWidgets('shows when NVIDIA process inspection is unavailable', (
+    tester,
+  ) async {
+    await _pumpPage(tester, width: 420, processes: null);
+
+    expect(find.text('GPU process list unavailable.'), findsOneWidget);
+    expect(
+      find.text('No visible processes have NVIDIA devices open.'),
+      findsNothing,
+    );
+  });
 }
 
 Future<_MockDgpuRepository> _pumpPage(
@@ -538,7 +574,7 @@ Future<_MockDgpuRepository> _pumpPage(
   required double width,
   double height = 1400,
   double textScale = 1,
-  required List<GpuProcess> processes,
+  required List<GpuProcess>? processes,
   String gpuName = 'NVIDIA GeForce RTX 4060',
   bool dgpuAvailable = true,
   bool? dgpuActive,
@@ -552,10 +588,18 @@ Future<_MockDgpuRepository> _pumpPage(
   addTearDown(tester.view.resetDevicePixelRatio);
 
   final dgpuRepository = _MockDgpuRepository();
+  final processScan = processes == null
+      ? null
+      : GpuProcessScan(
+          processes: processes,
+          reporting: processes.isEmpty
+              ? GpuProcessReporting.noClients
+              : GpuProcessReporting.reported,
+        );
   when(dgpuRepository.loadSnapshot).thenAnswer(
     (_) async => DgpuSnapshot(
       isActive: dgpuAvailable ? (dgpuActive ?? true) : null,
-      processes: processes,
+      processScan: processScan,
       pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
       graphicsModeStatus: graphicsModeStatus,
       name: 'NVIDIA Corporation AD107M',
@@ -564,7 +608,7 @@ Future<_MockDgpuRepository> _pumpPage(
   when(dgpuRepository.loadSnapshotAfterGraphicsWrite).thenAnswer(
     (_) async => DgpuSnapshot(
       isActive: dgpuAvailable ? (dgpuActive ?? true) : null,
-      processes: processes,
+      processScan: processScan,
       pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
       graphicsModeStatus: graphicsModeStatus,
       name: 'NVIDIA Corporation AD107M',

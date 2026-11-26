@@ -5,12 +5,22 @@ import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/core/services/drm_process_service.dart';
 
 void main() {
+  const integrated = '0000:05:00.0';
+  const discrete = '0000:01:00.0';
   late Directory proc;
   late DrmProcessService service;
+  late String devicePath;
 
   setUp(() async {
     proc = await Directory.systemTemp.createTemp('drm-process-');
-    service = DrmProcessService(procPath: proc.path);
+    devicePath = '${proc.path}/dev';
+    service = DrmProcessService(
+      procPath: proc.path,
+      pciPath: '${proc.path}/pci',
+      devicePath: devicePath,
+    );
+    await Directory('${service.pciPath}/devices/$integrated/drm/renderD128')
+        .create(recursive: true);
     addTearDown(() async {
       if (await proc.exists()) await proc.delete(recursive: true);
     });
@@ -21,6 +31,8 @@ void main() {
     required String name,
     required List<String> fdinfo,
     String? commandLine,
+    String? executable,
+    List<String> devices = const [],
   }) async {
     final directory = Directory('${proc.path}/$pid');
     await directory.create(recursive: true);
@@ -30,15 +42,113 @@ void main() {
     if (commandLine != null) {
       await File('${directory.path}/cmdline').writeAsString(commandLine);
     }
+    if (executable != null) {
+      await Link('${directory.path}/exe').create(executable);
+    }
     for (var index = 0; index < fdinfo.length; index++) {
       final file = File('${directory.path}/fdinfo/$index');
       await file.parent.create(recursive: true);
       await file.writeAsString(fdinfo[index]);
+    }
+    final handles = devices.isEmpty
+        ? List.filled(fdinfo.length, 'dri/renderD128')
+        : devices;
+    for (final (index, device) in handles.indexed) {
       final link = Link('${directory.path}/fd/$index');
       await link.parent.create(recursive: true);
-      await link.create('/dev/dri/renderD128');
+      await link.create('$devicePath/$device');
     }
   }
+
+  Future<void> addNvidiaDevices() async {
+    for (final name in ['card0', 'renderD129', 'card0-HDMI-A-1']) {
+      await Directory('${service.pciPath}/devices/$discrete/drm/$name')
+          .create(recursive: true);
+    }
+    await Directory('${service.pciPath}/drivers/nvidia/$discrete')
+        .create(recursive: true);
+    await Directory(devicePath).create();
+    await File('$devicePath/nvidia0').create();
+  }
+
+  test('finds NVIDIA clients from links alone', () async {
+    await addNvidiaDevices();
+    await process(
+      2182,
+      name: '.kwin_wayland-w',
+      executable: '/nix/store/kwin/bin/.kwin_wayland-wrapped',
+      fdinfo: const [],
+      devices: const ['dri/card0'],
+    );
+    await process(
+      2283,
+      name: 'Xwayland',
+      fdinfo: const [],
+      devices: const ['dri/card0'],
+    );
+    await process(
+      269541,
+      name: '.lutris-wrapped',
+      fdinfo: const [],
+      devices: const ['dri/renderD129', 'nvidia0', 'nvidia0'],
+    );
+    await process(
+      3000,
+      name: 'iGPU client',
+      fdinfo: const [],
+      devices: const ['dri/renderD128'],
+    );
+    await process(
+      3001,
+      name: 'control only',
+      fdinfo: const [],
+      devices: const ['nvidiactl'],
+    );
+
+    final scan = await service.readOpenDevices(discrete);
+
+    expect(scan?.processes.map((process) => process.name), [
+      'Xwayland',
+      'kwin_wayland',
+      'lutris',
+    ]);
+    expect(scan?.processes[1].devices, ['$devicePath/dri/card0']);
+    expect(scan?.processes.last.devices, [
+      '$devicePath/dri/renderD129',
+      '$devicePath/nvidia0',
+    ]);
+    expect(scan?.processes.last.usedMemoryMib, isNull);
+    expect(
+      (await service.readProcesses(integrated))?.reporting,
+      GpuProcessReporting.notReported,
+    );
+  });
+
+  test(
+    'excludes an ambiguous driver node when more than one NVIDIA GPU is bound',
+    () async {
+      await addNvidiaDevices();
+      await Directory('${service.pciPath}/drivers/nvidia/0000:02:00.0')
+          .create();
+      await process(
+        42,
+        name: 'renderer',
+        fdinfo: const [],
+        devices: const ['dri/renderD129', 'nvidia0'],
+      );
+
+      final scan = await service.readOpenDevices(discrete);
+
+      expect(scan?.processes.single.devices, ['$devicePath/dri/renderD129']);
+    },
+  );
+
+  test(
+    'reports unavailable when the GPU device nodes cannot be identified',
+    () async {
+      expect(await service.readOpenDevices(discrete), isNull);
+    },
+  );
 
   test(
     'collects processes for the requested GPU and sums their memory',
@@ -153,6 +263,8 @@ void main() {
     var now = DateTime(2026, 1, 1);
     final service = DrmProcessService(
       procPath: proc.path,
+      pciPath: '${proc.path}/pci',
+      devicePath: devicePath,
       minimumInterval: const Duration(seconds: 10),
       clock: () => now,
     );

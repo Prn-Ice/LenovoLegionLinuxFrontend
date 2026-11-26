@@ -64,6 +64,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final snapshot = sensorState.snapshot;
     final integratedGpu = snapshot.igpu;
     final integratedProcesses = snapshot.igpuProcesses;
+    final discreteProcesses = state.processScan?.processes;
     final availableChannels = <_GpuChannel>[
       if (state.isAvailable) _GpuChannel.discrete,
       if (integratedGpu != null) _GpuChannel.integrated,
@@ -108,10 +109,17 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           const SizedBox(height: 16),
           _ProcessesCard(
             key: const ValueKey('gpu-processes-discrete'),
-            title: 'Processes on the discrete GPU',
-            processes: state.processes,
-            emptyMessage: 'No CUDA compute processes are using the GPU.',
-            note: 'Display server processes may not appear in this list.',
+            title: 'Processes with NVIDIA devices open',
+            processes: discreteProcesses ?? const [],
+            countLabel: discreteProcesses == null
+                ? 'Unavailable'
+                : '${discreteProcesses.length} found',
+            emptyMessage: discreteProcesses == null
+                ? 'GPU process list unavailable.'
+                : 'No visible processes have NVIDIA devices open.',
+            note:
+                'The list includes processes this app can inspect. '
+                'A process can keep a device open while the GPU sleeps.',
           ),
         ] else if (channel == _GpuChannel.integrated) ...[
           _IntegratedGpuCard(
@@ -155,14 +163,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                 spacing: 14,
                 runSpacing: 14,
                 children: [
-                  SizedBox(
-                    width: width,
-                    child: _DeactivateCard(
-                      state: state,
-                      onKill: () => _killProcesses(context, bloc, state),
-                      onRestart: () => _restartPci(context, bloc, state),
-                    ),
-                  ),
+                  SizedBox(width: width, child: const _DeactivateCard()),
                   SizedBox(
                     width: width,
                     child: _GpuPerformanceCard(
@@ -248,50 +249,6 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     );
     if (!context.mounted || !confirmed) return;
     bloc.add(DgpuGraphicsBootSupportSetRequested(enabled));
-  }
-
-  Future<void> _killProcesses(
-    BuildContext context,
-    DgpuBloc bloc,
-    DgpuState state,
-  ) async {
-    if (state.processes.isEmpty) return;
-    final pids = state.processes.map((process) => process.pid).join(', ');
-    final confirmed = await confirmPrivilegedAction(
-      context,
-      title: 'Kill ${state.processes.length} GPU processes',
-      message:
-          'This sends SIGKILL to the confirmed compute process targets '
-          '(PIDs $pids). Applications may lose unsaved work. Continue?',
-      confirmLabel: 'Kill processes',
-    );
-    if (confirmed && context.mounted) {
-      bloc.add(
-        DgpuKillProcessesRequested(
-          state.processes.map((process) => process.pid).toList(),
-        ),
-      );
-    }
-  }
-
-  Future<void> _restartPci(
-    BuildContext context,
-    DgpuBloc bloc,
-    DgpuState state,
-  ) async {
-    final address = state.pciAddress;
-    if (address == null) return;
-    final confirmed = await confirmPrivilegedAction(
-      context,
-      title: 'Restart GPU PCI device',
-      message:
-          'This removes $address from the PCI tree and rescans it. The GPU '
-          'will briefly disappear. Close GPU applications first. Continue?',
-      confirmLabel: 'Restart device',
-    );
-    if (confirmed && context.mounted) {
-      bloc.add(DgpuRestartPciRequested(address));
-    }
   }
 }
 
@@ -692,11 +649,22 @@ class _ProcessesCard extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        process.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            process.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          if (process.devices.isNotEmpty)
+                            Text(
+                              process.devices.map(_gpuDeviceLabel).join(', '),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -705,11 +673,10 @@ class _ProcessesCard extends StatelessWidget {
                       style: monoFactStyle(scheme)
                           .copyWith(color: scheme.onSurfaceVariant),
                     ),
-                    const SizedBox(width: 14),
-                    Text(
-                      _memoryLabel(process.usedMemoryMib),
-                      style: monoFactStyle(scheme),
-                    ),
+                    if (process.usedMemoryMib case final memory?) ...[
+                      const SizedBox(width: 14),
+                      Text(_memoryLabel(memory), style: monoFactStyle(scheme)),
+                    ],
                   ],
                 ),
               ),
@@ -1130,16 +1097,7 @@ class _DgpuSwitchRow extends StatelessWidget {
 }
 
 class _DeactivateCard extends StatelessWidget {
-  const _DeactivateCard({
-    required this.state,
-    required this.onKill,
-    required this.onRestart,
-  });
-
-  final DgpuState state;
-  final VoidCallback onKill;
-  final VoidCallback onRestart;
-  final bool deactivationSupported = false;
+  const _DeactivateCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1189,40 +1147,17 @@ class _DeactivateCard extends StatelessWidget {
                   foregroundColor: scheme.error,
                   side: BorderSide(color: scheme.error.withValues(alpha: 0.65)),
                 ),
-                onPressed:
-                    !deactivationSupported ||
-                        state.isApplying ||
-                        state.processes.isEmpty
-                    ? null
-                    : onKill,
+                onPressed: null,
                 icon: const Icon(Icons.close, size: 17),
-                label: Text(
-                  state.processes.isEmpty
-                      ? 'No process targets'
-                      : 'Kill ${state.processes.length} processes',
-                ),
+                label: const Text('Kill processes'),
               ),
               OutlinedButton.icon(
-                onPressed:
-                    !deactivationSupported ||
-                        state.isApplying ||
-                        state.pciAddress == null ||
-                        state.processes.isNotEmpty
-                    ? null
-                    : onRestart,
+                onPressed: null,
                 icon: const Icon(Icons.restart_alt, size: 17),
                 label: const Text('Restart PCI device'),
               ),
             ],
           ),
-          if (state.processes.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              'Restart becomes available after the process list is clear.',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
         ],
       ),
     );
@@ -1294,6 +1229,13 @@ String _integratedProcessMessage(GpuProcessScan? scan) {
 
 String _measurement(double? value, String unit, int precision) =>
     value == null ? '—' : '${value.toStringAsFixed(precision)} $unit';
+
+String _gpuDeviceLabel(String path) {
+  final name = path.split('/').last;
+  if (name.startsWith('card')) return 'Display ($name)';
+  if (name.startsWith('renderD')) return 'Render ($name)';
+  return 'NVIDIA driver ($name)';
+}
 
 String _vramLabel(double? used, double? total) {
   if (used == null || total == null) return '—';
