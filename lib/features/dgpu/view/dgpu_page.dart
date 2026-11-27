@@ -64,12 +64,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final integratedProcesses = snapshot.igpuProcesses;
     final discreteProcesses = state.processScan?.processes;
     final availableChannels = <_GpuChannel>[
-      if (state.isAvailable ||
-          (!state.hasLoaded &&
-              (snapshot.dgpu != null ||
-                  state.graphicsModeStatus?.effectiveState ==
-                      DgpuTopology.attached)))
-        _GpuChannel.discrete,
+      if (_shouldShowDiscreteGpu(state, snapshot.dgpu)) _GpuChannel.discrete,
       if (integratedGpu != null) _GpuChannel.integrated,
     ];
     final channel = availableChannels.contains(_channel)
@@ -202,6 +197,14 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
         ],
       ],
     );
+  }
+
+  bool _shouldShowDiscreteGpu(DgpuState state, GpuReading? liveReading) {
+    if (state.isAvailable) return true;
+    if (state.hasCheckedPci) return false;
+
+    final topology = state.graphicsModeStatus?.effectiveState;
+    return liveReading != null || topology == DgpuTopology.attached;
   }
 
   Future<void> _setOverclock(BuildContext context, bool enabled) async {

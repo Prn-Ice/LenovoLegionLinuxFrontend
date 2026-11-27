@@ -241,7 +241,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
           isLoading: false,
           isApplying: false,
           applyingGraphicsMode: null,
-          hasLoaded: true,
+          hasCheckedPci: true,
           hasLoadedGraphicsMode: true,
           errorMessage: AppFailure.from(
             actionErrorMessage ?? error,
@@ -269,7 +269,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       state.copyWith(
         isActive: snapshot.isActive,
         pciAddress: snapshot.pciAddress,
-        hasLoaded: true,
+        hasCheckedPci: true,
         name: deviceChanged ? null : state.name,
         processScan: deviceChanged ? null : state.processScan,
         isLoadingProcesses: deviceChanged

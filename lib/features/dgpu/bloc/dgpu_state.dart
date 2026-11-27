@@ -11,7 +11,7 @@ class DgpuState extends Equatable {
     required this.pciAddress,
     required this.isLoading,
     required this.isApplying,
-    required this.hasLoaded,
+    required this.hasCheckedPci,
     required this.errorMessage,
     required this.noticeMessage,
     required this.graphicsModeStatus,
@@ -27,7 +27,7 @@ class DgpuState extends Equatable {
     pciAddress: null,
     isLoading: false,
     isApplying: false,
-    hasLoaded: false,
+    hasCheckedPci: false,
     errorMessage: null,
     noticeMessage: null,
     graphicsModeStatus: null,
@@ -44,7 +44,7 @@ class DgpuState extends Equatable {
   final String? pciAddress;
   final bool isLoading;
   final bool isApplying;
-  final bool hasLoaded;
+  final bool hasCheckedPci;
   final bool hasLoadedGraphicsMode;
   final AppFailure? errorMessage;
   final String? noticeMessage;
@@ -63,7 +63,7 @@ class DgpuState extends Equatable {
     Object? pciAddress = _unset,
     bool? isLoading,
     bool? isApplying,
-    bool? hasLoaded,
+    bool? hasCheckedPci,
     bool? hasLoadedGraphicsMode,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
@@ -82,7 +82,7 @@ class DgpuState extends Equatable {
           : pciAddress as String?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
-      hasLoaded: hasLoaded ?? this.hasLoaded,
+      hasCheckedPci: hasCheckedPci ?? this.hasCheckedPci,
       hasLoadedGraphicsMode:
           hasLoadedGraphicsMode ?? this.hasLoadedGraphicsMode,
       errorMessage: errorMessage == _unset
@@ -109,7 +109,7 @@ class DgpuState extends Equatable {
     pciAddress,
     isLoading,
     isApplying,
-    hasLoaded,
+    hasCheckedPci,
     hasLoadedGraphicsMode,
     errorMessage,
     noticeMessage,

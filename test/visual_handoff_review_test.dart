@@ -212,7 +212,8 @@ void main() {
             dgpu,
             const Stream<DgpuState>.empty(),
             initialState: DgpuState.initial().copyWith(
-              hasLoaded: true,
+              hasCheckedPci: true,
+              hasLoadedGraphicsMode: true,
               isActive: true,
               name: 'NVIDIA GeForce RTX 4060',
               graphicsModeStatus: const GraphicsModeStatus(

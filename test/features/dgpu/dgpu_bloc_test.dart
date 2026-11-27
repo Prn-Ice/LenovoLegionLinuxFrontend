@@ -74,7 +74,7 @@ void main() {
     addTearDown(bloc.close);
 
     final opened = bloc.stream.firstWhere(
-      (state) => state.hasLoaded && !state.isLoading,
+      (state) => state.hasCheckedPci && !state.isLoading,
     );
     bloc.add(const DgpuStarted());
     await firstScanStarted.future;
@@ -242,7 +242,7 @@ DgpuState _loadedState() => DgpuState.initial().copyWith(
   isActive: _hybridSnapshot.isActive,
   pciAddress: _hybridSnapshot.pciAddress,
   graphicsModeStatus: _hybridStatus,
-  hasLoaded: true,
+  hasCheckedPci: true,
   hasLoadedGraphicsMode: true,
   processScan: GpuProcessScan.noClients,
 );

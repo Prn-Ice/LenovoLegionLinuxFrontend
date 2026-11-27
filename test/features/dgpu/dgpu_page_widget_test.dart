@@ -737,7 +737,7 @@ Future<_MockDgpuRepository> _pumpPage(
   );
   final dgpuLoaded = pendingMode == null
       ? dgpuBloc.stream.firstWhere(
-          (state) => !state.isLoading && state.hasLoaded,
+          (state) => !state.isLoading && state.hasCheckedPci,
         )
       : null;
   dgpuBloc.add(const DgpuStarted());
