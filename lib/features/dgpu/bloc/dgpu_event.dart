@@ -21,6 +21,10 @@ final class DgpuTicked extends DgpuEvent {
   const DgpuTicked();
 }
 
+final class DgpuDeviceDetailsRequested extends DgpuEvent {
+  const DgpuDeviceDetailsRequested();
+}
+
 final class DgpuGraphicsModeSetRequested extends DgpuEvent {
   const DgpuGraphicsModeSetRequested(this.mode);
 

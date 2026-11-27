@@ -17,7 +17,8 @@ void main() {
       (tester) async {
         final repository = _MockLiveSensorRepository();
         final load = Completer<LiveSensorSnapshot>();
-        when(repository.loadSnapshot).thenAnswer((_) => load.future);
+        when(() => repository.loadSnapshot(onReading: any(named: 'onReading')))
+            .thenAnswer((_) => load.future);
         final container = ProviderContainer(
           overrides: [
             liveSensorRepositoryProvider.overrideWithValue(repository),
@@ -29,7 +30,9 @@ void main() {
         // Pages start the production provider's Bloc explicitly.
         bloc.add(const LiveSensorStarted());
         await tester.pump();
-        verify(repository.loadSnapshot).called(1);
+        verify(
+          () => repository.loadSnapshot(onReading: any(named: 'onReading')),
+        ).called(1);
         expect(bloc.state.isLoading, isTrue);
 
         container.dispose();
@@ -45,7 +48,9 @@ void main() {
         // Advance beyond several production polling intervals without sleeping.
         await tester.pump(const Duration(seconds: 6));
 
-        verifyNever(repository.loadSnapshot);
+        verifyNever(
+          () => repository.loadSnapshot(onReading: any(named: 'onReading')),
+        );
         expect(tester.takeException(), isNull);
       },
     );

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/core/models/gpu_process.dart';
 import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
@@ -17,14 +20,12 @@ void main() {
 
   setUp(() {
     repo = MockDgpuRepository();
-    when(() => repo.loadSnapshot()).thenAnswer(
-      (_) async => const DgpuSnapshot(
-        isActive: true,
-        processScan: GpuProcessScan.noClients,
-        pciAddress: '0000:01:00.0',
-        graphicsModeStatus: null,
-      ),
-    );
+    when(() => repo.loadProcessScan(any()))
+        .thenAnswer((_) async => GpuProcessScan.noClients);
+    when(() => repo.loadDeviceName(any())).thenAnswer((_) async => null);
+    when(repo.loadSnapshot).thenAnswer((_) async => _hybridSnapshot);
+    when(() => repo.loadGraphicsModeStatus(required: any(named: 'required')))
+        .thenAnswer((_) async => _hybridStatus);
   });
 
   group('DgpuBloc DgpuTicked', () {
@@ -35,6 +36,12 @@ void main() {
       act: (bloc) => bloc.add(const DgpuTicked()),
       expect: () => [
         isA<DgpuState>().having((s) => s.isLoading, 'isLoading', false),
+        isA<DgpuState>().having((s) => s.isLoading, 'isLoading', false),
+        isA<DgpuState>().having(
+          (s) => s.processScan,
+          'process scan',
+          GpuProcessScan.noClients,
+        ),
       ],
     );
 
@@ -45,6 +52,64 @@ void main() {
       act: (bloc) => bloc.add(const DgpuTicked()),
       expect: () => isEmpty,
     );
+  });
+
+  test('discards a pending process scan after the GPU is reattached', () async {
+    final firstScan = Completer<GpuProcessScan?>();
+    final secondScan = Completer<GpuProcessScan?>();
+    final firstScanStarted = Completer<void>();
+    final secondScanStarted = Completer<void>();
+    var snapshot = _hybridSnapshot;
+    when(repo.loadSnapshot).thenAnswer((_) async => snapshot);
+    when(() => repo.loadProcessScan(_hybridSnapshot.pciAddress!))
+        .thenAnswer((_) {
+          if (!firstScanStarted.isCompleted) {
+            firstScanStarted.complete();
+            return firstScan.future;
+          }
+          secondScanStarted.complete();
+          return secondScan.future;
+        });
+    final bloc = DgpuBloc(repository: repo);
+    addTearDown(bloc.close);
+
+    final opened = bloc.stream.firstWhere(
+      (state) => state.hasLoaded && !state.isLoading,
+    );
+    bloc.add(const DgpuStarted());
+    await firstScanStarted.future;
+    await opened;
+    expect(bloc.state.graphicsModeStatus, _hybridStatus);
+    expect(bloc.state.isLoadingProcesses, isTrue);
+
+    snapshot = const DgpuSnapshot(isActive: null, pciAddress: null);
+    final detached = bloc.stream.firstWhere(
+      (state) => state.pciAddress == null && !state.isLoading,
+    );
+    bloc.add(const DgpuRefreshRequested());
+    await detached;
+    expect(bloc.state.isLoadingProcesses, isFalse);
+
+    snapshot = _hybridSnapshot;
+    final reattached = bloc.stream.firstWhere(
+      (state) => state.isLoadingProcesses,
+    );
+    bloc.add(const DgpuRefreshRequested());
+    await reattached;
+
+    firstScan.complete(
+      const GpuProcessScan(
+        processes: [GpuProcess(pid: 42, name: 'Old result')],
+        reporting: GpuProcessReporting.reported,
+      ),
+    );
+    await secondScanStarted.future;
+    expect(bloc.state.processScan, isNull);
+    expect(bloc.state.isLoadingProcesses, isTrue);
+
+    final loaded = bloc.stream.firstWhere((state) => !state.isLoadingProcesses);
+    secondScan.complete(GpuProcessScan.noClients);
+    expect((await loaded).processScan, GpuProcessScan.noClients);
   });
 
   blocTest<DgpuBloc, DgpuState>(
@@ -63,14 +128,9 @@ void main() {
     build: () {
       when(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly))
           .thenAnswer((_) async {});
-      when(repo.loadSnapshotAfterGraphicsWrite)
-          .thenAnswer((_) async => _hybridSnapshot);
       return DgpuBloc(repository: repo);
     },
-    seed: () => DgpuState.initial().copyWith(
-      graphicsModeStatus: _hybridStatus,
-      hasLoaded: true,
-    ),
+    seed: _loadedState,
     act: (bloc) => bloc.add(
       const DgpuGraphicsModeSetRequested(GraphicsMode.hybridIgpuOnly),
     ),
@@ -82,7 +142,7 @@ void main() {
     ],
     verify: (_) {
       verify(() => repo.setGraphicsMode(GraphicsMode.hybridIgpuOnly)).called(1);
-      verify(repo.loadSnapshotAfterGraphicsWrite).called(1);
+      verify(() => repo.loadGraphicsModeStatus(required: true)).called(1);
     },
   );
 
@@ -95,14 +155,9 @@ void main() {
           kind: AppFailureKind.graphicsPending,
         ),
       );
-      when(repo.loadSnapshotAfterGraphicsWrite)
-          .thenAnswer((_) async => _hybridSnapshot);
       return DgpuBloc(repository: repo);
     },
-    seed: () => DgpuState.initial().copyWith(
-      graphicsModeStatus: _hybridStatus,
-      hasLoaded: true,
-    ),
+    seed: _loadedState,
     act: (bloc) => bloc.add(
       const DgpuGraphicsModeSetRequested(GraphicsMode.hybridIgpuOnly),
     ),
@@ -120,7 +175,8 @@ void main() {
             AppFailureKind.graphicsPending,
           ),
     ],
-    verify: (_) => verify(repo.loadSnapshotAfterGraphicsWrite).called(1),
+    verify: (_) =>
+        verify(() => repo.loadGraphicsModeStatus(required: true)).called(1),
   );
 
   blocTest<DgpuBloc, DgpuState>(
@@ -149,7 +205,7 @@ void main() {
           details: 'write diagnostic',
         ),
       );
-      when(repo.loadSnapshotAfterGraphicsWrite)
+      when(() => repo.loadGraphicsModeStatus(required: true))
           .thenThrow(StateError('read failed'));
       return DgpuBloc(repository: repo);
     },
@@ -179,7 +235,14 @@ const _hybridStatus = GraphicsModeStatus(
 
 const _hybridSnapshot = DgpuSnapshot(
   isActive: true,
-  processScan: GpuProcessScan.noClients,
   pciAddress: '0000:01:00.0',
+);
+
+DgpuState _loadedState() => DgpuState.initial().copyWith(
+  isActive: _hybridSnapshot.isActive,
+  pciAddress: _hybridSnapshot.pciAddress,
   graphicsModeStatus: _hybridStatus,
+  hasLoaded: true,
+  hasLoadedGraphicsMode: true,
+  processScan: GpuProcessScan.noClients,
 );

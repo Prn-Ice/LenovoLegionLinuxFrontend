@@ -187,8 +187,14 @@ void main() {
 
     expect(snapshot.pciAddress, '0000:01:00.0');
     expect(snapshot.isActive, isFalse);
-    expect(snapshot.name, 'Fixture GPU');
-    expect(snapshot.processScan?.processes.single.pid, 42);
+    expect(
+      await fixtureRepository.loadDeviceName(snapshot.pciAddress!),
+      'Fixture GPU',
+    );
+    final processScan = await fixtureRepository.loadProcessScan(
+      snapshot.pciAddress!,
+    );
+    expect(processScan?.processes.single.pid, 42);
   });
 
   test('keeps graphics status unavailable after command failure', () async {

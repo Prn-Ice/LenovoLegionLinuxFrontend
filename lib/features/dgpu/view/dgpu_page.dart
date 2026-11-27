@@ -59,16 +59,17 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
 
-    if (!state.hasLoaded) {
-      return const Center(child: YaruCircularProgressIndicator());
-    }
-
     final snapshot = sensorState.snapshot;
     final integratedGpu = snapshot.igpu;
     final integratedProcesses = snapshot.igpuProcesses;
     final discreteProcesses = state.processScan?.processes;
     final availableChannels = <_GpuChannel>[
-      if (state.isAvailable) _GpuChannel.discrete,
+      if (state.isAvailable ||
+          (!state.hasLoaded &&
+              (snapshot.dgpu != null ||
+                  state.graphicsModeStatus?.effectiveState ==
+                      DgpuTopology.attached)))
+        _GpuChannel.discrete,
       if (integratedGpu != null) _GpuChannel.integrated,
     ];
     final channel = availableChannels.contains(_channel)
@@ -112,21 +113,26 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             onWindowChanged: analyticsBloc.add,
             options: _discreteHistoryOptions,
           ),
-          const SizedBox(height: 16),
-          _ProcessesCard(
-            key: const ValueKey('gpu-processes-discrete'),
-            title: 'Processes with NVIDIA devices open',
-            processes: discreteProcesses ?? const [],
-            countLabel: discreteProcesses == null
-                ? 'Unavailable'
-                : '${discreteProcesses.length} found',
-            emptyMessage: discreteProcesses == null
-                ? 'GPU process list unavailable.'
-                : 'No visible processes have NVIDIA devices open.',
-            note:
-                'The list includes processes this app can inspect. '
-                'A process can keep a device open while the GPU sleeps.',
-          ),
+          if (state.pciAddress != null) ...[
+            const SizedBox(height: 16),
+            _ProcessesCard(
+              key: const ValueKey('gpu-processes-discrete'),
+              title: 'Processes with NVIDIA devices open',
+              processes: discreteProcesses ?? const [],
+              loadingMessage: state.isLoadingProcesses
+                  ? 'Checking for open NVIDIA devices…'
+                  : null,
+              countLabel: discreteProcesses == null
+                  ? 'Unavailable'
+                  : '${discreteProcesses.length} found',
+              emptyMessage: discreteProcesses == null
+                  ? 'GPU process list unavailable.'
+                  : 'No visible processes have NVIDIA devices open.',
+              note:
+                  'The list includes processes this app can inspect. '
+                  'A process can keep a device open while the GPU sleeps.',
+            ),
+          ],
         ] else if (channel == _GpuChannel.integrated) ...[
           _IntegratedGpuCard(
             gpu: integratedGpu!,
@@ -149,6 +155,9 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
             key: const ValueKey('gpu-processes-integrated'),
             title: 'Processes on the integrated GPU',
             processes: integratedProcesses?.processes ?? const [],
+            loadingMessage: integratedProcesses == null && sensorState.isLoading
+                ? 'Checking integrated GPU processes…'
+                : null,
             countLabel: _integratedProcessCount(integratedProcesses),
             emptyMessage: _integratedProcessMessage(integratedProcesses),
             note:
@@ -318,6 +327,30 @@ class _GpuOverview extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final gpu = sensor.dgpu;
     final name = gpu?.name ?? state.name ?? 'NVIDIA discrete GPU';
+    final metrics = [
+      if (gpu?.usagePercent != null)
+        _GpuMetric(
+          value: _measurement(gpu!.usagePercent, '%', 0),
+          label: 'Usage',
+        ),
+      if (gpu?.performanceState != null)
+        _GpuMetric(value: gpu!.performanceState!, label: 'Power state'),
+      if (gpu?.tempC != null)
+        _GpuMetric(
+          value: _measurement(gpu!.tempC, '°', 0),
+          label: 'Temperature',
+        ),
+      if (gpu?.powerDrawW != null)
+        _GpuMetric(
+          value: _measurement(gpu!.powerDrawW, 'W', 1),
+          label: 'Power draw',
+        ),
+      if (gpu?.vramUsedGb != null && gpu?.vramTotalGb != null)
+        _GpuMetric(
+          value: _vramLabel(gpu!.vramUsedGb, gpu.vramTotalGb),
+          label: 'VRAM',
+        ),
+    ];
     return SurfaceCard(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       child: Column(
@@ -347,56 +380,31 @@ class _GpuOverview extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
-                    Text(
-                      'GPU · '
-                      '${state.graphicsModeStatus?.selectedMode.label ?? 'Graphics mode unavailable'}',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
+                    if (state.graphicsModeStatus case final status?)
+                      Text(
+                        'GPU · ${status.selectedMode.label}',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              _RuntimeBadge(isActive: state.isActive),
+              if (state.isActive case final isActive?) ...[
+                const SizedBox(width: 12),
+                _RuntimeBadge(isActive: isActive),
+              ],
             ],
           ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 26,
-            runSpacing: 14,
-            children: [
-              if (gpu?.usagePercent != null)
-                _GpuMetric(
-                  value: _measurement(gpu!.usagePercent, '%', 0),
-                  label: 'Usage',
-                ),
-              if (gpu?.performanceState != null)
-                _GpuMetric(value: gpu!.performanceState!, label: 'Power state'),
-              if (gpu?.tempC != null)
-                _GpuMetric(
-                  value: _measurement(gpu!.tempC, '°', 0),
-                  label: 'Temperature',
-                ),
-              if (gpu?.powerDrawW != null)
-                _GpuMetric(
-                  value: _measurement(gpu!.powerDrawW, 'W', 1),
-                  label: 'Power draw',
-                ),
-              if (gpu?.vramUsedGb != null && gpu?.vramTotalGb != null)
-                _GpuMetric(
-                  value: _vramLabel(gpu!.vramUsedGb, gpu.vramTotalGb),
-                  label: 'VRAM',
-                ),
-            ],
-          ),
-          if (gpu == null) ...[
+          if (metrics.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Wrap(spacing: 26, runSpacing: 14, children: metrics),
+          ],
+          if (gpu == null && !isLoadingReadings) ...[
             const SizedBox(height: 14),
             Text(
-              switch ((isLoadingReadings, state.isActive)) {
-                (true, _) => _loadingGpuReadings,
-                (_, false) => 'Live NVIDIA telemetry is unavailable while the GPU is suspended.',
-                _ => 'Live NVIDIA telemetry is unavailable. Run nvidia-smi to check the driver.',
-              },
+              state.isActive == false
+                  ? 'Live NVIDIA telemetry is unavailable while the GPU is suspended.'
+                  : 'Live NVIDIA telemetry is unavailable. Run nvidia-smi to check the driver.',
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
@@ -506,12 +514,11 @@ class _IntegratedGpuCard extends StatelessWidget {
 class _RuntimeBadge extends StatelessWidget {
   const _RuntimeBadge({required this.isActive});
 
-  final bool? isActive;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    final active = isActive == true;
-    final color = active
+    final color = isActive
         ? const Color(0xff3FBF6F)
         : Theme.of(context).colorScheme.onSurfaceVariant;
     return DecoratedBox(
@@ -531,11 +538,7 @@ class _RuntimeBadge extends StatelessWidget {
             ),
             const SizedBox(width: 7),
             Text(
-              isActive == null
-                  ? 'Unknown'
-                  : active
-                  ? 'Active'
-                  : 'Inactive',
+              isActive ? 'Active' : 'Inactive',
               style: TextStyle(color: color, fontWeight: FontWeight.w600),
             ),
           ],
@@ -615,6 +618,7 @@ class _ProcessesCard extends StatelessWidget {
     required this.emptyMessage,
     required this.note,
     this.countLabel,
+    this.loadingMessage,
   });
 
   final String title;
@@ -622,6 +626,7 @@ class _ProcessesCard extends StatelessWidget {
   final String emptyMessage;
   final String note;
   final String? countLabel;
+  final String? loadingMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -641,11 +646,12 @@ class _ProcessesCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.w700),
               ),
-              Text(
-                countLabel ?? '${processes.length} running',
-                style: monoFactStyle(scheme)
-                    .copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
-              ),
+              if (loadingMessage == null)
+                Text(
+                  countLabel ?? '${processes.length} running',
+                  style: monoFactStyle(scheme)
+                      .copyWith(color: scheme.onSurfaceVariant, fontSize: 11),
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -654,7 +660,7 @@ class _ProcessesCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
-                  emptyMessage,
+                  loadingMessage ?? emptyMessage,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
@@ -746,7 +752,8 @@ class _GraphicsModeCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              _ReconciliationBadge(status: status),
+              if (state.hasLoadedGraphicsMode)
+                _ReconciliationBadge(status: status),
             ],
           ),
           const SizedBox(height: 4),
@@ -758,7 +765,9 @@ class _GraphicsModeCard extends StatelessWidget {
           const SizedBox(height: 16),
           if (status == null)
             Text(
-              'Graphics status is unavailable. Use Refresh to reload it before changing modes.',
+              state.hasLoadedGraphicsMode
+                  ? 'Graphics status is unavailable. Use Refresh to reload it before changing modes.'
+                  : 'Checking graphics mode…',
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             )

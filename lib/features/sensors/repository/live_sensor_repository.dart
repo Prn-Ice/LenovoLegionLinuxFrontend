@@ -22,49 +22,30 @@ class LiveSensorRepository {
   final IgpuSysfsService _igpu;
   final PackagePowerTelemetryClient _packagePowerTelemetry;
 
-  Future<LiveSensorSnapshot> loadSnapshot() async {
-    final results = await Future.wait([
-      _sysfs.readCpuName(),
-      _sysfs.readCpuTempC(),
-      _sysfs.readCpuUtilisationPercent(),
-      _sysfs.readAverageCpuClockGhz(),
-      _packagePowerTelemetry.readPackagePowerWatts(),
-      _sysfs.readFan1Rpm(),
-      _sysfs.readFan1MaxRpm(),
-      _sysfs.readFan2Rpm(),
-      _sysfs.readFan2MaxRpm(),
-      _sysfs.readFan3Rpm(),
-      _sysfs.readFan3MaxRpm(),
-      _sysfs.readMotherboardTempC(),
-      _sysfs.readBatteryPowerDrawW(),
-      _sysfs.readDiskTempC(),
-      _nvidia.readSnapshot(),
-      _igpu.readSnapshot(),
-      _igpu.readProcesses(),
-    ]);
+  Future<LiveSensorSnapshot> loadSnapshot({
+    void Function(LiveSensorSnapshot)? onReading,
+  }) async {
+    String? cpuName;
+    double? cpuTempC;
+    double? cpuUtil;
+    double? cpuClock;
+    double? cpuPackagePower;
+    int? fan1;
+    int? fan1Max;
+    int? fan2;
+    int? fan2Max;
+    int? fan3;
+    int? fan3Max;
+    double? moboTemp;
+    double? batteryDraw;
+    double? diskTemp;
+    int? batteryPercent;
+    bool? batteryCharging;
+    GpuReading? nvidia;
+    GpuReading? igpu;
+    GpuProcessScan? igpuProcesses;
 
-    final cpuName = results[0] as String?;
-    final cpuTempC = results[1] as double?;
-    final cpuUtil = results[2] as double?;
-    final cpuClock = results[3] as double?;
-    final cpuPackagePower = results[4] as double?;
-    final fan1 = results[5] as int?;
-    final fan1Max = results[6] as int?;
-    final fan2 = results[7] as int?;
-    final fan2Max = results[8] as int?;
-    final fan3 = results[9] as int?;
-    final fan3Max = results[10] as int?;
-    final moboTemp = results[11] as double?;
-    final batteryDraw = results[12] as double?;
-    final diskTemp = results[13] as double?;
-    final nvidia = results[14] as GpuReading?;
-    final igpu = results[15] as GpuReading?;
-    final igpuProcesses = results[16] as GpuProcessScan?;
-
-    final batteryPercent = await _sysfs.readBatteryPercent();
-    final batteryStatusStr = await _sysfs.readBatteryStatus();
-
-    return LiveSensorSnapshot(
+    LiveSensorSnapshot snapshot() => LiveSensorSnapshot(
       cpuName: cpuName,
       cpuTempC: cpuTempC,
       cpuUtilPercent: cpuUtil,
@@ -81,11 +62,43 @@ class LiveSensorRepository {
       dgpu: nvidia,
       motherboardTempC: moboTemp,
       batteryPercent: batteryPercent,
-      batteryCharging: batteryStatusStr == null
-          ? null
-          : batteryStatusStr == 'Charging',
+      batteryCharging: batteryCharging,
       batteryPowerDrawW: batteryDraw,
       diskTempC: diskTemp,
     );
+
+    Future<void> read<T>(Future<T> result, void Function(T) record) async {
+      record(await result);
+      onReading?.call(snapshot());
+    }
+
+    await Future.wait([
+      read(_sysfs.readCpuName(), (value) => cpuName = value),
+      read(_sysfs.readCpuTempC(), (value) => cpuTempC = value),
+      read(_sysfs.readCpuUtilisationPercent(), (value) => cpuUtil = value),
+      read(_sysfs.readAverageCpuClockGhz(), (value) => cpuClock = value),
+      read(
+        _packagePowerTelemetry.readPackagePowerWatts(),
+        (value) => cpuPackagePower = value,
+      ),
+      read(_sysfs.readFan1Rpm(), (value) => fan1 = value),
+      read(_sysfs.readFan1MaxRpm(), (value) => fan1Max = value),
+      read(_sysfs.readFan2Rpm(), (value) => fan2 = value),
+      read(_sysfs.readFan2MaxRpm(), (value) => fan2Max = value),
+      read(_sysfs.readFan3Rpm(), (value) => fan3 = value),
+      read(_sysfs.readFan3MaxRpm(), (value) => fan3Max = value),
+      read(_sysfs.readMotherboardTempC(), (value) => moboTemp = value),
+      read(_sysfs.readBatteryPowerDrawW(), (value) => batteryDraw = value),
+      read(_sysfs.readDiskTempC(), (value) => diskTemp = value),
+      read(_sysfs.readBatteryPercent(), (value) => batteryPercent = value),
+      read(
+        _sysfs.readBatteryStatus(),
+        (value) => batteryCharging = value == null ? null : value == 'Charging',
+      ),
+      read(_nvidia.readSnapshot(), (value) => nvidia = value),
+      read(_igpu.readSnapshot(), (value) => igpu = value),
+      read(_igpu.readProcesses(), (value) => igpuProcesses = value),
+    ]);
+    return snapshot();
   }
 }

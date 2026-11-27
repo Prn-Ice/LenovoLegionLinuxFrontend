@@ -74,8 +74,9 @@ class _FakeBatteryRepository implements BatteryRepository {
 
 class _FakeLiveSensorRepository implements LiveSensorRepository {
   @override
-  Future<LiveSensorSnapshot> loadSnapshot() async =>
-      LiveSensorSnapshot.initial();
+  Future<LiveSensorSnapshot> loadSnapshot({
+    void Function(LiveSensorSnapshot)? onReading,
+  }) async => LiveSensorSnapshot.initial();
 }
 
 class _FakeAboutRepository implements AboutRepository {

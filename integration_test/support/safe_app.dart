@@ -585,6 +585,7 @@ class _NoPackagePower implements PackagePowerTelemetryClient {
 
 class _NoLiveSensors implements LiveSensorRepository {
   @override
-  Future<LiveSensorSnapshot> loadSnapshot() async =>
-      LiveSensorSnapshot.initial();
+  Future<LiveSensorSnapshot> loadSnapshot({
+    void Function(LiveSensorSnapshot)? onReading,
+  }) async => LiveSensorSnapshot.initial();
 }
