@@ -6,7 +6,7 @@ import 'release_source/source_archive.dart';
 
 Future<void> main(List<String> arguments) async {
   try {
-    final root = File.fromUri(Platform.script).parent.parent;
+    final root = File.fromUri(Platform.script).parent.parent.parent;
     final archive = releaseSourceArchive(arguments, root);
     final release = await buildLinuxRelease(root);
     await packageReleaseSource(root, release.bundle, archive, release.record);
@@ -22,7 +22,7 @@ File releaseSourceArchive(List<String> arguments, Directory root) {
     [] => 'build/release/legion-frontend-source.tar.gz',
     ['--output', final String path] when !path.startsWith('--') => path,
     _ => throw const FormatException(
-      'Usage: dart tool/package_release.dart [--output archive.tar.gz]',
+      'Usage: dart tool/packaging/package_release.dart [--output archive.tar.gz]',
     ),
   };
   return File.fromUri(root.uri.resolve(path));

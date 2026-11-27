@@ -41,4 +41,4 @@ jobs:
         env:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: dart tool/check_commits.dart "$PR_BASE" "$PR_HEAD"
+        run: dart tool/ci/check_commits.dart "$PR_BASE" "$PR_HEAD"

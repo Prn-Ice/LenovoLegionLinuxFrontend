@@ -49,7 +49,7 @@
           openssh
           gnupg
         ];
-        text = builtins.readFile ./tool/tag.sh;
+        text = builtins.readFile ./tool/packaging/tag.sh;
       };
     in
     {
@@ -105,7 +105,7 @@
               ];
             }
             ''
-              bash ${./test/tool/tag_test.sh} ${./tool/update_nix_metadata.sh} ${pkgs.lib.getExe tag}
+              bash ${./test/tool/tag_test.sh} ${./tool/packaging/update_nix_metadata.sh} ${pkgs.lib.getExe tag}
               touch "$out"
             '';
         frontend-package = import ./control/test/frontend_package.nix { inherit pkgs frontend; };

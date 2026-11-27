@@ -2,10 +2,10 @@
 # Test the packaged app's privileged controls through official appimage-run.
 set -euo pipefail
 if [[ $# != 2 ]]; then
-  echo 'Usage: bash tool/test_appimage_nixos.sh APPIMAGE OUTPUT_DIRECTORY' >&2
+  echo 'Usage: bash tool/ci/test_appimage_nixos.sh APPIMAGE OUTPUT_DIRECTORY' >&2
   exit 64
 fi
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 image=$(realpath -- "$1")
 output=$(realpath -m -- "$2")
 if [[ -e "$output" ]]; then echo "Output already exists: $output" >&2; exit 1; fi

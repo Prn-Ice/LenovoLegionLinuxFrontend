@@ -10,7 +10,7 @@ The pending iGPU-only request was cancelled, leaving Hybrid unchanged.
 From a desktop terminal, as your normal user:
 
 ```bash
-bash tool/record_sleep_events.sh
+bash tool/diagnostics/record_sleep_events.sh
 ```
 
 Leave the terminal open and use the laptop normally. The script prints where it

@@ -6,7 +6,7 @@ base=''
 head=HEAD
 head_given=false
 worktree=false
-usage='Usage: bash tool/ci_build_changes.sh [--base COMMIT] [--head COMMIT | --worktree]'
+usage='Usage: bash tool/ci/ci_build_changes.sh [--base COMMIT] [--head COMMIT | --worktree]'
 while (($#)); do
   case "$1" in
     --base|--head)
@@ -55,16 +55,16 @@ if [[ -n "$base" ]]; then
       .github/*|.metadata|pubspec.yaml|pubspec.lock) all=true ;;
       assets/*|lib/*|linux/*) integration=true; nix=true; appimage=true; debian=true ;;
       control/*) all=true ;;
-      integration_test/*|tool/test_linux_journeys.sh) integration=true ;;
+      integration_test/*|tool/ci/test_linux_journeys.sh) integration=true ;;
       flake.nix|flake.lock|packaging/nix/*) nix=true; lifecycle=true; appimage=true ;;
-      packaging/debian/*|tool/build_deb.sh|tool/package_deb.dart|tool/fetch_debian_test_image.sh) debian=true ;;
+      packaging/debian/*|tool/packaging/build_deb.sh|tool/packaging/package_deb.dart|tool/ci/fetch_debian_test_image.sh) debian=true ;;
       packaging/appimage/*) appimage=true; debian=true; nix=true ;;
       packaging/*) all=true ;;
-      tool/package_linux.dart|tool/package_release.dart|tool/release_source/*|tool/packaging_files.dart|tool/bundle_notices.dart|tool/nix_flutter_provenance.dart|tool/test_distro.sh|tool/distro_*.sh|LICENSE|THIRD_PARTY_NOTICES.md) appimage=true; debian=true; nix=true ;;
-      tool/*appimage*) appimage=true ;;
-      tool/record_package_test_results.dart|tool/package_test_results.dart) appimage=true; debian=true ;;
-      tool/update_nix_metadata.sh) nix=true ;;
-      tool/ci_*|tool/release_workflow.dart|test/*|analysis_options.yaml) ;;
+      tool/packaging/package_linux.dart|tool/packaging/package_release.dart|tool/packaging/release_source/*|tool/packaging/packaging_files.dart|tool/packaging/bundle_notices.dart|tool/packaging/nix_flutter_provenance.dart|tool/ci/test_distro.sh|tool/ci/distro_*.sh|LICENSE|THIRD_PARTY_NOTICES.md) appimage=true; debian=true; nix=true ;;
+      tool/packaging/*appimage*|tool/ci/*appimage*) appimage=true ;;
+      tool/ci/record_package_test_results.dart|tool/ci/package_test_results.dart) appimage=true; debian=true ;;
+      tool/packaging/update_nix_metadata.sh) nix=true ;;
+      tool/ci/ci_*|tool/packaging/release_workflow.dart|test/*|analysis_options.yaml) ;;
       tool/*) all=true ;;
     esac
   done <"$paths"

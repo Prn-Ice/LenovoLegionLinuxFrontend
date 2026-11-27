@@ -41,7 +41,7 @@ printf 'AppImage fixture\n' >"$temporary/image"
 check_run() {
   local name=$1 expected=$2 actual=0
   export FIXTURE_OUTPUT="$temporary/raw-$name"
-  bash "$root/tool/test_appimage_nixos.sh" "$temporary/image" "$temporary/$name" \
+  bash "$root/tool/ci/test_appimage_nixos.sh" "$temporary/image" "$temporary/$name" \
     >"$temporary/$name.log" 2>&1 || actual=$?
   [[ $actual == "$expected" ]] || {
     cat "$temporary/$name.log" >&2

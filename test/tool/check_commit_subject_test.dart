@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/check_commits.dart';
+import '../../tool/ci/check_commits.dart';
 
 void main() {
   test('accepts conventional subjects with scopes and breaking markers', () {

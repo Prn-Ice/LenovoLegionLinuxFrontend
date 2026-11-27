@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/package_appimage.dart';
+import '../../tool/packaging/package_appimage.dart';
 
 void main() {
   late Directory temporary;

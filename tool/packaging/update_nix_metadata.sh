@@ -2,10 +2,10 @@
 # Keep Nix's pure JSON inputs aligned with the Flutter manifests.
 set -euo pipefail
 if [[ $# -gt 1 || ( $# == 1 && $1 != --check ) ]]; then
-  echo 'Usage: bash tool/update_nix_metadata.sh [--check]' >&2
+  echo 'Usage: bash tool/packaging/update_nix_metadata.sh [--check]' >&2
   exit 64
 fi
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 temporary="$(mktemp -d /tmp/legion-nix-metadata.XXXXXXXX)"
 trap 'rm -rf -- "$temporary"' EXIT
 for manifest in pubspec.yaml pubspec.lock; do

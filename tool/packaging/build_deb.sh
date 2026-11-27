@@ -2,10 +2,10 @@
 # Build a distro-native Debian package in an isolated Ubuntu container.
 set -euo pipefail
 if [[ $# != 2 ]]; then
-  echo 'Usage: bash tool/build_deb.sh FLUTTER_SDK_ARCHIVE OUTPUT_DIRECTORY' >&2
+  echo 'Usage: bash tool/packaging/build_deb.sh FLUTTER_SDK_ARCHIVE OUTPUT_DIRECTORY' >&2
   exit 64
 fi
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 sdk="$(realpath -- "$1")"
 output="$(realpath -m -- "$2")"
 if [[ -e $output ]]; then echo "Output already exists: $output" >&2; exit 1; fi
@@ -25,7 +25,7 @@ cleanup() {
 trap cleanup EXIT
 git clone --quiet --depth 1 --no-local --single-branch "file://$root" "$scratch/source"
 test "$(git -C "$scratch/source" rev-parse HEAD)" = "$(git -C "$root" rev-parse HEAD)"
-image="$(bash "$root/tool/package_builder_image.sh" 2> >(tee "$output/builder.log" >&2))"
+image="$(bash "$root/tool/packaging/package_builder_image.sh" 2> >(tee "$output/builder.log" >&2))"
 cache_mount=()
 if [[ ${RUNNER_ENVIRONMENT:-} == self-hosted ]]; then
   cache_mount=(--volume legion-package-pub:/home/builder/.pub-cache)
@@ -39,7 +39,7 @@ container="$(docker create "${cache_mount[@]}" --user root --entrypoint bash "$i
     set -e
     cd /home/builder/source
     flutter config --no-analytics
-    dart tool/package_deb.dart --output build/deb-output
+    dart tool/packaging/package_deb.dart --output build/deb-output
   "
 ')"
 docker cp "$sdk" "$container:/tmp/flutter.tar.xz"

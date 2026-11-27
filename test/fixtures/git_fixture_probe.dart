@@ -1,10 +1,10 @@
 // Runs under an inherited hook environment; all repositories are disposable.
 import 'dart:io';
 
-import '../../tool/check_commits.dart';
-import '../../tool/release_source/source_files.dart';
-import '../../tool/release_source/source_inputs.dart';
-import '../../tool/release_workflow.dart';
+import '../../tool/ci/check_commits.dart';
+import '../../tool/packaging/release_source/source_files.dart';
+import '../../tool/packaging/release_source/source_inputs.dart';
+import '../../tool/packaging/release_workflow.dart';
 import '../support/git_fixture.dart';
 
 Future<void> main(List<String> arguments) async {

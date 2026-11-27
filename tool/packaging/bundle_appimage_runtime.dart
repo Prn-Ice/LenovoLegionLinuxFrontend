@@ -255,7 +255,7 @@ class RuntimeBundle {
     final build = Directory.systemTemp.createTempSync('static-helper-');
     try {
       final log = runtimeCommand('bash', [
-        '${root.path}/tool/build_static_helper.sh',
+        '${root.path}/tool/packaging/build_static_helper.sh',
         root.path,
         source.path,
         build.path,
@@ -423,11 +423,11 @@ void main(List<String> args) {
   try {
     if (args.length != 4 || args[0] != '--appdir' || args[2] != '--inputs') {
       throw const FormatException(
-        'Usage: dart tool/bundle_appimage_runtime.dart --appdir DIRECTORY --inputs DIRECTORY',
+        'Usage: dart tool/packaging/bundle_appimage_runtime.dart --appdir DIRECTORY --inputs DIRECTORY',
       );
     }
     bundleRuntime(
-      File.fromUri(Platform.script).parent.parent,
+      File.fromUri(Platform.script).parent.parent.parent,
       Directory(args[1]).absolute,
       Directory(args[3]).absolute,
     );

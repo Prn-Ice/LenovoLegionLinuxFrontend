@@ -23,10 +23,10 @@ Future<void> main(List<String> args) async {
           when !inputs.startsWith('--') && !output.startsWith('--') =>
         (inputs, output),
       _ => throw const FormatException(
-        'Usage: dart tool/package_appimage.dart --runtime-inputs DIRECTORY --output DIRECTORY',
+        'Usage: dart tool/packaging/package_appimage.dart --runtime-inputs DIRECTORY --output DIRECTORY',
       ),
     };
-    final root = File.fromUri(Platform.script).parent.parent;
+    final root = File.fromUri(Platform.script).parent.parent.parent;
     final os = await File('/etc/os-release').readAsString();
     if (!RegExp(r'^ID=ubuntu$', multiLine: true).hasMatch(os) ||
         !RegExp(r'^VERSION_ID="22\.04"$', multiLine: true).hasMatch(os)) {

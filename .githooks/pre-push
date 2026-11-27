@@ -10,7 +10,7 @@ while read -r ref _ _ _; do
 done
 # Include local edits because the checks run in this worktree, not a clone.
 if [[ "$release" == false ]] && base=$(git merge-base HEAD origin/main); then
-  selection=$(bash tool/ci_build_changes.sh --base "$base" --worktree)
+  selection=$(bash tool/ci/ci_build_changes.sh --base "$base" --worktree)
   if grep -qx 'tooling=false' <<<"$selection"; then
     tests=(--exclude-tags tooling)
     echo 'No tooling inputs changed; skipping tooling tests.'

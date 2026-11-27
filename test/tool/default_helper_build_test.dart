@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/packaging_files.dart';
+import '../../tool/packaging/packaging_files.dart';
 
 void main() {
   final project = Directory.current;

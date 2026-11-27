@@ -7,7 +7,7 @@ qualification, so CI does not start another VM for that identical check.
 
 ## Which expensive checks run
 
-`tool/ci_build_changes.sh` selects PR checks from changed paths, including both
+`tool/ci/ci_build_changes.sh` selects PR checks from changed paths, including both
 sides of renames and deletions:
 
 | Changed inputs | Selected checks |

@@ -6,11 +6,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/package_release.dart';
-import '../../tool/release_source/build_record.dart';
-import '../../tool/release_source/linux_build.dart';
-import '../../tool/release_source/source_archive.dart';
-import '../../tool/release_source/source_inputs.dart';
+import '../../tool/packaging/package_release.dart';
+import '../../tool/packaging/release_source/build_record.dart';
+import '../../tool/packaging/release_source/linux_build.dart';
+import '../../tool/packaging/release_source/source_archive.dart';
+import '../../tool/packaging/release_source/source_inputs.dart';
 import '../support/git_fixture.dart';
 
 void main() {
@@ -110,12 +110,15 @@ void main() {
 
   test('the release CLI rejects malformed options before building', () async {
     final result = await Process.run('dart', [
-      'tool/package_release.dart',
+      'tool/packaging/package_release.dart',
       '--output',
       '--unexpected',
     ]);
     expect(result.exitCode, 64);
-    expect(result.stderr, contains('Usage: dart tool/package_release.dart'));
+    expect(
+      result.stderr,
+      contains('Usage: dart tool/packaging/package_release.dart'),
+    );
     expect(result.stdout, isEmpty);
   });
 
@@ -151,7 +154,7 @@ void main() {
       ]);
       expect(
         recipe.stdout,
-        contains('bash source/tool/build_static_helper.sh'),
+        contains('bash source/tool/packaging/build_static_helper.sh'),
       );
     },
   );

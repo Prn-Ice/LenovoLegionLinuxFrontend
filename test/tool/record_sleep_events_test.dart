@@ -8,8 +8,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final script = File('tool/record_sleep_events.sh').absolute.path;
-  final storage = File('tool/sleep_event_storage.sh').absolute.path;
+  final script = File('tool/diagnostics/record_sleep_events.sh').absolute.path;
+  final storage = File('tool/diagnostics/sleep_event_storage.sh').absolute.path;
   late Directory root;
 
   setUp(() => root = Directory.systemTemp.createTempSync('sleep-recorder-'));

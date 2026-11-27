@@ -3,15 +3,15 @@
 set -euo pipefail
 
 if [[ ( $# != 3 && $# != 5 ) || ! $2 =~ ^[[:xdigit:]]{64}$ ]]; then
-  echo "Usage: bash tool/test_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage|--deb RELEASE_DIRECTORY]" >&2
+  echo "Usage: bash tool/ci/test_distro.sh IMAGE SHA256 OUTPUT_DIRECTORY [--appimage|--deb RELEASE_DIRECTORY]" >&2
   exit 64
 fi
 
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=tool/distro_readiness.sh
-source "$root/tool/distro_readiness.sh"
-# shellcheck source=tool/distro_evidence.sh
-source "$root/tool/distro_evidence.sh"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=tool/ci/distro_readiness.sh
+source "$root/tool/ci/distro_readiness.sh"
+# shellcheck source=tool/ci/distro_evidence.sh
+source "$root/tool/ci/distro_evidence.sh"
 image="$(realpath -- "$1")"
 expected="$2"
 output="$(realpath -m -- "$3")"
@@ -132,7 +132,7 @@ remote "mkdir /root/source && tar -xzf /root/source.tar.gz -C /root/source && cd
 result=${PIPESTATUS[0]}
 set -e
 retrieve_distro_evidence "$output" "$qualification_archive" "$result" "$port" "${ssh_options[@]}"
-dart "$root/tool/record_package_test_results.dart" distro "$output" \
+dart "$root/tool/ci/record_package_test_results.dart" distro "$output" \
   "$LLLF_QUALIFICATION_COMMIT" "$LLLF_QUALIFICATION_MODIFIED" \
   "$expected" "$vm_cpu" "$format"
 echo "Distro qualification passed: $output"

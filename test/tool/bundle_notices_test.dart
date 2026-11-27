@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/bundle_notices.dart';
+import '../../tool/packaging/bundle_notices.dart';
 
 void main() {
   late Directory root;

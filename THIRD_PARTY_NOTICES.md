@@ -72,7 +72,7 @@ vendor attribution, and nested font/native licenses under
 dependencies and SDK, without replacing their original notices.
 
 Flutter collects package-root `LICENSE`/`NOTICES` files, including development
-dependencies, and engine notices. `tool/bundle_notices.dart` records which packages
+dependencies, and engine notices. `tool/packaging/bundle_notices.dart` records which packages
 the app depends on at runtime, along with the
 font manifest, native libraries, and notice component names in `inventory.json`.
 It adds the nested notices Flutter misses: Yaru's `assets/LICENSE.CCBYSA` and
@@ -100,11 +100,11 @@ project/issue links and diagnostics, not a license viewer.
 Check a built bundle without changing it:
 
 ```sh
-dart tool/bundle_notices.dart --check build/linux/x64/release/bundle
+dart tool/packaging/bundle_notices.dart --check build/linux/x64/release/bundle
 gzip -dc build/linux/x64/release/bundle/data/flutter_assets/NOTICES.Z | less
 ```
 
-Keep both notice locations when packaging. Use `tool/package_release.sh` to
+Keep both notice locations when packaging. Use `tool/packaging/package_release.sh` to
 build the bundle and its source companion, including the resolved libhandy
 subtree and local dependency edits. Publish both together; see the
 [release instructions](README.md#running) for archive contents and rebuild

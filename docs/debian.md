@@ -27,7 +27,7 @@ a clean committed checkout:
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
-bash tool/build_deb.sh /tmp/flutter-3.50.0.tar.xz build/deb-release
+bash tool/packaging/build_deb.sh /tmp/flutter-3.50.0.tar.xz build/deb-release
 ```
 
 The script verifies the SDK checksum in `packaging/appimage/build-inputs.json`.

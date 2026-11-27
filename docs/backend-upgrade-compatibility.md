@@ -129,7 +129,7 @@ The implementation passed these hardware-free checks:
 - Native CTest suite: nine passed.
 - Nix `control-lifecycle` check: disposable VM passed, including command-scoped
   exits and authorization/lifetime checks.
-- `tool/test_linux_journeys.sh` under Xvfb: 18 app journeys plus both restart
+- `tool/ci/test_linux_journeys.sh` under Xvfb: 18 app journeys plus both restart
   stages passed. The fan journeys cover full-curve preset readback and blocked
   writes for a speed-only table.
 - Fans/Power visual fixture run: eight passed. We inspected light/dark captures

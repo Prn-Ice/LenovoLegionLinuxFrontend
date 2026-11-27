@@ -4,7 +4,7 @@ set -euo pipefail
 umask 077
 
 if (($#)); then
-  echo 'Usage: bash tool/record_sleep_events.sh' >&2
+  echo 'Usage: bash tool/diagnostics/record_sleep_events.sh' >&2
   exit 2
 fi
 root=${XDG_STATE_HOME:-$HOME/.local/state}
@@ -15,7 +15,7 @@ directory=$(mktemp -d "$root/legion-sleep-recorder/$(date +%Y%m%d-%H%M%S)-XXXXXX
 count=0
 journal_pid=''
 max_bytes=$((8 * 1024 * 1024))
-# shellcheck source=tool/sleep_event_storage.sh
+# shellcheck source=tool/diagnostics/sleep_event_storage.sh
 source "$(dirname "${BASH_SOURCE[0]}")/sleep_event_storage.sh"
 
 finish() {

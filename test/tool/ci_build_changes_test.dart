@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/git_fixture.dart';
 
 void main() {
-  final script = File('tool/ci_build_changes.sh').absolute.path;
+  final script = File('tool/ci/ci_build_changes.sh').absolute.path;
   late Directory root;
   late GitFixture repository;
   late String base;
@@ -103,23 +103,23 @@ void main() {
     'assets/icon.svg': {'integration', 'nix', 'appimage', 'debian'},
     'linux/CMakeLists.txt': {'integration', 'nix', 'appimage', 'debian'},
     'integration_test/app_test.dart': {'integration'},
-    'tool/test_linux_journeys.sh': {'integration'},
+    'tool/ci/test_linux_journeys.sh': {'integration'},
     'packaging/debian/legion_frontend': {'debian'},
-    'tool/build_deb.sh': {'debian'},
-    'tool/package_deb.dart': {'debian'},
-    'tool/package_appimage.dart': {'appimage'},
-    'tool/test_appimage_nixos.sh': {'appimage'},
+    'tool/packaging/build_deb.sh': {'debian'},
+    'tool/packaging/package_deb.dart': {'debian'},
+    'tool/packaging/package_appimage.dart': {'appimage'},
+    'tool/ci/test_appimage_nixos.sh': {'appimage'},
     'packaging/appimage/Dockerfile': {'appimage', 'debian', 'nix'},
     'packaging/nix/frontend.nix': {'nix', 'lifecycle', 'appimage'},
     'flake.lock': {'nix', 'lifecycle', 'appimage'},
-    'tool/nix_flutter_provenance.dart': {'nix', 'appimage', 'debian'},
-    'tool/package_release.dart': {'nix', 'appimage', 'debian'},
-    'tool/release_source/source_archive.dart': {'nix', 'appimage', 'debian'},
-    'tool/record_package_test_results.dart': {'appimage', 'debian'},
-    'tool/package_test_results.dart': {'appimage', 'debian'},
-    'tool/test_distro.sh': {'nix', 'appimage', 'debian'},
+    'tool/packaging/nix_flutter_provenance.dart': {'nix', 'appimage', 'debian'},
+    'tool/packaging/package_release.dart': {'nix', 'appimage', 'debian'},
+    'tool/packaging/release_source/source_archive.dart': {'nix', 'appimage', 'debian'},
+    'tool/ci/record_package_test_results.dart': {'appimage', 'debian'},
+    'tool/ci/package_test_results.dart': {'appimage', 'debian'},
+    'tool/ci/test_distro.sh': {'nix', 'appimage', 'debian'},
     'THIRD_PARTY_NOTICES.md': {'nix', 'appimage', 'debian'},
-    'tool/release_workflow.dart': {},
+    'tool/packaging/release_workflow.dart': {},
   };
   for (final entry in cases.entries) {
     test('${entry.key} selects its consumers', () {

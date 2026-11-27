@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../git_environment.dart';
+import '../../ci/git_environment.dart';
 import '../nix_flutter_provenance.dart';
 import 'build_record.dart';
 import 'source_files.dart';

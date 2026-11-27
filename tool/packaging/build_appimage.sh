@@ -2,10 +2,10 @@
 # Build a distro-native AppImage in an isolated Ubuntu container.
 set -euo pipefail
 if [[ $# != 3 ]]; then
-  echo 'Usage: bash tool/build_appimage.sh FLUTTER_SDK_ARCHIVE RUNTIME_INPUTS OUTPUT_DIRECTORY' >&2
+  echo 'Usage: bash tool/packaging/build_appimage.sh FLUTTER_SDK_ARCHIVE RUNTIME_INPUTS OUTPUT_DIRECTORY' >&2
   exit 64
 fi
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 sdk="$(realpath -- "$1")"
 runtime="$(realpath -- "$2")"
 output="$(realpath -m -- "$3")"
@@ -26,7 +26,7 @@ cleanup() {
 trap cleanup EXIT
 git clone --quiet --depth 1 --no-local --single-branch "file://$root" "$scratch/source"
 test "$(git -C "$scratch/source" rev-parse HEAD)" = "$(git -C "$root" rev-parse HEAD)"
-image="$(bash "$root/tool/package_builder_image.sh" 2> >(tee "$output/builder.log" >&2))"
+image="$(bash "$root/tool/packaging/package_builder_image.sh" 2> >(tee "$output/builder.log" >&2))"
 cache_mount=()
 if [[ ${RUNNER_ENVIRONMENT:-} == self-hosted ]]; then
   cache_mount=(--volume legion-package-pub:/home/builder/.pub-cache)
@@ -40,7 +40,7 @@ container="$(docker create "${cache_mount[@]}" --user root --entrypoint bash "$i
     set -e
     cd /home/builder/source
     flutter config --no-analytics
-    dart tool/package_appimage.dart --runtime-inputs /home/builder/runtime-inputs --output build/appimage-output
+    dart tool/packaging/package_appimage.dart --runtime-inputs /home/builder/runtime-inputs --output build/appimage-output
   "
 ')"
 docker cp "$sdk" "$container:/tmp/flutter.tar.xz"

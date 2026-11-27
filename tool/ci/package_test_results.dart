@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'packaging_files.dart';
+import '../packaging/packaging_files.dart';
 
 const passedAppImageChecks =
     'FUSE, extraction, desktop launch, and synthetic helper control verified';

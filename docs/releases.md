@@ -118,7 +118,7 @@ nix run .#tag -- --prepare 0.1.0-alpha.3+1
 ```
 
 This updates `pubspec.yaml` and regenerates the Nix metadata with
-`tool/update_nix_metadata.sh`. Review the diff, sign and push the commit, and open
+`tool/packaging/update_nix_metadata.sh`. Review the diff, sign and push the commit, and open
 a PR targeting `main`. After the PR merges, check out the merged release commit
 and push its tag as described below.
 
@@ -176,9 +176,9 @@ Run the helper with the Flutter SDK's Dart executable; no package resolution is
 needed:
 
 ```bash
-dart tool/release_workflow.dart check-tag v0.1.0-alpha.2
-dart tool/release_workflow.dart prepare v0.1.0-alpha.2 build/release-inputs build/prepared-release
-GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/release_workflow.dart publish v0.1.0-alpha.2 build/prepared-release
+dart tool/packaging/release_workflow.dart check-tag v0.1.0-alpha.2
+dart tool/packaging/release_workflow.dart prepare v0.1.0-alpha.2 build/release-inputs build/prepared-release
+GITHUB_REPOSITORY=Prn-Ice/LenovoLegionLinuxFrontend dart tool/packaging/release_workflow.dart publish v0.1.0-alpha.2 build/prepared-release
 ```
 
 Preparation reads `appimage-release`, `appimage-qualification`, `deb-release`,

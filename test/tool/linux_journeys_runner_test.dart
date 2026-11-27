@@ -67,7 +67,7 @@ fi
 
   Future<ProcessResult> run({String? failPhase}) => Process.run(
     'bash',
-    ['tool/test_linux_journeys.sh'],
+    ['tool/ci/test_linux_journeys.sh'],
     environment: {
       'FLUTTER': flutter.path,
       'TMPDIR': fixtureParent.path,

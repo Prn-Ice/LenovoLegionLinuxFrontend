@@ -106,7 +106,7 @@ From a Linux desktop session, run:
 
 ```bash
 flutter pub get --enforce-lockfile
-bash tool/test_linux_journeys.sh
+bash tool/ci/test_linux_journeys.sh
 ```
 
 The `app_test.dart` entrypoint runs the native app scenarios. The battery journey
@@ -208,7 +208,7 @@ Debian/Ubuntu) and run:
 ```bash
 flutter pub get --enforce-lockfile
 xvfb-run -a --server-args='-screen 0 1280x800x24' \
-  bash tool/test_linux_journeys.sh
+  bash tool/ci/test_linux_journeys.sh
 ```
 
 The Linux native integration journey runs as a separate CI job with the same

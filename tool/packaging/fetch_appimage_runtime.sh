@@ -2,10 +2,10 @@
 # Download and verify the pinned AppImage runtime and its source archives.
 set -euo pipefail
 if [[ $# != 1 ]]; then
-  echo 'Usage: bash tool/fetch_appimage_runtime.sh OUTPUT_DIRECTORY' >&2
+  echo 'Usage: bash tool/packaging/fetch_appimage_runtime.sh OUTPUT_DIRECTORY' >&2
   exit 64
 fi
-root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 output="$(realpath -m -- "$1")"
 specification="$root/packaging/appimage/build-inputs.json"
 items="$(jq -ec '[.runtime, .runtime_sources[]]' "$specification")"

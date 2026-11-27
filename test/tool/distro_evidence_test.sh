@@ -16,7 +16,7 @@ retrieve() {
   fake ssh 'echo journal >> "$EVENTS"; exit "$JOURNAL"'
   fake scp 'echo archive >> "$EVENTS"; exit "$TRANSFER"'
   run_shell 'source "$1"; trap '\''echo cleanup >> "$EVENTS"'\'' EXIT; retrieve_distro_evidence "$2" appimage-qualification.tar.gz "$3" 2222 -i "key with spaces"' \
-    "$root/tool/distro_evidence.sh" "$fixture" "$1"
+    "$root/tool/ci/distro_evidence.sh" "$fixture" "$1"
 }
 archive() {
   export COLLECTION=${2:-0}

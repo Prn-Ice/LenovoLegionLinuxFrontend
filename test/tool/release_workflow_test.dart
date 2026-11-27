@@ -7,9 +7,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/packaging_files.dart';
-import '../../tool/packaging_versions.dart';
-import '../../tool/release_workflow.dart' as release;
+import '../../tool/packaging/packaging_files.dart';
+import '../../tool/packaging/packaging_versions.dart';
+import '../../tool/packaging/release_workflow.dart' as release;
 import '../support/git_fixture.dart';
 
 void archiveContents(File path, Map<String, String> files) {

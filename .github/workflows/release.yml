@@ -35,7 +35,7 @@ jobs:
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: dart tool/release_workflow.dart check-tag "$RELEASE_TAG"
+        run: dart tool/packaging/release_workflow.dart check-tag "$RELEASE_TAG"
 
   checks:
     name: Release checks and artifacts
@@ -79,10 +79,10 @@ jobs:
         env:
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
         run: >-
-          dart tool/release_workflow.dart prepare "$RELEASE_TAG"
+          dart tool/packaging/release_workflow.dart prepare "$RELEASE_TAG"
           build/release-inputs build/tag-release
       - name: Upload, verify, and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
-        run: dart tool/release_workflow.dart publish "$RELEASE_TAG" build/tag-release
+        run: dart tool/packaging/release_workflow.dart publish "$RELEASE_TAG" build/tag-release
