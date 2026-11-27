@@ -476,12 +476,15 @@ int Launcher(bool wait_before_start, bool queued, bool control = false,
         property("RuntimeDirectoryMode", g_variant_new_uint32(0711));
         property("RuntimeDirectoryPreserve", g_variant_new_string("yes"));
       }
-      const char *flags[] = {"no-env-expand", nullptr};
+      // Use ExecStart rather than ExecStartEx so a daemon-reload keeps the
+      // running helper valid on systemd releases that cannot read the Ex form
+      // from transient unit files. The arguments are fixed or generated from
+      // validated identifiers.
       GVariantBuilder commands;
-      g_variant_builder_init(&commands, G_VARIANT_TYPE("a(sasas)"));
-      g_variant_builder_add(&commands, "(s^as^as)", executable.c_str(),
-                            control ? control_arguments : arguments, flags);
-      property("ExecStartEx", g_variant_builder_end(&commands));
+      g_variant_builder_init(&commands, G_VARIANT_TYPE("a(sasb)"));
+      g_variant_builder_add(&commands, "(s^asb)", executable.c_str(),
+                            control ? control_arguments : arguments, FALSE);
+      property("ExecStart", g_variant_builder_end(&commands));
       // The cleanup timer fires after five seconds if startup is still queued.
       // On success or failure the helper starts a one-shot cleanup service.
       const std::string base = launch.unit.substr(0, launch.unit.size() - 8);
@@ -562,10 +565,10 @@ int Launcher(bool wait_before_start, bool queued, bool control = false,
                             g_variant_new_handle(cleanup_handle));
       const char *cleanup_arguments[] = {no_op, "--cleanup", nullptr};
       GVariantBuilder cleanup_commands;
-      g_variant_builder_init(&cleanup_commands, G_VARIANT_TYPE("a(sasas)"));
-      g_variant_builder_add(&cleanup_commands, "(s^as^as)", no_op,
-                            cleanup_arguments, flags);
-      g_variant_builder_add(&cleanup_properties, "(sv)", "ExecStartEx",
+      g_variant_builder_init(&cleanup_commands, G_VARIANT_TYPE("a(sasb)"));
+      g_variant_builder_add(&cleanup_commands, "(s^asb)", no_op,
+                            cleanup_arguments, FALSE);
+      g_variant_builder_add(&cleanup_properties, "(sv)", "ExecStart",
                             g_variant_builder_end(&cleanup_commands));
       g_variant_builder_add(&auxiliaries, "(s@a(sv))", cleanup.c_str(),
                             g_variant_builder_end(&cleanup_properties));
