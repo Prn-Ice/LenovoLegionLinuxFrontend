@@ -4,9 +4,9 @@ import 'package:material_ui/material_ui.dart';
 import 'package:yaru/yaru.dart';
 
 import '../../core/models/app_failure.dart';
-import '../../core/providers/system_services_provider.dart';
 import '../../core/widgets/app_shell_components.dart';
 import '../../core/widgets/privileged_action_notice.dart';
+import '../../features/sensors/view/package_power_access.dart';
 
 const _hidePromptKey = 'hidePackagePowerPrompt';
 
@@ -28,7 +28,7 @@ Future<void> requestPackagePowerAccess(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Allow access to your CPU’s energy counter to see power in watts for this session.',
+              'Allow access to your CPU’s energy counter to see power in watts for this session. You can also turn on readings later in Settings.',
             ),
             const SizedBox(height: 12),
             YaruCheckButton(
@@ -66,17 +66,5 @@ Future<void> requestPackagePowerAccess(
   }
 
   if (!decision.approved || !context.mounted) return;
-  try {
-    await ref.read(packagePowerTelemetryClientProvider).enable();
-  } catch (error) {
-    if (context.mounted) {
-      await showAppErrorDialog(
-        context,
-        AppFailure(
-          'CPU power is unavailable this session.',
-          details: error.toString(),
-        ),
-      );
-    }
-  }
+  await setPackagePowerEnabled(context, ref, true);
 }

@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:legion_frontend/app/view/package_power_prompt.dart';
 import 'package:legion_frontend/core/providers/system_services_provider.dart';
 import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
+import 'package:legion_frontend/features/sensors/bloc/package_power_cubit.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:yaru/yaru.dart';
 
@@ -15,6 +16,9 @@ class _PowerClient implements PackagePowerTelemetryClient {
 
   @override
   Future<void> enable() async => requests++;
+
+  @override
+  Future<void> disable() async {}
 
   @override
   Future<double?> readPackagePowerWatts() async => null;
@@ -94,6 +98,13 @@ void main() {
           await tester.pumpAndSettle();
           expect(prompt, findsNothing);
           expect(client.requests, allow ? 1 : 0);
+          final container = ProviderScope.containerOf(
+            tester.element(find.text('Dashboard')),
+          );
+          expect(
+            container.read(packagePowerProvider),
+            allow ? PackagePowerState.on : PackagePowerState.off,
+          );
 
           await tester.pumpWidget(const SizedBox.shrink());
           final nextClient = _PowerClient();
