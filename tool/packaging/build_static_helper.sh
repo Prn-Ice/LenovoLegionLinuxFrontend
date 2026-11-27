@@ -2,7 +2,7 @@
 # Link the approved helper into one ELF using the archived distro sources.
 set -euo pipefail
 if [[ $# != 4 ]]; then
-  echo 'Usage: bash tool/build_static_helper.sh SOURCE_ROOT UTIL_LINUX_DSC BUILD_DIRECTORY OUTPUT' >&2
+  echo 'Usage: bash tool/packaging/build_static_helper.sh SOURCE_ROOT UTIL_LINUX_DSC BUILD_DIRECTORY OUTPUT' >&2
   exit 64
 fi
 root=$(realpath -- "$1")

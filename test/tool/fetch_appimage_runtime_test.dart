@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/packaging_files.dart';
+import '../../tool/packaging/packaging_files.dart';
 
 void main() {
   late Directory temporary;
@@ -20,9 +20,9 @@ void main() {
       'runtime fetch with spaces ',
     );
     addTearDown(() => temporary.deleteSync(recursive: true));
-    script = File('${temporary.path}/tool/fetch_appimage_runtime.sh');
+    script = File('${temporary.path}/tool/packaging/fetch_appimage_runtime.sh');
     script.parent.createSync(recursive: true);
-    File('tool/fetch_appimage_runtime.sh').copySync(script.path);
+    File('tool/packaging/fetch_appimage_runtime.sh').copySync(script.path);
     specification = File(
       '${temporary.path}/packaging/appimage/build-inputs.json',
     )..createSync(recursive: true);

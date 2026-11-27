@@ -33,9 +33,9 @@ jobs:
           PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           if [[ "$EVENT_NAME" == pull_request ]]; then
-            bash tool/ci_build_changes.sh --base "$PR_BASE"
+            bash tool/ci/ci_build_changes.sh --base "$PR_BASE"
           else
-            bash tool/ci_build_changes.sh
+            bash tool/ci/ci_build_changes.sh
           fi
 
   test:
@@ -55,7 +55,7 @@ jobs:
           digest="$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json)"
           sdk="$RUNNER_TOOL_CACHE/flutter/stable-$version-x64"
           if [[ ! -x "$sdk/flutter/bin/flutter" ]]; then
-            archive="$(bash tool/cache_flutter_archive.sh "$HOME/.cache/legion-ci/flutter-$digest.tar.xz")"
+            archive="$(bash tool/ci/cache_flutter_archive.sh "$HOME/.cache/legion-ci/flutter-$digest.tar.xz")"
             mkdir -p "$sdk"
             staging="$(mktemp -d "$sdk/.extract.XXXXXXXX")"
             trap 'rm -rf "$staging"' EXIT
@@ -126,8 +126,8 @@ jobs:
 
       - name: Test graphics guards without hardware
         run: |
-          bash tool/test_check_graphics_tty.sh
-          bash tool/test_auto_battery_tty_json.sh
+          bash tool/diagnostics/test_check_graphics_tty.sh
+          bash tool/diagnostics/test_auto_battery_tty_json.sh
 
       - name: Set up Flutter for the hardware control probe
         uses: subosito/flutter-action@v2
@@ -156,7 +156,7 @@ jobs:
 
       - name: Probe hardware control without hardware
         timeout-minutes: 2
-        run: dart run tool/probe_control.dart --helper build/native/control_probe
+        run: dart run tool/diagnostics/probe_control.dart --helper build/native/control_probe
 
   control-lifecycle:
     name: Control lifecycle and helper startup VMs
@@ -189,7 +189,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/package-inputs
       - name: Build the AppImage and source companion
-        run: bash tool/build_appimage.sh "$PACKAGE_FLUTTER_ARCHIVE" "$PACKAGE_RUNTIME_INPUTS" build/appimage-release
+        run: bash tool/packaging/build_appimage.sh "$PACKAGE_FLUTTER_ARCHIVE" "$PACKAGE_RUNTIME_INPUTS" build/appimage-release
       - uses: actions/upload-artifact@v7
         with:
           name: appimage-build
@@ -235,13 +235,13 @@ jobs:
           IMAGE: ${{ steps.ubuntu.outputs.image }}
           CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          bash tool/test_distro.sh "$IMAGE" "$CHECKSUM" \
+          bash tool/ci/test_distro.sh "$IMAGE" "$CHECKSUM" \
             build/appimage-qualification --appimage build/appimage-release
       - name: Test privileged controls through official NixOS appimage-run
         run: |
-          bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
+          bash tool/ci/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
           cp build/appimage-nixos-qualification/appimage-nixos-qualification.tar.gz build/appimage-qualification/
-          dart tool/record_package_test_results.dart nixos build/appimage-qualification
+          dart tool/ci/record_package_test_results.dart nixos build/appimage-qualification
       - name: Upload AppImage, source, and acceptance evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -295,7 +295,7 @@ jobs:
         run: |
           set -o pipefail
           xvfb-run -a --server-args='-screen 0 1280x800x24' \
-            bash tool/test_linux_journeys.sh \
+            bash tool/ci/test_linux_journeys.sh \
             2>&1 | tee linux-integration.log
 
       - name: Test native hardware control argument mapping
@@ -350,7 +350,7 @@ jobs:
         with:
           appimage-runtime: 'false'
       - name: Build the Debian package and source companion
-        run: bash tool/build_deb.sh "$PACKAGE_FLUTTER_ARCHIVE" build/deb-release
+        run: bash tool/packaging/build_deb.sh "$PACKAGE_FLUTTER_ARCHIVE" build/deb-release
       - uses: actions/upload-artifact@v7
         with:
           name: debian-build
@@ -396,18 +396,18 @@ jobs:
       - uses: ./.github/actions/ubuntu-image
         id: ubuntu
       - name: Download the verified Debian acceptance image
-        run: bash tool/fetch_debian_test_image.sh /tmp/deb-bookworm.img
+        run: bash tool/ci/fetch_debian_test_image.sh /tmp/deb-bookworm.img
       - name: Test install, launch, helper, upgrade, and purge on Ubuntu 22.04
         env:
           IMAGE: ${{ steps.ubuntu.outputs.image }}
           CHECKSUM: ${{ steps.ubuntu.outputs.checksum }}
         run: |
-          bash tool/test_distro.sh "$IMAGE" "$CHECKSUM" \
+          bash tool/ci/test_distro.sh "$IMAGE" "$CHECKSUM" \
             build/deb-ubuntu-qualification --deb build/deb-release
       - name: Test install, launch, helper, upgrade, and purge on Debian 12
         run: |
           checksum="$(cat /tmp/deb-bookworm.img.sha256)"
-          bash tool/test_distro.sh /tmp/deb-bookworm.img "$checksum" \
+          bash tool/ci/test_distro.sh /tmp/deb-bookworm.img "$checksum" \
             build/deb-debian-qualification --deb build/deb-release
       - name: Upload the Debian package, sources, and acceptance evidence
         if: always()

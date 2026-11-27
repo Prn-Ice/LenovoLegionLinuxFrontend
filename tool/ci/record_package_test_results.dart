@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package_test_results.dart';
 
 const _usage =
-    'Usage: dart tool/record_package_test_results.dart '
+    'Usage: dart tool/ci/record_package_test_results.dart '
     'distro DIRECTORY COMMIT MODIFIED IMAGE_SHA256 CPU native|appimage|deb\n'
-    '       dart tool/record_package_test_results.dart nixos DIRECTORY';
+    '       dart tool/ci/record_package_test_results.dart nixos DIRECTORY';
 
 void main(List<String> arguments) {
   try {

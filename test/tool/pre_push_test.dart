@@ -30,9 +30,9 @@ void main() {
     repository = GitFixture(Directory('${workspace.path}/source'));
     addTearDown(repository.dispose);
     repository.initialize();
-    Directory('${repository.root.path}/tool').createSync();
-    File('tool/ci_build_changes.sh')
-        .copySync('${repository.root.path}/tool/ci_build_changes.sh');
+    Directory('${repository.root.path}/tool/ci').createSync(recursive: true);
+    File('tool/ci/ci_build_changes.sh')
+        .copySync('${repository.root.path}/tool/ci/ci_build_changes.sh');
     commitFile('lib/main.dart');
     commitFile('tool/existing.dart');
     repository.git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
@@ -146,7 +146,7 @@ fi
   });
 
   test('an older selector without tooling output runs every test', () async {
-    File('${repository.root.path}/tool/ci_build_changes.sh')
+    File('${repository.root.path}/tool/ci/ci_build_changes.sh')
         .writeAsStringSync('#!/usr/bin/env bash\necho integration=false\n');
     commitFile('lib/features/fans/fans_page.dart');
     final tests = await push(['refs/heads/feature']);

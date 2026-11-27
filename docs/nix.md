@@ -85,7 +85,7 @@ Nix's pure evaluator. The development shell supplies Mike Farah's `yq`
 (`yq-go` in Nixpkgs) and jq to convert YAML to sorted JSON:
 
 ```bash
-nix develop -c bash tool/update_nix_metadata.sh
+nix develop -c bash tool/packaging/update_nix_metadata.sh
 nix build .#checks.x86_64-linux.nix-metadata
 ```
 

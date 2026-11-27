@@ -6,7 +6,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 # shellcheck source=control/test/helper_session_test.sh
 source "$root/control/test/helper_session_test.sh"
 setup() {
-  cp "$root/tool/distro_readiness.sh" "$fixture/helper with spaces.sh"
+  cp "$root/tool/ci/distro_readiness.sh" "$fixture/helper with spaces.sh"
   export FAKE_SSH_CALLS="$fixture/ssh calls" FAKE_CLOUD_INIT_CALLS="$fixture/cloud init calls" \
     FAKE_TRANSPORT_STATE="$fixture/transport state"
   cat >"$fixture/fake ssh" <<'EOF'

@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/check_commits.dart';
+import '../../tool/ci/check_commits.dart';
 import '../support/git_fixture.dart';
 
 void main() {
@@ -69,7 +69,7 @@ void main() {
 
   test('the CI command exits unsuccessfully for a rejected commit', () {
     commit('Missing type');
-    final script = File('tool/check_commits.dart').absolute.path;
+    final script = File('tool/ci/check_commits.dart').absolute.path;
     final result = Process.runSync(
       'dart',
       [

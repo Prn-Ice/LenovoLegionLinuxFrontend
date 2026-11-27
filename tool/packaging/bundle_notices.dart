@@ -30,13 +30,13 @@ Future<void> main(List<String> args) async {
   final paths = remaining.where((arg) => arg != '--check').toList();
   if (paths.length != 1) {
     stderr.writeln(
-      'Usage: dart tool/bundle_notices.dart [--check] [--flutter-sdk DIRECTORY] <bundle>',
+      'Usage: dart tool/packaging/bundle_notices.dart [--check] [--flutter-sdk DIRECTORY] <bundle>',
     );
     exitCode = 64;
     return;
   }
   try {
-    final root = File.fromUri(Platform.script).parent.parent;
+    final root = File.fromUri(Platform.script).parent.parent.parent;
     final inventory = await bundleNotices(
       root,
       Directory(paths.single),

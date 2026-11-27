@@ -67,7 +67,7 @@ Download the official image and its checksums, then run from the repository:
 curl -fL https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img -o /tmp/jammy.img
 curl -fL https://cloud-images.ubuntu.com/jammy/current/SHA256SUMS -o /tmp/jammy.SHA256SUMS
 checksum="$(awk '$2 == "*jammy-server-cloudimg-amd64.img" {print $1}' /tmp/jammy.SHA256SUMS)"
-bash tool/test_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualification
+bash tool/ci/test_distro.sh /tmp/jammy.img "$checksum" build/ubuntu-qualification
 ```
 
 The runner verifies the supplied image checksum and creates a temporary overlay.
@@ -95,7 +95,7 @@ ELF headers, and exact distro package versions. CI runs this check inside AppIma
 acceptance and includes `appimage-native-qualification.tar.gz` in that job's
 AppImage evidence archive, rather than repeating it in another VM.
 
-The host writes this JSON file through `tool/record_package_test_results.dart` after
+The host writes this JSON file through `tool/ci/record_package_test_results.dart` after
 the guest succeeds and its evidence archive is retrieved. CI uses the same tool
 to add the NixOS evidence archive hash after NixOS acceptance succeeds. Both
 operations use the existing JSON format; the NixOS update preserves its

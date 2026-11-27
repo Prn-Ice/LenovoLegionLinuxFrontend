@@ -156,7 +156,7 @@ To build the binary, add its resolved notices, and create a matching source
 companion in one command (the worktree must be clean):
 
 ```bash
-tool/package_release.sh --output build/release/legion-frontend-source.tar.gz
+tool/packaging/package_release.sh --output build/release/legion-frontend-source.tar.gz
 ```
 
 The command resolves packages with `--enforce-lockfile`, records their contents,

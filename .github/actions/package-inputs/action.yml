@@ -21,7 +21,7 @@ runs:
         if [[ $RUNNER_KIND == self-hosted ]]; then
           archive="$HOME/.cache/legion-ci/flutter-$(jq -er '.flutter.sha256' packaging/appimage/build-inputs.json).tar.xz"
         fi
-        bash tool/cache_flutter_archive.sh "$archive"
+        bash tool/ci/cache_flutter_archive.sh "$archive"
         echo "PACKAGE_FLUTTER_ARCHIVE=$archive" >> "$GITHUB_ENV"
     - uses: actions/cache@v5
       if: inputs.appimage-runtime == 'true' && runner.environment == 'github-hosted'
@@ -38,5 +38,5 @@ runs:
         if [[ $RUNNER_KIND == self-hosted ]]; then
           inputs="$HOME/.cache/legion-ci/appimage-${{ hashFiles('packaging/appimage/build-inputs.json') }}"
         fi
-        bash tool/fetch_appimage_runtime.sh "$inputs"
+        bash tool/packaging/fetch_appimage_runtime.sh "$inputs"
         echo "PACKAGE_RUNTIME_INPUTS=$inputs" >> "$GITHUB_ENV"

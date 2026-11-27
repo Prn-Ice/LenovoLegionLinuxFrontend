@@ -40,7 +40,7 @@ void main(List<String> args) {
   try {
     if (args.length != 2) {
       throw const FormatException(
-        'Usage: dart tool/check_commits.dart BASE_SHA HEAD_SHA',
+        'Usage: dart tool/ci/check_commits.dart BASE_SHA HEAD_SHA',
       );
     }
     final invalid = invalidCommitSubjects(Directory.current, args[0], args[1]);

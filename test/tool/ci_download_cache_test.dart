@@ -49,8 +49,8 @@ void main() {
     addTearDown(() => root.deleteSync(recursive: true));
     Directory('${root.path}/temp').createSync();
     write(
-      'tool/cache_flutter_archive.sh',
-      File('tool/cache_flutter_archive.sh').readAsStringSync(),
+      'tool/ci/cache_flutter_archive.sh',
+      File('tool/ci/cache_flutter_archive.sh').readAsStringSync(),
     );
     write('download', 'verified download bytes\n');
     digest =

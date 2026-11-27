@@ -30,7 +30,7 @@ formats share Pub downloads in the local Docker volume `legion-package-pub`.
 They also share a builder image tagged with its Dockerfile checksum. BuildKit
 retains apt indexes and packages even if the install step fails. To refresh
 system dependencies without changing the recipe, run
-`bash tool/package_builder_image.sh` without `RUNNER_ENVIRONMENT`, after
+`bash tool/packaging/package_builder_image.sh` without `RUNNER_ENVIRONMENT`, after
 invalidating the Docker build cache if a fresh install is required.
 Package artifacts still go to GitHub for the hosted acceptance jobs.
 Docker uses its supported `cgroupfs` driver in `/etc/docker/daemon.json`, because

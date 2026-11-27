@@ -11,7 +11,7 @@ From the development shell and a Linux desktop session:
 
 ```bash
 flutter pub get --enforce-lockfile
-bash tool/test_linux_journeys.sh
+bash tool/ci/test_linux_journeys.sh
 ```
 
 For a short navigation check:

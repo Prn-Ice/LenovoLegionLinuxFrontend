@@ -13,10 +13,10 @@ Future<void> main(List<String> args) async {
     final outputPath = switch (args) {
       ['--output', final String path] when !path.startsWith('--') => path,
       _ => throw const FormatException(
-        'Usage: dart tool/package_deb.dart --output DIRECTORY',
+        'Usage: dart tool/packaging/package_deb.dart --output DIRECTORY',
       ),
     };
-    final root = File.fromUri(Platform.script).parent.parent;
+    final root = File.fromUri(Platform.script).parent.parent.parent;
     final os = await File('/etc/os-release').readAsString();
     if (!RegExp(r'^ID=ubuntu$', multiLine: true).hasMatch(os) ||
         !RegExp(r'^VERSION_ID="22\.04"$', multiLine: true).hasMatch(os)) {

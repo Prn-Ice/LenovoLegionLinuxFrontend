@@ -34,7 +34,7 @@ these library sources provide the material needed to modify and relink the
 helper. Build its static dependencies on Ubuntu 22.04, then run:
 
 ```sh
-bash source/tool/build_static_helper.sh source \\
+bash source/tool/packaging/build_static_helper.sh source \\
   release-inputs/native/sources/util-linux/*.dsc /tmp/legion-static-rebuild \\
   source/build/linux/x64/release/bundle/libexec/legion-control-helper
 ```

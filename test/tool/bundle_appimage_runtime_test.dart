@@ -6,8 +6,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/bundle_appimage_runtime.dart' as runtime;
-import '../../tool/packaging_files.dart';
+import '../../tool/packaging/bundle_appimage_runtime.dart' as runtime;
+import '../../tool/packaging/packaging_files.dart';
 
 class OwnedRuntimeBundle extends runtime.RuntimeBundle {
   OwnedRuntimeBundle(super.appdir, super.inputs);

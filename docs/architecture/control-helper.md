@@ -360,7 +360,7 @@ Build the opt-in native probe and run the Dart client from the repository root:
 cmake -S control -B build/control-helper -G Ninja \
   -DBUILD_CONTROL_PROTOTYPE=ON
 cmake --build build/control-helper --target control_probe
-dart run tool/probe_control.dart \
+dart run tool/diagnostics/probe_control.dart \
   --helper build/control-helper/control_probe
 ```
 
@@ -384,7 +384,7 @@ cleanup, and real hardware readback require separate verification.
 
 All three formats need versioned artifacts, desktop integration, checksums,
 dependency notices, and matching source companions. Reuse
-`tool/package_release.dart` for provenance, extending it to cover any additional
+`tool/packaging/package_release.dart` for provenance, extending it to cover any additional
 libraries and the helper included in release packages. Nix and distro-native
 builds share source and release metadata; a Nix-linked binary is not a portable
 Debian/AppImage build.

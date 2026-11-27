@@ -1,7 +1,7 @@
 # Dart scripting benchmark
 
-Use [`tool/package_release.dart`](../tool/package_release.dart) and its
-[`release_source`](../tool/release_source/) operations as the readability benchmark
+Use [`tool/packaging/package_release.dart`](../tool/packaging/package_release.dart) and its
+[`release_source`](../tool/packaging/release_source/) operations as the readability benchmark
 for Dart scripts. This is a refactor of the existing release packager, verified
 against its previous implementation. It is a readability example, not a
 performance benchmark.
@@ -76,7 +76,7 @@ final stamp = await recordReleaseBuild(
 The same change replaces `(built['inputs'] as Map)['commit']` with
 `built.inputs.commit`, and nested package casts with
 `recordedInputs[entry.key]!.files`. JSON conversion belongs in
-[`build_record.dart`](../tool/release_source/build_record.dart) and the manifest
+[`build_record.dart`](../tool/packaging/release_source/build_record.dart) and the manifest
 writers. Records without the helper configuration or bundle inventory are
 rejected when decoded, before source pairing.
 
@@ -128,7 +128,7 @@ failure status, destination paths, and CI selection for the moved code.
 The standard command also passed on NixOS at `dd2984b`:
 
 ```sh
-nix develop --command bash tool/package_release.sh \
+nix develop --command bash tool/packaging/package_release.sh \
   --output build/release/legion-frontend-source.tar.gz
 ```
 

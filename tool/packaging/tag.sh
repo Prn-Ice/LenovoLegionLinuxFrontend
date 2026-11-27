@@ -48,7 +48,7 @@ if $prepare; then
     echo 'Expected a top-level version: line in pubspec.yaml.' >&2
     exit 1
   fi
-  bash tool/update_nix_metadata.sh
+  bash tool/packaging/update_nix_metadata.sh
   echo "Prepared $version. Review and commit the changes, then open a PR."
   echo 'After merge, run nix run .#tag -- --push from the release commit.'
   exit 0

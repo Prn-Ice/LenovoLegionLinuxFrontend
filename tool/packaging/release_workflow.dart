@@ -3,13 +3,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'git_environment.dart';
+import '../ci/git_environment.dart';
 import 'packaging_files.dart';
 import 'packaging_versions.dart';
-import 'package_test_results.dart'
+import '../ci/package_test_results.dart'
     show passedAppImageChecks, passedDebianChecks;
 
-export 'package_test_results.dart'
+export '../ci/package_test_results.dart'
     show passedAppImageChecks, passedDebianChecks;
 
 enum ReleaseCommand { checkTag, prepare, publish }
@@ -939,7 +939,7 @@ Future<void> releaseMain(
     'prepare' when args.length == 4 => ReleaseCommand.prepare,
     'publish' when args.length == 3 => ReleaseCommand.publish,
     _ => throw const FormatException(
-      'Usage: dart tool/release_workflow.dart '
+      'Usage: dart tool/packaging/release_workflow.dart '
       'check-tag TAG | prepare TAG INPUTS OUTPUT | publish TAG OUTPUT',
     ),
   };
@@ -974,7 +974,7 @@ Future<void> main(List<String> args) async {
   try {
     await releaseMain(
       args,
-      File.fromUri(Platform.script).parent.parent,
+      File.fromUri(Platform.script).parent.parent.parent,
       Platform.environment,
     );
   } catch (error) {

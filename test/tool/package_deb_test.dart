@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/packaging_versions.dart';
+import '../../tool/packaging/packaging_versions.dart';
 
 void main() {
   test('maps app versions to Debian release and prerelease ordering', () {

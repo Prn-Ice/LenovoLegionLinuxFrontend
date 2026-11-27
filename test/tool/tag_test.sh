@@ -33,10 +33,10 @@ expect_failure() {
 }
 
 printf 'version: "0.1.0-alpha.2+1"\n' > pubspec.yaml
-mkdir -p tool
-cp "$metadata_script" tool/update_nix_metadata.sh
+mkdir -p tool/packaging
+cp "$metadata_script" tool/packaging/update_nix_metadata.sh
 printf 'packages: {}\n' > pubspec.lock
-bash tool/update_nix_metadata.sh
+bash tool/packaging/update_nix_metadata.sh
 git add .
 git commit -qm 'Set alpha version'
 "${app[@]}" --help
@@ -106,7 +106,7 @@ test "$(git --git-dir="$temporary/remote" rev-parse refs/tags/v1.2.3)" = \
 
 # Preparation preserves formatting and leaves changes for review before tagging.
 printf '# Release version\n\nversion: "1.2.3+4"\n\n# Dependencies\n' > pubspec.yaml
-bash tool/update_nix_metadata.sh
+bash tool/packaging/update_nix_metadata.sh
 git add .
 git commit -qm 'Add manifest comments'
 head_before=$(git rev-parse HEAD)
@@ -118,7 +118,7 @@ cd ..
 printf '# Release version\n\nversion: 1.2.4-alpha.1+5\n\n# Dependencies\n' > "$temporary/expected.yaml"
 diff -u "$temporary/expected.yaml" pubspec.yaml
 test "$(jq -r .version packaging/nix/pubspec.json)" = '1.2.4-alpha.1+5'
-bash tool/update_nix_metadata.sh --check
+bash tool/packaging/update_nix_metadata.sh --check
 test "$(git diff --name-only)" = $'packaging/nix/pubspec.json\npubspec.yaml'
 test "$(git rev-parse HEAD)" = "$head_before"
 test "$(git show-ref --tags)" = "$tags_before"

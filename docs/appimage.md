@@ -106,8 +106,8 @@ Source packaging requires a clean committed checkout.
 
 ```bash
 curl -fL https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.50.0-stable.tar.xz -o /tmp/flutter-3.50.0.tar.xz
-bash tool/fetch_appimage_runtime.sh build/appimage-inputs
-bash tool/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
+bash tool/packaging/fetch_appimage_runtime.sh build/appimage-inputs
+bash tool/packaging/build_appimage.sh /tmp/flutter-3.50.0.tar.xz build/appimage-inputs build/appimage-release
 ```
 
 If a cached builder's exact source package returns HTTP 404, refresh the Ubuntu
@@ -177,7 +177,7 @@ Use the [Ubuntu VM runner](architecture/control-helper-tests.md) with the
 additional release directory:
 
 ```bash
-bash tool/test_distro.sh /tmp/jammy.img "$checksum" \
+bash tool/ci/test_distro.sh /tmp/jammy.img "$checksum" \
   build/appimage-qualification --appimage build/appimage-release
 ```
 
@@ -200,7 +200,7 @@ match their state before the AppImage tests.
 Test the same artifact through the NixOS launcher:
 
 ```bash
-bash tool/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
+bash tool/ci/test_appimage_nixos.sh build/appimage-release/*.AppImage build/appimage-nixos-qualification
 ```
 
 This separate NixOS VM launches the actual app through official `appimage-run`.

@@ -148,7 +148,7 @@ get_directory_property(FLUTTER_SDK_DIR DIRECTORY "${FLUTTER_MANAGED_DIR}"
 install(CODE "
   execute_process(
     COMMAND \"${FLUTTER_SDK_DIR}/bin/dart\"
-      \"${CMAKE_CURRENT_SOURCE_DIR}/../tool/bundle_notices.dart\"
+      \"${CMAKE_CURRENT_SOURCE_DIR}/../tool/packaging/bundle_notices.dart\"
       --flutter-sdk \"${FLUTTER_SDK_DIR}\"
       \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}\"
     RESULT_VARIABLE notices_result

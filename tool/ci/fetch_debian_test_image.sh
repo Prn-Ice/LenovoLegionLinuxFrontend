@@ -2,7 +2,7 @@
 # Verify the official Debian 12 cloud image before using it in a disposable VM.
 set -euo pipefail
 if [[ $# != 1 ]]; then
-  echo 'Usage: bash tool/fetch_debian_test_image.sh OUTPUT_IMAGE' >&2
+  echo 'Usage: bash tool/ci/fetch_debian_test_image.sh OUTPUT_IMAGE' >&2
   exit 64
 fi
 image="$(realpath -m -- "$1")"

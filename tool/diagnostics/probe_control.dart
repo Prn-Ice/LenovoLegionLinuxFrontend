@@ -799,7 +799,7 @@ Future<void> main(List<String> arguments) async {
       helper = arguments[++index];
     } else {
       stderr.writeln(
-        'usage: dart run tool/probe_control.dart --helper <control_probe>',
+        'usage: dart run tool/diagnostics/probe_control.dart --helper <control_probe>',
       );
       exitCode = 2;
       return;

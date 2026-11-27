@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../tool/nix_flutter_provenance.dart';
+import '../../tool/packaging/nix_flutter_provenance.dart';
 
 void main() {
   for (final legacy in [false, true]) {

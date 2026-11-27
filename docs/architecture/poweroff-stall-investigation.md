@@ -86,7 +86,7 @@ Do not repeat a live detach only to reproduce this issue. Establish an ordinary
 Hybrid poweroff baseline first. From a Linux virtual console:
 
 ```bash
-./tool/arm_shutdown_diagnostics_tty.sh baseline
+./tool/diagnostics/arm_shutdown_diagnostics_tty.sh baseline
 ```
 
 The tool:
@@ -124,13 +124,13 @@ Only after a clean baseline should the same tool be armed following an already
 guarded and settled iGPU-only transition:
 
 ```bash
-./tool/arm_shutdown_diagnostics_tty.sh detached
+./tool/diagnostics/arm_shutdown_diagnostics_tty.sh detached
 ```
 
 That mode additionally requires complete root client inspection and zero dGPU
 clients. It does not perform the transition itself.
 
-Use `tool/test_igpu_only_tty.sh` for the guarded transition. The hardened
+Use `tool/diagnostics/test_igpu_only_tty.sh` for the guarded transition. The hardened
 preflight treats NVIDIA HDMI-audio handles as blockers, so the helper stops the
 user PipeWire/WirePlumber services and sockets after ending the graphical
 session. It restores audio after confirmed detach or a pre-write block, but
@@ -146,7 +146,7 @@ The `disarm` command now restores the session as well.
 To cancel the runtime instrumentation before poweroff:
 
 ```bash
-./tool/arm_shutdown_diagnostics_tty.sh disarm
+./tool/diagnostics/arm_shutdown_diagnostics_tty.sh disarm
 ```
 
 ## If shutdown hangs
