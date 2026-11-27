@@ -4,6 +4,7 @@ import 'package:yaru/yaru.dart';
 
 import '../../../core/widgets/app_shell_components.dart';
 import '../../../core/widgets/privileged_action_notice.dart';
+import '../../../core/widgets/surface_card.dart';
 import '../bloc/dashboard_event.dart';
 import '../../battery/bloc/battery_event.dart';
 import '../../battery/bloc/battery_state.dart';
@@ -46,7 +47,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final snapshot = state.snapshot;
     final sensors = sensorState.snapshot;
 
-    if (!state.hasInitialized || sensorState.isLoading) {
+    if (!state.hasInitialized) {
       return Semantics(
         label: 'Loading dashboard data',
         child: const Center(child: YaruCircularProgressIndicator()),
@@ -85,11 +86,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         const SizedBox(height: 16),
         DeviceIdentityCard(identity: snapshot.deviceIdentity, accent: accent),
         const SizedBox(height: 16),
-        SensorStrip(
-          snapshot: sensors,
-          accent: accent,
-          hiddenMetrics: readings.hidden,
-        ),
+        if (sensorState.isLoading)
+          const SurfaceCard(
+            padding: EdgeInsets.all(16),
+            child: Center(child: Text('Loading live readings…')),
+          )
+        else
+          SensorStrip(
+            snapshot: sensors,
+            accent: accent,
+            hiddenMetrics: readings.hidden,
+          ),
         const SizedBox(height: 16),
         _buildQuickControls(context, batteryState, devicesState, accent),
       ],

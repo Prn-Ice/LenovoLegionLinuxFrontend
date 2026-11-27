@@ -28,6 +28,8 @@ import '../bloc/dgpu_state.dart';
 import '../models/graphics_mode.dart';
 import '../providers/dgpu_provider.dart';
 
+const _loadingGpuReadings = 'Loading live GPU readings…';
+
 class DgpuPage extends ConsumerStatefulWidget {
   const DgpuPage({super.key});
 
@@ -57,7 +59,7 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
     final analyticsBloc = ref.read(analyticsBlocProvider.bloc);
     final accent = Theme.of(context).colorScheme.primary;
 
-    if (!state.hasLoaded || sensorState.isLoading) {
+    if (!state.hasLoaded) {
       return const Center(child: YaruCircularProgressIndicator());
     }
 
@@ -95,7 +97,11 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
           const SizedBox(height: 16),
         ],
         if (channel == _GpuChannel.discrete) ...[
-          _GpuOverview(state: state, sensor: snapshot),
+          _GpuOverview(
+            state: state,
+            sensor: snapshot,
+            isLoadingReadings: sensorState.isLoading,
+          ),
           const SizedBox(height: 16),
           TelemetryHistoryCard(
             key: const ValueKey('gpu-history-discrete'),
@@ -150,7 +156,13 @@ class _DgpuPageState extends ConsumerState<DgpuPage> {
                 'Display server processes may not appear.',
           ),
         ],
-        if (channel != null) const SizedBox(height: 16),
+        if (channel == null && sensorState.isLoading)
+          const SurfaceCard(
+            padding: EdgeInsets.all(16),
+            child: Center(child: Text(_loadingGpuReadings)),
+          ),
+        if (channel != null || sensorState.isLoading)
+          const SizedBox(height: 16),
         graphicsModeCard,
         if (channel == _GpuChannel.discrete) ...[
           const SizedBox(height: 16),
@@ -291,10 +303,15 @@ class _GpuChannelToolbar extends StatelessWidget {
 }
 
 class _GpuOverview extends StatelessWidget {
-  const _GpuOverview({required this.state, required this.sensor});
+  const _GpuOverview({
+    required this.state,
+    required this.sensor,
+    required this.isLoadingReadings,
+  });
 
   final DgpuState state;
   final LiveSensorSnapshot sensor;
+  final bool isLoadingReadings;
 
   @override
   Widget build(BuildContext context) {
@@ -375,9 +392,11 @@ class _GpuOverview extends StatelessWidget {
           if (gpu == null) ...[
             const SizedBox(height: 14),
             Text(
-              state.isActive == false
-                  ? 'Live NVIDIA telemetry is unavailable while the GPU is suspended.'
-                  : 'Live NVIDIA telemetry is unavailable. Check the NVIDIA driver and nvidia-smi.',
+              switch ((isLoadingReadings, state.isActive)) {
+                (true, _) => _loadingGpuReadings,
+                (_, false) => 'Live NVIDIA telemetry is unavailable while the GPU is suspended.',
+                _ => 'Live NVIDIA telemetry is unavailable. Run nvidia-smi to check the driver.',
+              },
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),

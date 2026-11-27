@@ -62,12 +62,10 @@ Future<ProviderContainer> mountDashboard(
 ) async {
   final dashboardRepository = _MockDashboardRepository();
   final sensorsRepository = _MockLiveSensorRepository();
-  when(
-    dashboardRepository.loadSnapshot,
-  ).thenAnswer((_) async => DashboardSnapshot.initial());
-  when(
-    sensorsRepository.loadSnapshot,
-  ).thenAnswer((_) async => LiveSensorSnapshot.initial());
+  when(dashboardRepository.loadSnapshot)
+      .thenAnswer((_) async => DashboardSnapshot.initial());
+  when(sensorsRepository.loadSnapshot)
+      .thenAnswer((_) async => LiveSensorSnapshot.initial());
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -92,20 +90,19 @@ Future<ProviderContainer> mountDashboard(
 }
 
 void main() {
-  testWidgets('dashboard shows loading state before its first snapshot', (
+  testWidgets('dashboard shows controls before live readings arrive', (
     tester,
   ) async {
     final dashboardRepository = _MockDashboardRepository();
     final sensorsRepository = _MockLiveSensorRepository();
     final devicesRepository = _MockDevicesRepository();
     final pendingDashboard = Completer<DashboardSnapshot>();
+    final pendingSensors = Completer<LiveSensorSnapshot>();
 
-    when(
-      dashboardRepository.loadSnapshot,
-    ).thenAnswer((_) => pendingDashboard.future);
-    when(
-      sensorsRepository.loadSnapshot,
-    ).thenAnswer((_) async => LiveSensorSnapshot.initial());
+    when(dashboardRepository.loadSnapshot)
+        .thenAnswer((_) => pendingDashboard.future);
+    when(sensorsRepository.loadSnapshot)
+        .thenAnswer((_) => pendingSensors.future);
 
     final dashboardBloc = DashboardBloc(
       repository: dashboardRepository,
@@ -144,10 +141,36 @@ void main() {
 
     expect(find.bySemanticsLabel('Loading dashboard data'), findsOneWidget);
     expect(find.byType(YaruCircularProgressIndicator), findsOneWidget);
-    expect(find.text('Quick controls'), findsNothing);
+    expect(find.text('Battery health'), findsNothing);
 
     pendingDashboard.complete(DashboardSnapshot.initial());
     await tester.pump();
+
+    expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+    expect(find.text('Battery health'), findsOneWidget);
+    expect(find.text('Loading live readings…'), findsOneWidget);
+    expect(find.text('Sensor data unavailable.'), findsNothing);
+
+    pendingSensors.complete(
+      const LiveSensorSnapshot(
+        cpuName: null,
+        cpuTempC: 54,
+        cpuUtilPercent: null,
+        cpuClockGhz: null,
+        cpuPackagePowerW: null,
+        fan1Rpm: null,
+        fan2Rpm: null,
+        motherboardTempC: null,
+        batteryPercent: null,
+        batteryCharging: null,
+        batteryPowerDrawW: null,
+        diskTempC: null,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Loading live readings…'), findsNothing);
+    expect(find.text('CPU temp'), findsOneWidget);
   });
 
   testWidgets('Dashboard uses shared battery readback and busy state', (
@@ -209,9 +232,8 @@ void main() {
     await tester.ensureVisible(rapid);
     await tester.tap(rapid);
     await tester.pumpAndSettle();
-    when(
-      repository.loadSnapshot,
-    ).thenAnswer((_) async => batterySnapshot(rapid: rapidEnabled));
+    when(repository.loadSnapshot)
+        .thenAnswer((_) async => batterySnapshot(rapid: rapidEnabled));
     container.invalidate(batteryBlocProvider);
     await tester.pumpAndSettle();
     expect(container.read(batteryBlocProvider.bloc), isNot(same(original)));
