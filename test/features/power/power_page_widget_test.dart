@@ -626,7 +626,8 @@ Future<_PowerHarness> _pumpPage(
 
   final repository = _MockPowerRepository();
   final resolvedSnapshot = snapshot ?? _snapshot();
-  when(repository.loadSnapshot).thenAnswer((_) async => resolvedSnapshot);
+  when(() => repository.loadSnapshot())
+      .thenAnswer((_) async => resolvedSnapshot);
   when(() => repository.setPowerMode(any())).thenAnswer((_) async {});
   when(() => repository.setPowerLimit(any(), any())).thenAnswer((_) async {});
   when(() => repository.setPowerLimits(any())).thenAnswer((_) async {});
@@ -634,7 +635,7 @@ Future<_PowerHarness> _pumpPage(
   when(() => repository.setGpuOverclock(any())).thenAnswer((_) async {});
   final sensorRepository = _MockLiveSensorRepository();
   final resolvedSensorSnapshot = sensorSnapshot ?? _liveSensorSnapshot;
-  when(() => sensorRepository.loadSnapshot())
+  when(() => sensorRepository.loadSnapshot(onReading: any(named: 'onReading')))
       .thenAnswer((_) async => resolvedSensorSnapshot);
 
   final bloc = PowerBloc(

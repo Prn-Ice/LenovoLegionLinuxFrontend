@@ -53,6 +53,7 @@ class ModeHero extends StatelessWidget {
     required this.isApplying,
     required this.onModeSelected,
     this.facts,
+    this.isLoading = false,
   });
 
   final Color accent;
@@ -61,6 +62,7 @@ class ModeHero extends StatelessWidget {
   final List<String> availableModes;
   final String? selectedMode;
   final bool isApplying;
+  final bool isLoading;
 
   /// Invoked with the index into [availableModes]; null disables selection.
   final ValueChanged<int>? onModeSelected;
@@ -79,9 +81,9 @@ class ModeHero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (availableModes.isEmpty)
-          const Text('No writable power modes available.')
-        else
+        if (availableModes.isEmpty) ...[
+          if (!isLoading) const Text('No writable power modes available.'),
+        ] else
           ChipTheme(
             data: ChipTheme.of(context).copyWith(
               selectedColor: Color.alphaBlend(
@@ -137,16 +139,20 @@ class ModeHero extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        modeLabel(selected),
+                        isLoading && selected == null
+                            ? 'Checking power mode…'
+                            : modeLabel(selected),
                         style: textTheme.titleSmall?.copyWith(color: accent),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        modeDescription(selected),
-                        style: textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurface.withValues(alpha: 0.7),
+                      if (!isLoading || selected != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          modeDescription(selected),
+                          style: textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurface.withValues(alpha: 0.7),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

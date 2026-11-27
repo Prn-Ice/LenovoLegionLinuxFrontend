@@ -11,12 +11,14 @@ class DgpuState extends Equatable {
     required this.pciAddress,
     required this.isLoading,
     required this.isApplying,
-    required this.hasLoaded,
+    required this.hasCheckedPci,
     required this.errorMessage,
     required this.noticeMessage,
     required this.graphicsModeStatus,
     required this.applyingGraphicsMode,
     required this.name,
+    this.isLoadingProcesses = false,
+    this.hasLoadedGraphicsMode = false,
   });
 
   factory DgpuState.initial() => const DgpuState(
@@ -25,7 +27,7 @@ class DgpuState extends Equatable {
     pciAddress: null,
     isLoading: false,
     isApplying: false,
-    hasLoaded: false,
+    hasCheckedPci: false,
     errorMessage: null,
     noticeMessage: null,
     graphicsModeStatus: null,
@@ -38,10 +40,12 @@ class DgpuState extends Equatable {
   /// null = sysfs runtime_status path not found (NVIDIA GPU unavailable)
   final bool? isActive;
   final GpuProcessScan? processScan;
+  final bool isLoadingProcesses;
   final String? pciAddress;
   final bool isLoading;
   final bool isApplying;
-  final bool hasLoaded;
+  final bool hasCheckedPci;
+  final bool hasLoadedGraphicsMode;
   final AppFailure? errorMessage;
   final String? noticeMessage;
 
@@ -55,10 +59,12 @@ class DgpuState extends Equatable {
   DgpuState copyWith({
     Object? isActive = _unset,
     Object? processScan = _unset,
+    bool? isLoadingProcesses,
     Object? pciAddress = _unset,
     bool? isLoading,
     bool? isApplying,
-    bool? hasLoaded,
+    bool? hasCheckedPci,
+    bool? hasLoadedGraphicsMode,
     Object? errorMessage = _unset,
     Object? noticeMessage = _unset,
     Object? graphicsModeStatus = _unset,
@@ -70,12 +76,15 @@ class DgpuState extends Equatable {
       processScan: processScan == _unset
           ? this.processScan
           : processScan as GpuProcessScan?,
+      isLoadingProcesses: isLoadingProcesses ?? this.isLoadingProcesses,
       pciAddress: pciAddress == _unset
           ? this.pciAddress
           : pciAddress as String?,
       isLoading: isLoading ?? this.isLoading,
       isApplying: isApplying ?? this.isApplying,
-      hasLoaded: hasLoaded ?? this.hasLoaded,
+      hasCheckedPci: hasCheckedPci ?? this.hasCheckedPci,
+      hasLoadedGraphicsMode:
+          hasLoadedGraphicsMode ?? this.hasLoadedGraphicsMode,
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : AppFailure.optional(errorMessage),
@@ -96,10 +105,12 @@ class DgpuState extends Equatable {
   List<Object?> get props => [
     isActive,
     processScan,
+    isLoadingProcesses,
     pciAddress,
     isLoading,
     isApplying,
-    hasLoaded,
+    hasCheckedPci,
+    hasLoadedGraphicsMode,
     errorMessage,
     noticeMessage,
     graphicsModeStatus,

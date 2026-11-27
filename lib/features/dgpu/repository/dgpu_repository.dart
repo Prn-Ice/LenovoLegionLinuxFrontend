@@ -39,44 +39,23 @@ class DgpuRepository extends PrivilegedRepository {
     details: failure.details,
   );
 
-  Future<DgpuSnapshot> loadSnapshot() => _loadSnapshot();
+  Future<GpuProcessScan?> loadProcessScan(String pciAddress) =>
+      _readOpenDevices(pciAddress);
 
-  Future<DgpuSnapshot> loadSnapshotAfterGraphicsWrite() =>
-      _loadSnapshot(requireGraphicsModeStatus: true);
+  Future<String?> loadDeviceName(String pciAddress) =>
+      queryPciName?.call(pciAddress) ?? _queryPciName(pciAddress);
 
-  Future<DgpuSnapshot> _loadSnapshot({
-    bool requireGraphicsModeStatus = false,
-  }) async {
-    final results = await Future.wait([
-      findPciAddress?.call() ?? _findNvidiaGpuPciAddress(),
-      loadGraphicsModeStatus(required: requireGraphicsModeStatus),
-    ]);
-    final pciAddress = results[0] as String?;
-    final graphicsModeStatus = results[1] as GraphicsModeStatus?;
-
-    final bool? isActive;
-    if (pciAddress != null) {
-      final runtimePath =
-          '/sys/bus/pci/devices/$pciAddress/power/runtime_status';
-      isActive =
-          await (readRuntimeStatus?.call(runtimePath) ??
-              _readRuntimeStatus(runtimePath));
-    } else {
-      isActive = null;
+  Future<DgpuSnapshot> loadSnapshot() async {
+    final pciAddress =
+        await (findPciAddress?.call() ?? _findNvidiaGpuPciAddress());
+    if (pciAddress == null) {
+      return const DgpuSnapshot(isActive: null, pciAddress: null);
     }
-    final processScan = pciAddress == null
-        ? null
-        : await _readOpenDevices(pciAddress);
-    final name = pciAddress == null
-        ? null
-        : await (queryPciName?.call(pciAddress) ?? _queryPciName(pciAddress));
-    return DgpuSnapshot(
-      isActive: isActive,
-      processScan: processScan,
-      pciAddress: pciAddress,
-      graphicsModeStatus: graphicsModeStatus,
-      name: name,
-    );
+    final runtimePath = '/sys/bus/pci/devices/$pciAddress/power/runtime_status';
+    final isActive =
+        await (readRuntimeStatus?.call(runtimePath) ??
+            _readRuntimeStatus(runtimePath));
+    return DgpuSnapshot(isActive: isActive, pciAddress: pciAddress);
   }
 
   Future<GraphicsModeStatus?> loadGraphicsModeStatus({

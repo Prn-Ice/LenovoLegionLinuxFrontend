@@ -14,11 +14,13 @@ class SensorStrip extends StatelessWidget {
     required this.snapshot,
     required this.accent,
     this.hiddenMetrics = const {},
+    this.isLoading = false,
   });
 
   final LiveSensorSnapshot snapshot;
   final Color accent;
   final Set<DashboardMetric> hiddenMetrics;
+  final bool isLoading;
 
   bool _show(DashboardMetric metric, Object? value) =>
       value != null && !hiddenMetrics.contains(metric);
@@ -124,7 +126,9 @@ class SensorStrip extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Center(
           child: Text(
-            hiddenMetrics.isEmpty
+            isLoading
+                ? 'Loading live readings…'
+                : hiddenMetrics.isEmpty
                 ? 'Sensor data unavailable.'
                 : 'No readings to show. Choose readings in Settings.',
           ),

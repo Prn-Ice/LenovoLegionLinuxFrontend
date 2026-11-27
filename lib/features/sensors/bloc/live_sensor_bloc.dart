@@ -48,7 +48,16 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
     if (_refreshInFlight) return;
     _refreshInFlight = true;
     try {
-      final snapshot = await _repository.loadSnapshot();
+      final snapshot = await _repository.loadSnapshot(
+        onReading: state.isLoading
+            ? (readings) {
+                if (!isClosed && !emit.isDone) {
+                  emit(state.copyWith(snapshot: readings));
+                }
+              }
+            : null,
+      );
+      if (isClosed || emit.isDone) return;
       emit(
         state.copyWith(
           snapshot: snapshot,
@@ -57,6 +66,7 @@ class LiveSensorBloc extends Bloc<LiveSensorEvent, LiveSensorState> {
         ),
       );
     } catch (error) {
+      if (isClosed || emit.isDone) return;
       emit(
         state.copyWith(
           isLoading: false,

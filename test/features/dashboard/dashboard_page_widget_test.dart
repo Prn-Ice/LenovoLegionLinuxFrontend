@@ -64,7 +64,7 @@ Future<ProviderContainer> mountDashboard(
   final sensorsRepository = _MockLiveSensorRepository();
   when(dashboardRepository.loadSnapshot)
       .thenAnswer((_) async => DashboardSnapshot.initial());
-  when(sensorsRepository.loadSnapshot)
+  when(() => sensorsRepository.loadSnapshot(onReading: any(named: 'onReading')))
       .thenAnswer((_) async => LiveSensorSnapshot.initial());
   await tester.pumpWidget(
     ProviderScope(
@@ -90,19 +90,39 @@ Future<ProviderContainer> mountDashboard(
 }
 
 void main() {
-  testWidgets('dashboard shows controls before live readings arrive', (
-    tester,
-  ) async {
+  testWidgets('dashboard shows each reading as it arrives', (tester) async {
     final dashboardRepository = _MockDashboardRepository();
     final sensorsRepository = _MockLiveSensorRepository();
     final devicesRepository = _MockDevicesRepository();
     final pendingDashboard = Completer<DashboardSnapshot>();
     final pendingSensors = Completer<LiveSensorSnapshot>();
+    late void Function(LiveSensorSnapshot) showReading;
+
+    LiveSensorSnapshot readings({int? fanRpm}) => LiveSensorSnapshot(
+      cpuName: null,
+      cpuTempC: 54,
+      cpuUtilPercent: null,
+      cpuClockGhz: null,
+      cpuPackagePowerW: null,
+      fan1Rpm: fanRpm,
+      fan2Rpm: null,
+      motherboardTempC: null,
+      batteryPercent: null,
+      batteryCharging: null,
+      batteryPowerDrawW: null,
+      diskTempC: null,
+    );
 
     when(dashboardRepository.loadSnapshot)
         .thenAnswer((_) => pendingDashboard.future);
-    when(sensorsRepository.loadSnapshot)
-        .thenAnswer((_) => pendingSensors.future);
+    when(
+      () => sensorsRepository.loadSnapshot(onReading: any(named: 'onReading')),
+    ).thenAnswer((invocation) {
+      showReading =
+          invocation.namedArguments[#onReading]
+              as void Function(LiveSensorSnapshot);
+      return pendingSensors.future;
+    });
 
     final dashboardBloc = DashboardBloc(
       repository: dashboardRepository,
@@ -139,38 +159,26 @@ void main() {
     dashboardBloc.add(const DashboardStarted());
     await tester.pump();
 
-    expect(find.bySemanticsLabel('Loading dashboard data'), findsOneWidget);
-    expect(find.byType(YaruCircularProgressIndicator), findsOneWidget);
-    expect(find.text('Battery health'), findsNothing);
-
-    pendingDashboard.complete(DashboardSnapshot.initial());
-    await tester.pump();
-
     expect(find.byType(YaruCircularProgressIndicator), findsNothing);
-    expect(find.text('Battery health'), findsOneWidget);
+    expect(find.text('Checking power mode…'), findsOneWidget);
     expect(find.text('Loading live readings…'), findsOneWidget);
+
+    showReading(readings());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Checking power mode…'), findsOneWidget);
+    expect(find.text('CPU temp'), findsOneWidget);
+    expect(find.text('CPU fan (RPM)'), findsNothing);
+    expect(find.text('Loading live readings…'), findsNothing);
     expect(find.text('Sensor data unavailable.'), findsNothing);
 
-    pendingSensors.complete(
-      const LiveSensorSnapshot(
-        cpuName: null,
-        cpuTempC: 54,
-        cpuUtilPercent: null,
-        cpuClockGhz: null,
-        cpuPackagePowerW: null,
-        fan1Rpm: null,
-        fan2Rpm: null,
-        motherboardTempC: null,
-        batteryPercent: null,
-        batteryCharging: null,
-        batteryPowerDrawW: null,
-        diskTempC: null,
-      ),
-    );
-    await tester.pump();
+    pendingDashboard.complete(DashboardSnapshot.initial());
+    pendingSensors.complete(readings(fanRpm: 1700));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Loading live readings…'), findsNothing);
+    expect(find.text('Checking power mode…'), findsNothing);
     expect(find.text('CPU temp'), findsOneWidget);
+    expect(find.text('CPU fan (RPM)'), findsOneWidget);
   });
 
   testWidgets('Dashboard uses shared battery readback and busy state', (
@@ -179,7 +187,7 @@ void main() {
     final repository = _MockBatteryRepository();
     var snapshot = batterySnapshot();
     final write = Completer<void>();
-    when(repository.loadSnapshot).thenAnswer((_) async => snapshot);
+    when(() => repository.loadSnapshot()).thenAnswer((_) async => snapshot);
     when(() => repository.setRapidCharging(true)).thenAnswer((_) async {
       await write.future;
       snapshot = batterySnapshot(rapid: true);
@@ -221,7 +229,8 @@ void main() {
     tester,
   ) async {
     final repository = _MockBatteryRepository();
-    when(repository.loadSnapshot).thenAnswer((_) async => batterySnapshot());
+    when(() => repository.loadSnapshot())
+        .thenAnswer((_) async => batterySnapshot());
     var rapidEnabled = false;
     when(() => repository.setRapidCharging(true)).thenAnswer((_) async {
       rapidEnabled = true;
@@ -232,7 +241,7 @@ void main() {
     await tester.ensureVisible(rapid);
     await tester.tap(rapid);
     await tester.pumpAndSettle();
-    when(repository.loadSnapshot)
+    when(() => repository.loadSnapshot())
         .thenAnswer((_) async => batterySnapshot(rapid: rapidEnabled));
     container.invalidate(batteryBlocProvider);
     await tester.pumpAndSettle();

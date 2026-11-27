@@ -471,7 +471,7 @@ Future<_PageHarness> _pumpPage(
   when(fansRepository.loadSnapshot)
       .thenAnswer((_) async => snapshot ?? _fansSnapshot());
   when(() => fansRepository.applyPreset(any())).thenAnswer((_) async {});
-  when(sensorRepository.loadSnapshot)
+  when(() => sensorRepository.loadSnapshot(onReading: any(named: 'onReading')))
       .thenAnswer((_) async => sensors ?? _sensorSnapshot());
 
   final fansBloc = FansBloc(

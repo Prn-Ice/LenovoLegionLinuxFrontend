@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:riverbloc/riverbloc.dart';
 
 import '../../../core/models/app_failure.dart';
+import '../../../core/models/gpu_process_scan.dart';
 import '../models/graphics_mode.dart';
 import '../repository/dgpu_repository.dart';
 import 'dgpu_event.dart';
@@ -16,6 +17,7 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
     on<DgpuStarted>(_onStarted);
     on<DgpuRefreshRequested>(_onRefreshRequested);
     on<DgpuTicked>(_onTicked);
+    on<DgpuDeviceDetailsRequested>(_onDeviceDetailsRequested);
     on<DgpuGraphicsModeSetRequested>(_onGraphicsModeSetRequested);
     on<DgpuGraphicsBootSupportSetRequested>(_onGraphicsBootSupportSetRequested);
     on<DgpuKillProcessesRequested>(_onKillProcessesRequested);
@@ -29,11 +31,14 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
   bool _started = false;
   bool _refreshInFlight = false;
   Completer<void>? _refreshCompleter;
+  bool _deviceDetailsInFlight = false;
+  int _pciRevision = 0;
 
   Future<void> _onStarted(DgpuStarted event, Emitter<DgpuState> emit) async {
     if (_started) return;
     _started = true;
     await _reloadState(emit, showLoading: true);
+    if (isClosed || emit.isDone) return;
     _pollTimer = Timer.periodic(_pollInterval, (_) {
       add(const DgpuTicked());
     });
@@ -49,6 +54,60 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
   Future<void> _onTicked(DgpuTicked event, Emitter<DgpuState> emit) async {
     if (state.isApplying) return;
     await _reloadState(emit, showLoading: false);
+  }
+
+  Future<void> _onDeviceDetailsRequested(
+    DgpuDeviceDetailsRequested event,
+    Emitter<DgpuState> emit,
+  ) async {
+    final address = state.pciAddress;
+    if (address == null || _deviceDetailsInFlight) return;
+
+    final revision = _pciRevision;
+    _deviceDetailsInFlight = true;
+    try {
+      await Future.wait([
+        _loadProcessScan(address, revision, emit),
+        if (state.name == null) _loadDeviceName(address, revision, emit),
+      ]);
+    } finally {
+      _deviceDetailsInFlight = false;
+    }
+    if (revision != _pciRevision && !isClosed && !emit.isDone) {
+      add(const DgpuDeviceDetailsRequested());
+    }
+  }
+
+  Future<void> _loadProcessScan(
+    String address,
+    int revision,
+    Emitter<DgpuState> emit,
+  ) async {
+    GpuProcessScan? scan;
+    try {
+      scan = await _repository.loadProcessScan(address);
+    } on Exception {
+      scan = null;
+    }
+    if (!isClosed && !emit.isDone && revision == _pciRevision) {
+      emit(state.copyWith(processScan: scan, isLoadingProcesses: false));
+    }
+  }
+
+  Future<void> _loadDeviceName(
+    String address,
+    int revision,
+    Emitter<DgpuState> emit,
+  ) async {
+    String? name;
+    try {
+      name = await _repository.loadDeviceName(address);
+    } on Exception {
+      name = null;
+    }
+    if (!isClosed && !emit.isDone && revision == _pciRevision) {
+      emit(state.copyWith(name: name));
+    }
   }
 
   Future<void> _onGraphicsModeSetRequested(
@@ -161,31 +220,29 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       emit(state.copyWith(isLoading: true, errorMessage: null));
     }
     try {
-      final snapshot = requireGraphicsModeStatus
-          ? await _repository.loadSnapshotAfterGraphicsWrite()
-          : await _repository.loadSnapshot();
+      await Future.wait([
+        _reloadDevice(emit),
+        _reloadGraphicsMode(emit, afterWrite: requireGraphicsModeStatus),
+      ]);
+      if (isClosed || emit.isDone) return;
       emit(
         state.copyWith(
-          isActive: snapshot.isActive,
-          processScan: snapshot.processScan,
-          pciAddress: snapshot.pciAddress,
           isLoading: false,
           isApplying: false,
           applyingGraphicsMode: null,
-          hasLoaded: true,
           errorMessage: actionErrorMessage,
           noticeMessage: noticeMessage,
-          graphicsModeStatus: snapshot.graphicsModeStatus,
-          name: snapshot.name,
         ),
       );
     } catch (error) {
+      if (isClosed || emit.isDone) return;
       emit(
         state.copyWith(
           isLoading: false,
           isApplying: false,
           applyingGraphicsMode: null,
-          hasLoaded: true,
+          hasCheckedPci: true,
+          hasLoadedGraphicsMode: true,
           errorMessage: AppFailure.from(
             actionErrorMessage ?? error,
             message: actionErrorMessage == null
@@ -200,6 +257,42 @@ class DgpuBloc extends Bloc<DgpuEvent, DgpuState> {
       _refreshCompleter?.complete();
       _refreshCompleter = null;
     }
+  }
+
+  Future<void> _reloadDevice(Emitter<DgpuState> emit) async {
+    final snapshot = await _repository.loadSnapshot();
+    if (isClosed || emit.isDone) return;
+
+    final deviceChanged = snapshot.pciAddress != state.pciAddress;
+    if (deviceChanged) _pciRevision++;
+    emit(
+      state.copyWith(
+        isActive: snapshot.isActive,
+        pciAddress: snapshot.pciAddress,
+        hasCheckedPci: true,
+        name: deviceChanged ? null : state.name,
+        processScan: deviceChanged ? null : state.processScan,
+        isLoadingProcesses: deviceChanged
+            ? snapshot.pciAddress != null
+            : state.isLoadingProcesses,
+      ),
+    );
+    if (snapshot.pciAddress != null) {
+      add(const DgpuDeviceDetailsRequested());
+    }
+  }
+
+  Future<void> _reloadGraphicsMode(
+    Emitter<DgpuState> emit, {
+    required bool afterWrite,
+  }) async {
+    final status = await _repository.loadGraphicsModeStatus(
+      required: afterWrite,
+    );
+    if (isClosed || emit.isDone) return;
+    emit(
+      state.copyWith(graphicsModeStatus: status, hasLoadedGraphicsMode: true),
+    );
   }
 
   @override

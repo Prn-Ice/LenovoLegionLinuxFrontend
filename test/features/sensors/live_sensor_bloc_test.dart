@@ -44,7 +44,8 @@ void main() {
     blocTest<LiveSensorBloc, LiveSensorState>(
       'emits loaded snapshot on LiveSensorStarted',
       build: () {
-        when(() => repository.loadSnapshot()).thenAnswer((_) async => snapshot);
+        when(() => repository.loadSnapshot(onReading: any(named: 'onReading')))
+            .thenAnswer((_) async => snapshot);
         return LiveSensorBloc(
           repository: repository,
           pollInterval: const Duration(seconds: 60),
@@ -58,7 +59,7 @@ void main() {
     blocTest<LiveSensorBloc, LiveSensorState>(
       'emits error state when loadSnapshot throws',
       build: () {
-        when(() => repository.loadSnapshot())
+        when(() => repository.loadSnapshot(onReading: any(named: 'onReading')))
             .thenThrow(Exception('sysfs error'));
         return LiveSensorBloc(
           repository: repository,

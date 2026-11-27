@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/gpu_process.dart';
 import 'package:legion_frontend/core/models/gpu_process_scan.dart';
@@ -78,6 +80,28 @@ void main() {
     expect(snapshot.igpu?.tempC, 48);
     verify(packagePower.readPackagePowerWatts).called(1);
   });
+
+  test(
+    'publishes CPU temperature while the GPU process scan is pending',
+    () async {
+      final pendingProcesses = Completer<GpuProcessScan?>();
+      final temperature = Completer<double>();
+      when(nvidia.readSnapshot).thenAnswer((_) async => null);
+      when(igpu.readProcesses).thenAnswer((_) => pendingProcesses.future);
+      final readings = repository.loadSnapshot(
+        onReading: (snapshot) {
+          final cpuTemp = snapshot.cpuTempC;
+          if (cpuTemp != null && !temperature.isCompleted) {
+            temperature.complete(cpuTemp);
+          }
+        },
+      );
+
+      expect(await temperature.future, 62);
+      pendingProcesses.complete(GpuProcessScan.noClients);
+      expect((await readings).igpuProcesses, GpuProcessScan.noClients);
+    },
+  );
 
   test(
     'propagates optional third fan telemetry without inventing a value',

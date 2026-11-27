@@ -40,6 +40,56 @@ class _MockPowerRepository extends Mock implements PowerRepository {}
 class _MockAnalyticsRepository extends Mock implements AnalyticsRepository {}
 
 void main() {
+  testWidgets('GPU shows graphics mode while checking for open devices', (
+    tester,
+  ) async {
+    final pendingProcesses = Completer<GpuProcessScan?>();
+    await _pumpPage(
+      tester,
+      width: 420,
+      processes: null,
+      pendingProcesses: pendingProcesses.future,
+    );
+    expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+    expect(find.text('Selected mode'), findsOneWidget);
+    expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
+    expect(find.text('Checking for open NVIDIA devices…'), findsOneWidget);
+    expect(find.text('GPU process list unavailable.'), findsNothing);
+
+    pendingProcesses.complete(GpuProcessScan.noClients);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Checking for open NVIDIA devices…'), findsNothing);
+    expect(
+      find.text('No visible processes have NVIDIA devices open.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GPU shows readings while graphics mode is pending', (
+    tester,
+  ) async {
+    final pendingMode = Completer<GraphicsModeStatus?>();
+    await _pumpPage(
+      tester,
+      width: 420,
+      processes: const [],
+      pendingMode: pendingMode.future,
+    );
+
+    expect(find.text('NVIDIA GeForce RTX 4060'), findsOneWidget);
+    expect(find.text('P2'), findsOneWidget);
+    expect(find.text('Checking graphics mode…'), findsOneWidget);
+    expect(find.text('Selected mode'), findsNothing);
+
+    pendingMode.complete(_hybridStatus);
+    await tester.pumpAndSettle();
+
+    expect(find.text('P2'), findsOneWidget);
+    expect(find.text('Checking graphics mode…'), findsNothing);
+    expect(find.text('Selected mode'), findsOneWidget);
+  });
+
   testWidgets('GPU shows graphics controls before live readings arrive', (
     tester,
   ) async {
@@ -53,7 +103,8 @@ void main() {
 
     expect(find.byType(YaruCircularProgressIndicator), findsNothing);
     expect(find.text('Graphics mode'), findsOneWidget);
-    expect(find.text('Loading live GPU readings…'), findsOneWidget);
+    expect(find.text('P2'), findsNothing);
+    expect(find.text('Loading live GPU readings…'), findsNothing);
     expect(
       find.textContaining('Live NVIDIA telemetry is unavailable'),
       findsNothing,
@@ -637,6 +688,8 @@ Future<_MockDgpuRepository> _pumpPage(
   GpuProcessScan? igpuProcesses,
   GraphicsModeStatus? graphicsModeStatus = _hybridStatus,
   Future<LiveSensorSnapshot>? pendingSensors,
+  Future<GpuProcessScan?>? pendingProcesses,
+  Future<GraphicsModeStatus?>? pendingMode,
 }) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
@@ -652,24 +705,25 @@ Future<_MockDgpuRepository> _pumpPage(
               ? GpuProcessReporting.noClients
               : GpuProcessReporting.reported,
         );
+  when(() => dgpuRepository.loadProcessScan(any())).thenAnswer((_) async {
+    if (pendingProcesses != null) return pendingProcesses;
+    return processScan;
+  });
   when(dgpuRepository.loadSnapshot).thenAnswer(
     (_) async => DgpuSnapshot(
       isActive: dgpuAvailable ? (dgpuActive ?? true) : null,
-      processScan: processScan,
       pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
-      graphicsModeStatus: graphicsModeStatus,
-      name: 'NVIDIA Corporation AD107M',
     ),
   );
-  when(dgpuRepository.loadSnapshotAfterGraphicsWrite).thenAnswer(
-    (_) async => DgpuSnapshot(
-      isActive: dgpuAvailable ? (dgpuActive ?? true) : null,
-      processScan: processScan,
-      pciAddress: dgpuAvailable ? '0000:01:00.0' : null,
-      graphicsModeStatus: graphicsModeStatus,
-      name: 'NVIDIA Corporation AD107M',
-    ),
-  );
+  when(() => dgpuRepository.loadDeviceName(any()))
+      .thenAnswer((_) async => 'NVIDIA Corporation AD107M');
+  when(
+    () =>
+        dgpuRepository.loadGraphicsModeStatus(required: any(named: 'required')),
+  ).thenAnswer((_) async {
+    if (pendingMode != null) return pendingMode;
+    return graphicsModeStatus;
+  });
   for (final mode in const [
     GraphicsMode.hybrid,
     GraphicsMode.hybridIgpuOnly,
@@ -681,22 +735,25 @@ Future<_MockDgpuRepository> _pumpPage(
     repository: dgpuRepository,
     pollInterval: const Duration(days: 1),
   );
-  final dgpuLoaded = dgpuBloc.stream.firstWhere(
-    (state) => !state.isLoading && state.hasLoaded,
-  );
+  final dgpuLoaded = pendingMode == null
+      ? dgpuBloc.stream.firstWhere(
+          (state) => !state.isLoading && state.hasCheckedPci,
+        )
+      : null;
   dgpuBloc.add(const DgpuStarted());
   await dgpuLoaded;
 
   final sensorRepository = _MockLiveSensorRepository();
-  when(sensorRepository.loadSnapshot).thenAnswer((_) async {
-    if (pendingSensors != null) return pendingSensors;
-    return _liveSensorSnapshot(
-      gpuName,
-      dgpuReading: dgpuAvailable && (dgpuActive ?? true),
-      igpu: igpu,
-      igpuProcesses: igpuProcesses,
-    );
-  });
+  when(() => sensorRepository.loadSnapshot(onReading: any(named: 'onReading')))
+      .thenAnswer((_) async {
+        if (pendingSensors != null) return pendingSensors;
+        return _liveSensorSnapshot(
+          gpuName,
+          dgpuReading: dgpuAvailable && (dgpuActive ?? true),
+          igpu: igpu,
+          igpuProcesses: igpuProcesses,
+        );
+      });
   final sensorBloc = LiveSensorBloc(
     repository: sensorRepository,
     pollInterval: const Duration(days: 1),
