@@ -1,7 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
-import 'package:legion_frontend/core/models/gpu_process.dart';
+import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_bloc.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_event.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
@@ -20,7 +20,7 @@ void main() {
     when(() => repo.loadSnapshot()).thenAnswer(
       (_) async => const DgpuSnapshot(
         isActive: true,
-        processes: [],
+        processScan: GpuProcessScan.noClients,
         pciAddress: '0000:01:00.0',
         graphicsModeStatus: null,
       ),
@@ -53,12 +53,7 @@ void main() {
       when(() => repo.killGpuProcesses([4242])).thenAnswer((_) async {});
       return DgpuBloc(repository: repo);
     },
-    seed: () => DgpuState.initial().copyWith(
-      isActive: true,
-      processes: const [
-        GpuProcess(pid: 4242, name: 'blender', usedMemoryMib: 1024),
-      ],
-    ),
+    seed: () => DgpuState.initial().copyWith(isActive: true),
     act: (bloc) => bloc.add(const DgpuKillProcessesRequested([4242])),
     verify: (_) => verify(() => repo.killGpuProcesses([4242])).called(1),
   );
@@ -184,7 +179,7 @@ const _hybridStatus = GraphicsModeStatus(
 
 const _hybridSnapshot = DgpuSnapshot(
   isActive: true,
-  processes: [],
+  processScan: GpuProcessScan.noClients,
   pciAddress: '0000:01:00.0',
   graphicsModeStatus: _hybridStatus,
 );

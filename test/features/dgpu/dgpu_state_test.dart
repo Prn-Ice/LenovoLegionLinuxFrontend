@@ -1,9 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/gpu_process.dart';
+import 'package:legion_frontend/core/models/gpu_process_scan.dart';
 import 'package:legion_frontend/features/dgpu/bloc/dgpu_state.dart';
 import 'package:legion_frontend/features/dgpu/models/graphics_mode.dart';
 
-const _proc = GpuProcess(pid: 1234, name: 'Xorg', usedMemoryMib: 4);
+const _scan = GpuProcessScan(
+  processes: [
+    GpuProcess(pid: 1234, name: 'Xorg', devices: ['/dev/dri/card0']),
+  ],
+  reporting: GpuProcessReporting.reported,
+);
 
 void main() {
   group('DgpuState.initial', () {
@@ -11,8 +17,8 @@ void main() {
       expect(DgpuState.initial().isActive, isNull);
     });
 
-    test('processes is empty', () {
-      expect(DgpuState.initial().processes, isEmpty);
+    test('process scan starts unavailable', () {
+      expect(DgpuState.initial().processScan, isNull);
     });
 
     test('isLoading and isApplying are false', () {
@@ -71,9 +77,10 @@ void main() {
       expect(s.errorMessage, isNull);
     });
 
-    test('copyWith(processes: ...) sets list', () {
-      final s = DgpuState.initial().copyWith(processes: [_proc]);
-      expect(s.processes, hasLength(1));
+    test('clears stale processes when the next scan is unavailable', () {
+      final s = DgpuState.initial().copyWith(processScan: _scan);
+      expect(s.processScan?.processes, hasLength(1));
+      expect(s.copyWith(processScan: null).processScan, isNull);
     });
 
     test('copyWith(pciAddress: null) clears it', () {
@@ -100,7 +107,7 @@ void main() {
     test('copyWith omitting all fields on populated state preserves all', () {
       final populated = DgpuState.initial().copyWith(
         isActive: true,
-        processes: [_proc],
+        processScan: _scan,
         pciAddress: '0000:01:00.0',
         isLoading: true,
         isApplying: true,
@@ -122,8 +129,8 @@ void main() {
       expect(a, isNot(equals(b)));
     });
 
-    test('differ when processes differ', () {
-      final a = DgpuState.initial().copyWith(processes: [_proc]);
+    test('differ when process scans differ', () {
+      final a = DgpuState.initial().copyWith(processScan: _scan);
       final b = DgpuState.initial();
       expect(a, isNot(equals(b)));
     });

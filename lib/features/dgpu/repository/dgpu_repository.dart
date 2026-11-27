@@ -3,6 +3,8 @@ import 'dart:io';
 import '../../../core/data/privileged_repository.dart';
 import '../../../core/models/app_failure.dart';
 import '../../../core/models/gpu_process.dart';
+import '../../../core/models/gpu_process_scan.dart';
+import '../../../core/services/drm_process_service.dart';
 import '../../../core/services/legion_frontend_bridge_service.dart';
 import '../models/dgpu_snapshot.dart';
 import '../models/graphics_mode.dart';
@@ -12,13 +14,15 @@ class DgpuRepositoryException extends AppFailure {
 }
 
 class DgpuRepository extends PrivilegedRepository {
-  const DgpuRepository({
+  DgpuRepository({
     required super.bridgeService,
     this.findPciAddress,
     this.readRuntimeStatus,
     this.queryComputeProcesses,
     this.queryPciName,
-  });
+    Future<GpuProcessScan?> Function(String pciAddress)? readOpenDevices,
+  }) : _readOpenDevices =
+           readOpenDevices ?? DrmProcessService().readOpenDevices;
 
   /// Callbacks replace PCI and process reads in hardware-free tests.
   /// Omitted callbacks use the sysfs and process readers below.
@@ -26,6 +30,7 @@ class DgpuRepository extends PrivilegedRepository {
   final Future<bool?> Function(String path)? readRuntimeStatus;
   final Future<List<GpuProcess>> Function()? queryComputeProcesses;
   final Future<String?> Function(String pciAddress)? queryPciName;
+  final Future<GpuProcessScan?> Function(String pciAddress) _readOpenDevices;
 
   @override
   Exception wrapBridgeError(AppFailure failure) => DgpuRepositoryException(
@@ -33,9 +38,6 @@ class DgpuRepository extends PrivilegedRepository {
     kind: failure.kind,
     details: failure.details,
   );
-
-  static const _knownRuntimeStatusPath =
-      '/sys/bus/pci/devices/0000:01:00.0/power/runtime_status';
 
   Future<DgpuSnapshot> loadSnapshot() => _loadSnapshot();
 
@@ -62,14 +64,15 @@ class DgpuRepository extends PrivilegedRepository {
     } else {
       isActive = null;
     }
-    final processes =
-        await (queryComputeProcesses?.call() ?? _queryComputeProcesses());
+    final processScan = pciAddress == null
+        ? null
+        : await _readOpenDevices(pciAddress);
     final name = pciAddress == null
         ? null
         : await (queryPciName?.call(pciAddress) ?? _queryPciName(pciAddress));
     return DgpuSnapshot(
       isActive: isActive,
-      processes: processes,
+      processScan: processScan,
       pciAddress: pciAddress,
       graphicsModeStatus: graphicsModeStatus,
       name: name,
@@ -248,21 +251,12 @@ class DgpuRepository extends PrivilegedRepository {
     );
   }
 
-  /// Returns the PCI address of the NVIDIA discrete GPU.
-  /// Tries the known address first; falls back to scanning /sys/bus/pci/devices/.
   Future<String?> _findNvidiaGpuPciAddress() async {
-    // Fast path: try the well-known address first.
-    final knownStatusFile = File(_knownRuntimeStatusPath);
-    if (await knownStatusFile.exists()) {
-      return '0000:01:00.0';
-    }
-
-    // Scan for NVIDIA vendor ID 0x10de with display class 0x03xxxx.
     final devicesDir = Directory('/sys/bus/pci/devices');
     if (!await devicesDir.exists()) return null;
 
     try {
-      await for (final entity in devicesDir.list(followLinks: false)) {
+      await for (final entity in devicesDir.list()) {
         if (entity is! Directory) continue;
         final vendorFile = File('${entity.path}/vendor');
         if (!await vendorFile.exists()) continue;
@@ -312,18 +306,21 @@ class DgpuRepository extends PrivilegedRepository {
 
   Future<String?> _queryPciName(String pciAddress) async {
     try {
-      final result = await Process.run('lspci', [
-        '-s',
-        pciAddress,
+      // udev caches the model name from its hardware database.
+      final result = await Process.run('udevadm', [
+        'info',
+        '--query=property',
+        '--path=/sys/bus/pci/devices/$pciAddress',
       ]).timeout(const Duration(seconds: 4));
       if (result.exitCode != 0) return null;
-      final output = '${result.stdout}'.trim();
-      if (output.isEmpty) return null;
-      final separator = output.indexOf(': ');
-      return separator == -1 ? output : output.substring(separator + 2);
-    } on Exception catch (_) {
-      return null;
-    }
+      const property = 'ID_MODEL_FROM_DATABASE=';
+      for (final line in '${result.stdout}'.split('\n')) {
+        if (!line.startsWith(property)) continue;
+        final name = line.substring(property.length).trim();
+        if (name.isNotEmpty) return name;
+      }
+    } on Exception catch (_) {}
+    return null;
   }
 
   bool _sameValues(List<int> left, List<int> right) {

@@ -1,16 +1,18 @@
 import 'package:equatable/equatable.dart';
 
-/// A process with GPU usage attributed by the kernel or the vendor tool.
+/// A process that the kernel or vendor tool associates with a GPU.
 class GpuProcess extends Equatable {
   const GpuProcess({
     required this.pid,
     required this.name,
-    required this.usedMemoryMib,
+    this.usedMemoryMib,
+    this.devices = const [],
   });
 
   final int pid;
   final String name;
-  final int usedMemoryMib;
+  final int? usedMemoryMib;
+  final List<String> devices;
 
   /// Parses output of:
   /// nvidia-smi --query-compute-apps=pid,process_name,used_gpu_memory
@@ -36,5 +38,5 @@ class GpuProcess extends Equatable {
   }
 
   @override
-  List<Object?> get props => [pid, name, usedMemoryMib];
+  List<Object?> get props => [pid, name, usedMemoryMib, devices];
 }
