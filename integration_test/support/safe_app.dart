@@ -15,6 +15,7 @@ import 'package:legion_frontend/core/models/control_capabilities.dart';
 import 'package:legion_frontend/core/services/legion_control_client.dart';
 import 'package:legion_frontend/core/services/legion_sysfs_service.dart';
 import 'package:legion_frontend/core/services/nvidia_smi_service.dart';
+import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
 import 'package:legion_frontend/core/models/gpu_reading.dart';
 import 'package:legion_frontend/core/services/power_profile_service.dart';
 import 'package:legion_frontend/features/analytics/models/sensor_record.dart';
@@ -271,8 +272,8 @@ class SafeApp {
           xrandrServiceProvider.overrideWith(
             (_) => throw StateError('Display access is outside this journey'),
           ),
-          packagePowerTelemetryClientProvider.overrideWith(
-            (_) => throw StateError('System telemetry is outside this journey'),
+          packagePowerTelemetryClientProvider.overrideWithValue(
+            _NoPackagePower(),
           ),
           // Keep the real sensor provider/Bloc with synthetic hardware readings.
           liveSensorRepositoryProvider.overrideWithValue(_NoLiveSensors()),
@@ -567,6 +568,19 @@ class _NoDaemon implements PowerProfilesDaemonClient {
 class _NoNvidia implements NvidiaSmiService {
   @override
   Future<GpuReading?> readSnapshot() async => null;
+}
+
+class _NoPackagePower implements PackagePowerTelemetryClient {
+  @override
+  Future<void> enable() async =>
+      throw StateError('CPU power access is outside this journey');
+
+  @override
+  Future<void> disable() async =>
+      throw StateError('CPU power access is outside this journey');
+
+  @override
+  Future<double?> readPackagePowerWatts() async => null;
 }
 
 class _NoLiveSensors implements LiveSensorRepository {

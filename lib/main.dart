@@ -28,8 +28,11 @@ Future<void> main() async {
           DashboardReadingsStore(preferences),
         ),
       ],
-      child: const LegionFrontendApp(
-        home: NavigationShell(onReady: requestPackagePowerAccess),
+      child: LegionFrontendApp(
+        home: NavigationShell(
+          onReady: (context, ref) =>
+              requestPackagePowerAccess(context, ref, preferences: preferences),
+        ),
       ),
     ),
   );

@@ -19,6 +19,8 @@ import '../../display/providers/display_provider.dart';
 import '../../diagnostics/view/diagnostics_page.dart';
 import '../../boot_logo/providers/boot_logo_provider.dart';
 import '../../boot_logo/view/boot_logo_controls.dart';
+import '../../sensors/bloc/package_power_cubit.dart';
+import '../../sensors/view/package_power_access.dart';
 import '../bloc/settings_event.dart';
 import '../providers/settings_provider.dart';
 
@@ -33,6 +35,7 @@ class SettingsPage extends ConsumerWidget {
     final devices = ref.watch(devicesBlocProvider);
     final display = ref.watch(displayBlocProvider);
     final readings = ref.watch(dashboardReadingsProvider);
+    final packagePower = ref.watch(packagePowerProvider);
 
     final textTheme = Theme.of(context).textTheme;
 
@@ -61,8 +64,23 @@ class SettingsPage extends ConsumerWidget {
     );
     final backend = _SettingsSection(
       title: 'Hardware control',
-      description: 'Check the kernel driver and installed command-line tool.',
       children: [
+        AppSwitchTile(
+          title: 'CPU power readings',
+          subtitle: switch (packagePower) {
+            PackagePowerState.enabling => 'Requesting access…',
+            PackagePowerState.disabling => 'Stopping CPU power readings…',
+            _ => 'Read CPU power in watts for this session.',
+          },
+          value:
+              packagePower == PackagePowerState.on ||
+              packagePower == PackagePowerState.disabling,
+          onChanged: switch (packagePower) {
+            PackagePowerState.enabling || PackagePowerState.disabling => null,
+            _ => (enabled) => _changePackagePower(context, ref, enabled),
+          },
+        ),
+        const Divider(height: 16),
         ListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Kernel driver version'),
@@ -277,6 +295,23 @@ class SettingsPage extends ConsumerWidget {
       ],
     );
   }
+}
+
+Future<void> _changePackagePower(
+  BuildContext context,
+  WidgetRef ref,
+  bool enabled,
+) async {
+  if (enabled) {
+    final confirmed = await confirmPrivilegedAction(
+      context,
+      title: 'Show CPU power usage?',
+      message: 'Allow access to your CPU’s energy counter to see power in watts for this session.',
+      confirmLabel: 'Allow',
+    );
+    if (!confirmed || !context.mounted) return;
+  }
+  await setPackagePowerEnabled(context, ref, enabled);
 }
 
 class _AppearanceSelector extends StatelessWidget {

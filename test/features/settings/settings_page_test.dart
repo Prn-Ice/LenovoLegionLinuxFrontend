@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:legion_frontend/core/models/app_failure.dart';
+import 'package:legion_frontend/core/providers/system_services_provider.dart';
+import 'package:legion_frontend/core/services/legion_control_client.dart';
+import 'package:legion_frontend/core/services/package_power_telemetry_service.dart';
 import 'package:legion_frontend/features/dashboard/models/dashboard_metric.dart';
 import 'package:legion_frontend/features/dashboard/providers/dashboard_readings_provider.dart';
 import 'package:legion_frontend/features/about/repository/about_repository.dart';
@@ -36,6 +40,8 @@ class DevicesRepo extends Mock implements DevicesRepository {}
 
 class DisplayRepo extends Mock implements DisplayRepository {}
 
+class PowerClient extends Mock implements PackagePowerTelemetryClient {}
+
 class ManifestBundle extends CachingAssetBundle {
   @override
   Future<ByteData> load(String key) async {
@@ -56,11 +62,13 @@ void main() {
     'win key unavailable',
     'appearance',
     'dashboard readings',
+    'CPU power readings',
   ]) {
     testWidgets('Settings $scenario uses the current provider', (tester) async {
       if (scenario == 'appearance' ||
           scenario == 'boot logo' ||
-          scenario == 'dashboard readings') {
+          scenario == 'dashboard readings' ||
+          scenario == 'CPU power readings') {
         tester.view.physicalSize = const Size(420, 500);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.resetPhysicalSize);
@@ -119,6 +127,7 @@ void main() {
         );
       }
       final display = DisplayRepo();
+      final power = PowerClient();
       when(display.loadSnapshot).thenAnswer(
         (_) async => const DisplaySnapshot(
           overdriveEnabled: false,
@@ -133,6 +142,7 @@ void main() {
         aboutRepositoryProvider.overrideWithValue(about),
         devicesRepositoryProvider.overrideWithValue(deviceRepo),
         displayRepositoryProvider.overrideWithValue(display),
+        packagePowerTelemetryClientProvider.overrideWithValue(power),
       ];
       final originalPicker = FilePickerPlatform.instance;
       final picker = ControlledPicker();
@@ -166,7 +176,56 @@ void main() {
       ]) {
         expect(find.text(label), findsWidgets);
       }
-      if (scenario == 'dashboard readings') {
+      if (scenario == 'CPU power readings') {
+        final tile = find.widgetWithText(
+          YaruSwitchListTile,
+          'CPU power readings',
+        );
+        final label = find.text('CPU power readings');
+        await tester.ensureVisible(tile);
+        await tester.pumpAndSettle();
+        expect(tester.widget<YaruSwitchListTile>(tile).value, isFalse);
+        verifyNever(power.enable);
+
+        await tester.tap(label);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        verifyNever(power.enable);
+
+        when(power.enable).thenThrow(
+          const LegionControlStartupDeniedException('Approval was cancelled.'),
+        );
+        await tester.tap(label);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Allow'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining('CPU power readings are off.'),
+          findsOneWidget,
+        );
+        expect(tester.widget<YaruSwitchListTile>(tile).value, isFalse);
+        await tester.tap(find.text('Close').last);
+        await tester.pumpAndSettle();
+
+        final starting = Completer<void>();
+        when(power.enable).thenAnswer((_) => starting.future);
+        when(power.disable).thenAnswer((_) async {});
+        await tester.tap(label);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Allow'));
+        await tester.pumpAndSettle();
+        expect(tester.widget<YaruSwitchListTile>(tile).onChanged, isNull);
+        expect(tester.widget<YaruSwitchListTile>(tile).value, isFalse);
+        starting.complete();
+        await tester.pumpAndSettle();
+        expect(tester.widget<YaruSwitchListTile>(tile).value, isTrue);
+
+        await tester.tap(label);
+        await tester.pumpAndSettle();
+        verify(power.disable).called(1);
+        expect(tester.widget<YaruSwitchListTile>(tile).value, isFalse);
+      } else if (scenario == 'dashboard readings') {
         expect(find.text('Battery'), findsNothing);
         expect(
           container.read(dashboardReadingsProvider).hidden,
