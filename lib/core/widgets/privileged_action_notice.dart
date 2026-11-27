@@ -55,7 +55,37 @@ Future<bool> confirmPrivilegedAction(
 }) async {
   final approved = await showDialog<bool>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
+    builder: (dialogContext) => PrivilegedActionDialog(
+      title: title,
+      content: Text(message, textAlign: TextAlign.left),
+      confirmLabel: confirmLabel,
+      cancelLabel: cancelLabel,
+      onDecision: (approved) => Navigator.of(dialogContext).pop(approved),
+    ),
+  );
+
+  return approved ?? false;
+}
+
+class PrivilegedActionDialog extends StatelessWidget {
+  const PrivilegedActionDialog({
+    super.key,
+    required this.title,
+    required this.content,
+    required this.confirmLabel,
+    required this.cancelLabel,
+    required this.onDecision,
+  });
+
+  final String title;
+  final Widget content;
+  final String confirmLabel;
+  final String cancelLabel;
+  final ValueChanged<bool> onDecision;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
       scrollable: true,
       constraints: const BoxConstraints(maxWidth: 460),
       titlePadding: EdgeInsets.zero,
@@ -66,20 +96,18 @@ Future<bool> confirmPrivilegedAction(
         kYaruPagePadding,
         0,
       ),
-      content: Text(message, textAlign: TextAlign.left),
+      content: content,
       actionsPadding: const EdgeInsets.all(kYaruPagePadding),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
+          onPressed: () => onDecision(false),
           child: Text(cancelLabel),
         ),
         FilledButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
+          onPressed: () => onDecision(true),
           child: Text(confirmLabel),
         ),
       ],
-    ),
-  );
-
-  return approved ?? false;
+    );
+  }
 }
