@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +25,6 @@ import 'package:legion_frontend/features/power/models/power_snapshot.dart';
 import 'package:legion_frontend/features/power/providers/power_provider.dart';
 import 'package:legion_frontend/features/power/repository/power_repository.dart';
 import 'package:legion_frontend/features/sensors/bloc/live_sensor_bloc.dart';
-import 'package:legion_frontend/features/sensors/bloc/live_sensor_event.dart';
 import 'package:legion_frontend/features/sensors/models/live_sensor_snapshot.dart';
 import 'package:legion_frontend/features/sensors/providers/live_sensor_provider.dart';
 import 'package:legion_frontend/features/sensors/repository/live_sensor_repository.dart';
@@ -39,6 +40,60 @@ class _MockPowerRepository extends Mock implements PowerRepository {}
 class _MockAnalyticsRepository extends Mock implements AnalyticsRepository {}
 
 void main() {
+  testWidgets('GPU shows graphics controls before live readings arrive', (
+    tester,
+  ) async {
+    final pendingSensors = Completer<LiveSensorSnapshot>();
+    await _pumpPage(
+      tester,
+      width: 420,
+      processes: const [],
+      pendingSensors: pendingSensors.future,
+    );
+
+    expect(find.byType(YaruCircularProgressIndicator), findsNothing);
+    expect(find.text('Graphics mode'), findsOneWidget);
+    expect(find.text('Loading live GPU readings…'), findsOneWidget);
+    expect(
+      find.textContaining('Live NVIDIA telemetry is unavailable'),
+      findsNothing,
+    );
+
+    pendingSensors.complete(_liveSensorSnapshot('NVIDIA GeForce RTX 4060'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Loading live GPU readings…'), findsNothing);
+    expect(find.text('P2'), findsOneWidget);
+  });
+
+  testWidgets('GPU shows graphics mode while detecting integrated graphics', (
+    tester,
+  ) async {
+    final pendingSensors = Completer<LiveSensorSnapshot>();
+    await _pumpPage(
+      tester,
+      width: 420,
+      processes: null,
+      dgpuAvailable: false,
+      pendingSensors: pendingSensors.future,
+    );
+
+    expect(find.text('Graphics mode'), findsOneWidget);
+    expect(find.text('Loading live GPU readings…'), findsOneWidget);
+
+    pendingSensors.complete(
+      _liveSensorSnapshot(
+        'NVIDIA GeForce RTX 4060',
+        dgpuReading: false,
+        igpu: const GpuReading(name: 'AMD Integrated Graphics'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Loading live GPU readings…'), findsNothing);
+    expect(find.text('AMD Integrated Graphics'), findsOneWidget);
+  });
+
   testWidgets('dGPU handoff is responsive and shows live P-state', (
     tester,
   ) async {
@@ -581,6 +636,7 @@ Future<_MockDgpuRepository> _pumpPage(
   GpuReading? igpu,
   GpuProcessScan? igpuProcesses,
   GraphicsModeStatus? graphicsModeStatus = _hybridStatus,
+  Future<LiveSensorSnapshot>? pendingSensors,
 }) async {
   tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
@@ -632,24 +688,19 @@ Future<_MockDgpuRepository> _pumpPage(
   await dgpuLoaded;
 
   final sensorRepository = _MockLiveSensorRepository();
-  when(sensorRepository.loadSnapshot).thenAnswer(
-    (_) async => _liveSensorSnapshot(
+  when(sensorRepository.loadSnapshot).thenAnswer((_) async {
+    if (pendingSensors != null) return pendingSensors;
+    return _liveSensorSnapshot(
       gpuName,
       dgpuReading: dgpuAvailable && (dgpuActive ?? true),
       igpu: igpu,
       igpuProcesses: igpuProcesses,
-    ),
-  );
+    );
+  });
   final sensorBloc = LiveSensorBloc(
     repository: sensorRepository,
     pollInterval: const Duration(days: 1),
   );
-  final sensorsLoaded = sensorBloc.stream.firstWhere(
-    (state) => !state.isLoading,
-  );
-  sensorBloc.add(const LiveSensorStarted());
-  await sensorsLoaded;
-
   final powerRepository = _MockPowerRepository();
   when(powerRepository.loadSnapshot).thenAnswer((_) async => _powerSnapshot);
   final powerBloc = PowerBloc(
@@ -709,7 +760,11 @@ Future<_MockDgpuRepository> _pumpPage(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  if (pendingSensors == null) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
   return dgpuRepository;
 }
 
