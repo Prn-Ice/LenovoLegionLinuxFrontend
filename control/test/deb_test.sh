@@ -84,6 +84,9 @@ session_prepare active success
 session_send active connect
 session_send active authorize
 session_send active enable
+# Package upgrades reload systemd; the active session must survive it.
+systemctl daemon-reload
+printf 'enabled\n' | diff - <(session_value active battery-conservation)
 dpkg-deb -R "$package" /tmp/upgrade
 upgraded=$version+qualification
 sed -i "s/^Version: .*/Version: $upgraded/" /tmp/upgrade/DEBIAN/control
